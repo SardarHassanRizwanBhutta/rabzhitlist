@@ -1,0 +1,96 @@
+export interface EmployerLocation {
+  id: string
+  employerId: string
+  country: string
+  city: string
+  address: string
+  isHeadquarters: boolean
+  salaryPolicy: SalaryPolicy
+  minSize: number
+  maxSize: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Employer {
+  id: string
+  name: string
+  websiteUrl: string
+  linkedinUrl?: string
+  status: EmployerStatus
+  foundedYear: number
+  locations: EmployerLocation[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type EmployerSize = 
+  | "Startup (1-10)"
+  | "Small (11-50)"
+  | "Medium (51-200)"
+  | "Large (201-500)"
+  | "Enterprise (500+)"
+
+export type EmployerStatus = 
+  | "Active"
+  | "Flagged"
+  | "Closed"
+
+export type SalaryPolicy = 
+  | "Standard"
+  | "Tax Free"
+  | "Remittance"
+
+export interface EmployerTableColumn {
+  id: keyof Employer | 'actions'
+  label: string
+  sortable?: boolean
+  priority: 'high' | 'medium' | 'low'
+  responsive: {
+    desktop: boolean
+    tablet: boolean
+    mobile: boolean
+  }
+}
+
+export const EMPLOYER_STATUS_COLORS: Record<EmployerStatus, string> = {
+  Active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  Flagged: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Closed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+}
+
+export const SALARY_POLICY_COLORS: Record<SalaryPolicy, string> = {
+  Standard: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+  "Tax Free": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  Remittance: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+}
+
+export const EMPLOYER_STATUS_LABELS: Record<EmployerStatus, string> = {
+  Active: "Active",
+  Flagged: "Flagged", 
+  Closed: "Closed"
+}
+
+export const SALARY_POLICY_LABELS: Record<SalaryPolicy, string> = {
+  Standard: "Standard",
+  "Tax Free": "Tax Free",
+  Remittance: "Remittance"
+}
+
+// Size calculation utilities
+export const calculateEmployerSize = (locations: EmployerLocation[]): { totalMinSize: number; totalMaxSize: number } => {
+  const totalMinSize = locations.reduce((sum, location) => sum + location.minSize, 0)
+  const totalMaxSize = locations.reduce((sum, location) => sum + location.maxSize, 0)
+  return { totalMinSize, totalMaxSize}
+}
+
+// Get display label for calculated size
+export const getEmployerSizeDisplay = (locations: EmployerLocation[]): string => {
+  const { totalMinSize, totalMaxSize } = calculateEmployerSize(locations)
+  
+  if (totalMinSize === totalMaxSize) {
+    return `${totalMinSize}`
+  } else {
+    return `${totalMinSize}-${totalMaxSize}`
+  }
+}

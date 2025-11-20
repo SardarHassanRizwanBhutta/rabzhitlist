@@ -1,0 +1,17 @@
+---
+description: Guidelines for our Next.js 15 App Router project using Tailwind CSS and shadcn/ui.
+globs:
+  - "**/*"
+alwaysApply: true
+---
+We are building a Next.js 15 App Router application in TypeScript using Tailwind CSS and shadcn/ui.
+
+Guidelines:
+- Implement requirements feature by feature.
+- Default to Server Components; use Client Components only when necessary (e.g., interactivity, stateful UI).
+- Follow best practices for file structure, accessibility (a11y), and strict TypeScript typing.
+- Follow general coding best practices: write clean, maintainable, and well-documented code with clear naming conventions and consistent formatting.
+- Maintain a consistent design system—color palette, spacing, and typography remain uniform across the app.
+- Favor reusable, well-typed components and avoid redundancy.
+- Prioritize performance: follow Next.js and React best practices (code-splitting, lazy loading, image optimization, caching) to keep the app fast and responsive.
+- When suggesting code, briefly explain key design or architectural choices.
