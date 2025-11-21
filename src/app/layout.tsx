@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rebel Talent Hunt",
+  title: "Rahz Hit List",
   description: "Discover and showcase exceptional talent through innovative challenges and projects",
 };
 
