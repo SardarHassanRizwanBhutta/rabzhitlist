@@ -90,7 +90,7 @@ export function NavigationSidebar({
         <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger />
           <div className="flex-1">
-            <h1 className="text-lg font-semibold">Rahz Hit List</h1>
+            <h1 className="text-lg font-semibold">Rabz Hit List</h1>
           </div>
           <GlobalFilterDialog />
         </header>
@@ -114,7 +114,7 @@ function AppSidebar() {
             <Building2 className="size-4" />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">Rahz Hit List</span>
+            <span className="truncate font-semibold">Rabz Hit List</span>
             <span className="truncate text-xs text-muted-foreground">
               Talent Management
             </span>
