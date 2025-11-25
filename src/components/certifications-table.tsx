@@ -87,7 +87,7 @@ export function CertificationsTable({
     return certifications.filter(
       (cert) =>
         cert.certificationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        cert.issuingBody.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (cert.issuingBody !== null && cert.issuingBody.toLowerCase().includes(searchQuery.toLowerCase())) ||
         cert.certificationLevel.toLowerCase().includes(searchQuery.toLowerCase()) ||
         cert.id.toLowerCase().includes(searchQuery.toLowerCase())
     )

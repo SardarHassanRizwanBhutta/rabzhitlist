@@ -122,14 +122,16 @@ export function EmployersTable({
       }
 
       // Founded year filter
-      if (filters.foundedYears.length > 0 && !filters.foundedYears.includes(employer.foundedYear.toString())) {
-        return false
+      if (filters.foundedYears.length > 0) {
+        if (employer.foundedYear === null || !filters.foundedYears.includes(employer.foundedYear.toString())) {
+          return false
+        }
       }
 
       // Country filter
       if (filters.countries.length > 0) {
         const hasMatchingCountry = employer.locations.some(location => 
-          filters.countries.includes(location.country)
+          location.country !== null && filters.countries.includes(location.country)
         )
         if (!hasMatchingCountry) return false
       }
@@ -137,7 +139,7 @@ export function EmployersTable({
       // City filter
       if (filters.cities.length > 0) {
         const hasMatchingCity = employer.locations.some(location => 
-          filters.cities.includes(location.city)
+          location.city !== null && filters.cities.includes(location.city)
         )
         if (!hasMatchingCity) return false
       }
@@ -456,9 +458,13 @@ export function EmployersTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <LinkButton href={employer.websiteUrl}>
-                        Website
-                      </LinkButton>
+                      {employer.websiteUrl ? (
+                        <LinkButton href={employer.websiteUrl}>
+                          Website
+                        </LinkButton>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">N/A</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {employer.linkedinUrl ? (

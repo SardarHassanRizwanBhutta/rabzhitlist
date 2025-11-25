@@ -116,7 +116,7 @@ export function UniversitiesTable({
           uni.ranking.toLowerCase().includes(searchQuery.toLowerCase()) ||
           uni.locations.some(loc => 
             loc.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            loc.address.toLowerCase().includes(searchQuery.toLowerCase())
+            (loc.address !== null && loc.address.toLowerCase().includes(searchQuery.toLowerCase()))
           )
       )
   }, [universities, searchQuery])
@@ -356,9 +356,13 @@ export function UniversitiesTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <LinkButton href={university.websiteUrl}>
-                        Website
-                      </LinkButton>
+                      {university.websiteUrl ? (
+                        <LinkButton href={university.websiteUrl}>
+                          Website
+                        </LinkButton>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">N/A</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {university.linkedinUrl ? (

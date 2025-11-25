@@ -40,7 +40,9 @@ const extractGlobalCountries = (): string[] => {
   // From employers
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      countries.add(location.country)
+      if (location.country !== null) {
+        countries.add(location.country)
+      }
     })
   })
   
@@ -65,7 +67,9 @@ const extractGlobalCities = (): string[] => {
   // From employers
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      cities.add(location.city)
+      if (location.city !== null) {
+        cities.add(location.city)
+      }
     })
   })
   

@@ -111,8 +111,8 @@ export function ProjectsTable({
         project.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         project.employerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         project.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.teamSize.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (project.teamSize !== null && project.teamSize.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (project.description !== null && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.techStacks.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.verticalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.horizontalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -521,7 +521,7 @@ function ProjectDetailDialog({ project, open, onClose }: ProjectDetailDialogProp
               <div>
                 <Label className="text-sm font-semibold text-muted-foreground">Timeline</Label>
                 <div className="space-y-1 mt-1">
-                  <p className="text-sm">Started: {formatDate(project.startDate)}</p>
+                  <p className="text-sm">Started: {formatDate(project.startDate ?? undefined)}</p>
                   <p className="text-sm">
                     {project.endDate ? `Ended: ${formatDate(project.endDate)}` : "Ongoing"}
                   </p>
@@ -535,7 +535,7 @@ function ProjectDetailDialog({ project, open, onClose }: ProjectDetailDialogProp
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(project.projectLink, '_blank')}
+                      onClick={() => project.projectLink && window.open(project.projectLink, '_blank')}
                       className="h-8"
                     >
                       <ExternalLinkIcon className="h-3 w-3 mr-2" />
