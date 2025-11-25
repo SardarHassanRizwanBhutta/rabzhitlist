@@ -50,7 +50,9 @@ const extractUniqueCountries = (): string[] => {
   const countries = new Set<string>()
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      countries.add(location.country)
+      if (location.country !== null) {
+        countries.add(location.country)
+      }
     })
   })
   return Array.from(countries).sort()
@@ -60,7 +62,9 @@ const extractUniqueCities = (): string[] => {
   const cities = new Set<string>()
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      cities.add(location.city)
+      if (location.city !== null) {
+        cities.add(location.city)
+      }
     })
   })
   return Array.from(cities).sort()
@@ -69,7 +73,9 @@ const extractUniqueCities = (): string[] => {
 const extractUniqueFoundedYears = (): number[] => {
   const years = new Set<number>()
   sampleEmployers.forEach(employer => {
-    years.add(employer.foundedYear)
+    if (employer.foundedYear !== null) {
+      years.add(employer.foundedYear)
+    }
   })
   return Array.from(years).sort((a, b) => b - a) // Newest first
 }

@@ -6,13 +6,13 @@ export interface Project {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
-  teamSize: string  // "5" or "20-30"
-  startDate: Date
-  endDate: Date | undefined  // undefined for ongoing projects
+  teamSize: string | null  // "5" or "20-30"
+  startDate: Date | null
+  endDate: Date | null
   status: ProjectStatus
-  description: string
-  notes: string
-  projectLink?: string
+  description: string | null
+  notes: string | null
+  projectLink: string | null
   projectType: ProjectType
   createdAt: Date
   updatedAt: Date

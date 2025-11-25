@@ -2,18 +2,18 @@ export interface Candidate {
   id: string
   name: string
   currentJobTitle: string
-  postingTitle: string
+  postingTitle: string | null
   email: string
   mobileNo: string
-  cnic: string
-  currentSalary: number
-  expectedSalary: number
+  cnic: string | null
+  currentSalary: number | null
+  expectedSalary: number | null
   city: string
-  githubUrl?: string
-  linkedinUrl?: string
+  githubUrl?: string | null
+  linkedinUrl?: string | null
   source: string
   status: CandidateStatus
-  resume?: string
+  resume?: string | null
   createdAt: Date
   updatedAt: Date
 }

@@ -1,7 +1,7 @@
 export interface Certification {
   id: string
   certificationName: string
-  issuingBody: string
+  issuingBody: string | null
   certificationLevel: CertificationLevel
   createdAt: Date
   updatedAt: Date

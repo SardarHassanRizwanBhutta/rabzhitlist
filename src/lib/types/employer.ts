@@ -1,13 +1,13 @@
 export interface EmployerLocation {
   id: string
   employerId: string
-  country: string
-  city: string
-  address: string
+  country: string | null
+  city: string | null
+  address: string | null
   isHeadquarters: boolean
   salaryPolicy: SalaryPolicy
-  minSize: number
-  maxSize: number
+  minSize: number | null
+  maxSize: number | null
   createdAt: Date
   updatedAt: Date
 }
@@ -15,10 +15,10 @@ export interface EmployerLocation {
 export interface Employer {
   id: string
   name: string
-  websiteUrl: string
-  linkedinUrl?: string
+  websiteUrl: string | null
+  linkedinUrl: string | null
   status: EmployerStatus
-  foundedYear: number
+  foundedYear: number | null
   locations: EmployerLocation[]
   createdAt: Date
   updatedAt: Date
@@ -79,8 +79,8 @@ export const SALARY_POLICY_LABELS: Record<SalaryPolicy, string> = {
 
 // Size calculation utilities
 export const calculateEmployerSize = (locations: EmployerLocation[]): { totalMinSize: number; totalMaxSize: number } => {
-  const totalMinSize = locations.reduce((sum, location) => sum + location.minSize, 0)
-  const totalMaxSize = locations.reduce((sum, location) => sum + location.maxSize, 0)
+  const totalMinSize = locations.reduce((sum, location) => sum + (location.minSize ?? 0), 0)
+  const totalMaxSize = locations.reduce((sum, location) => sum + (location.maxSize ?? 0), 0)
   return { totalMinSize, totalMaxSize}
 }
 

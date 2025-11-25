@@ -130,20 +130,20 @@ export function CandidateDetailsModal({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Posting Title</label>
-                <p className="text-sm">{candidate.postingTitle}</p>
+                <p className="text-sm">{candidate.postingTitle ? candidate.postingTitle : "N/A"}</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Current Salary</label>
                 <p className="text-sm flex items-center gap-1">
                   <DollarSign className="size-4" />
-                  {formatCurrency(candidate.currentSalary)}
+                  {candidate.currentSalary ? formatCurrency(candidate.currentSalary) : "N/A"}
                 </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-muted-foreground">Expected Salary</label>
                 <p className="text-sm flex items-center gap-1">
                   <DollarSign className="size-4" />
-                  {formatCurrency(candidate.expectedSalary)}
+                  {candidate.expectedSalary ? formatCurrency(candidate.expectedSalary) : "N/A"}
                 </p>
               </div>
             </div>
@@ -178,7 +178,7 @@ export function CandidateDetailsModal({
               )}
               {candidate.resume && (
                 <Button variant="outline" size="sm" asChild>
-                  <a href={`/resumes/${candidate.resume}`} target="_blank" rel="noopener noreferrer">
+                  <a href={candidate.resume} target="_blank" rel="noopener noreferrer">
                     <Download className="size-4" />
                     Download Resume
                   </a>

@@ -2,7 +2,7 @@ export interface UniversityLocation {
   id: string
   universityId: string
   city: string
-  address: string
+  address: string | null
   isMainCampus: boolean
   createdAt: Date
   updatedAt: Date
@@ -13,8 +13,8 @@ export interface University {
   name: string
   country: string
   ranking: UniversityRanking
-  websiteUrl: string
-  linkedinUrl?: string
+  websiteUrl: string | null
+  linkedinUrl: string | null
   locations: UniversityLocation[]
   createdAt: Date
   updatedAt: Date
