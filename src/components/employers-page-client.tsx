@@ -108,7 +108,7 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
       // Global Countries filter
       if (globalFilters.countries.length > 0) {
         const hasMatchingCountry = employer.locations.some(location =>
-          globalFilters.countries.includes(location.country)
+          location.country !== null && globalFilters.countries.includes(location.country)
         )
         if (!hasMatchingCountry) return false
       }
@@ -116,7 +116,7 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
       // Global Cities filter
       if (globalFilters.cities.length > 0) {
         const hasMatchingCity = employer.locations.some(location =>
-          globalFilters.cities.includes(location.city)
+          location.city !== null && globalFilters.cities.includes(location.city)
         )
         if (!hasMatchingCity) return false
       }

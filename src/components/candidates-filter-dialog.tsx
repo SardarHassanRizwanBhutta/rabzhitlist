@@ -163,7 +163,9 @@ const extractUniqueEmployerCountries = () => {
   const countries = new Set<string>()
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      countries.add(location.country)
+      if (location.country !== null) {
+        countries.add(location.country)
+      }
     })
   })
   return Array.from(countries).sort()
@@ -173,7 +175,9 @@ const extractUniqueEmployerCities = () => {
   const cities = new Set<string>()
   sampleEmployers.forEach(employer => {
     employer.locations.forEach(location => {
-      cities.add(location.city)
+      if (location.city !== null) {
+        cities.add(location.city)
+      }
     })
   })
   return Array.from(cities).sort()
@@ -276,7 +280,9 @@ const extractUniqueCertificationNames = () => {
 const extractUniqueCertificationIssuingBodies = () => {
   const issuingBodies = new Set<string>()
   sampleCertifications.forEach(certification => {
-    issuingBodies.add(certification.issuingBody)
+    if (certification.issuingBody !== null) {
+      issuingBodies.add(certification.issuingBody)
+    }
   })
   return Array.from(issuingBodies).sort()
 }

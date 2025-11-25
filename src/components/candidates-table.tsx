@@ -62,19 +62,28 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
     if (!sortColumn || !sortDirection) return candidates
 
     return [...candidates].sort((a, b) => {
-      let aValue = a[sortColumn]
-      let bValue = b[sortColumn]
+      const aValue = a[sortColumn]
+      const bValue = b[sortColumn]
+
+      // Handle null values - nulls should be sorted last
+      if (aValue === null && bValue === null) return 0
+      if (aValue === null) return 1
+      if (bValue === null) return -1
+
+      // At this point, both values are non-null
+      let aCompare: string | number = aValue
+      let bCompare: string | number = bValue
 
       // Handle different data types
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        aValue = aValue.toLowerCase()
-        bValue = bValue.toLowerCase()
+        aCompare = aValue.toLowerCase()
+        bCompare = bValue.toLowerCase()
       }
 
-      if (aValue < bValue) {
+      if (aCompare < bCompare) {
         return sortDirection === "asc" ? -1 : 1
       }
-      if (aValue > bValue) {
+      if (aCompare > bCompare) {
         return sortDirection === "asc" ? 1 : -1
       }
       return 0
@@ -196,7 +205,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
                     className="font-medium"
                     onClick={() => setSelectedCandidate(candidate)}
                   >
-                    {formatCurrency(candidate.expectedSalary)}
+                    {candidate.expectedSalary !== null ? formatCurrency(candidate.expectedSalary) : "N/A"}
                   </TableCell>
                   
                   {/* Status */}

@@ -96,13 +96,13 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       // Current salary range filter
       if (appliedFilters.currentSalaryMin) {
         const minSalary = parseFloat(appliedFilters.currentSalaryMin)
-        if (!isNaN(minSalary) && candidate.currentSalary < minSalary) {
+        if (!isNaN(minSalary) && candidate.currentSalary !== null && candidate.currentSalary < minSalary) {
           return false
         }
       }
       if (appliedFilters.currentSalaryMax) {
         const maxSalary = parseFloat(appliedFilters.currentSalaryMax)
-        if (!isNaN(maxSalary) && candidate.currentSalary > maxSalary) {
+        if (!isNaN(maxSalary) && candidate.currentSalary !== null && candidate.currentSalary > maxSalary) {
           return false
         }
       }
@@ -110,13 +110,13 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       // Expected salary range filter
       if (appliedFilters.expectedSalaryMin) {
         const minSalary = parseFloat(appliedFilters.expectedSalaryMin)
-        if (!isNaN(minSalary) && candidate.expectedSalary < minSalary) {
+        if (!isNaN(minSalary) && candidate.expectedSalary !== null && candidate.expectedSalary < minSalary) {
           return false
         }
       }
       if (appliedFilters.expectedSalaryMax) {
         const maxSalary = parseFloat(appliedFilters.expectedSalaryMax)
-        if (!isNaN(maxSalary) && candidate.expectedSalary > maxSalary) {
+        if (!isNaN(maxSalary) && candidate.expectedSalary !== null && candidate.expectedSalary > maxSalary) {
           return false
         }
       }
@@ -266,7 +266,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       if (appliedFilters.employerSalaryPolicies.length > 0) {
         // Mock: Map job characteristics to salary policy preferences
         const hasMatchingPolicy = appliedFilters.employerSalaryPolicies.some(policy => {
-          if (policy === "Tax Free" && candidate.expectedSalary > candidate.currentSalary * 1.2) return true
+          if (policy === "Tax Free" && candidate.currentSalary !== null && candidate.expectedSalary !== null && candidate.expectedSalary > candidate.currentSalary * 1.2) return true
           if (policy === "Remittance" && candidate.currentJobTitle.toLowerCase().includes('remote')) return true
           return policy === "Standard"
         })
@@ -469,7 +469,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         const candidateIsCheetah = candidate.currentJobTitle.toLowerCase().includes('consultant') ||
                                   candidate.currentJobTitle.toLowerCase().includes('freelance') ||
                                   candidate.currentJobTitle.toLowerCase().includes('contractor') ||
-                                  candidate.expectedSalary > candidate.currentSalary * 1.3
+                                  (candidate.currentSalary !== null && candidate.expectedSalary !== null && candidate.expectedSalary > candidate.currentSalary * 1.3)
         
         if (appliedFilters.isCheetah && !candidateIsCheetah) return false
         if (!appliedFilters.isCheetah && candidateIsCheetah) return false
