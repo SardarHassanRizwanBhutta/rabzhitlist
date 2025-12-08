@@ -8,14 +8,12 @@ import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 
 import {
   Sidebar,
-  SidebarContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
