@@ -161,15 +161,6 @@ export function CertificationsTable({
     </Button>
   )
 
-  const formatDate = (date: Date | undefined) => {
-    if (!date) return "N/A"
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   if (isLoading) {
     return (
       <div className="space-y-4">

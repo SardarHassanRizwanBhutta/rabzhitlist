@@ -34,7 +34,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
-import { CandidateCreationDialog } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData } from "@/components/candidate-creation-dialog"
 
 interface CandidatesTableProps {
   candidates: Candidate[]
@@ -63,7 +63,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
     setEditDialogOpen(true)
   }
 
-  const handleUpdateCandidate = async (formData: any) => {
+  const handleUpdateCandidate = async (formData: CandidateFormData) => {
     // TODO: Implement actual update API call
     console.log("Update candidate:", candidateToEdit?.id, formData)
     // For now, just close the dialog

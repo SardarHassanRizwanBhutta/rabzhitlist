@@ -117,10 +117,6 @@ export function EmployerCreationDialog({
         if (i === index) {
           // If setting this location as headquarters, unset others
           if (field === "isHeadquarters" && value === true) {
-            const updatedLocations = prev.locations.map((loc, locIndex) => ({
-              ...loc,
-              isHeadquarters: locIndex === index
-            }))
             return { ...location, [field]: value }
           }
           return { ...location, [field]: value }

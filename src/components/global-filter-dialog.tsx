@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { Filter, Globe } from "lucide-react"
+import { Globe } from "lucide-react"
 import { GlobalFilters, getGlobalFilterCount } from "@/lib/types/global-filters"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { sampleEmployers } from "@/lib/sample-data/employers"

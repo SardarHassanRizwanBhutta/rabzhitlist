@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useSearchParams } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
 import { Globe } from "lucide-react"
 import { ProjectsTable } from "@/components/projects-table"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
