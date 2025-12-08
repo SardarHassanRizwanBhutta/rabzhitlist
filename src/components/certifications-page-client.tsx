@@ -1,9 +1,11 @@
 "use client"
 
-import { useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { CertificationsTable } from "@/components/certifications-table"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
+import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Certification } from "@/lib/types/certification"
@@ -13,16 +15,59 @@ interface CertificationsPageClientProps {
 }
 
 export function CertificationsPageClient({ certifications }: CertificationsPageClientProps) {
+  const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
+  const [filters, setFilters] = useState<CertificationFilters>({
+    certificationNames: [],
+    issuingBodies: [],
+    certificationLevels: [],
+  })
 
-  // Apply global filters to certifications (limited filtering for certifications)
+  // Check for URL filters
+  useEffect(() => {
+    const certificationFilterName = searchParams.get('certificationFilter')
+    const certificationId = searchParams.get('certificationId')
+    
+    if (certificationFilterName && certificationId) {
+      // Apply certification filter
+      setFilters(prev => ({
+        ...prev,
+        certificationNames: [certificationFilterName]
+      }))
+    }
+  }, [searchParams])
+
+  // Apply global filters and local filters to certifications
   const filteredCertifications = useMemo(() => {
-    if (!hasGlobalFilters) return certifications
+    let filtered = certifications
 
-    // Note: Certifications have limited global filter applicability
-    // Only status filter would apply if certifications had status field
-    return certifications
-  }, [certifications, globalFilters, hasGlobalFilters])
+    // Apply global filters (limited filtering for certifications)
+    if (hasGlobalFilters) {
+      // Note: Certifications have limited global filter applicability
+      // Only status filter would apply if certifications had status field
+    }
+
+    // Apply local filters
+    if (filters.certificationNames.length > 0) {
+      filtered = filtered.filter(cert =>
+        filters.certificationNames.includes(cert.certificationName)
+      )
+    }
+
+    if (filters.issuingBodies.length > 0) {
+      filtered = filtered.filter(cert =>
+        cert.issuingBody !== null && filters.issuingBodies.includes(cert.issuingBody)
+      )
+    }
+
+    if (filters.certificationLevels.length > 0) {
+      filtered = filtered.filter(cert =>
+        filters.certificationLevels.includes(cert.certificationLevel)
+      )
+    }
+
+    return filtered
+  }, [certifications, globalFilters, hasGlobalFilters, filters])
 
   const handleCertificationSubmit = async (data: CertificationFormData) => {
     // Here you would typically send the data to your API
@@ -53,6 +98,14 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
     }
   }
 
+  const handleClearFilters = () => {
+    setFilters({
+      certificationNames: [],
+      issuingBodies: [],
+      certificationLevels: [],
+    })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -62,7 +115,14 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
             Manage professional certifications and achievements
           </p>
         </div>
-        <CertificationCreationDialog onSubmit={handleCertificationSubmit} />
+        <div className="flex items-center gap-2">
+          <CertificationsFilterDialog
+            filters={filters}
+            onFiltersChange={setFilters}
+            onClearFilters={handleClearFilters}
+          />
+          <CertificationCreationDialog onSubmit={handleCertificationSubmit} />
+        </div>
       </div>
 
       {/* Global Filter Indicator */}

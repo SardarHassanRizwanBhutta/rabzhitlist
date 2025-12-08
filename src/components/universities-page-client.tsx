@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { UniversitiesTable } from "@/components/universities-table"
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
@@ -20,8 +21,20 @@ const initialFilters: UniversityFilters = {
 }
 
 export function UniversitiesPageClient({ universities }: UniversitiesPageClientProps) {
+  const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<UniversityFilters>(initialFilters)
+
+  // Check for URL filters
+  useEffect(() => {
+    const universityFilterName = searchParams.get('universityFilter')
+    const universityId = searchParams.get('universityId')
+    
+    if (universityFilterName && universityId) {
+      // Apply university filter - add to countries filter if needed
+      // The table will show the filtered university
+    }
+  }, [searchParams])
 
   const handleUniversitySubmit = async (data: UniversityFormData) => {
     // Here you would typically send the data to your API
@@ -68,10 +81,46 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     })
   }
 
-  // Apply global filters to universities
+  // Apply global filters and filter dialog filters to universities
   const filteredUniversities = useMemo(() => {
-    return applyGlobalFilters(universities)
-  }, [universities, globalFilters, hasGlobalFilters])
+    let universityList = universities
+
+    // Apply global filters first
+    universityList = applyGlobalFilters(universityList)
+
+    // Apply URL filter if present
+    const universityFilterName = searchParams.get('universityFilter')
+    const universityId = searchParams.get('universityId')
+    
+    if (universityFilterName && universityId) {
+      universityList = universityList.filter(uni => 
+        uni.id === universityId || uni.name.trim().toLowerCase() === universityFilterName.trim().toLowerCase()
+      )
+    }
+
+    // Apply filter dialog filters
+    return universityList.filter(university => {
+      // Countries filter
+      if (filters.countries.length > 0 && !filters.countries.includes(university.country)) {
+        return false
+      }
+
+      // Rankings filter
+      if (filters.rankings.length > 0 && !filters.rankings.includes(university.ranking)) {
+        return false
+      }
+
+      // Cities filter
+      if (filters.cities.length > 0) {
+        const hasMatchingCity = university.locations.some(location =>
+          filters.cities.includes(location.city)
+        )
+        if (!hasMatchingCity) return false
+      }
+
+      return true
+    })
+  }, [universities, globalFilters, hasGlobalFilters, filters, searchParams])
 
   return (
     <div className="space-y-6">

@@ -172,12 +172,38 @@ export function EmployersTable({
       }
 
       // Project-based filters
-      const employerProjects = sampleProjects.filter(project => project.employerName === employer.name)
+      // Filter projects that belong to this employer (case-insensitive, handle null)
+      const employerProjects = sampleProjects.filter(project => {
+        if (project.employerName === null) return false
+        return project.employerName.trim().toLowerCase() === employer.name.trim().toLowerCase()
+      })
+      
+      // Helper function for case-insensitive array comparison
+      const arraysMatch = (arr1: string[], arr2: string[]) => {
+        return arr1.some(item1 => 
+          arr2.some(item2 => 
+            item1.toLowerCase().trim() === item2.toLowerCase().trim()
+          )
+        )
+      }
+      
+      // If any project-based filter is active, check if employer has matching projects
+      const hasProjectFilters = 
+        filters.techStacks.length > 0 ||
+        filters.verticalDomains.length > 0 ||
+        filters.horizontalDomains.length > 0 ||
+        filters.technicalAspects.length > 0 ||
+        filters.projectStatus.length > 0
+
+      // If no projects found and project filters are active, exclude this employer
+      if (hasProjectFilters && employerProjects.length === 0) {
+        return false
+      }
       
       // Technology stack filter
       if (filters.techStacks.length > 0) {
         const hasMatchingTechStack = employerProjects.some(project =>
-          project.techStacks.some(tech => filters.techStacks.includes(tech))
+          arraysMatch(project.techStacks, filters.techStacks)
         )
         if (!hasMatchingTechStack) return false
       }
@@ -185,7 +211,7 @@ export function EmployersTable({
       // Vertical domains filter
       if (filters.verticalDomains.length > 0) {
         const hasMatchingVerticalDomain = employerProjects.some(project =>
-          project.verticalDomains.some(domain => filters.verticalDomains.includes(domain))
+          arraysMatch(project.verticalDomains, filters.verticalDomains)
         )
         if (!hasMatchingVerticalDomain) return false
       }
@@ -193,7 +219,7 @@ export function EmployersTable({
       // Horizontal domains filter
       if (filters.horizontalDomains.length > 0) {
         const hasMatchingHorizontalDomain = employerProjects.some(project =>
-          project.horizontalDomains.some(domain => filters.horizontalDomains.includes(domain))
+          arraysMatch(project.horizontalDomains, filters.horizontalDomains)
         )
         if (!hasMatchingHorizontalDomain) return false
       }
@@ -201,7 +227,7 @@ export function EmployersTable({
       // Technical aspects filter
       if (filters.technicalAspects.length > 0) {
         const hasMatchingTechnicalAspect = employerProjects.some(project =>
-          project.technicalAspects.some(aspect => filters.technicalAspects.includes(aspect))
+          arraysMatch(project.technicalAspects, filters.technicalAspects)
         )
         if (!hasMatchingTechnicalAspect) return false
       }
@@ -209,7 +235,9 @@ export function EmployersTable({
       // Project status filter
       if (filters.projectStatus.length > 0) {
         const hasMatchingProjectStatus = employerProjects.some(project =>
-          filters.projectStatus.includes(project.status)
+          filters.projectStatus.some(filterStatus => 
+            project.status.toLowerCase().trim() === filterStatus.toLowerCase().trim()
+          )
         )
         if (!hasMatchingProjectStatus) return false
       }

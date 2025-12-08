@@ -61,6 +61,7 @@ import {
   PROJECT_STATUS_COLORS,
   PROJECT_STATUS_LABELS,
 } from "@/lib/types/project"
+import { sampleCandidates } from "@/lib/sample-data/candidates"
 
 // Utility functions
 const formatDate = (date: Date | undefined) => {
@@ -86,6 +87,24 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
+// Helper function to calculate team size for a project
+const calculateTeamSize = (projectName: string): number => {
+  return sampleCandidates.filter(candidate => {
+    // Check work experience projects
+    const workExperienceProjects = candidate.workExperiences?.flatMap(we => 
+      we.projects.map(p => p.projectName)
+    ) || []
+    // Check standalone projects
+    const standaloneProjects = candidate.projects?.map(p => p.projectName) || []
+    // Combine both
+    const candidateProjects = [...workExperienceProjects, ...standaloneProjects]
+    // Check if this candidate has the project
+    return candidateProjects.some(proj => 
+      proj.toLowerCase() === projectName.toLowerCase()
+    )
+  }).length
+}
+
 export function ProjectsTable({
   projects,
   isLoading = false,
@@ -109,7 +128,7 @@ export function ProjectsTable({
     return projects.filter(
       (project) =>
         project.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.employerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (project.employerName !== null && project.employerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (project.teamSize !== null && project.teamSize.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.description !== null && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -312,7 +331,7 @@ export function ProjectsTable({
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <UsersIcon className="h-3 w-3 text-muted-foreground" />
-                    {project.teamSize}
+                    {calculateTeamSize(project.projectName) || project.teamSize || "N/A"}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -500,12 +519,14 @@ function ProjectDetailDialog({ project, open, onClose }: ProjectDetailDialogProp
                 <Label className="text-sm font-semibold text-muted-foreground">Team Size</Label>
                 <div className="flex items-center gap-2 mt-1">
                   <UsersIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-base">{project.teamSize} members</span>
+                  <span className="text-base">
+                    {calculateTeamSize(project.projectName) || project.teamSize || "N/A"} members
+                  </span>
                 </div>
               </div>
 
               <div>
-                <Label className="text-sm font-semibold text-muted-foreground">Status</Label>
+                <Label className="text-sm font-semibold text-muted-foreground">Project Phase</Label>
                 <div className="mt-1">
                   <Badge
                     variant="secondary"
@@ -522,9 +543,9 @@ function ProjectDetailDialog({ project, open, onClose }: ProjectDetailDialogProp
                 <Label className="text-sm font-semibold text-muted-foreground">Timeline</Label>
                 <div className="space-y-1 mt-1">
                   <p className="text-sm">Started: {formatDate(project.startDate ?? undefined)}</p>
-                  <p className="text-sm">
-                    {project.endDate ? `Ended: ${formatDate(project.endDate)}` : "Ongoing"}
-                  </p>
+                  {project.endDate && (
+                    <p className="text-sm">Ended: {formatDate(project.endDate)}</p>
+                  )}
                 </div>
               </div>
 

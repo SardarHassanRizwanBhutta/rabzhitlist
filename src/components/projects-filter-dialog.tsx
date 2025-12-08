@@ -16,6 +16,7 @@ import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { Filter } from "lucide-react"
 import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
+import { sampleProjects } from "@/lib/sample-data/projects"
 
 // Filter interfaces
 export interface ProjectFilters {
@@ -35,93 +36,82 @@ interface ProjectsFilterDialogProps {
   onClearFilters: () => void
 }
 
-// Mock data for filter options
+// Extract unique values from project data
+const extractUniqueTechStacks = (): string[] => {
+  const techStacks = new Set<string>()
+  sampleProjects.forEach(project => {
+    project.techStacks.forEach(tech => techStacks.add(tech))
+  })
+  return Array.from(techStacks).sort()
+}
+
+const extractUniqueVerticalDomains = (): string[] => {
+  const domains = new Set<string>()
+  sampleProjects.forEach(project => {
+    project.verticalDomains.forEach(domain => domains.add(domain))
+  })
+  return Array.from(domains).sort()
+}
+
+const extractUniqueHorizontalDomains = (): string[] => {
+  const domains = new Set<string>()
+  sampleProjects.forEach(project => {
+    project.horizontalDomains.forEach(domain => domains.add(domain))
+  })
+  return Array.from(domains).sort()
+}
+
+const extractUniqueTechnicalAspects = (): string[] => {
+  const aspects = new Set<string>()
+  sampleProjects.forEach(project => {
+    project.technicalAspects.forEach(aspect => aspects.add(aspect))
+  })
+  return Array.from(aspects).sort()
+}
+
+const extractUniqueProjectTypes = (): string[] => {
+  const types = new Set<string>()
+  sampleProjects.forEach(project => {
+    types.add(project.projectType)
+  })
+  return Array.from(types).sort()
+}
+
+// Filter options
 const statusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({
   value: value as ProjectStatus,
   label
 }))
 
-const projectTypeOptions: MultiSelectOption[] = [
-  { value: "Employer", label: "Employer" },
-  { value: "Academic", label: "Academic" },
-  { value: "Freelance", label: "Freelance" },
-  { value: "Personal", label: "Personal" },
-]
+const projectTypeOptions: MultiSelectOption[] = extractUniqueProjectTypes().map(type => ({
+  value: type,
+  label: type
+}))
 
 const employerOptions: MultiSelectOption[] = sampleEmployers.map(employer => ({
   value: employer.id,
   label: employer.name
 }))
 
-const verticalDomainOptions: MultiSelectOption[] = [
-  { value: "healthcare", label: "Healthcare" },
-  { value: "finance", label: "Finance" },
-  { value: "education", label: "Education" },
-  { value: "e-commerce", label: "E-Commerce" },
-  { value: "logistics", label: "Logistics" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "retail", label: "Retail" },
-  { value: "government", label: "Government" },
-  { value: "entertainment", label: "Entertainment" },
-  { value: "real-estate", label: "Real Estate" },
-  { value: "automotive", label: "Automotive" },
-  { value: "energy", label: "Energy" },
-]
+const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
+  value: domain,
+  label: domain
+}))
 
-const horizontalDomainOptions: MultiSelectOption[] = [
-  { value: "crm", label: "CRM" },
-  { value: "erp", label: "ERP" },
-  { value: "cms", label: "CMS" },
-  { value: "lms", label: "LMS" },
-  { value: "payment-gateway", label: "Payment Gateway" },
-  { value: "inventory-management", label: "Inventory Management" },
-  { value: "analytics", label: "Analytics" },
-  { value: "monitoring", label: "Monitoring" },
-  { value: "reporting", label: "Reporting" },
-  { value: "workflow", label: "Workflow" },
-  { value: "collaboration", label: "Collaboration" },
-  { value: "project-management", label: "Project Management" },
-]
+const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
+  value: domain,
+  label: domain
+}))
 
-const technicalAspectOptions: MultiSelectOption[] = [
-  { value: "microservices", label: "Microservices" },
-  { value: "authorization", label: "Authorization" },
-  { value: "authentication", label: "Authentication" },
-  { value: "real-time-updates", label: "Real-time Updates" },
-  { value: "api-integration", label: "API Integration" },
-  { value: "data-analytics", label: "Data Analytics" },
-  { value: "machine-learning", label: "Machine Learning" },
-  { value: "blockchain", label: "Blockchain" },
-  { value: "iot-protocols", label: "IoT Protocols" },
-  { value: "cloud-native", label: "Cloud Native" },
-  { value: "serverless", label: "Serverless" },
-  { value: "security", label: "Security" },
-  { value: "encryption", label: "Encryption" },
-  { value: "compliance", label: "Compliance" },
-]
+const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
+  value: aspect,
+  label: aspect
+}))
 
-const techStackOptions: MultiSelectOption[] = [
-  { value: "react", label: "React" },
-  { value: "nextjs", label: "Next.js" },
-  { value: "typescript", label: "TypeScript" },
-  { value: "javascript", label: "JavaScript" },
-  { value: "nodejs", label: "Node.js" },
-  { value: "python", label: "Python" },
-  { value: "java", label: "Java" },
-  { value: "csharp", label: "C#" },
-  { value: "aspnet", label: "ASP.NET Core" },
-  { value: "angular", label: "Angular" },
-  { value: "vue", label: "Vue.js" },
-  { value: "postgresql", label: "PostgreSQL" },
-  { value: "mongodb", label: "MongoDB" },
-  { value: "mysql", label: "MySQL" },
-  { value: "redis", label: "Redis" },
-  { value: "aws", label: "AWS" },
-  { value: "azure", label: "Azure" },
-  { value: "docker", label: "Docker" },
-  { value: "kubernetes", label: "Kubernetes" },
-  { value: "graphql", label: "GraphQL" },
-]
+const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
+  value: tech,
+  label: tech
+}))
 
 const initialFilters: ProjectFilters = {
   status: [],
