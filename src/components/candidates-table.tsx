@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User } from "lucide-react"
+import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { Badge } from "@/components/ui/badge"
@@ -14,24 +15,85 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
+import { CandidateCreationDialog } from "@/components/candidate-creation-dialog"
 
 interface CandidatesTableProps {
   candidates: Candidate[]
 }
 
 type SortDirection = "asc" | "desc" | null
-type SortableColumn = "name" | "currentJobTitle" | "expectedSalary" | "city" | "status"
+type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status"
+
+// Helper function to get job title from first work experience
+const getJobTitle = (candidate: Candidate): string => {
+  return candidate.workExperiences?.[0]?.jobTitle || "N/A"
+}
 
 export function CandidatesTable({ candidates }: CandidatesTableProps) {
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [sortColumn, setSortColumn] = React.useState<SortableColumn | null>(null)
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+  const [candidateToDelete, setCandidateToDelete] = React.useState<Candidate | null>(null)
+  const [editDialogOpen, setEditDialogOpen] = React.useState(false)
+  const [candidateToEdit, setCandidateToEdit] = React.useState<Candidate | null>(null)
 
-  const handleEdit = (candidate: Candidate) => {
-    // TODO: Implement edit functionality
-    console.log("Edit candidate:", candidate)
-    // Future: Open edit modal/drawer or navigate to edit page
+  const handleEdit = (candidate: Candidate, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCandidateToEdit(candidate)
+    setEditDialogOpen(true)
+  }
+
+  const handleUpdateCandidate = async (formData: any) => {
+    // TODO: Implement actual update API call
+    console.log("Update candidate:", candidateToEdit?.id, formData)
+    // For now, just close the dialog
+    setEditDialogOpen(false)
+    setCandidateToEdit(null)
+  }
+
+  const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCandidateToDelete(candidate)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (candidateToDelete) {
+      // TODO: Implement actual delete API call
+      console.log("Delete candidate:", candidateToDelete)
+      
+      // Show success toast
+      toast.success(`Candidate ${candidateToDelete.name} has been deleted successfully.`)
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setCandidateToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setCandidateToDelete(null)
   }
 
   const formatCurrency = (amount: number) => {
@@ -62,8 +124,19 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
     if (!sortColumn || !sortDirection) return candidates
 
     return [...candidates].sort((a, b) => {
-      const aValue = a[sortColumn]
-      const bValue = b[sortColumn]
+      let aValue: string | number | null
+      let bValue: string | number | null
+
+      // Handle jobTitle separately since it's not a direct property
+      if (sortColumn === "jobTitle") {
+        aValue = getJobTitle(a)
+        bValue = getJobTitle(b)
+      } else {
+        // TypeScript type narrowing for other sort columns
+        const sortKey = sortColumn as "name" | "expectedSalary" | "city" | "status"
+        aValue = a[sortKey]
+        bValue = b[sortKey]
+      }
 
       // Handle null values - nulls should be sorted last
       if (aValue === null && bValue === null) return 0
@@ -131,7 +204,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
               </SortableHeader>
               
               {/* Job Title - Hidden on mobile */}
-              <SortableHeader column="currentJobTitle" className="hidden sm:table-cell">
+              <SortableHeader column="jobTitle" className="hidden sm:table-cell">
                 Job Title
               </SortableHeader>
               
@@ -184,7 +257,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
                       <div className="min-w-0">
                         <div className="font-medium truncate">{candidate.name}</div>
                         <div className="text-sm text-muted-foreground truncate sm:hidden">
-                          {candidate.currentJobTitle}
+                          {getJobTitle(candidate)}
                         </div>
                       </div>
                     </div>
@@ -196,7 +269,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     <div className="max-w-[200px]">
-                      <div className="truncate">{candidate.currentJobTitle}</div>
+                      <div className="truncate">{getJobTitle(candidate)}</div>
                     </div>
                   </TableCell>
                   
@@ -232,7 +305,7 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-8 w-8 cursor-pointer"
                         onClick={(e) => {
                           e.stopPropagation()
                           setSelectedCandidate(candidate)
@@ -242,18 +315,38 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
                         <span className="sr-only">View details</span>
                       </Button>
                       
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleEdit(candidate)
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Edit candidate</span>
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={(e) => handleEdit(candidate, e)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            variant="destructive"
+                            onClick={(e) => handleDeleteClick(candidate, e)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -271,6 +364,38 @@ export function CandidatesTable({ candidates }: CandidatesTableProps) {
             setSelectedCandidate(null)
           }
         }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{candidateToDelete?.name}</strong>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Candidate Dialog */}
+      <CandidateCreationDialog
+        mode="edit"
+        candidateData={candidateToEdit || undefined}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSubmit={handleUpdateCandidate}
       />
     </>
   )

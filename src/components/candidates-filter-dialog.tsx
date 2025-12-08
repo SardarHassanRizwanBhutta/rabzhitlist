@@ -42,6 +42,8 @@ export interface CandidateFilters {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
+  // Candidate work experience tech stacks
+  candidateTechStacks: string[]
   // Employer-related filters
   employerStatus: string[]
   employerCountries: string[]
@@ -118,12 +120,30 @@ const extractUniqueProjectTypes = () => {
   return Array.from(types).sort()
 }
 
-const extractUniqueTechStacks = () => {
+// Extract tech stacks from projects (for Project Expertise filter)
+const extractUniqueProjectTechStacks = () => {
   const techStacks = new Set<string>()
   sampleProjects.forEach(project => {
     project.techStacks.forEach(tech => techStacks.add(tech))
   })
   return Array.from(techStacks).sort()
+}
+
+// Extract tech stacks from candidate work experiences (for Candidate Tech Stacks filter)
+const extractUniqueCandidateTechStacks = () => {
+  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          // Store the first occurrence (preserving original casing)
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    })
+  })
+  return Array.from(techStacksMap.values()).sort()
 }
 
 const extractUniqueVerticalDomains = () => {
@@ -222,50 +242,27 @@ const extractUniqueUniversityCities = () => {
 
 // Extract unique education detail data for filters
 const extractUniqueDegreeNames = () => {
-  // Using comprehensive degree list from candidate creation dialog
-  return [
-    "Bachelor of Science (B.S.)",
-    "Bachelor of Arts (B.A.)",
-    "Bachelor of Engineering (B.Eng.)",
-    "Bachelor of Technology (B.Tech.)",
-    "Bachelor of Business Administration (BBA)",
-    "Bachelor of Computer Science (B.C.S.)",
-    "Master of Science (M.S.)",
-    "Master of Arts (M.A.)",
-    "Master of Engineering (M.Eng.)",
-    "Master of Technology (M.Tech.)",
-    "Master of Business Administration (MBA)",
-    "Master of Computer Science (M.C.S.)",
-    "Doctor of Philosophy (Ph.D.)",
-    "Doctor of Engineering (D.Eng.)",
-    "Doctor of Business Administration (DBA)",
-  ].sort()
+  const degrees = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.educations?.forEach(education => {
+      if (education.degreeName) {
+        degrees.add(education.degreeName)
+      }
+    })
+  })
+  return Array.from(degrees).sort()
 }
 
 const extractUniqueMajorNames = () => {
-  // Using comprehensive major list from candidate creation dialog
-  return [
-    "Computer Science",
-    "Software Engineering", 
-    "Information Technology",
-    "Data Science",
-    "Artificial Intelligence",
-    "Electrical Engineering",
-    "Mechanical Engineering",
-    "Civil Engineering",
-    "Chemical Engineering",
-    "Business Administration",
-    "Finance",
-    "Marketing",
-    "Economics",
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Psychology",
-    "English Literature",
-    "History",
-  ].sort()
+  const majors = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.educations?.forEach(education => {
+      if (education.majorName) {
+        majors.add(education.majorName)
+      }
+    })
+  })
+  return Array.from(majors).sort()
 }
 
 // Extract unique certification data for filters
@@ -321,7 +318,14 @@ const projectTypeOptions: MultiSelectOption[] = extractUniqueProjectTypes().map(
   label: type
 }))
 
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
+// Project tech stacks (for Project Expertise section)
+const techStackOptions: MultiSelectOption[] = extractUniqueProjectTechStacks().map(tech => ({
+  value: tech,
+  label: tech
+}))
+
+// Candidate work experience tech stacks (for separate filter)
+const candidateTechStackOptions: MultiSelectOption[] = extractUniqueCandidateTechStacks().map(tech => ({
   value: tech,
   label: tech
 }))
@@ -426,6 +430,8 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
+  // Candidate work experience tech stacks
+  candidateTechStacks: [],
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -470,6 +476,7 @@ export function CandidatesFilterDialog({
     filters.projectStatus.length +
     filters.projectTypes.length +
     filters.techStacks.length +
+    filters.candidateTechStacks.length +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
@@ -526,6 +533,7 @@ export function CandidatesFilterDialog({
     tempFilters.projectStatus.length > 0 ||
     tempFilters.projectTypes.length > 0 ||
     tempFilters.techStacks.length > 0 ||
+    tempFilters.candidateTechStacks.length > 0 ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
@@ -608,6 +616,18 @@ export function CandidatesFilterDialog({
               />
             </div>
 
+            {/* Candidate Work Experience Tech Stacks */}
+            <div className="space-y-6">              
+              <MultiSelect
+                items={candidateTechStackOptions}
+                selected={tempFilters.candidateTechStacks}
+                onChange={(values) => handleFilterChange("candidateTechStacks", values)}
+                placeholder="Filter by technology stack..."
+                label="Technology Stack"
+                searchPlaceholder="Search technologies..."
+                maxDisplay={4}
+              />
+            </div>
             {/* Current Salary Filter */}
             <div className="space-y-3">
               <Label className="text-sm font-semibold">Current Salary Range</Label>

@@ -122,7 +122,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-016",
     certificationName: "Python for Data Science, AI & Development",
     issuingBody: "Coursera",
     certificationLevel: "Foundation",
@@ -130,7 +130,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-017",
     certificationName: "AI For Everyone",
     issuingBody: "Coursera",
     certificationLevel: "Foundation",
@@ -138,7 +138,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-018",
     certificationName: "Scrum Fundamentals Certified (SFC)",
     issuingBody: "Scrumstudy",
     certificationLevel: "Foundation",
@@ -146,7 +146,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-019",
     certificationName: "CS-860 Artificial Intelligence",
     issuingBody: "NUST, Islamabad",
     certificationLevel: "Foundation",
@@ -154,7 +154,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-020",
     certificationName: "CS-871 Machine Learning",
     issuingBody: "NUST, Islamabad",
     certificationLevel: "Foundation",
@@ -162,7 +162,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-021",
     certificationName: "Coursera Course Certifications",
     issuingBody: "Coursera",
     certificationLevel: "Foundation",
@@ -170,7 +170,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-022",
     certificationName: "Google Developer Student Club (Core Team Member)",
     issuingBody: "GDSC",
     certificationLevel: "Foundation",
@@ -178,7 +178,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-023",
     certificationName: "RMA Process for Redline AN-80i",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -186,7 +186,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-024",
     certificationName: "Intellect Cameras Management Software Training",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -194,7 +194,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-025",
     certificationName: "Raspberry Pi, Web Server Training",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -202,7 +202,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-026",
     certificationName: "Android Development",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -210,15 +210,15 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-027",
     certificationName: "Android Development",
     issuingBody: null,
-    certificationLevel: "Foundation",
+    certificationLevel: "Professional",
     createdAt: new Date("2023-11-10"),
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+      id: "cert-028",
     certificationName: "Cybersecurity Fundamentals",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -226,7 +226,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-029",
     certificationName: "Generative AI Training",
     issuingBody: "PAKAngles",
     certificationLevel: "Foundation",
@@ -234,7 +234,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-030",
     certificationName: "Introduction to Machine Learning",
     issuingBody: "Microsoft",
     certificationLevel: "Foundation",
@@ -242,7 +242,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-031",
     certificationName: "Six Sigma Principles",
     issuingBody: "Coursera",
     certificationLevel: "Foundation",
@@ -250,7 +250,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-032",
     certificationName: "Agile Project Management",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -258,7 +258,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-033",
     certificationName: "ISO 9001:2015 (QMS)",
     issuingBody: "CPD Accredited",
     certificationLevel: "Foundation",
@@ -266,7 +266,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-034",
     certificationName: "ISQI A4Q Selenium Certified Tester",
     issuingBody: "Certified",
     certificationLevel: "Foundation",
@@ -274,7 +274,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-035",
     certificationName: "ISTQB CT-FL",
     issuingBody: "American Software Testing Board",
     certificationLevel: "Foundation",
@@ -282,7 +282,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-036",
     certificationName: "Test Automation with Cypress",
     issuingBody: "10Pearls University",
     certificationLevel: "Foundation",
@@ -290,7 +290,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-037",
     certificationName: "Scrum Foundation Professional Certificate (SFPC)",
     issuingBody: "CertiProf",
     certificationLevel: "Foundation",
@@ -298,7 +298,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-038",
     certificationName: "ISTQB Agile Tester Extension (CTFL-AT)",
     issuingBody: "Certified",
     certificationLevel: "Foundation",
@@ -306,7 +306,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-039",
     certificationName: "Exploring service APIs through test automation",
     issuingBody: "Test Automation University",
     certificationLevel: "Foundation",
@@ -314,7 +314,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-040",
     certificationName: "White Belt Six Sigma",
     issuingBody: "Six Sigma Council",
     certificationLevel: "Foundation",
@@ -322,7 +322,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-041",
     certificationName: "TOSCA Test Automation Specialist Level 1",
     issuingBody: "Certified",
     certificationLevel: "Foundation",
@@ -330,7 +330,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-042",
     certificationName: "Meta Front-End Developer",
     issuingBody: "Coursera",
     certificationLevel: "Foundation",
@@ -338,7 +338,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-043",
     certificationName: "OpenCV Bootcamp",
     issuingBody: "OpenCV University",
     certificationLevel: "Foundation",
@@ -346,7 +346,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-044",
     certificationName: "Graphic Design",
     issuingBody: "DigiSkills.pk",
     certificationLevel: "Foundation",
@@ -354,7 +354,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-045",
     certificationName: "WordPress",
     issuingBody: "DigiSkills.pk",
     certificationLevel: "Foundation",
@@ -362,7 +362,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-046",
     certificationName: "Freelancing",
     issuingBody: "DigiSkills.pk",
     certificationLevel: "Foundation",
@@ -370,7 +370,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-047",
     certificationName: "Social Media Marketing",
     issuingBody: "HP Life",
     certificationLevel: "Foundation",
@@ -378,7 +378,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-048",
     certificationName: "Business Email",
     issuingBody: "HP Life",
     certificationLevel: "Foundation",
@@ -386,7 +386,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-049",
     certificationName: "Strategic Planning",
     issuingBody: "HP Life",
     certificationLevel: "Foundation",
@@ -394,7 +394,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-050",
     certificationName: "Professional Photography",
     issuingBody: null,
     certificationLevel: "Foundation",
@@ -402,7 +402,7 @@ export const sampleCertifications: Certification[] = [
     updatedAt: new Date("2023-11-10"),
   },
   {
-    id: "cert-015",
+    id: "cert-051",
     certificationName: "Prompt Engineering (Udemy)",
     issuingBody: null,
     certificationLevel: "Foundation",

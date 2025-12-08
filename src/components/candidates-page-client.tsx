@@ -11,6 +11,10 @@ import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidate
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Candidate } from "@/lib/types/candidate"
+import { sampleProjects } from "@/lib/sample-data/projects"
+import { sampleEmployers } from "@/lib/sample-data/employers"
+import { sampleUniversities } from "@/lib/sample-data/universities"
+import { sampleCertifications } from "@/lib/sample-data/certifications"
 
 interface CandidatesPageClientProps {
   candidates: Candidate[]
@@ -31,6 +35,8 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
+  // Candidate work experience tech stacks
+  candidateTechStacks: [],
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -121,452 +127,358 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         }
       }
 
-      // Employer filter (mock implementation)
+      // Employer filter - Match candidates whose Work Experience includes selected employer(s)
       if (appliedFilters.employers.length > 0) {
-        // Mock: Check if candidate's profile suggests they worked at any of these employers
-        // In real implementation, this would check candidate.workExperiences.employerName
-        const hasMatchingEmployer = appliedFilters.employers.some(employer => {
-          return candidate.currentJobTitle.toLowerCase().includes(employer.toLowerCase().split(' ')[0]) ||
-                 candidate.email.toLowerCase().includes(employer.toLowerCase().replace(/\s+/g, ''))
-        })
+        const candidateEmployers = candidate.workExperiences?.map(we => we.employerName) || []
+        const hasMatchingEmployer = appliedFilters.employers.some(filterEmployer => 
+          candidateEmployers.some(emp => emp.toLowerCase() === filterEmployer.toLowerCase())
+        )
         if (!hasMatchingEmployer) return false
       }
 
-      // Projects filter (mock implementation)
+      // Projects filter - Match candidates whose Work Experience → projects array OR standalone projects array includes selected project(s)
       if (appliedFilters.projects.length > 0) {
-        // Mock: Check if candidate's profile suggests they worked on any of these projects
-        // In real implementation, this would check candidate.workExperiences.projects.projectName
-        const hasMatchingProject = appliedFilters.projects.some(project => {
-          const projectKeywords = project.toLowerCase().split(/[\s-]+/)
-          return projectKeywords.some(keyword => 
-            candidate.currentJobTitle.toLowerCase().includes(keyword) ||
-            (keyword.length > 3 && candidate.currentJobTitle.toLowerCase().includes(keyword))
-          )
-        })
+        // Get projects from work experience
+        const workExperienceProjects = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        // Get standalone projects
+        const standaloneProjects = candidate.projects?.map(p => p.projectName) || []
+        // Combine both
+        const candidateProjects = [...workExperienceProjects, ...standaloneProjects]
+        const hasMatchingProject = appliedFilters.projects.some(filterProject => 
+          candidateProjects.some(proj => proj.toLowerCase() === filterProject.toLowerCase())
+        )
         if (!hasMatchingProject) return false
       }
 
-      // Project-related filters (mock implementation)
-      // In real implementation, these would check candidate.workExperiences and their associated projects
+      // Project-related filters - Check projects the candidate worked on
+      // Get all project names from candidate's work experiences
+      const workExperienceProjectNames = candidate.workExperiences?.flatMap(we => 
+        we.projects.map(p => p.projectName)
+      ) || []
+      // Get standalone project names
+      const standaloneProjectNames = candidate.projects?.map(p => p.projectName) || []
+      // Combine both
+      const candidateProjectNames = [...workExperienceProjectNames, ...standaloneProjectNames]
+      
+      // Find matching projects in sampleProjects
+      const candidateProjects = sampleProjects.filter(project => 
+        candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
+      )
 
       // Project Status filter
       if (appliedFilters.projectStatus.length > 0) {
-        // Mock: Assume candidates with certain job titles worked on projects with specific statuses
-        const hasMatchingStatus = appliedFilters.projectStatus.some(status => {
-          if (status === "Active" && candidate.currentJobTitle.toLowerCase().includes('senior')) return true
-          if (status === "Completed" && candidate.currentJobTitle.toLowerCase().includes('lead')) return true
-          return candidate.currentJobTitle.toLowerCase().includes('developer')
-        })
+        const hasMatchingStatus = candidateProjects.some(project => 
+          appliedFilters.projectStatus.includes(project.status)
+        )
         if (!hasMatchingStatus) return false
       }
 
       // Project Type filter
       if (appliedFilters.projectTypes.length > 0) {
-        // Mock: Map job titles to project types
-        const hasMatchingType = appliedFilters.projectTypes.some(type => {
-          if (type === "Employer" && candidate.currentJobTitle.toLowerCase().includes('senior')) return true
-          if (type === "Academic" && candidate.currentJobTitle.toLowerCase().includes('research')) return true
-          if (type === "Freelance" && candidate.currentJobTitle.toLowerCase().includes('consultant')) return true
-          return candidate.currentJobTitle.toLowerCase().includes('developer')
-        })
+        const hasMatchingType = candidateProjects.some(project => 
+          appliedFilters.projectTypes.includes(project.projectType)
+        )
         if (!hasMatchingType) return false
       }
 
-      // Tech Stacks filter
+      // Tech Stacks filter (Project Expertise) - Check only project tech stacks
       if (appliedFilters.techStacks.length > 0) {
-        // Mock: Check if job title suggests experience with tech stacks
-        const hasMatchingTech = appliedFilters.techStacks.some(tech => {
-          const techLower = tech.toLowerCase()
-          return candidate.currentJobTitle.toLowerCase().includes(techLower) ||
-                 (techLower.includes('react') && candidate.currentJobTitle.toLowerCase().includes('frontend')) ||
-                 (techLower.includes('node') && candidate.currentJobTitle.toLowerCase().includes('backend')) ||
-                 (techLower.includes('python') && candidate.currentJobTitle.toLowerCase().includes('data'))
+        const projectTechStacks = new Set<string>()
+        // Add tech stacks from projects the candidate worked on
+        candidateProjects.forEach(project => {
+          project.techStacks.forEach(tech => projectTechStacks.add(tech.toLowerCase()))
         })
+        
+        const hasMatchingTech = appliedFilters.techStacks.some(filterTech => 
+          projectTechStacks.has(filterTech.toLowerCase())
+        )
+        if (!hasMatchingTech) return false
+      }
+
+      // Candidate Tech Stacks filter (Work Experience) - Check only work experience tech stacks
+      if (appliedFilters.candidateTechStacks.length > 0) {
+        const workExperienceTechStacks = new Set<string>()
+        // Add tech stacks from work experiences only
+        candidate.workExperiences?.forEach(we => {
+          we.techStacks.forEach(tech => workExperienceTechStacks.add(tech.toLowerCase()))
+        })
+        
+        const hasMatchingTech = appliedFilters.candidateTechStacks.some(filterTech => 
+          workExperienceTechStacks.has(filterTech.toLowerCase())
+        )
         if (!hasMatchingTech) return false
       }
 
       // Vertical Domains filter
       if (appliedFilters.verticalDomains.length > 0) {
-        // Mock: Map job titles to industry domains
-        const hasMatchingDomain = appliedFilters.verticalDomains.some(domain => {
-          const domainLower = domain.toLowerCase()
-          return candidate.email.toLowerCase().includes(domainLower) ||
-                 (domainLower.includes('healthcare') && candidate.currentJobTitle.toLowerCase().includes('health')) ||
-                 (domainLower.includes('finance') && candidate.currentJobTitle.toLowerCase().includes('financial'))
+        const candidateDomains = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.verticalDomains.forEach(domain => candidateDomains.add(domain.toLowerCase()))
         })
+        
+        const hasMatchingDomain = appliedFilters.verticalDomains.some(filterDomain => 
+          candidateDomains.has(filterDomain.toLowerCase())
+        )
         if (!hasMatchingDomain) return false
       }
 
       // Horizontal Domains filter
       if (appliedFilters.horizontalDomains.length > 0) {
-        // Mock: Map job titles to solution types
-        const hasMatchingHorizontal = appliedFilters.horizontalDomains.some(domain => {
-          const domainLower = domain.toLowerCase()
-          return (domainLower.includes('crm') && candidate.currentJobTitle.toLowerCase().includes('sales')) ||
-                 (domainLower.includes('erp') && candidate.currentJobTitle.toLowerCase().includes('enterprise')) ||
-                 (domainLower.includes('analytics') && candidate.currentJobTitle.toLowerCase().includes('data')) ||
-                 candidate.currentJobTitle.toLowerCase().includes('developer')
+        const candidateDomains = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.horizontalDomains.forEach(domain => candidateDomains.add(domain.toLowerCase()))
         })
+        
+        const hasMatchingHorizontal = appliedFilters.horizontalDomains.some(filterDomain => 
+          candidateDomains.has(filterDomain.toLowerCase())
+        )
         if (!hasMatchingHorizontal) return false
       }
 
       // Technical Aspects filter
       if (appliedFilters.technicalAspects.length > 0) {
-        // Mock: Map job titles to technical aspects
-        const hasMatchingAspect = appliedFilters.technicalAspects.some(aspect => {
-          const aspectLower = aspect.toLowerCase()
-          return (aspectLower.includes('microservices') && candidate.currentJobTitle.toLowerCase().includes('architect')) ||
-                 (aspectLower.includes('authorization') && candidate.currentJobTitle.toLowerCase().includes('security')) ||
-                 (aspectLower.includes('real-time') && candidate.currentJobTitle.toLowerCase().includes('senior')) ||
-                 candidate.currentJobTitle.toLowerCase().includes('developer')
+        const candidateAspects = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.technicalAspects.forEach(aspect => candidateAspects.add(aspect.toLowerCase()))
         })
+        
+        const hasMatchingAspect = appliedFilters.technicalAspects.some(filterAspect => 
+          candidateAspects.has(filterAspect.toLowerCase())
+        )
         if (!hasMatchingAspect) return false
       }
 
-      // Employer-related filters (mock implementation)
-      // In real implementation, these would check candidate.workExperiences and their associated employers
+      // Employer-related filters - Check employers the candidate worked for
+      // Get all employer names from candidate's work experiences
+      const candidateEmployerNames = candidate.workExperiences?.map(we => we.employerName) || []
+      
+      // Find matching employers in sampleEmployers
+      const candidateEmployers = sampleEmployers.filter(employer => 
+        candidateEmployerNames.some(name => name.toLowerCase() === employer.name.toLowerCase())
+      )
 
       // Employer Status filter
       if (appliedFilters.employerStatus.length > 0) {
-        // Mock: Assume candidates with certain characteristics worked at companies with specific statuses
-        const hasMatchingStatus = appliedFilters.employerStatus.some(status => {
-          if (status === "Active" && candidate.currentJobTitle.toLowerCase().includes('senior')) return true
-          if (status === "Flagged" && candidate.currentJobTitle.toLowerCase().includes('consultant')) return true
-          return candidate.currentJobTitle.toLowerCase().includes('developer')
-        })
+        const hasMatchingStatus = candidateEmployers.some(employer => 
+          appliedFilters.employerStatus.includes(employer.status)
+        )
         if (!hasMatchingStatus) return false
       }
 
       // Employer Countries filter
       if (appliedFilters.employerCountries.length > 0) {
-        // Mock: Check if candidate profile suggests they worked in these countries
-        const hasMatchingCountry = appliedFilters.employerCountries.some(country => {
-          const countryLower = country.toLowerCase()
-          return candidate.email.toLowerCase().includes(countryLower) ||
-                 (countryLower.includes('usa') && candidate.currentJobTitle.toLowerCase().includes('senior')) ||
-                 (countryLower.includes('canada') && candidate.currentJobTitle.toLowerCase().includes('remote'))
+        const employerCountries = new Set<string>()
+        candidateEmployers.forEach(employer => {
+          employer.locations.forEach(location => {
+            if (location.country !== null) {
+              employerCountries.add(location.country)
+            }
+          })
         })
+        
+        const hasMatchingCountry = appliedFilters.employerCountries.some(filterCountry => 
+          employerCountries.has(filterCountry)
+        )
         if (!hasMatchingCountry) return false
       }
 
       // Employer Cities filter
       if (appliedFilters.employerCities.length > 0) {
-        // Mock: Check if candidate profile suggests they worked in these cities
-        const hasMatchingCity = appliedFilters.employerCities.some(city => {
-          const cityLower = city.toLowerCase()
-          return candidate.city.toLowerCase().includes(cityLower) ||
-                 candidate.email.toLowerCase().includes(cityLower) ||
-                 (cityLower.includes('york') && candidate.currentJobTitle.toLowerCase().includes('financial')) ||
-                 (cityLower.includes('francisco') && candidate.currentJobTitle.toLowerCase().includes('tech'))
+        const employerCities = new Set<string>()
+        candidateEmployers.forEach(employer => {
+          employer.locations.forEach(location => {
+            if (location.city !== null) {
+              employerCities.add(location.city)
+            }
+          })
         })
+        
+        const hasMatchingCity = appliedFilters.employerCities.some(filterCity => 
+          employerCities.has(filterCity)
+        )
         if (!hasMatchingCity) return false
       }
 
       // Employer Salary Policies filter
       if (appliedFilters.employerSalaryPolicies.length > 0) {
-        // Mock: Map job characteristics to salary policy preferences
-        const hasMatchingPolicy = appliedFilters.employerSalaryPolicies.some(policy => {
-          if (policy === "Tax Free" && candidate.currentSalary !== null && candidate.expectedSalary !== null && candidate.expectedSalary > candidate.currentSalary * 1.2) return true
-          if (policy === "Remittance" && candidate.currentJobTitle.toLowerCase().includes('remote')) return true
-          return policy === "Standard"
+        const employerPolicies = new Set<string>()
+        candidateEmployers.forEach(employer => {
+          employer.locations.forEach(location => {
+            employerPolicies.add(location.salaryPolicy)
+          })
         })
+        
+        const hasMatchingPolicy = appliedFilters.employerSalaryPolicies.some(filterPolicy => 
+          employerPolicies.has(filterPolicy)
+        )
         if (!hasMatchingPolicy) return false
       }
 
       // Employer Size filter
       if (appliedFilters.employerSizeMin || appliedFilters.employerSizeMax) {
-        // Mock: Map job titles to company size preferences
-        const candidatePreferredSize = (() => {
-          if (candidate.currentJobTitle.toLowerCase().includes('startup')) return 50
-          if (candidate.currentJobTitle.toLowerCase().includes('enterprise')) return 1000
-          if (candidate.currentJobTitle.toLowerCase().includes('senior')) return 500
-          return 200 // Default mid-size
-        })()
+        // Get all size ranges from employer locations
+        const employerSizes: number[] = []
+        candidateEmployers.forEach(employer => {
+          employer.locations.forEach(location => {
+            if (location.minSize !== null) employerSizes.push(location.minSize)
+            if (location.maxSize !== null) employerSizes.push(location.maxSize)
+          })
+        })
+        
+        // If no size data available, skip this filter (don't exclude candidate)
+        if (employerSizes.length > 0) {
+          const minSize = Math.min(...employerSizes)
+          const maxSize = Math.max(...employerSizes)
 
-        if (appliedFilters.employerSizeMin) {
-          const filterMin = parseInt(appliedFilters.employerSizeMin)
-          if (!isNaN(filterMin) && candidatePreferredSize < filterMin) {
-            return false
+          if (appliedFilters.employerSizeMin) {
+            const filterMin = parseInt(appliedFilters.employerSizeMin)
+            if (!isNaN(filterMin) && maxSize < filterMin) {
+              return false
+            }
           }
-        }
 
-        if (appliedFilters.employerSizeMax) {
-          const filterMax = parseInt(appliedFilters.employerSizeMax)
-          if (!isNaN(filterMax) && candidatePreferredSize > filterMax) {
-            return false
+          if (appliedFilters.employerSizeMax) {
+            const filterMax = parseInt(appliedFilters.employerSizeMax)
+            if (!isNaN(filterMax) && minSize > filterMax) {
+              return false
+            }
           }
         }
       }
 
-      // University filter (mock implementation)
-      if (appliedFilters.universities.length > 0) {
-        // Mock: Check if candidate profile suggests they studied at any of these universities
-        // In real implementation, this would check candidate.educations.universityName
-        const hasMatchingUniversity = appliedFilters.universities.some(university => {
-          const universityLower = university.toLowerCase()
-          const universityKeywords = universityLower.split(/[\s-]+/)
-          
-          return universityKeywords.some(keyword => {
-            if (keyword.length > 3) {
-              // Mock matching logic based on university prestige and candidate profile
-              if ((keyword.includes('mit') || keyword.includes('stanford') || keyword.includes('harvard')) && 
-                  (candidate.currentJobTitle.toLowerCase().includes('senior') || 
-                   candidate.currentJobTitle.toLowerCase().includes('lead') ||
-                   candidate.currentJobTitle.toLowerCase().includes('architect'))) {
-                return true
-              }
-              
-              if (keyword.includes('tech') && candidate.currentJobTitle.toLowerCase().includes('engineer')) {
-                return true
-              }
-              
-              if (keyword.includes('university') && candidate.currentJobTitle.toLowerCase().includes('developer')) {
-                return true
-              }
-              
-              // General matching for other universities
-              return candidate.email.toLowerCase().includes(keyword) ||
-                     candidate.currentJobTitle.toLowerCase().includes('developer') ||
-                     candidate.currentJobTitle.toLowerCase().includes('analyst')
+      // University-related filters - Check universities the candidate studied at
+      // Get all university location IDs from candidate's educations
+      const candidateUniversityLocationIds = candidate.educations?.map(edu => edu.universityLocationId) || []
+      
+      // Find matching university locations and their universities
+      const candidateUniversities: typeof sampleUniversities = []
+      sampleUniversities.forEach(university => {
+        university.locations.forEach(location => {
+          if (candidateUniversityLocationIds.includes(location.id)) {
+            if (!candidateUniversities.find(u => u.id === university.id)) {
+              candidateUniversities.push(university)
             }
-            return false
-          })
+          }
         })
+      })
+
+      // University filter - Match candidates whose Education → universityLocationId matches selected university location(s)
+      if (appliedFilters.universities.length > 0) {
+        const hasMatchingUniversity = appliedFilters.universities.some(filterUniversity => 
+          candidateUniversities.some(uni => uni.name.toLowerCase() === filterUniversity.toLowerCase())
+        )
         if (!hasMatchingUniversity) return false
       }
 
-      // University Countries filter (mock implementation)
+      // University Countries filter
       if (appliedFilters.universityCountries.length > 0) {
-        // Mock: Check if candidate profile suggests they studied in these countries
-        const hasMatchingCountry = appliedFilters.universityCountries.some(country => {
-          const countryLower = country.toLowerCase()
-          return candidate.email.toLowerCase().includes(countryLower) ||
-                 (countryLower.includes('usa') && candidate.currentJobTitle.toLowerCase().includes('senior')) ||
-                 (countryLower.includes('canada') && candidate.currentJobTitle.toLowerCase().includes('remote')) ||
-                 (countryLower.includes('uk') && candidate.currentJobTitle.toLowerCase().includes('analyst'))
-        })
+        const hasMatchingCountry = appliedFilters.universityCountries.some(filterCountry => 
+          candidateUniversities.some(uni => uni.country.toLowerCase() === filterCountry.toLowerCase())
+        )
         if (!hasMatchingCountry) return false
       }
 
-      // University Rankings filter (mock implementation)
+      // University Rankings filter
       if (appliedFilters.universityRankings.length > 0) {
-        // Mock: Map candidate seniority to university ranking
-        const hasMatchingRanking = appliedFilters.universityRankings.some(ranking => {
-          if (ranking === "Top" && (candidate.currentJobTitle.toLowerCase().includes('senior') || 
-                                   candidate.currentJobTitle.toLowerCase().includes('lead') ||
-                                   candidate.currentJobTitle.toLowerCase().includes('architect'))) {
-            return true
-          }
-          if (ranking === "DPL Favourite" && candidate.currentJobTitle.toLowerCase().includes('consultant')) {
-            return true
-          }
-          if (ranking === "Standard") {
-            return candidate.currentJobTitle.toLowerCase().includes('developer') ||
-                   candidate.currentJobTitle.toLowerCase().includes('analyst')
-          }
-          return false
-        })
+        const hasMatchingRanking = appliedFilters.universityRankings.some(filterRanking => 
+          candidateUniversities.some(uni => uni.ranking === filterRanking)
+        )
         if (!hasMatchingRanking) return false
       }
 
-      // University Cities filter (mock implementation)
+      // University Cities filter
       if (appliedFilters.universityCities.length > 0) {
-        // Mock: Check if candidate profile suggests they studied in these cities
-        const hasMatchingCity = appliedFilters.universityCities.some(city => {
-          const cityLower = city.toLowerCase()
-          return candidate.city.toLowerCase().includes(cityLower) ||
-                 candidate.email.toLowerCase().includes(cityLower) ||
-                 (cityLower.includes('cambridge') && candidate.currentJobTitle.toLowerCase().includes('research')) ||
-                 (cityLower.includes('boston') && candidate.currentJobTitle.toLowerCase().includes('tech')) ||
-                 (cityLower.includes('toronto') && candidate.currentJobTitle.toLowerCase().includes('engineer'))
+        const universityCities = new Set<string>()
+        candidateUniversities.forEach(university => {
+          university.locations.forEach(location => {
+            if (candidateUniversityLocationIds.includes(location.id)) {
+              universityCities.add(location.city)
+            }
+          })
         })
+        
+        const hasMatchingCity = appliedFilters.universityCities.some(filterCity => 
+          universityCities.has(filterCity)
+        )
         if (!hasMatchingCity) return false
       }
 
-      // Education detail filters (mock implementation)
-      // In real implementation, these would check candidate.educations
+      // Education detail filters - Check candidate.educations directly
 
       // Degree Names filter
       if (appliedFilters.degreeNames.length > 0) {
-        // Mock: Map candidate seniority to degree types
-        const hasMatchingDegree = appliedFilters.degreeNames.some(degree => {
-          const degreeLower = degree.toLowerCase()
-          
-          if (degreeLower.includes('bachelor') && candidate.currentJobTitle.toLowerCase().includes('junior')) {
-            return true
-          }
-          if (degreeLower.includes('master') && candidate.currentJobTitle.toLowerCase().includes('senior')) {
-            return true
-          }
-          if (degreeLower.includes('phd') && candidate.currentJobTitle.toLowerCase().includes('research')) {
-            return true
-          }
-          if (degreeLower.includes('mba') && candidate.currentJobTitle.toLowerCase().includes('manager')) {
-            return true
-          }
-          
-          // General matching for technical degrees
-          if ((degreeLower.includes('computer') || degreeLower.includes('engineering')) && 
-              (candidate.currentJobTitle.toLowerCase().includes('developer') ||
-               candidate.currentJobTitle.toLowerCase().includes('engineer'))) {
-            return true
-          }
-          
-          return candidate.currentJobTitle.toLowerCase().includes('developer')
-        })
+        const candidateDegrees = candidate.educations?.map(edu => edu.degreeName) || []
+        const hasMatchingDegree = appliedFilters.degreeNames.some(filterDegree => 
+          candidateDegrees.some(degree => degree.toLowerCase() === filterDegree.toLowerCase())
+        )
         if (!hasMatchingDegree) return false
       }
 
       // Major Names filter
       if (appliedFilters.majorNames.length > 0) {
-        // Mock: Map candidate job titles to majors
-        const hasMatchingMajor = appliedFilters.majorNames.some(major => {
-          const majorLower = major.toLowerCase()
-          
-          if (majorLower.includes('computer science') && 
-              candidate.currentJobTitle.toLowerCase().includes('developer')) {
-            return true
-          }
-          if (majorLower.includes('software engineering') && 
-              candidate.currentJobTitle.toLowerCase().includes('engineer')) {
-            return true
-          }
-          if (majorLower.includes('data science') && 
-              candidate.currentJobTitle.toLowerCase().includes('data')) {
-            return true
-          }
-          if (majorLower.includes('business') && 
-              candidate.currentJobTitle.toLowerCase().includes('manager')) {
-            return true
-          }
-          if (majorLower.includes('finance') && 
-              candidate.currentJobTitle.toLowerCase().includes('financial')) {
-            return true
-          }
-          
-          // General matching
-          return candidate.currentJobTitle.toLowerCase().includes('developer') ||
-                 candidate.currentJobTitle.toLowerCase().includes('analyst')
-        })
+        const candidateMajors = candidate.educations?.map(edu => edu.majorName) || []
+        const hasMatchingMajor = appliedFilters.majorNames.some(filterMajor => 
+          candidateMajors.some(major => major.toLowerCase() === filterMajor.toLowerCase())
+        )
         if (!hasMatchingMajor) return false
       }
 
       // Is Topper filter
       if (appliedFilters.isTopper !== null) {
-        // Mock: Map candidate seniority to topper status
-        const candidateIsTopper = candidate.currentJobTitle.toLowerCase().includes('senior') ||
-                                 candidate.currentJobTitle.toLowerCase().includes('lead') ||
-                                 candidate.currentJobTitle.toLowerCase().includes('architect') ||
-                                 candidate.currentJobTitle.toLowerCase().includes('principal')
-        
+        const candidateIsTopper = candidate.educations?.some(edu => edu.isTopper === true) || false
         if (appliedFilters.isTopper && !candidateIsTopper) return false
         if (!appliedFilters.isTopper && candidateIsTopper) return false
       }
 
       // Is Cheetah filter
       if (appliedFilters.isCheetah !== null) {
-        // Mock: Map candidate characteristics to cheetah status
-        const candidateIsCheetah = candidate.currentJobTitle.toLowerCase().includes('consultant') ||
-                                  candidate.currentJobTitle.toLowerCase().includes('freelance') ||
-                                  candidate.currentJobTitle.toLowerCase().includes('contractor') ||
-                                  (candidate.currentSalary !== null && candidate.expectedSalary !== null && candidate.expectedSalary > candidate.currentSalary * 1.3)
-        
+        const candidateIsCheetah = candidate.educations?.some(edu => edu.isCheetah === true) || false
         if (appliedFilters.isCheetah && !candidateIsCheetah) return false
         if (!appliedFilters.isCheetah && candidateIsCheetah) return false
       }
 
-      // Certification-related filters (mock implementation)
-      // In real implementation, these would check candidate.certifications
+      // Certification-related filters - Check candidate.certifications directly
+      // Get all certifications from candidate
+      const candidateCerts = candidate.certifications || []
+      
+      // Find matching certifications in sampleCertifications
+      const candidateCertifications = sampleCertifications.filter(cert => 
+        candidateCerts.some(candCert => 
+          candCert.certificationId === cert.id || 
+          candCert.certificationName.toLowerCase() === cert.certificationName.toLowerCase()
+        )
+      )
 
-      // Certification Names filter
+      // Certification Names filter - Match candidates whose Certifications include selected certification(s)
       if (appliedFilters.certificationNames.length > 0) {
-        // Mock: Check if candidate profile suggests they have these certifications
-        const hasMatchingCertification = appliedFilters.certificationNames.some(certName => {
-          const certLower = certName.toLowerCase()
-          const certKeywords = certLower.split(/[\s-]+/)
-          
-          return certKeywords.some(keyword => {
-            if (keyword.length > 2) {
-              // Mock matching logic based on certification type and candidate profile
-              if ((keyword.includes('aws') || keyword.includes('cloud')) && 
-                  (candidate.currentJobTitle.toLowerCase().includes('architect') ||
-                   candidate.currentJobTitle.toLowerCase().includes('engineer') ||
-                   candidate.currentJobTitle.toLowerCase().includes('developer'))) {
-                return true
-              }
-              
-              if (keyword.includes('azure') && candidate.currentJobTitle.toLowerCase().includes('microsoft')) {
-                return true
-              }
-              
-              if (keyword.includes('google') && candidate.currentJobTitle.toLowerCase().includes('cloud')) {
-                return true
-              }
-              
-              // General matching for other certifications
-              return candidate.currentJobTitle.toLowerCase().includes(keyword) ||
-                     candidate.email.toLowerCase().includes(keyword)
-            }
-            return false
-          })
-        })
+        const hasMatchingCertification = appliedFilters.certificationNames.some(filterCertName => 
+          candidateCerts.some(cert => 
+            cert.certificationName.toLowerCase() === filterCertName.toLowerCase()
+          ) || candidateCertifications.some(cert => 
+            cert.certificationName.toLowerCase() === filterCertName.toLowerCase()
+          )
+        )
         if (!hasMatchingCertification) return false
       }
 
       // Certification Issuing Bodies filter
       if (appliedFilters.certificationIssuingBodies.length > 0) {
-        // Mock: Map candidate profiles to certification providers
-        const hasMatchingIssuer = appliedFilters.certificationIssuingBodies.some(issuer => {
-          const issuerLower = issuer.toLowerCase()
-          
-          if (issuerLower.includes('amazon') && candidate.currentJobTitle.toLowerCase().includes('cloud')) {
-            return true
-          }
-          if (issuerLower.includes('microsoft') && candidate.currentJobTitle.toLowerCase().includes('azure')) {
-            return true
-          }
-          if (issuerLower.includes('google') && candidate.currentJobTitle.toLowerCase().includes('gcp')) {
-            return true
-          }
-          if (issuerLower.includes('oracle') && candidate.currentJobTitle.toLowerCase().includes('database')) {
-            return true
-          }
-          
-          // General matching
-          return candidate.currentJobTitle.toLowerCase().includes('certified') ||
-                 candidate.currentJobTitle.toLowerCase().includes('professional')
-        })
+        const hasMatchingIssuer = appliedFilters.certificationIssuingBodies.some(filterIssuer => 
+          candidateCertifications.some(cert => 
+            cert.issuingBody !== null && 
+            cert.issuingBody.toLowerCase() === filterIssuer.toLowerCase()
+          )
+        )
         if (!hasMatchingIssuer) return false
       }
 
       // Certification Levels filter
       if (appliedFilters.certificationLevels.length > 0) {
-        // Mock: Map candidate seniority to certification levels
-        const hasMatchingLevel = appliedFilters.certificationLevels.some(level => {
-          const levelLower = level.toLowerCase()
-          
-          if (levelLower.includes('expert') && 
-              (candidate.currentJobTitle.toLowerCase().includes('senior') ||
-               candidate.currentJobTitle.toLowerCase().includes('lead') ||
-               candidate.currentJobTitle.toLowerCase().includes('architect'))) {
-            return true
-          }
-          
-          if (levelLower.includes('professional') && 
-              candidate.currentJobTitle.toLowerCase().includes('senior')) {
-            return true
-          }
-          
-          if (levelLower.includes('associate') && 
-              (candidate.currentJobTitle.toLowerCase().includes('junior') ||
-               candidate.currentJobTitle.toLowerCase().includes('developer'))) {
-            return true
-          }
-          
-          // Default matching
-          return candidate.currentJobTitle.toLowerCase().includes('developer') ||
-                 candidate.currentJobTitle.toLowerCase().includes('engineer')
-        })
+        const hasMatchingLevel = appliedFilters.certificationLevels.some(filterLevel => 
+          candidateCertifications.some(cert => cert.certificationLevel === filterLevel)
+        )
         if (!hasMatchingLevel) return false
       }
 
@@ -596,57 +508,92 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         if (!globalFilters.cities.includes(candidate.city)) return false
       }
 
-      // Global Tech Stacks filter (mock implementation)
+      // Global Tech Stacks filter - Check work experience tech stacks and project tech stacks
       if (globalFilters.techStacks.length > 0) {
-        const hasMatchingTech = globalFilters.techStacks.some(tech => {
-          const techLower = tech.toLowerCase()
-          return candidate.currentJobTitle.toLowerCase().includes(techLower) ||
-                 (techLower.includes('react') && candidate.currentJobTitle.toLowerCase().includes('frontend')) ||
-                 (techLower.includes('node') && candidate.currentJobTitle.toLowerCase().includes('backend')) ||
-                 (techLower.includes('python') && candidate.currentJobTitle.toLowerCase().includes('data'))
+        const candidateTechStacks = new Set<string>()
+        // Add tech stacks from work experiences
+        candidate.workExperiences?.forEach(we => {
+          we.techStacks.forEach(tech => candidateTechStacks.add(tech.toLowerCase()))
         })
+        // Add tech stacks from projects the candidate worked on
+        const candidateProjectNames = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        sampleProjects.forEach(project => {
+          if (candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())) {
+            project.techStacks.forEach(tech => candidateTechStacks.add(tech.toLowerCase()))
+          }
+        })
+        
+        const hasMatchingTech = globalFilters.techStacks.some(filterTech => 
+          candidateTechStacks.has(filterTech.toLowerCase())
+        )
         if (!hasMatchingTech) return false
       }
 
-      // Global Vertical Domains filter (mock implementation)
+      // Global Vertical Domains filter - Check projects the candidate worked on
       if (globalFilters.verticalDomains.length > 0) {
-        const hasMatchingDomain = globalFilters.verticalDomains.some(domain => {
-          const domainLower = domain.toLowerCase()
-          return candidate.email.toLowerCase().includes(domainLower) ||
-                 (domainLower.includes('healthcare') && candidate.currentJobTitle.toLowerCase().includes('health')) ||
-                 (domainLower.includes('finance') && candidate.currentJobTitle.toLowerCase().includes('financial'))
+        const candidateProjectNames = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        const candidateProjects = sampleProjects.filter(project => 
+          candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
+        )
+        const candidateDomains = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.verticalDomains.forEach(domain => candidateDomains.add(domain.toLowerCase()))
         })
+        
+        const hasMatchingDomain = globalFilters.verticalDomains.some(filterDomain => 
+          candidateDomains.has(filterDomain.toLowerCase())
+        )
         if (!hasMatchingDomain) return false
       }
 
-      // Global Horizontal Domains filter (mock implementation)
+      // Global Horizontal Domains filter - Check projects the candidate worked on
       if (globalFilters.horizontalDomains.length > 0) {
-        const hasMatchingHorizontal = globalFilters.horizontalDomains.some(domain => {
-          const domainLower = domain.toLowerCase()
-          return (domainLower.includes('crm') && candidate.currentJobTitle.toLowerCase().includes('sales')) ||
-                 (domainLower.includes('erp') && candidate.currentJobTitle.toLowerCase().includes('enterprise')) ||
-                 (domainLower.includes('analytics') && candidate.currentJobTitle.toLowerCase().includes('data'))
+        const candidateProjectNames = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        const candidateProjects = sampleProjects.filter(project => 
+          candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
+        )
+        const candidateDomains = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.horizontalDomains.forEach(domain => candidateDomains.add(domain.toLowerCase()))
         })
+        
+        const hasMatchingHorizontal = globalFilters.horizontalDomains.some(filterDomain => 
+          candidateDomains.has(filterDomain.toLowerCase())
+        )
         if (!hasMatchingHorizontal) return false
       }
 
-      // Global Technical Aspects filter (mock implementation)
+      // Global Technical Aspects filter - Check projects the candidate worked on
       if (globalFilters.technicalAspects.length > 0) {
-        const hasMatchingAspect = globalFilters.technicalAspects.some(aspect => {
-          const aspectLower = aspect.toLowerCase()
-          return (aspectLower.includes('microservices') && candidate.currentJobTitle.toLowerCase().includes('architect')) ||
-                 (aspectLower.includes('authorization') && candidate.currentJobTitle.toLowerCase().includes('security')) ||
-                 (aspectLower.includes('real-time') && candidate.currentJobTitle.toLowerCase().includes('senior'))
+        const candidateProjectNames = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        const candidateProjects = sampleProjects.filter(project => 
+          candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
+        )
+        const candidateAspects = new Set<string>()
+        candidateProjects.forEach(project => {
+          project.technicalAspects.forEach(aspect => candidateAspects.add(aspect.toLowerCase()))
         })
+        
+        const hasMatchingAspect = globalFilters.technicalAspects.some(filterAspect => 
+          candidateAspects.has(filterAspect.toLowerCase())
+        )
         if (!hasMatchingAspect) return false
       }
 
-      // Global Employers filter (mock implementation)
+      // Global Employers filter - Check work experience employers
       if (globalFilters.employers.length > 0) {
-        const hasMatchingEmployer = globalFilters.employers.some(employer => {
-          return candidate.currentJobTitle.toLowerCase().includes(employer.toLowerCase().split(' ')[0]) ||
-                 candidate.email.toLowerCase().includes(employer.toLowerCase().replace(/\s+/g, ''))
-        })
+        const candidateEmployers = candidate.workExperiences?.map(we => we.employerName) || []
+        const hasMatchingEmployer = globalFilters.employers.some(filterEmployer => 
+          candidateEmployers.some(emp => emp.toLowerCase() === filterEmployer.toLowerCase())
+        )
         if (!hasMatchingEmployer) return false
       }
 
@@ -666,85 +613,58 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
     // Apply global filters first
     candidateList = applyGlobalFilters(candidateList)
 
+    // Project filter from URL - Match candidates whose Work Experience → projects array OR standalone projects array includes this project
     if (projectFilter) {
-      // Mock logic: Find candidates who have this project in their work experience
+      const projectName = projectFilter.name
       candidateList = candidateList.filter(candidate => {
-        // Mock matching logic - check if candidate might have worked on this project
-        return (
-          candidate.currentJobTitle.toLowerCase().includes('developer') ||
-          candidate.currentJobTitle.toLowerCase().includes('engineer') ||
-          candidate.currentJobTitle.toLowerCase().includes('designer')
-        )
+        // Get projects from work experience
+        const workExperienceProjects = candidate.workExperiences?.flatMap(we => 
+          we.projects.map(p => p.projectName)
+        ) || []
+        // Get standalone projects
+        const standaloneProjects = candidate.projects?.map(p => p.projectName) || []
+        // Combine both
+        const candidateProjects = [...workExperienceProjects, ...standaloneProjects]
+        return candidateProjects.some(proj => proj.toLowerCase() === projectName.toLowerCase())
       })
     }
 
+    // University filter from URL - Match candidates whose Education → universityLocationId matches this university
     if (universityFilter) {
-      // Mock logic: Find candidates who studied at this university
-      candidateList = candidateList.filter(candidate => {
-        const universityNameLower = universityFilter.name.toLowerCase()
-        
-        // Simple mock: assume candidates with certain characteristics studied at top universities
-        if (universityNameLower.includes('mit') || universityNameLower.includes('stanford') || universityNameLower.includes('harvard')) {
-          return (
-            candidate.currentJobTitle.toLowerCase().includes('senior') ||
-            candidate.currentJobTitle.toLowerCase().includes('lead') ||
-            candidate.currentJobTitle.toLowerCase().includes('architect')
-          )
-        }
-        
-        // For other universities, return a broader match
-        return (
-          candidate.currentJobTitle.toLowerCase().includes('developer') ||
-          candidate.currentJobTitle.toLowerCase().includes('engineer') ||
-          candidate.currentJobTitle.toLowerCase().includes('designer') ||
-          candidate.currentJobTitle.toLowerCase().includes('analyst')
-        )
-      })
-    }
-
-    if (certificationFilter) {
-      // Mock logic: Find candidates who are certified with this certification
-      candidateList = candidateList.filter(candidate => {
-        const certificationNameLower = certificationFilter.name.toLowerCase()
-        
-        // Mock matching logic based on certification type
-        if (certificationNameLower.includes('aws') || certificationNameLower.includes('cloud')) {
-          return (
-            candidate.currentJobTitle.toLowerCase().includes('architect') ||
-            candidate.currentJobTitle.toLowerCase().includes('engineer') ||
-            candidate.currentJobTitle.toLowerCase().includes('developer')
-          )
-        }
-        
-        // For other certifications, return a broader match
-        return (
-          candidate.currentJobTitle.toLowerCase().includes('developer') ||
-          candidate.currentJobTitle.toLowerCase().includes('engineer') ||
-          candidate.currentJobTitle.toLowerCase().includes('designer') ||
-          candidate.currentJobTitle.toLowerCase().includes('analyst')
-        )
-      })
-    }
-
-    if (employerFilter) {
-      // Mock logic: Find candidates who have worked at this employer
-      candidateList = candidateList.filter(candidate => {
-        const employerNameLower = employerFilter.name.toLowerCase()
-        
-        // Mock matching logic based on employer name
-        // In real implementation, this would check candidate.workExperiences.employerName
-        const employerKeywords = employerNameLower.split(/[\s-]+/)
-        return employerKeywords.some(keyword => {
-          if (keyword.length > 2) {
-            return (
-              candidate.currentJobTitle.toLowerCase().includes(keyword) ||
-              candidate.email.toLowerCase().includes(keyword.replace(/\s+/g, '')) ||
-              (keyword.includes('tech') && candidate.currentJobTitle.toLowerCase().includes('developer')) ||
-              (keyword.includes('corp') && candidate.currentJobTitle.toLowerCase().includes('senior'))
-            )
-          }
-          return false
+      const universityId = universityFilter.id
+      // Find the university and get all its location IDs
+      const university = sampleUniversities.find(u => u.id === universityId)
+      if (university) {
+        const universityLocationIds = university.locations.map(loc => loc.id)
+        candidateList = candidateList.filter(candidate => {
+          const candidateUniversityLocationIds = candidate.educations?.map(edu => edu.universityLocationId) || []
+          // Check if candidate studied at any location of this university
+          return candidateUniversityLocationIds.some(locId => universityLocationIds.includes(locId))
         })
+      } else {
+        // If university not found, filter out all candidates
+        candidateList = []
+      }
+    }
+
+    // Certification filter from URL - Match candidates whose Certifications include this certification
+    if (certificationFilter) {
+      const certificationId = certificationFilter.id
+      candidateList = candidateList.filter(candidate => {
+        const candidateCerts = candidate.certifications || []
+        return candidateCerts.some(cert => 
+          cert.certificationId === certificationId ||
+          cert.certificationName.toLowerCase() === certificationFilter.name.toLowerCase()
+        )
+      })
+    }
+
+    // Employer filter from URL - Match candidates whose Work Experience includes this employer
+    if (employerFilter) {
+      const employerName = employerFilter.name
+      candidateList = candidateList.filter(candidate => {
+        const candidateEmployers = candidate.workExperiences?.map(we => we.employerName) || []
+        return candidateEmployers.some(emp => emp.toLowerCase() === employerName.toLowerCase())
       })
     }
 

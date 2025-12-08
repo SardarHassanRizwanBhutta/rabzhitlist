@@ -1,7 +1,57 @@
+export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
+export type WorkMode = "Remote" | "Onsite" | "Hybrid"
+export type TimeSupportZone = "US" | "UK" | "EU" | "APAC" | "MEA"
+
+export interface ProjectExperience {
+  id: string
+  projectName: string
+  contributionNotes: string | null
+}
+
+export interface WorkExperience {
+  id: string
+  employerName: string
+  jobTitle: string
+  projects: ProjectExperience[]
+  startDate: Date | undefined
+  endDate: Date | undefined
+  techStacks: string[]
+  shiftType: ShiftType | "" | null
+  workMode: WorkMode | "" | null
+  timeSupportZones: string[]
+}
+
+export interface CandidateCertification {
+  id: string
+  certificationId: string
+  certificationName: string
+  issueDate: Date | undefined
+  expiryDate: Date | undefined
+  certificationUrl: string | null
+}
+
+export interface CandidateEducation {
+  id: string
+  universityLocationId: string
+  universityLocationName: string
+  degreeName: string
+  majorName: string
+  startMonth: Date | undefined
+  endMonth: Date | undefined
+  grades: string | null
+  isTopper: boolean | null 
+  isCheetah: boolean | null
+}
+
+export interface CandidateStandaloneProject {
+  id: string
+  projectName: string
+  contributionNotes: string | null
+}
+
 export interface Candidate {
   id: string
   name: string
-  currentJobTitle: string
   postingTitle: string | null
   email: string
   mobileNo: string
@@ -14,6 +64,10 @@ export interface Candidate {
   source: string
   status: CandidateStatus
   resume?: string | null
+  workExperiences?: WorkExperience[] 
+  projects?: CandidateStandaloneProject[] // Standalone projects not associated with work experience
+  certifications?: CandidateCertification[] | null
+  educations?: CandidateEducation[] 
   createdAt: Date
   updatedAt: Date
 }

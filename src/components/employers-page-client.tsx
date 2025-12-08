@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { EmployersTable } from "@/components/employers-table"
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
@@ -31,8 +32,21 @@ const initialFilters: EmployerFilters = {
 }
 
 export function EmployersPageClient({ employers }: EmployersPageClientProps) {
+  const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<EmployerFilters>(initialFilters)
+
+  // Check for URL filters
+  useEffect(() => {
+    const employerFilterName = searchParams.get('employerFilter')
+    const employerId = searchParams.get('employerId')
+    
+    if (employerFilterName && employerId) {
+      // Apply employer filter by setting search in the table
+      // Note: The table component handles search, so we could set a search state here
+      // For now, we'll just ensure the employer is visible by filtering
+    }
+  }, [searchParams])
 
   const handleEmployerSubmit = async (data: EmployerFormData) => {
     // Here you would typically send the data to your API
@@ -121,38 +135,55 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
         if (!hasMatchingCity) return false
       }
 
+      // Helper function to get employer's projects
+      const getEmployerProjects = () => {
+        return sampleProjects.filter(project => {
+          if (project.employerName === null) return false
+          return project.employerName.trim().toLowerCase() === employer.name.trim().toLowerCase()
+        })
+      }
+
+      // Helper function for case-insensitive array comparison
+      const arraysMatch = (arr1: string[], arr2: string[]) => {
+        return arr1.some(item1 => 
+          arr2.some(item2 => 
+            item1.toLowerCase().trim() === item2.toLowerCase().trim()
+          )
+        )
+      }
+
       // Global Tech Stacks filter (via projects)
       if (globalFilters.techStacks.length > 0) {
-        const employerProjects = sampleProjects.filter(project => project.employerName === employer.name)
+        const employerProjects = getEmployerProjects()
         const hasMatchingTech = employerProjects.some(project =>
-          project.techStacks.some(tech => globalFilters.techStacks.includes(tech))
+          arraysMatch(project.techStacks, globalFilters.techStacks)
         )
         if (!hasMatchingTech) return false
       }
 
       // Global Vertical Domains filter (via projects)
       if (globalFilters.verticalDomains.length > 0) {
-        const employerProjects = sampleProjects.filter(project => project.employerName === employer.name)
+        const employerProjects = getEmployerProjects()
         const hasMatchingVertical = employerProjects.some(project =>
-          project.verticalDomains.some(domain => globalFilters.verticalDomains.includes(domain))
+          arraysMatch(project.verticalDomains, globalFilters.verticalDomains)
         )
         if (!hasMatchingVertical) return false
       }
 
       // Global Horizontal Domains filter (via projects)
       if (globalFilters.horizontalDomains.length > 0) {
-        const employerProjects = sampleProjects.filter(project => project.employerName === employer.name)
+        const employerProjects = getEmployerProjects()
         const hasMatchingHorizontal = employerProjects.some(project =>
-          project.horizontalDomains.some(domain => globalFilters.horizontalDomains.includes(domain))
+          arraysMatch(project.horizontalDomains, globalFilters.horizontalDomains)
         )
         if (!hasMatchingHorizontal) return false
       }
 
       // Global Technical Aspects filter (via projects)
       if (globalFilters.technicalAspects.length > 0) {
-        const employerProjects = sampleProjects.filter(project => project.employerName === employer.name)
+        const employerProjects = getEmployerProjects()
         const hasMatchingAspect = employerProjects.some(project =>
-          project.technicalAspects.some(aspect => globalFilters.technicalAspects.includes(aspect))
+          arraysMatch(project.technicalAspects, globalFilters.technicalAspects)
         )
         if (!hasMatchingAspect) return false
       }
@@ -171,10 +202,22 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
     })
   }
 
-  // Apply global filters to employers
+  // Apply global filters and URL filters to employers
   const filteredEmployers = useMemo(() => {
-    return applyGlobalFilters(employers)
-  }, [employers, globalFilters, hasGlobalFilters])
+    let filtered = applyGlobalFilters(employers)
+    
+    // Apply URL filter if present
+    const employerFilterName = searchParams.get('employerFilter')
+    const employerId = searchParams.get('employerId')
+    
+    if (employerFilterName && employerId) {
+      filtered = filtered.filter(emp => 
+        emp.id === employerId || emp.name.trim().toLowerCase() === employerFilterName.trim().toLowerCase()
+      )
+    }
+    
+    return filtered
+  }, [employers, globalFilters, hasGlobalFilters, searchParams])
 
   return (
     <div className="space-y-6">

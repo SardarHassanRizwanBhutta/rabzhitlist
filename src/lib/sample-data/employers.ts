@@ -301,7 +301,7 @@ export const sampleEmployers: Employer[] = [
         id: "loc-emp-012-001",
         employerId: "emp-012",
         country: "Pakistan",
-        city: "Isalmabad",
+        city: "Islamabad",
         address: null,
         isHeadquarters: true,
         salaryPolicy: "Standard",
@@ -1038,7 +1038,7 @@ export const sampleEmployers: Employer[] = [
       {
         id: "loc-emp-041-001",
         employerId: "emp-041",
-        country: "Texas",
+        country: "United States",
         city: "Austin",
         address: null,
         isHeadquarters: true,
@@ -1229,7 +1229,7 @@ export const sampleEmployers: Employer[] = [
   },
   {
     id: "emp-049",
-    name: "Cameraholic (Freelance)",
+    name: "Cameraholic",
     websiteUrl: null,
     linkedinUrl: "https://www.linkedin.com/in/mahir-lodhi-8697bb247",
     status: "Active",

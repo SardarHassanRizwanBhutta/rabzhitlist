@@ -9,6 +9,7 @@ import { ProjectCreationDialog, ProjectFormData } from "@/components/project-cre
 import { ProjectsFilterDialog, ProjectFilters } from "@/components/projects-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
+import { sampleEmployers } from "@/lib/sample-data/employers"
 import type { Project } from "@/lib/types/project"
 
 interface ProjectsPageClientProps {
@@ -30,6 +31,7 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<ProjectFilters>(initialFilters)
   const [employerFilter, setEmployerFilter] = useState<{ name: string; id: string } | null>(null)
+  const [projectFilter, setProjectFilter] = useState<{ name: string; id: string } | null>(null)
 
   // Check for employer filter from URL params
   useEffect(() => {
@@ -38,6 +40,16 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
     
     if (employerFilterName && employerId) {
       setEmployerFilter({ name: employerFilterName, id: employerId })
+    }
+  }, [searchParams])
+
+  // Check for project filter from URL params
+  useEffect(() => {
+    const projectFilterName = searchParams.get('projectFilter')
+    const projectId = searchParams.get('projectId')
+    
+    if (projectFilterName && projectId) {
+      setProjectFilter({ name: projectFilterName, id: projectId })
     }
   }, [searchParams])
 
@@ -80,6 +92,7 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
 
       // Global Employers filter
       if (globalFilters.employers.length > 0) {
+        if (project.employerName === null) return false
         if (!globalFilters.employers.includes(project.employerName)) return false
       }
 
@@ -92,22 +105,90 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
     })
   }
 
-  // Filter projects by employer
+  // Filter projects by employer, project, and filters
   const filteredProjects = useMemo(() => {
     let projectList = projects
 
     // Apply global filters first
     projectList = applyGlobalFilters(projectList)
 
+    // Apply project filter from URL (highest priority)
+    if (projectFilter) {
+      projectList = projectList.filter(project => 
+        project.id === projectFilter.id || 
+        project.projectName.trim().toLowerCase() === projectFilter.name.trim().toLowerCase()
+      )
+    }
+
+    // Apply employer filter from URL
     if (employerFilter) {
-      // Filter projects that belong to this employer
       projectList = projectList.filter(project => {
-        return project.employerName.toLowerCase() === employerFilter.name.toLowerCase()
+        return project.employerName !== null && 
+               project.employerName.toLowerCase() === employerFilter.name.toLowerCase()
       })
     }
 
-    return projectList
-  }, [projects, employerFilter, globalFilters, hasGlobalFilters])
+    // Apply filter dialog filters
+    return projectList.filter(project => {
+      // Status filter
+      if (filters.status.length > 0 && !filters.status.includes(project.status)) {
+        return false
+      }
+
+      // Project Type filter
+      if (filters.projectTypes.length > 0 && !filters.projectTypes.includes(project.projectType)) {
+        return false
+      }
+
+      // Employers filter
+      if (filters.employers.length > 0) {
+        if (project.employerName === null) {
+          return false
+        }
+        // Check if any selected employer matches the project's employer
+        const hasMatchingEmployer = filters.employers.some(employerId => {
+          // Find employer by ID and compare name
+          const employer = sampleEmployers.find(emp => emp.id === employerId)
+          return employer && employer.name === project.employerName
+        })
+        if (!hasMatchingEmployer) return false
+      }
+
+      // Tech Stacks filter
+      if (filters.techStacks.length > 0) {
+        const hasMatchingTech = project.techStacks.some(tech =>
+          filters.techStacks.includes(tech)
+        )
+        if (!hasMatchingTech) return false
+      }
+
+      // Vertical Domains filter
+      if (filters.verticalDomains.length > 0) {
+        const hasMatchingVertical = project.verticalDomains.some(domain =>
+          filters.verticalDomains.includes(domain)
+        )
+        if (!hasMatchingVertical) return false
+      }
+
+      // Horizontal Domains filter
+      if (filters.horizontalDomains.length > 0) {
+        const hasMatchingHorizontal = project.horizontalDomains.some(domain =>
+          filters.horizontalDomains.includes(domain)
+        )
+        if (!hasMatchingHorizontal) return false
+      }
+
+      // Technical Aspects filter
+      if (filters.technicalAspects.length > 0) {
+        const hasMatchingAspect = project.technicalAspects.some(aspect =>
+          filters.technicalAspects.includes(aspect)
+        )
+        if (!hasMatchingAspect) return false
+      }
+
+      return true
+    })
+  }, [projects, employerFilter, projectFilter, globalFilters, hasGlobalFilters, filters])
 
   const handleProjectSubmit = async (data: ProjectFormData) => {
     // Here you would typically send the data to your API

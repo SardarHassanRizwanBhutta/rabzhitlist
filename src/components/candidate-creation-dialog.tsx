@@ -29,10 +29,14 @@ import {
 } from "@/components/ui/command"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X } from "lucide-react"
+import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleUniversities } from "@/lib/sample-data/universities"
+import { sampleProjects } from "@/lib/sample-data/projects"
+import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { Candidate } from "@/lib/types/candidate"
 
 // Types for form data
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
@@ -46,6 +50,12 @@ interface ComboboxOption {
 }
 
 export interface ProjectExperience {
+  id: string
+  projectName: string
+  contributionNotes: string
+}
+
+export interface CandidateStandaloneProject {
   id: string
   projectName: string
   contributionNotes: string
@@ -101,6 +111,9 @@ export interface CandidateFormData {
   // Work Experience - dynamic array
   workExperiences: WorkExperience[]
   
+  // Standalone Projects - dynamic array (projects not associated with work experience)
+  projects: CandidateStandaloneProject[]
+  
   // Certifications - dynamic array
   certifications: CandidateCertification[]
   
@@ -108,43 +121,52 @@ export interface CandidateFormData {
   educations: CandidateEducation[]
 }
 
+// Extract unique employers from sample candidates
+const extractUniqueEmployers = (): ComboboxOption[] => {
+  const employers = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (we.employerName) {
+        employers.add(we.employerName)
+      }
+    })
+  })
+  return Array.from(employers).sort().map(emp => ({
+    label: emp,
+    value: emp
+  }))
+}
+
 // Sample data for dropdowns
-const employerOptions: ComboboxOption[] = [
-  { label: "TechCorp Solutions", value: "techcorp" },
-  { label: "Innovation Labs", value: "innovation-labs" },
-  { label: "Digital Dynamics", value: "digital-dynamics" },
-  { label: "StartupX", value: "startupx" },
-  { label: "Enterprise Systems", value: "enterprise-systems" },
-  { label: "CloudTech Inc", value: "cloudtech" },
-]
+const employerOptions: ComboboxOption[] = extractUniqueEmployers()
 
-const projectOptions: ComboboxOption[] = [
-  { label: "E-commerce Platform", value: "ecommerce-platform" },
-  { label: "Mobile Banking App", value: "mobile-banking" },
-  { label: "AI Dashboard", value: "ai-dashboard" },
-  { label: "CRM System", value: "crm-system" },
-  { label: "Inventory Management", value: "inventory-mgmt" },
-  { label: "Social Media Analytics", value: "social-analytics" },
-]
+// Convert sample projects to combobox options
+const projectOptions: ComboboxOption[] = sampleProjects.map(project => ({
+  label: project.projectName,
+  value: project.projectName
+}))
 
-const techStackOptions: ComboboxOption[] = [
-  { label: "React", value: "react" },
-  { label: "Next.js", value: "nextjs" },
-  { label: "TypeScript", value: "typescript" },
-  { label: "JavaScript", value: "javascript" },
-  { label: "Node.js", value: "nodejs" },
-  { label: "Python", value: "python" },
-  { label: "Java", value: "java" },
-  { label: "C#", value: "csharp" },
-  { label: "AWS", value: "aws" },
-  { label: "Docker", value: "docker" },
-  { label: "Kubernetes", value: "kubernetes" },
-  { label: "PostgreSQL", value: "postgresql" },
-  { label: "MongoDB", value: "mongodb" },
-  { label: "Redis", value: "redis" },
-  { label: "GraphQL", value: "graphql" },
-  { label: "REST API", value: "rest-api" },
-]
+// Extract unique tech stacks from sample candidates (case-insensitive deduplication)
+const extractUniqueTechStacks = (): MultiSelectOption[] => {
+  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          // Store the first occurrence (preserving original casing)
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    })
+  })
+  return Array.from(techStacksMap.values()).sort().map(tech => ({
+    label: tech,
+    value: tech
+  }))
+}
+
+const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
 
 const shiftTypeOptions: ComboboxOption[] = [
   { label: "Morning", value: "Morning" },
@@ -159,7 +181,7 @@ const workModeOptions: ComboboxOption[] = [
   { label: "Onsite", value: "Onsite" },
   { label: "Hybrid", value: "Hybrid" },
 ]
-
+/*
 const timeSupportZoneOptions: ComboboxOption[] = [
   { label: "US", value: "US" },
   { label: "UK", value: "UK" },
@@ -167,7 +189,7 @@ const timeSupportZoneOptions: ComboboxOption[] = [
   { label: "APAC", value: "APAC" },
   { label: "MEA", value: "MEA" },
 ]
-
+*/
 // Convert sample certifications to combobox options
 const certificationOptions: ComboboxOption[] = sampleCertifications.map(cert => ({
   label: cert.certificationName,
@@ -182,46 +204,41 @@ const universityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(u
   }))
 )
 
-const degreeOptions: ComboboxOption[] = [
-  { label: "Bachelor of Science (B.S.)", value: "bachelor-science" },
-  { label: "Bachelor of Arts (B.A.)", value: "bachelor-arts" },
-  { label: "Bachelor of Engineering (B.Eng.)", value: "bachelor-engineering" },
-  { label: "Bachelor of Technology (B.Tech.)", value: "bachelor-technology" },
-  { label: "Bachelor of Business Administration (BBA)", value: "bachelor-bba" },
-  { label: "Bachelor of Computer Science (B.C.S.)", value: "bachelor-computer-science" },
-  { label: "Master of Science (M.S.)", value: "master-science" },
-  { label: "Master of Arts (M.A.)", value: "master-arts" },
-  { label: "Master of Engineering (M.Eng.)", value: "master-engineering" },
-  { label: "Master of Technology (M.Tech.)", value: "master-technology" },
-  { label: "Master of Business Administration (MBA)", value: "master-mba" },
-  { label: "Master of Computer Science (M.C.S.)", value: "master-computer-science" },
-  { label: "Doctor of Philosophy (Ph.D.)", value: "phd" },
-  { label: "Doctor of Engineering (D.Eng.)", value: "doctor-engineering" },
-  { label: "Doctor of Business Administration (DBA)", value: "doctor-business" },
-]
+// Extract unique degree names from sample candidates
+const extractUniqueDegreeNames = (): ComboboxOption[] => {
+  const degrees = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.educations?.forEach(education => {
+      if (education.degreeName) {
+        degrees.add(education.degreeName)
+      }
+    })
+  })
+  return Array.from(degrees).sort().map(degree => ({
+    label: degree,
+    value: degree
+  }))
+}
 
-const majorOptions: ComboboxOption[] = [
-  { label: "Computer Science", value: "computer-science" },
-  { label: "Software Engineering", value: "software-engineering" },
-  { label: "Information Technology", value: "information-technology" },
-  { label: "Data Science", value: "data-science" },
-  { label: "Artificial Intelligence", value: "artificial-intelligence" },
-  { label: "Electrical Engineering", value: "electrical-engineering" },
-  { label: "Mechanical Engineering", value: "mechanical-engineering" },
-  { label: "Civil Engineering", value: "civil-engineering" },
-  { label: "Chemical Engineering", value: "chemical-engineering" },
-  { label: "Business Administration", value: "business-administration" },
-  { label: "Finance", value: "finance" },
-  { label: "Marketing", value: "marketing" },
-  { label: "Economics", value: "economics" },
-  { label: "Mathematics", value: "mathematics" },
-  { label: "Physics", value: "physics" },
-  { label: "Chemistry", value: "chemistry" },
-  { label: "Biology", value: "biology" },
-  { label: "Psychology", value: "psychology" },
-  { label: "English Literature", value: "english-literature" },
-  { label: "History", value: "history" },
-]
+const degreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
+
+// Extract unique major names from sample candidates
+const extractUniqueMajorNames = (): ComboboxOption[] => {
+  const majors = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.educations?.forEach(education => {
+      if (education.majorName) {
+        majors.add(education.majorName)
+      }
+    })
+  })
+  return Array.from(majors).sort().map(major => ({
+    label: major,
+    value: major
+  }))
+}
+
+const majorOptions: ComboboxOption[] = extractUniqueMajorNames()
 
 // Reusable Combobox component following Shadcn/ui pattern
 interface ComboboxProps {
@@ -301,9 +318,15 @@ function ReusableCombobox({
   )
 }
 
+type DialogMode = "create" | "edit"
+
 interface CandidateCreationDialogProps {
   children?: React.ReactNode
+  mode?: DialogMode
+  candidateData?: Candidate
   onSubmit?: (data: CandidateFormData) => Promise<void> | void
+  onOpenChange?: (open: boolean) => void
+  open?: boolean
 }
 
 const createEmptyProject = (): ProjectExperience => ({
@@ -334,6 +357,12 @@ const createEmptyCertification = (): CandidateCertification => ({
   certificationUrl: "",
 })
 
+const createEmptyStandaloneProject = (): CandidateStandaloneProject => ({
+  id: crypto.randomUUID(),
+  projectName: "",
+  contributionNotes: "",
+})
+
 const createEmptyEducation = (): CandidateEducation => ({
   id: crypto.randomUUID(),
   universityLocationId: "",
@@ -358,18 +387,93 @@ const initialFormData: CandidateFormData = {
   linkedinUrl: "",
   githubUrl: "",
   workExperiences: [],
+  projects: [],
   certifications: [],
   educations: [],
 }
 
+// Convert Candidate to CandidateFormData for edit mode
+const candidateToFormData = (candidate: Candidate): CandidateFormData => {
+  return {
+    name: candidate.name || "",
+    city: candidate.city || "",
+    currentSalary: candidate.currentSalary?.toString() || "",
+    expectedSalary: candidate.expectedSalary?.toString() || "",
+    cnic: candidate.cnic || "",
+    contactNumber: candidate.mobileNo || "",
+    email: candidate.email || "",
+    linkedinUrl: candidate.linkedinUrl || "",
+    githubUrl: candidate.githubUrl || "",
+    workExperiences: candidate.workExperiences?.map(we => ({
+      id: we.id,
+      employerName: we.employerName || "",
+      jobTitle: we.jobTitle || "",
+      projects: we.projects.map(proj => ({
+        id: proj.id,
+        projectName: proj.projectName || "",
+        contributionNotes: proj.contributionNotes ?? "",
+      })),
+      startDate: we.startDate,
+      endDate: we.endDate,
+      techStacks: we.techStacks || [],
+      shiftType: (we.shiftType || "") as ShiftType | "",
+      workMode: (we.workMode || "") as WorkMode | "",
+      timeSupportZones: we.timeSupportZones || [],
+    })) || [],
+    projects: candidate.projects?.map(proj => ({
+      id: proj.id,
+      projectName: proj.projectName || "",
+      contributionNotes: proj.contributionNotes ?? "",
+    })) || [],
+    certifications: candidate.certifications?.map(cert => ({
+      id: cert.id,
+      certificationId: cert.certificationId || "",
+      certificationName: cert.certificationName || "",
+      issueDate: cert.issueDate,
+      expiryDate: cert.expiryDate,
+      certificationUrl: cert.certificationUrl || "",
+    })) || [],
+    educations: candidate.educations?.map(edu => ({
+      id: edu.id,
+      universityLocationId: edu.universityLocationId || "",
+      universityLocationName: edu.universityLocationName || "",
+      degreeName: edu.degreeName || "",
+      majorName: edu.majorName || "",
+      startMonth: edu.startMonth,
+      endMonth: edu.endMonth,
+      grades: edu.grades || "",
+      isTopper: edu.isTopper ?? false,
+      isCheetah: edu.isCheetah ?? false,
+    })) || [],
+  }
+}
+
 export function CandidateCreationDialog({
   children,
+  mode = "create",
+  candidateData,
   onSubmit,
+  onOpenChange,
+  open: controlledOpen,
 }: CandidateCreationDialogProps) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = (newOpen: boolean) => {
+    if (controlledOpen === undefined) {
+      setInternalOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }
+
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<CandidateFormData>(initialFormData)
+  const [formData, setFormData] = useState<CandidateFormData>(() => {
+    if (mode === "edit" && candidateData) {
+      return candidateToFormData(candidateData)
+    }
+    return initialFormData
+  })
   const [workExperienceOpen, setWorkExperienceOpen] = useState(false)
+  const [projectsOpen, setProjectsOpen] = useState(false)
   const [certificationsOpen, setCertificationsOpen] = useState(false)
   const [educationOpen, setEducationOpen] = useState(false)
   const [errors, setErrors] = useState<{
@@ -379,6 +483,7 @@ export function CandidateCreationDialog({
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
       }
     }
+    projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
   }>({})
@@ -661,6 +766,57 @@ export function CandidateCreationDialog({
     }
   }
 
+  const handleStandaloneProjectChange = (
+    index: number,
+    field: keyof CandidateStandaloneProject,
+    value: string
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      projects: prev.projects.map((project, i) =>
+        i === index ? { ...project, [field]: value } : project
+      )
+    }))
+    
+    // Clear error when user starts typing
+    if (errors.projects?.[index]?.[field]) {
+      setErrors(prev => ({
+        ...prev,
+        projects: {
+          ...prev.projects,
+          [index]: {
+            ...prev.projects?.[index],
+            [field]: undefined
+          }
+        }
+      }))
+    }
+  }
+
+  const addStandaloneProject = () => {
+    setFormData(prev => ({
+      ...prev,
+      projects: [...prev.projects, createEmptyStandaloneProject()]
+    }))
+  }
+
+  const removeStandaloneProject = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      projects: prev.projects.filter((_, i) => i !== index)
+    }))
+    
+    // Clear errors for removed project
+    if (errors.projects?.[index]) {
+      const newProjectErrors = { ...errors.projects }
+      delete newProjectErrors[index]
+      setErrors(prev => ({
+        ...prev,
+        projects: newProjectErrors
+      }))
+    }
+  }
+
   const validateForm = (): boolean => {
     const basicErrors: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>> = {}
     const workExperienceErrors: { 
@@ -726,6 +882,23 @@ export function CandidateCreationDialog({
       }
     })
 
+    // Standalone Projects validation (only validate if projects exist)
+    const projectErrors: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> } = {}
+    formData.projects.forEach((project, index) => {
+      const projErrors: Partial<Record<keyof CandidateStandaloneProject, string>> = {}
+      
+      // Only validate if at least one field is filled (user started entering data)
+      const hasAnyData = project.projectName || project.contributionNotes
+      
+      if (hasAnyData) {
+        if (!project.projectName.trim()) projErrors.projectName = "Project name is required"
+      }
+      
+      if (Object.keys(projErrors).length > 0) {
+        projectErrors[index] = projErrors
+      }
+    })
+
     // Certification validation (only validate if certifications exist)
     formData.certifications.forEach((cert, index) => {
       const certErrors: Partial<Record<keyof CandidateCertification, string>> = {}
@@ -768,12 +941,13 @@ export function CandidateCreationDialog({
     const newErrors = {
       basic: Object.keys(basicErrors).length > 0 ? basicErrors : undefined,
       workExperiences: Object.keys(workExperienceErrors).length > 0 ? workExperienceErrors : undefined,
+      projects: Object.keys(projectErrors).length > 0 ? projectErrors : undefined,
       certifications: Object.keys(certificationErrors).length > 0 ? certificationErrors : undefined,
       educations: Object.keys(educationErrors).length > 0 ? educationErrors : undefined,
     }
 
     setErrors(newErrors)
-    return !newErrors.basic && !newErrors.workExperiences && !newErrors.certifications && !newErrors.educations
+    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -799,32 +973,51 @@ export function CandidateCreationDialog({
     setFormData(initialFormData)
     setErrors({})
     setWorkExperienceOpen(false)
+    setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
     setOpen(false)
   }
 
+  // Update form data when candidateData changes (for edit mode)
+  React.useEffect(() => {
+    if (mode === "edit" && candidateData && open) {
+      setFormData(candidateToFormData(candidateData))
+      setErrors({})
+    } else if (mode === "create" && open) {
+      setFormData(initialFormData)
+      setErrors({})
+    }
+  }, [mode, candidateData, open])
+
   const resetForm = () => {
-    setFormData(initialFormData)
+    if (mode === "edit" && candidateData) {
+      setFormData(candidateToFormData(candidateData))
+    } else {
+      setFormData(initialFormData)
+    }
     setErrors({})
     setWorkExperienceOpen(false)
+    setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">
-            <Plus className="h-4 w-4" />
-            Create Candidate
-          </Button>
-        )}
-      </DialogTrigger>
+      {mode === "create" && (
+        <DialogTrigger asChild>
+          {children || (
+            <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">
+              <Plus className="h-4 w-4" />
+              Create Candidate
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[750px] lg:max-w-[850px] xl:max-w-[950px] max-h-[95vh] flex flex-col p-0 [&>button]:cursor-pointer">
         <DialogHeader className="px-6 pt-6 pb-2 border-b border-border">
-          <DialogTitle>Create New Candidate</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "Update Candidate" : "Create New Candidate"}</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -1104,17 +1297,17 @@ export function CandidateCreationDialog({
                       </Popover>
                     </div>
 
-                    {/* <div className="space-y-2 md:col-span-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor={`techStacks-${index}`}>Tech Stacks</Label>
                       <MultiSelect
-                        options={techStackOptions}
+                        items={techStackOptions}
                         selected={experience.techStacks}
-                        onValueChange={(value) => handleWorkExperienceChange(index, "techStacks", value)}
+                        onChange={(values) => handleWorkExperienceChange(index, "techStacks", values)}
                         placeholder="Select technologies..."
                         searchPlaceholder="Search tech stacks..."
                         maxDisplay={4}
                       />
-                    </div> */}
+                    </div>
 
                       <div className="space-y-2">
                         <Label htmlFor={`shiftType-${index}`}>Shift Type</Label>
@@ -1252,7 +1445,114 @@ export function CandidateCreationDialog({
               )}
             </CollapsibleContent>
           </Collapsible>
-          {/* Section 3: Education (Collapsible) */}
+
+          {/* Section 3: Standalone Projects (Collapsible) */}
+          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-lg font-medium">Projects</span>
+                  {formData.projects.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {formData.projects.length}
+                    </Badge>
+                  )}
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform duration-200 ${
+                    projectsOpen ? "transform rotate-180" : ""
+                  }`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Add independent projects not associated with work experience
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStandaloneProject}
+                  className="flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Project
+                </Button>
+              </div>
+
+              {formData.projects.map((project, index) => (
+                <Card key={project.id} className="relative">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>Project {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeStandaloneProject(index)}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`standalone-projectName-${index}`}>Project Name *</Label>
+                      <ReusableCombobox
+                        options={projectOptions}
+                        value={project.projectName}
+                        onValueChange={(value) => handleStandaloneProjectChange(index, "projectName", value)}
+                        placeholder="Select project..."
+                        searchPlaceholder="Search projects..."
+                        className={errors.projects?.[index]?.projectName ? "border-red-500" : ""}
+                      />
+                      {errors.projects?.[index]?.projectName && (
+                        <p className="text-sm text-red-500">{errors.projects[index].projectName}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`standalone-contributionNotes-${index}`}>Contribution Notes</Label>
+                      <Textarea
+                        id={`standalone-contributionNotes-${index}`}
+                        placeholder="Describe your key contributions, achievements, and responsibilities in this project..."
+                        value={project.contributionNotes}
+                        onChange={(e) => handleStandaloneProjectChange(index, "contributionNotes", e.target.value)}
+                        className="min-h-[80px] resize-none"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {formData.projects.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground mb-2">No projects added yet</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addStandaloneProject}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Your First Project
+                  </Button>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Section 4: Education (Collapsible) */}
           <Collapsible open={educationOpen} onOpenChange={setEducationOpen}>
             <CollapsibleTrigger asChild>
               <Button
@@ -1467,7 +1767,7 @@ export function CandidateCreationDialog({
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Section 4: Certifications (Collapsible) */}
+          {/* Section 5: Certifications (Collapsible) */}
           <Collapsible open={certificationsOpen} onOpenChange={setCertificationsOpen}>
             <CollapsibleTrigger asChild>
               <Button
@@ -1649,7 +1949,9 @@ export function CandidateCreationDialog({
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? "Creating..." : "Create Candidate"}
+              {isLoading 
+                ? (mode === "edit" ? "Updating..." : "Creating...") 
+                : (mode === "edit" ? "Update Candidate" : "Create Candidate")}
             </Button>
         </DialogFooter>
       </DialogContent>
