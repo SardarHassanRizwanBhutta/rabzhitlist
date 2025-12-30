@@ -34,6 +34,9 @@ import {
   getCandidateMatchContext, 
   hasActiveFilters,
   type MatchCriterion,
+  type CandidateMatchContext,
+  type MatchCategory,
+  type MatchItem,
 } from "@/lib/utils/candidate-matches"
 
 const defaultFilters: CandidateFilters = {
@@ -176,11 +179,11 @@ const getCriterionColor = (type: string): string => {
 }
 
 // Helper to get all unique criterion types from match context
-const getAllCriterionTypes = (matchContext: any): MatchCriterion[] => {
+const getAllCriterionTypes = (matchContext: CandidateMatchContext): MatchCriterion[] => {
   const criterionMap = new Map<string, MatchCriterion>()
   
-  matchContext.categories.forEach((category: any) => {
-    category.items.forEach((item: any) => {
+  matchContext.categories.forEach((category: MatchCategory) => {
+    category.items.forEach((item: MatchItem) => {
       item.matchedCriteria.forEach((criterion: MatchCriterion) => {
         if (!criterionMap.has(criterion.type)) {
           criterionMap.set(criterion.type, criterion)
@@ -223,6 +226,28 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
   const [candidateToEdit, setCandidateToEdit] = React.useState<Candidate | null>(null)
 
   const activeFilters = hasActiveFilters(filters)
+
+  // Collect all unique criterion types from all candidates for the single legend
+  // Must be called before any early returns (React Hooks rule)
+  const allUniqueCriteria = React.useMemo(() => {
+    if (!activeFilters) return []
+    
+    const criterionMap = new Map<string, MatchCriterion>()
+    
+    candidates.forEach((candidate) => {
+      const matchContext = getCandidateMatchContext(candidate, filters)
+      if (matchContext) {
+        const criteria = getAllCriterionTypes(matchContext)
+        criteria.forEach((criterion) => {
+          if (!criterionMap.has(criterion.type)) {
+            criterionMap.set(criterion.type, criterion)
+          }
+        })
+      }
+    })
+    
+    return Array.from(criterionMap.values())
+  }, [candidates, filters, activeFilters])
 
   const handleEdit = (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -267,27 +292,6 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
       </div>
     )
   }
-
-  // Collect all unique criterion types from all candidates for the single legend
-  const allUniqueCriteria = React.useMemo(() => {
-    if (!activeFilters) return []
-    
-    const criterionMap = new Map<string, MatchCriterion>()
-    
-    candidates.forEach((candidate) => {
-      const matchContext = getCandidateMatchContext(candidate, filters)
-      if (matchContext) {
-        const criteria = getAllCriterionTypes(matchContext)
-        criteria.forEach((criterion) => {
-          if (!criterionMap.has(criterion.type)) {
-            criterionMap.set(criterion.type, criterion)
-          }
-        })
-      }
-    })
-    
-    return Array.from(criterionMap.values())
-  }, [candidates, filters, activeFilters])
 
   return (
     <>
