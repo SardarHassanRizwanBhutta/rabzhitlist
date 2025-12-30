@@ -289,7 +289,7 @@ interface InlineEditableTextareaProps {
   onSave: (fieldName: string, newValue: string, shouldVerify: boolean) => Promise<void>
   maxLength?: number
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   className?: string
 }
 
@@ -495,7 +495,7 @@ interface InlineEditableComboboxProps {
   options: ComboboxOption[]
   onSave: (fieldName: string, newValue: string, shouldVerify: boolean) => Promise<void>
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   placeholder?: string
   searchPlaceholder?: string
   emptyMessage?: string
@@ -722,7 +722,7 @@ interface InlineEditableDateProps {
   fieldName: string
   onSave: (fieldName: string, newValue: Date | undefined, shouldVerify: boolean) => Promise<void>
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   formatDisplay: (date: Date | undefined) => string
   className?: string
   mode?: 'date' | 'month' // For education dates (month/year only)
@@ -928,7 +928,7 @@ interface InlineEditableMultiSelectProps {
   options: MultiSelectOption[]
   onSave: (fieldName: string, newValue: string[], shouldVerify: boolean) => Promise<void>
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   className?: string
   placeholder?: string
   searchPlaceholder?: string
@@ -1175,7 +1175,7 @@ interface InlineEditableBenefitsProps {
   fieldName: string
   onSave: (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => Promise<void>
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   className?: string
   maxDisplay?: number
 }
@@ -1498,7 +1498,7 @@ interface InlineEditableFieldProps {
   onSave: (fieldName: string, newValue: string | number, shouldVerify: boolean) => Promise<void>
   formatDisplay?: (value: string | number | null | undefined) => string
   verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => any
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
   className?: string
 }
 

@@ -583,21 +583,21 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                                       {/* Additional context */}
                                       {Object.keys(item.context).length > 0 && (
                                         <div className="text-xs text-muted-foreground ml-6 mt-1">
-                                          {item.context.jobTitle && (
+                                          {typeof item.context.jobTitle === 'string' && item.context.jobTitle && (
                                             <span>Role: {item.context.jobTitle}</span>
                                           )}
-                                          {item.context.degreeName && item.context.majorName && (
+                                          {typeof item.context.degreeName === 'string' && typeof item.context.majorName === 'string' && item.context.degreeName && item.context.majorName && (
                                             <span>{item.context.degreeName} in {item.context.majorName}</span>
                                           )}
-                                          {item.context.grades && (
+                                          {typeof item.context.grades === 'string' && item.context.grades && (
                                             <span> • Grades: {item.context.grades}</span>
                                           )}
-                                          {item.context.isTopper && (
+                                          {typeof item.context.isTopper === 'boolean' && item.context.isTopper && (
                                             <Badge variant="default" className="ml-2 bg-yellow-500 hover:bg-yellow-600 text-xs">
                                               Topper
                                             </Badge>
                                           )}
-                                          {item.context.isCheetah && (
+                                          {typeof item.context.isCheetah === 'boolean' && item.context.isCheetah && (
                                             <Badge variant="default" className="ml-2 bg-orange-500 hover:bg-orange-600 text-xs">
                                               Cheetah
                                             </Badge>

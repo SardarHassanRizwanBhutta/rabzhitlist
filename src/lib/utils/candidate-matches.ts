@@ -14,7 +14,7 @@ export interface MatchCriterion {
 export interface MatchItem {
   name: string
   matchedCriteria: MatchCriterion[]
-  context: Record<string, any>
+  context: Record<string, unknown>
 }
 
 export interface MatchCategory {
