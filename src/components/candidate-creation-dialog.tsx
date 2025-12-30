@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useRef, useMemo, useCallback, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -10,12 +10,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
 // import { Combobox, ComboboxOption } from "@/components/ui/combobox"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -29,14 +40,22 @@ import {
 } from "@/components/ui/command"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen } from "lucide-react"
+import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen, ShieldCheck, Code } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { sampleEmployers } from "@/lib/sample-data/employers"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import { Candidate } from "@/lib/types/candidate"
+import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
+import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from "@/components/project-creation-dialog"
+import { toast } from "sonner"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { CheckCircle } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 // Types for form data
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
@@ -61,6 +80,13 @@ export interface CandidateStandaloneProject {
   contributionNotes: string
 }
 
+export interface WorkExperienceBenefit {
+  id: string
+  name: string
+  amount: number | null
+  unit: "PKR" | "days" | "count" | "percent" | null
+}
+
 export interface WorkExperience {
   id: string
   employerName: string
@@ -69,9 +95,11 @@ export interface WorkExperience {
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
+  domains: string[]  // NEW FIELD
   shiftType: ShiftType | ""
   workMode: WorkMode | ""
   timeSupportZones: string[]
+  benefits: WorkExperienceBenefit[]
 }
 
 export interface CandidateCertification {
@@ -99,6 +127,7 @@ export interface CandidateEducation {
 export interface CandidateFormData {
   // Basic Information
   name: string
+  postingTitle: string  // Add this
   city: string
   currentSalary: string
   expectedSalary: string
@@ -119,6 +148,9 @@ export interface CandidateFormData {
   
   // Education - dynamic array
   educations: CandidateEducation[]
+  
+  // Standalone Tech Stacks - overall technical skills (not tied to specific employer)
+  techStacks: string[]
 }
 
 // Extract unique employers from sample candidates
@@ -137,19 +169,25 @@ const extractUniqueEmployers = (): ComboboxOption[] => {
   }))
 }
 
-// Sample data for dropdowns
-const employerOptions: ComboboxOption[] = extractUniqueEmployers()
+// Base employer options from sample data
+const baseEmployerOptions: ComboboxOption[] = [
+  ...extractUniqueEmployers(),
+  ...sampleEmployers.map(emp => ({ label: emp.name, value: emp.name }))
+].filter((emp, index, self) => 
+  index === self.findIndex(e => e.value.toLowerCase() === emp.value.toLowerCase())
+).sort((a, b) => a.label.localeCompare(b.label))
 
-// Convert sample projects to combobox options
-const projectOptions: ComboboxOption[] = sampleProjects.map(project => ({
+// Base project options from sample data
+const baseProjectOptions: ComboboxOption[] = sampleProjects.map(project => ({
   label: project.projectName,
   value: project.projectName
-}))
+})).sort((a, b) => a.label.localeCompare(b.label))
 
 // Extract unique tech stacks from sample candidates (case-insensitive deduplication)
 const extractUniqueTechStacks = (): MultiSelectOption[] => {
   const techStacksMap = new Map<string, string>() // Map<lowercase, original>
   sampleCandidates.forEach(candidate => {
+    // Include tech stacks from work experiences
     candidate.workExperiences?.forEach(we => {
       we.techStacks.forEach(tech => {
         const lowerTech = tech.toLowerCase().trim()
@@ -159,6 +197,14 @@ const extractUniqueTechStacks = (): MultiSelectOption[] => {
         }
       })
     })
+    // Also include standalone tech stacks from candidate level
+    candidate.techStacks?.forEach(tech => {
+      const lowerTech = tech.toLowerCase().trim()
+      if (lowerTech && !techStacksMap.has(lowerTech)) {
+        // Store the first occurrence (preserving original casing)
+        techStacksMap.set(lowerTech, tech.trim())
+      }
+    })
   })
   return Array.from(techStacksMap.values()).sort().map(tech => ({
     label: tech,
@@ -166,8 +212,20 @@ const extractUniqueTechStacks = (): MultiSelectOption[] => {
   }))
 }
 
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+// Extract unique horizontal domains from sample projects
+const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
+  const domains = new Set<string>()
+  sampleProjects.forEach(project => {
+    project.horizontalDomains.forEach(domain => domains.add(domain))
+  })
+  return Array.from(domains).sort().map(domain => ({
+    label: domain,
+    value: domain
+  }))
+}
 
+const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
 const shiftTypeOptions: ComboboxOption[] = [
   { label: "Morning", value: "Morning" },
   { label: "Evening", value: "Evening" },
@@ -250,6 +308,9 @@ interface ComboboxProps {
   emptyMessage?: string
   className?: string
   disabled?: boolean
+  creatable?: boolean
+  onCreateNew?: (value: string) => void
+  createLabel?: string
 }
 
 function ReusableCombobox({
@@ -261,16 +322,70 @@ function ReusableCombobox({
   emptyMessage = "No option found.",
   className,
   disabled = false,
+  creatable = false,
+  onCreateNew,
+  createLabel,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchValue, setSearchValue] = React.useState("")
 
   // Handle wheel and touch events to enable scrolling
   const handleWheel = React.useCallback((e: React.WheelEvent) => {
     e.stopPropagation()
   }, [])
+
+  // Filter options based on search
+  const filteredOptions = React.useMemo(() => {
+    if (!searchValue.trim()) return options
+    const searchLower = searchValue.toLowerCase()
+    return options.filter(option => 
+      option.label.toLowerCase().includes(searchLower) ||
+      option.value.toLowerCase().includes(searchLower)
+    )
+  }, [options, searchValue])
+
+  // Check if search value already exists
+  const searchValueExists = React.useMemo(() => {
+    if (!searchValue.trim()) return false
+    const searchLower = searchValue.trim().toLowerCase()
+    return options.some(option => 
+      option.value.toLowerCase() === searchLower ||
+      option.label.toLowerCase() === searchLower
+    ) || value.toLowerCase() === searchLower
+  }, [options, value, searchValue])
+
+  // Check if we should show "Create" option
+  const shouldShowCreate = creatable && 
+    searchValue.trim().length >= 2 && 
+    !searchValueExists && 
+    filteredOptions.length === 0
+
+  const handleCreateNew = () => {
+    if (onCreateNew && searchValue.trim()) {
+      onCreateNew(searchValue.trim())
+      setSearchValue("")
+      setOpen(false)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (creatable && e.key === "Enter" && shouldShowCreate) {
+      e.preventDefault()
+      handleCreateNew()
+    }
+    if (e.key === "Escape") {
+      setOpen(false)
+      setSearchValue("")
+    }
+  }
   
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen)
+      if (!isOpen) {
+        setSearchValue("")
+      }
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -289,28 +404,58 @@ function ReusableCombobox({
         className="w-[--radix-popover-trigger-width] p-0"
         onWheel={handleWheel}
         >
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} className="h-9" />
+        <Command shouldFilter={false}>
+          <CommandInput 
+            placeholder={searchPlaceholder} 
+            className="h-9"
+            value={searchValue}
+            onValueChange={setSearchValue}
+            onKeyDown={handleKeyDown}
+          />
           <CommandList>
-            <CommandEmpty>{emptyMessage}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    onValueChange(currentValue === value ? "" : currentValue)
-                    setOpen(false)
-                  }}
-                  className="cursor-pointer"
-                >
-                  {option.label}
-                  <Check
-                    className={`ml-auto ${value === option.value ? "opacity-100" : "opacity-0"}`}
-                  />
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {shouldShowCreate ? (
+              <>
+                <CommandEmpty>
+                  <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                    {emptyMessage}
+                  </div>
+                </CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value={searchValue}
+                    onSelect={handleCreateNew}
+                    className="cursor-pointer font-medium text-primary border-t border-border"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {createLabel 
+                      ? (searchValue.trim() ? `Create "${searchValue.trim()}"` : createLabel)
+                      : `Add "${searchValue.trim()}"`}
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            ) : filteredOptions.length === 0 ? (
+              <CommandEmpty>{emptyMessage}</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {filteredOptions.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    value={option.value}
+                    onSelect={(currentValue) => {
+                      onValueChange(currentValue === value ? "" : currentValue)
+                      setOpen(false)
+                      setSearchValue("")
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {option.label}
+                    <Check
+                      className={`ml-auto ${value === option.value ? "opacity-100" : "opacity-0"}`}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -320,11 +465,18 @@ function ReusableCombobox({
 
 type DialogMode = "create" | "edit"
 
+// Verification state for tracking which fields have been verified
+export interface VerificationState {
+  verifiedFields: Set<string>
+  modifiedFields: Set<string>
+}
+
 interface CandidateCreationDialogProps {
   children?: React.ReactNode
   mode?: DialogMode
   candidateData?: Candidate
-  onSubmit?: (data: CandidateFormData) => Promise<void> | void
+  showVerification?: boolean  // Enable verification UI mode (automatically true in edit mode, optional for create mode)
+  onSubmit?: (data: CandidateFormData, verificationState?: VerificationState) => Promise<void> | void
   onOpenChange?: (open: boolean) => void
   open?: boolean
 }
@@ -343,9 +495,11 @@ const createEmptyWorkExperience = (): WorkExperience => ({
   startDate: undefined,
   endDate: undefined,
   techStacks: [],
+  domains: [],  // NEW FIELD
   shiftType: "",
   workMode: "",
   timeSupportZones: [],
+  benefits: [],
 })
 
 const createEmptyCertification = (): CandidateCertification => ({
@@ -378,6 +532,7 @@ const createEmptyEducation = (): CandidateEducation => ({
 
 const initialFormData: CandidateFormData = {
   name: "",
+  postingTitle: "",
   city: "",
   currentSalary: "",
   expectedSalary: "",
@@ -390,12 +545,14 @@ const initialFormData: CandidateFormData = {
   projects: [],
   certifications: [],
   educations: [],
+  techStacks: [],
 }
 
 // Convert Candidate to CandidateFormData for edit mode
 const candidateToFormData = (candidate: Candidate): CandidateFormData => {
   return {
     name: candidate.name || "",
+    postingTitle: candidate.postingTitle || "",  // Add this
     city: candidate.city || "",
     currentSalary: candidate.currentSalary?.toString() || "",
     expectedSalary: candidate.expectedSalary?.toString() || "",
@@ -416,9 +573,16 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       startDate: we.startDate,
       endDate: we.endDate,
       techStacks: we.techStacks || [],
+      domains: we.domains || [],  // NEW FIELD
       shiftType: (we.shiftType || "") as ShiftType | "",
       workMode: (we.workMode || "") as WorkMode | "",
       timeSupportZones: we.timeSupportZones || [],
+      benefits: we.benefits?.map(b => ({
+        id: b.id,
+        name: b.name,
+        amount: b.amount,
+        unit: b.unit || null,
+      })) || [],
     })) || [],
     projects: candidate.projects?.map(proj => ({
       id: proj.id,
@@ -445,6 +609,7 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       isTopper: edu.isTopper ?? false,
       isCheetah: edu.isCheetah ?? false,
     })) || [],
+    techStacks: candidate.techStacks || [],
   }
 }
 
@@ -452,18 +617,26 @@ export function CandidateCreationDialog({
   children,
   mode = "create",
   candidateData,
+  showVerification: showVerificationProp,
   onSubmit,
   onOpenChange,
   open: controlledOpen,
 }: CandidateCreationDialogProps) {
+  // Always show verification in edit mode, allow override via prop for create mode
+  const showVerification = mode === "edit" ? true : (showVerificationProp ?? false)
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
-  const setOpen = (newOpen: boolean) => {
-    if (controlledOpen === undefined) {
-      setInternalOpen(newOpen)
-    }
-    onOpenChange?.(newOpen)
-  }
+  
+  // Unsaved changes warning state
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const pendingCloseRef = useRef(false)
+  
+  // Track initial form data for change detection
+  const initialFormDataRef = useRef<CandidateFormData | null>(null)
+  
+  // Verification state - track which fields have been verified this session
+  const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
+  const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set())
 
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<CandidateFormData>(() => {
@@ -472,10 +645,45 @@ export function CandidateCreationDialog({
     }
     return initialFormData
   })
-  const [workExperienceOpen, setWorkExperienceOpen] = useState(false)
-  const [projectsOpen, setProjectsOpen] = useState(false)
-  const [certificationsOpen, setCertificationsOpen] = useState(false)
-  const [educationOpen, setEducationOpen] = useState(false)
+
+  // Sticky navigation tabs state
+  const [activeTab, setActiveTab] = useState<string>("basic-info")
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isScrollingRef = useRef(false)
+
+  // Define sections for navigation
+  const sections = useMemo(() => [
+    { id: "basic", sectionId: "basic-info", label: "Basic Information", shortLabel: "Basic" },
+    { id: "work-experience", sectionId: "work-experience", label: "Work Experience", shortLabel: "Experience" },
+    { id: "tech-stacks", sectionId: "tech-stacks", label: "Tech Stacks", shortLabel: "Tech" },
+    { id: "projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
+    { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
+    { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
+  ], [])
+
+  const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
+  const [techStacksOpen, setTechStacksOpen] = useState(true)
+  const [projectsOpen, setProjectsOpen] = useState(true)
+  const [certificationsOpen, setCertificationsOpen] = useState(true)
+  const [educationOpen, setEducationOpen] = useState(true)
+  
+  // Employer creation state
+  const [employerOptions, setEmployerOptions] = useState<ComboboxOption[]>(baseEmployerOptions)
+  const [createEmployerDialogOpen, setCreateEmployerDialogOpen] = useState(false)
+  const [pendingEmployerName, setPendingEmployerName] = useState<string>("")
+  const [pendingWorkExperienceIndex, setPendingWorkExperienceIndex] = useState<number | null>(null)
+  
+  // Project creation state
+  const [projectOptions, setProjectOptions] = useState<ComboboxOption[]>(baseProjectOptions)
+  const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false)
+  const [pendingProjectName, setPendingProjectName] = useState<string>("")
+  const [pendingProjectContext, setPendingProjectContext] = useState<{
+    type: 'workExperience' | 'independent'
+    workExperienceIndex?: number
+    projectIndex?: number
+    independentProjectIndex?: number
+  } | null>(null)
+  
   const [errors, setErrors] = useState<{
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>>
     workExperiences?: { 
@@ -486,10 +694,573 @@ export function CandidateCreationDialog({
     projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
+    techStacks?: string
   }>({})
+  
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, value: string) => {
+  // Check if form has unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    if (!initialFormDataRef.current) return false
+    return JSON.stringify(formData) !== JSON.stringify(initialFormDataRef.current) || 
+           verifiedFields.size > 0
+  }, [formData, verifiedFields])
+  
+  // Calculate verification progress
+  const verificationProgress = useMemo(() => {
+    if (!showVerification) return { total: 0, verified: 0, percentage: 0 }
+    
+    // Count all verifiable fields
+    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl']
+    let total = basicFields.length
+    let verified = basicFields.filter(f => verifiedFields.has(f)).length
+    
+    // Work experiences
+    formData.workExperiences.forEach((_, idx) => {
+      const weFields = ['employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode']
+      weFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
+      })
+    })
+    
+    // Projects
+    formData.projects.forEach((_, idx) => {
+      total += 2 // projectName, contributionNotes
+      if (verifiedFields.has(`projects.${idx}.projectName`)) verified++
+      if (verifiedFields.has(`projects.${idx}.contributionNotes`)) verified++
+    })
+    
+    // Certifications
+    formData.certifications.forEach((_, idx) => {
+      total += 4 // certificationName, issueDate, expiryDate, certificationUrl
+      if (verifiedFields.has(`certifications.${idx}.certificationName`)) verified++
+      if (verifiedFields.has(`certifications.${idx}.issueDate`)) verified++
+      if (verifiedFields.has(`certifications.${idx}.expiryDate`)) verified++
+      if (verifiedFields.has(`certifications.${idx}.certificationUrl`)) verified++
+    })
+    
+    // Educations
+    formData.educations.forEach((_, idx) => {
+      total += 6 // universityLocationName, degreeName, majorName, startMonth, endMonth, grades
+      if (verifiedFields.has(`educations.${idx}.universityLocationName`)) verified++
+      if (verifiedFields.has(`educations.${idx}.degreeName`)) verified++
+      if (verifiedFields.has(`educations.${idx}.majorName`)) verified++
+      if (verifiedFields.has(`educations.${idx}.startMonth`)) verified++
+      if (verifiedFields.has(`educations.${idx}.endMonth`)) verified++
+      if (verifiedFields.has(`educations.${idx}.grades`)) verified++
+    })
+    
+    // Tech Stacks
+    total += 1 // techStacks
+    if (verifiedFields.has('techStacks')) verified++
+    
+    return { 
+      total, 
+      verified, 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0 
+    }
+  }, [showVerification, verifiedFields, formData])
+  
+  // Get progress color based on percentage
+  const getProgressColor = (percentage: number): string => {
+    if (percentage === 100) return 'bg-green-500 hover:bg-green-600'
+    if (percentage >= 70) return 'bg-yellow-500 hover:bg-yellow-600'
+    return 'bg-red-500 hover:bg-red-600'
+  }
+
+  // Section Progress Badge Component
+  const SectionProgressBadge = ({ 
+    percentage, 
+    verified, 
+    total 
+  }: { 
+    percentage: number
+    verified: number
+    total: number 
+  }) => {
+    if (!showVerification || total === 0) return null
+
+    return (
+      <Badge 
+        variant="default" 
+        className={`${getProgressColor(percentage)} text-white text-xs font-medium`}
+      >
+        {percentage}% verified ({verified}/{total})
+      </Badge>
+    )
+  }
+
+  // Calculate section-specific progress
+  const basicInfoProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl']
+    const total = basicFields.length
+    const verified = basicFields.filter(f => verifiedFields.has(f)).length
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields])
+
+  const workExperienceProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.workExperiences.forEach((_, idx) => {
+      const weFields = ['employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'timeSupportZones']
+      weFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
+      })
+      // Projects within work experience
+      formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
+        total += 2 // projectName, contributionNotes
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectName`)) verified++
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.workExperiences])
+
+  const projectsProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.projects.forEach((_, idx) => {
+      total += 2 // projectName, contributionNotes
+      if (verifiedFields.has(`projects.${idx}.projectName`)) verified++
+      if (verifiedFields.has(`projects.${idx}.contributionNotes`)) verified++
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.projects])
+
+  const educationProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.educations.forEach((_, idx) => {
+      const eduFields = ['universityLocationName', 'degreeName', 'majorName', 'startMonth', 'endMonth', 'grades', 'isTopper', 'isCheetah']
+      eduFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`educations.${idx}.${f}`)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.educations])
+
+  const certificationsProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.certifications.forEach((_, idx) => {
+      const certFields = ['certificationName', 'issueDate', 'expiryDate', 'certificationUrl']
+      certFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`certifications.${idx}.${f}`)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.certifications])
+
+  const techStacksProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    const total = 1 // techStacks field
+    const verified = verifiedFields.has('techStacks') ? 1 : 0
+    return { 
+      percentage: verified > 0 ? 100 : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields])
+
+  // Helper function to get progress for a section by sectionId
+  const getSectionProgress = (sectionId: string) => {
+    switch (sectionId) {
+      case 'basic-info':
+        return basicInfoProgress
+      case 'work-experience':
+        return workExperienceProgress
+      case 'tech-stacks':
+        return techStacksProgress
+      case 'projects':
+        return projectsProgress
+      case 'education':
+        return educationProgress
+      case 'certifications':
+        return certificationsProgress
+      default:
+        return { percentage: 0, verified: 0, total: 0 }
+    }
+  }
+
+  // Helper function to get verification badge color (matches section badge styling)
+  const getVerificationBadgeColor = (percentage: number): string => {
+    if (percentage === 100) {
+      return 'bg-green-500 hover:bg-green-600 text-white'
+    } else if (percentage >= 70) {
+      return 'bg-yellow-500 hover:bg-yellow-600 text-white'
+    } else {
+      return 'bg-red-500 hover:bg-red-600 text-white'
+    }
+  }
+
+  // Helper function to scroll to element
+  const scrollToElement = useCallback((element: HTMLElement, container: HTMLElement, yOffset: number, sectionId: string) => {
+    // Set flag to prevent IntersectionObserver from interfering
+    isScrollingRef.current = true
+    
+    // Update active tab immediately
+    setActiveTab(sectionId)
+    
+    // Use double requestAnimationFrame to ensure layout is fully calculated
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Verify element is still within container (important for nested dialogs)
+        if (!container.contains(element)) {
+          isScrollingRef.current = false
+          return
+        }
+        
+        // Get current scroll position
+        const currentScrollTop = container.scrollTop
+        
+        // Get bounding rects (relative to viewport)
+        const containerRect = container.getBoundingClientRect()
+        const elementRect = element.getBoundingClientRect()
+        
+        // Calculate element's position relative to container's scrollable content
+        // For nested dialogs, we need to account for the container's position
+        // elementRect.top is relative to viewport
+        // containerRect.top is container's position in viewport
+        // currentScrollTop is how much we've scrolled within the container
+        const elementTopInContainer = elementRect.top - containerRect.top + currentScrollTop
+        
+        // Calculate target scroll position accounting for sticky header
+        const targetScrollTop = elementTopInContainer - yOffset
+        
+        container.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: 'smooth'
+        })
+        
+        // Reset flag after scroll completes (smooth scroll takes ~500ms)
+        setTimeout(() => {
+          isScrollingRef.current = false
+        }, 600)
+      })
+    })
+  }, [])
+
+  // Scroll to section function
+  const scrollToSection = useCallback((sectionId: string) => {
+    if (!scrollContainerRef.current) return
+    
+    const container = scrollContainerRef.current
+    const yOffset = 80 // Account for sticky header
+    
+    // Find element within the container (for nested dialog support)
+    const elementInContainer = container.querySelector(`#${sectionId}`) as HTMLElement
+    const element = elementInContainer || (() => {
+      const el = document.getElementById(sectionId)
+      return el && container.contains(el) ? el : null
+    })()
+    
+    if (!element) return
+    
+    // Ensure section is expanded before scrolling (for collapsible sections)
+    const sectionKey = sections.find(s => s.sectionId === sectionId)?.id
+    let needsExpansion = false
+    
+    if (sectionKey) {
+      // Expand the section if it's collapsed
+      if (sectionKey === "work-experience" && !workExperienceOpen) {
+        setWorkExperienceOpen(true)
+        needsExpansion = true
+      } else if (sectionKey === "tech-stacks" && !techStacksOpen) {
+        setTechStacksOpen(true)
+        needsExpansion = true
+      } else if (sectionKey === "projects" && !projectsOpen) {
+        setProjectsOpen(true)
+        needsExpansion = true
+      } else if (sectionKey === "education" && !educationOpen) {
+        setEducationOpen(true)
+        needsExpansion = true
+      } else if (sectionKey === "certifications" && !certificationsOpen) {
+        setCertificationsOpen(true)
+        needsExpansion = true
+      }
+    }
+    
+    // Wait for expansion animation if needed, otherwise use small delay for DOM rendering
+    const delay = needsExpansion ? 350 : 100
+    setTimeout(() => {
+      scrollToElement(element, container, yOffset, sectionId)
+    }, delay)
+  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, scrollToElement])
+
+  // Handle tab change
+  const handleTabChange = useCallback((value: string) => {
+    scrollToSection(value)
+  }, [scrollToSection])
+
+  // IntersectionObserver to detect active section while scrolling
+  useEffect(() => {
+    if (!open || !scrollContainerRef.current) return
+
+    const container = scrollContainerRef.current
+    const sectionIds = sections.map(s => s.sectionId)
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Don't update if we're manually scrolling
+        if (isScrollingRef.current) return
+        
+        // Find the entry with the highest intersection ratio
+        let maxRatio = 0
+        let activeId = sectionIds[0] || "basic-info"
+        
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
+            maxRatio = entry.intersectionRatio
+            activeId = entry.target.id
+          }
+        })
+        
+        if (maxRatio > 0.2) {
+          setActiveTab(activeId)
+        }
+      },
+      {
+        threshold: [0.2, 0.5, 0.8],
+        root: container,
+        rootMargin: '-80px 0px -60% 0px'
+      }
+    )
+
+    // Observe all sections (scoped to container for nested dialog support)
+    const sectionElements: (Element | null)[] = []
+    sectionIds.forEach((sectionId) => {
+      // Find element within container first (for nested dialogs)
+      const elementInContainer = container.querySelector(`#${sectionId}`) as HTMLElement
+      const element = elementInContainer || (() => {
+        const el = document.getElementById(sectionId)
+        return el && container.contains(el) ? el : null
+      })()
+      
+      if (element) {
+        observer.observe(element)
+        sectionElements.push(element)
+      }
+    })
+
+    return () => {
+      sectionElements.forEach((element) => {
+        if (element) observer.unobserve(element)
+      })
+      observer.disconnect()
+    }
+  }, [open, sections, formData.workExperiences.length, formData.projects.length, formData.educations.length, formData.certifications.length])
+  
+  // Toggle field verification
+  const toggleFieldVerification = useCallback((fieldPath: string) => {
+    setVerifiedFields(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(fieldPath)) {
+        newSet.delete(fieldPath)
+      } else {
+        newSet.add(fieldPath)
+      }
+      return newSet
+    })
+  }, [])
+
+  // Helper function to get all field paths for a section
+  const getSectionFieldPaths = useCallback((sectionId: string): string[] => {
+    const fields: string[] = []
+    
+    switch (sectionId) {
+      case 'basic-info':
+        fields.push('name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl')
+        break
+      
+      case 'work-experience':
+        formData.workExperiences.forEach((_, idx) => {
+          fields.push(
+            `workExperiences.${idx}.employerName`,
+            `workExperiences.${idx}.jobTitle`,
+            `workExperiences.${idx}.startDate`,
+            `workExperiences.${idx}.endDate`,
+            `workExperiences.${idx}.techStacks`,
+            `workExperiences.${idx}.domains`,  // NEW FIELD
+            `workExperiences.${idx}.shiftType`,
+            `workExperiences.${idx}.workMode`,
+            `workExperiences.${idx}.timeSupportZones`,
+            `workExperiences.${idx}.benefits`
+          )
+          // Projects within work experience
+          formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
+            fields.push(
+              `workExperiences.${idx}.projects.${projIdx}.projectName`,
+              `workExperiences.${idx}.projects.${projIdx}.contributionNotes`
+            )
+          })
+        })
+        break
+      
+      case 'tech-stacks':
+        fields.push('techStacks')
+        break
+      
+      case 'projects':
+        formData.projects.forEach((_, idx) => {
+          fields.push(
+            `projects.${idx}.projectName`,
+            `projects.${idx}.contributionNotes`
+          )
+        })
+        break
+      
+      case 'education':
+        formData.educations.forEach((_, idx) => {
+          fields.push(
+            `educations.${idx}.universityLocationName`,
+            `educations.${idx}.degreeName`,
+            `educations.${idx}.majorName`,
+            `educations.${idx}.startMonth`,
+            `educations.${idx}.endMonth`,
+            `educations.${idx}.grades`,
+            `educations.${idx}.isTopper`,
+            `educations.${idx}.isCheetah`
+          )
+        })
+        break
+      
+      case 'certifications':
+        formData.certifications.forEach((_, idx) => {
+          fields.push(
+            `certifications.${idx}.certificationName`,
+            `certifications.${idx}.issueDate`,
+            `certifications.${idx}.expiryDate`,
+            `certifications.${idx}.certificationUrl`
+          )
+        })
+        break
+    }
+    
+    return fields
+  }, [formData])
+
+  // Check if all fields in a section are verified
+  const isSectionFullyVerified = useCallback((sectionId: string): boolean => {
+    const sectionFields = getSectionFieldPaths(sectionId)
+    if (sectionFields.length === 0) return false
+    
+    return sectionFields.every(field => verifiedFields.has(field))
+  }, [getSectionFieldPaths, verifiedFields])
+
+  // Handle verify all fields in a section
+  const handleVerifyAllSection = useCallback((sectionId: string, checked: boolean) => {
+    const sectionFields = getSectionFieldPaths(sectionId)
+    
+    setVerifiedFields(prev => {
+      const newSet = new Set(prev)
+      if (checked) {
+        // Add all fields
+        sectionFields.forEach(field => newSet.add(field))
+      } else {
+        // Remove all fields
+        sectionFields.forEach(field => newSet.delete(field))
+      }
+      return newSet
+    })
+  }, [getSectionFieldPaths])
+  
+  // Mark field as modified (auto-verify on edit when showVerification is true)
+  const markFieldModified = useCallback((fieldPath: string) => {
+    setModifiedFields(prev => new Set(prev).add(fieldPath))
+    if (showVerification) {
+      setVerifiedFields(prev => new Set(prev).add(fieldPath))
+    }
+  }, [showVerification])
+  
+  // Handle dialog close with unsaved changes check
+  const setOpen = (newOpen: boolean) => {
+    if (!newOpen && hasUnsavedChanges) {
+      // Show warning dialog
+      pendingCloseRef.current = true
+      setShowUnsavedWarning(true)
+      return
+    }
+    
+    if (controlledOpen === undefined) {
+      setInternalOpen(newOpen)
+    }
+    onOpenChange?.(newOpen)
+  }
+  
+  // Handle confirmed close (discard changes)
+  const handleConfirmClose = () => {
+    setShowUnsavedWarning(false)
+    pendingCloseRef.current = false
+    resetForm()
+    if (controlledOpen === undefined) {
+      setInternalOpen(false)
+    }
+    onOpenChange?.(false)
+  }
+  
+  // Handle cancel close (keep editing)
+  const handleCancelClose = () => {
+    setShowUnsavedWarning(false)
+    pendingCloseRef.current = false
+  }
+  
+  // Get dialog title based on mode
+  const getDialogTitle = () => {
+    if (mode === 'create') return 'Create New Candidate'
+    // In edit mode, always show "Edit Candidate" (verification is built-in)
+    return 'Edit Candidate'
+  }
+  
+  // Get submit button text based on mode
+  const getSubmitButtonText = (loading: boolean) => {
+    if (loading) {
+      if (mode === 'create') return 'Creating...'
+      return 'Saving...'
+    }
+    if (mode === 'create') return 'Create Candidate'
+    // In edit mode, always show "Save & Verify" since verification is built-in
+    return 'Save & Verify'
+  }
+
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+    markFieldModified(field)
     // Clear error when user starts typing
     if (errors.basic?.[field]) {
       setErrors(prev => ({ 
@@ -499,10 +1270,117 @@ export function CandidateCreationDialog({
     }
   }
 
+  // Handle create new employer from Work Experience
+  const handleCreateEmployer = (employerName: string, workExperienceIndex: number) => {
+    setPendingEmployerName(employerName)
+    setPendingWorkExperienceIndex(workExperienceIndex)
+    setCreateEmployerDialogOpen(true)
+  }
+
+  // Handle employer creation success
+  const handleEmployerCreated = async (employerData: EmployerFormData) => {
+    const newEmployerName = employerData.name.trim()
+    
+    if (!newEmployerName) {
+      toast.error("Employer name is required")
+      return
+    }
+
+    // Add new employer to options list
+    const newEmployerOption: ComboboxOption = {
+      label: newEmployerName,
+      value: newEmployerName
+    }
+    
+    setEmployerOptions(prev => {
+      // Check if already exists (case-insensitive)
+      const exists = prev.some(opt => 
+        opt.value.toLowerCase() === newEmployerName.toLowerCase()
+      )
+      if (exists) return prev
+      return [...prev, newEmployerOption].sort((a, b) => a.label.localeCompare(b.label))
+    })
+
+    // Auto-select the newly created employer
+    if (pendingWorkExperienceIndex !== null) {
+      handleWorkExperienceChange(pendingWorkExperienceIndex, "employerName", newEmployerName)
+    }
+
+    // Show success toast
+    toast.success(`Employer "${newEmployerName}" has been created successfully.`)
+
+    // Close dialog and reset state
+    setCreateEmployerDialogOpen(false)
+    setPendingEmployerName("")
+    setPendingWorkExperienceIndex(null)
+  }
+
+  // Handle employer creation cancel
+  const handleEmployerCreationCancel = () => {
+    setCreateEmployerDialogOpen(false)
+    setPendingEmployerName("")
+    setPendingWorkExperienceIndex(null)
+  }
+
+  // Handle project creation
+  const handleProjectCreated = async (projectData: ProjectFormData) => {
+    try {
+      // Add new project to projectOptions
+      const newProjectOption: ComboboxOption = {
+        label: projectData.projectName,
+        value: projectData.projectName
+      }
+      
+      setProjectOptions(prev => {
+        const updated = [...prev, newProjectOption]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the newly created project in the relevant field
+      if (pendingProjectContext) {
+        if (pendingProjectContext.type === 'workExperience' && 
+            pendingProjectContext.workExperienceIndex !== undefined && 
+            pendingProjectContext.projectIndex !== undefined) {
+          handleProjectChange(
+            pendingProjectContext.workExperienceIndex,
+            pendingProjectContext.projectIndex,
+            "projectName",
+            projectData.projectName
+          )
+        } else if (pendingProjectContext.type === 'independent' && 
+                   pendingProjectContext.independentProjectIndex !== undefined) {
+          handleStandaloneProjectChange(
+            pendingProjectContext.independentProjectIndex,
+            "projectName",
+            projectData.projectName
+          )
+        }
+      }
+
+      // Show success toast
+      toast.success(`Project "${projectData.projectName}" has been created successfully.`)
+
+      // Close dialog and reset state
+      setCreateProjectDialogOpen(false)
+      setPendingProjectName("")
+      setPendingProjectContext(null)
+    } catch (error) {
+      console.error("Error creating project:", error)
+      toast.error("Failed to create project. Please try again.")
+    }
+  }
+
+  // Handle project creation cancel
+  const handleProjectCreationCancel = () => {
+    setCreateProjectDialogOpen(false)
+    setPendingProjectName("")
+    setPendingProjectContext(null)
+  }
+
   const handleWorkExperienceChange = (
     index: number, 
     field: keyof Omit<WorkExperience, 'projects'>, 
-    value: string | string[] | Date | undefined
+    value: string | string[] | Date | undefined | WorkExperienceBenefit[]
   ) => {
     setFormData(prev => ({
       ...prev,
@@ -510,6 +1388,7 @@ export function CandidateCreationDialog({
         i === index ? { ...exp, [field]: value } : exp
       )
     }))
+    markFieldModified(`workExperiences.${index}.${field}`)
     
     // Clear error when user starts typing
     if (errors.workExperiences?.[index]?.[field]) {
@@ -959,9 +1838,17 @@ export function CandidateCreationDialog({
 
     setIsLoading(true)
     try {
-      await onSubmit?.(formData)
+      const verificationState: VerificationState = {
+        verifiedFields: new Set(verifiedFields),
+        modifiedFields: new Set(modifiedFields),
+      }
+      await onSubmit?.(formData, showVerification ? verificationState : undefined)
       resetForm()
-      setOpen(false)
+      // Force close without warning since we just saved
+      if (controlledOpen === undefined) {
+        setInternalOpen(false)
+      }
+      onOpenChange?.(false)
     } catch (error) {
       console.error("Error submitting form:", error)
     } finally {
@@ -970,37 +1857,88 @@ export function CandidateCreationDialog({
   }
 
   const handleCancel = () => {
-    setFormData(initialFormData)
-    setErrors({})
-    setWorkExperienceOpen(false)
-    setProjectsOpen(false)
-    setCertificationsOpen(false)
-    setEducationOpen(false)
-    setOpen(false)
+    if (hasUnsavedChanges) {
+      setShowUnsavedWarning(true)
+      return
+    }
+    resetForm()
+    if (controlledOpen === undefined) {
+      setInternalOpen(false)
+    }
+    onOpenChange?.(false)
   }
 
   // Update form data when candidateData changes (for edit mode)
   React.useEffect(() => {
     if (mode === "edit" && candidateData && open) {
-      setFormData(candidateToFormData(candidateData))
+      const newFormData = candidateToFormData(candidateData)
+      setFormData(newFormData)
+      initialFormDataRef.current = newFormData
       setErrors({})
+      setVerifiedFields(new Set())
+      setModifiedFields(new Set())
+      // Expand all sections for optimal UX in edit/verify mode
+      setWorkExperienceOpen(true)
+      setTechStacksOpen(true)
+      setProjectsOpen(true)
+      setCertificationsOpen(true)
+      setEducationOpen(true)
     } else if (mode === "create" && open) {
       setFormData(initialFormData)
+      initialFormDataRef.current = initialFormData
       setErrors({})
+      setVerifiedFields(new Set())
+      setModifiedFields(new Set())
+      // Expand all sections by default for better UX
+      setWorkExperienceOpen(true)
+      setTechStacksOpen(true)
+      setProjectsOpen(true)
+      setCertificationsOpen(true)
+      setEducationOpen(true)
     }
   }, [mode, candidateData, open])
 
   const resetForm = () => {
     if (mode === "edit" && candidateData) {
-      setFormData(candidateToFormData(candidateData))
+      const newFormData = candidateToFormData(candidateData)
+      setFormData(newFormData)
+      initialFormDataRef.current = newFormData
     } else {
       setFormData(initialFormData)
+      initialFormDataRef.current = initialFormData
     }
     setErrors({})
+    setVerifiedFields(new Set())
+    setModifiedFields(new Set())
     setWorkExperienceOpen(false)
+    setTechStacksOpen(false)
     setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
+  }
+
+  // Verification checkbox component
+  const VerificationCheckbox = ({ fieldPath, label }: { fieldPath: string; label?: string }) => {
+    if (!showVerification) return null
+    
+    const isVerified = verifiedFields.has(fieldPath)
+    
+    return (
+      <div className="flex items-center gap-2 mt-1">
+        <Checkbox
+          id={`verify-${fieldPath}`}
+          checked={isVerified}
+          onCheckedChange={() => toggleFieldVerification(fieldPath)}
+          className="cursor-pointer"
+        />
+        <Label 
+          htmlFor={`verify-${fieldPath}`}
+          className={`text-xs cursor-pointer ${isVerified ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
+        >
+          {isVerified ? '✓ Verified' : label || 'Mark as verified'}
+        </Label>
+      </div>
+    )
   }
 
   return (
@@ -1016,18 +1954,116 @@ export function CandidateCreationDialog({
         </DialogTrigger>
       )}
       <DialogContent className="sm:max-w-[750px] lg:max-w-[850px] xl:max-w-[950px] max-h-[95vh] flex flex-col p-0 [&>button]:cursor-pointer">
-        <DialogHeader className="px-6 pt-6 pb-2 border-b border-border">
-          <DialogTitle>{mode === "edit" ? "Update Candidate" : "Create New Candidate"}</DialogTitle>
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-3">
+          <DialogTitle className="flex items-center gap-2">
+            {mode === "edit" && <ShieldCheck className="h-5 w-5 text-primary" />}
+            {getDialogTitle()}
+            {candidateData && mode === "edit" && (
+              <span className="text-muted-foreground font-normal">: {candidateData.name}</span>
+            )}
+          </DialogTitle>
+          
+          {/* Verification Progress Bar - Always shown in edit mode */}
+          {showVerification && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Verification Progress</span>
+                <Badge variant={verificationProgress.percentage === 100 ? 'default' : 'secondary'}>
+                  {verificationProgress.percentage}% Complete ({verificationProgress.verified}/{verificationProgress.total} fields)
+                </Badge>
+              </div>
+              <Progress value={verificationProgress.percentage} className="h-2" />
+            </div>
+          )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        {/* Sticky Section Navigation Tabs */}
+        {showVerification && (
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm">
+            <Tabs 
+              value={activeTab} 
+              onValueChange={handleTabChange}
+              className="w-full"
+            >
+              <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {sections.map((section) => {
+                  const progress = getSectionProgress(section.sectionId)
+                  const isFullyVerified = progress.percentage === 100
+                  
+                  return (
+                    <TabsTrigger
+                      key={section.id}
+                      value={section.sectionId}
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none",
+                        "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground",
+                        "border-b-2 border-transparent",
+                        "cursor-pointer flex items-center gap-2"
+                      )}
+                      aria-label={`Jump to ${section.label} section - ${progress.percentage}% verified (${progress.verified}/${progress.total})`}
+                    >
+                      <span className="hidden lg:inline">{section.label}</span>
+                      <span className="lg:hidden">{section.shortLabel}</span>
+                      
+                      {/* Verification Badge */}
+                      {progress.total > 0 && (
+                        <Badge 
+                          variant="default"
+                          className={cn(
+                            "text-xs px-1.5 py-0.5 font-medium shrink-0",
+                            getVerificationBadgeColor(progress.percentage)
+                          )}
+                        >
+                          {isFullyVerified ? (
+                            <CheckCircle className="w-3 h-3" />
+                          ) : (
+                            `${progress.percentage}%`
+                          )}
+                        </Badge>
+                      )}
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </Tabs>
+          </div>
+        )}
+
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
           <form onSubmit={handleSubmit} className="space-y-6">
           {/* Section 1: Basic Information */}
+          <div id="basic-info">
           <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                Basic Information
+              <CardTitle className="flex items-center justify-between text-lg">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  Basic Information
+                  <SectionProgressBadge 
+                    percentage={basicInfoProgress.percentage}
+                    verified={basicInfoProgress.verified}
+                    total={basicInfoProgress.total}
+                  />
+                </div>
+                {showVerification && (
+                  <div 
+                    className="flex items-center gap-2" 
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      id="verify-all-basic-info"
+                      checked={isSectionFullyVerified('basic-info')}
+                      onCheckedChange={(checked) => handleVerifyAllSection('basic-info', !!checked)}
+                      aria-label="Verify all fields in Basic Information section"
+                    />
+                    <Label 
+                      htmlFor="verify-all-basic-info"
+                      className="text-sm text-muted-foreground cursor-pointer font-normal"
+                    >
+                      Verify All
+                    </Label>
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -1043,6 +2079,7 @@ export function CandidateCreationDialog({
                   className={errors.basic?.name ? "border-red-500" : ""}
                 />
                 {errors.basic?.name && <p className="text-sm text-red-500">{errors.basic.name}</p>}
+                <VerificationCheckbox fieldPath="name" />
               </div>
 
               <div className="space-y-2">
@@ -1056,6 +2093,7 @@ export function CandidateCreationDialog({
                   className={errors.basic?.city ? "border-red-500" : ""}
                 />
                 {errors.basic?.city && <p className="text-sm text-red-500">{errors.basic.city}</p>}
+                <VerificationCheckbox fieldPath="city" />
               </div>
 
               <div className="space-y-2">
@@ -1067,6 +2105,7 @@ export function CandidateCreationDialog({
                   value={formData.currentSalary}
                   onChange={(e) => handleInputChange("currentSalary", e.target.value)}
                 />
+                <VerificationCheckbox fieldPath="currentSalary" />
               </div>
 
               <div className="space-y-2">
@@ -1078,6 +2117,7 @@ export function CandidateCreationDialog({
                   value={formData.expectedSalary}
                   onChange={(e) => handleInputChange("expectedSalary", e.target.value)}
                 />
+                <VerificationCheckbox fieldPath="expectedSalary" />
               </div>
 
               <div className="space-y-2">
@@ -1091,6 +2131,21 @@ export function CandidateCreationDialog({
                   className={errors.basic?.cnic ? "border-red-500" : ""}
                 />
                 {errors.basic?.cnic && <p className="text-sm text-red-500">{errors.basic.cnic}</p>}
+                <VerificationCheckbox fieldPath="cnic" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="postingTitle">Posting Title *</Label>
+                <Input
+                  id="postingTitle"
+                  type="text"
+                  placeholder="Technical Lead (.NET)"
+                  value={formData.postingTitle}
+                  onChange={(e) => handleInputChange("postingTitle", e.target.value)}
+                  className={errors.basic?.postingTitle ? "border-red-500" : ""}
+                />
+                {errors.basic?.postingTitle && <p className="text-sm text-red-500">{errors.basic.postingTitle}</p>}
+                <VerificationCheckbox fieldPath="postingTitle" />
               </div>
 
               <div className="space-y-2">
@@ -1104,6 +2159,7 @@ export function CandidateCreationDialog({
                   className={errors.basic?.contactNumber ? "border-red-500" : ""}
                 />
                 {errors.basic?.contactNumber && <p className="text-sm text-red-500">{errors.basic.contactNumber}</p>}
+                <VerificationCheckbox fieldPath="contactNumber" />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -1117,6 +2173,7 @@ export function CandidateCreationDialog({
                   className={errors.basic?.email ? "border-red-500" : ""}
                 />
                 {errors.basic?.email && <p className="text-sm text-red-500">{errors.basic.email}</p>}
+                <VerificationCheckbox fieldPath="email" />
               </div>
 
               <div className="space-y-2">
@@ -1130,6 +2187,7 @@ export function CandidateCreationDialog({
                   className={errors.basic?.linkedinUrl ? "border-red-500" : ""}
                 />
                 {errors.basic?.linkedinUrl && <p className="text-sm text-red-500">{errors.basic.linkedinUrl}</p>}
+                <VerificationCheckbox fieldPath="linkedinUrl" />
               </div>
 
               <div className="space-y-2">
@@ -1143,35 +2201,63 @@ export function CandidateCreationDialog({
                   className={errors.basic?.githubUrl ? "border-red-500" : ""}
                 />
                 {errors.basic?.githubUrl && <p className="text-sm text-red-500">{errors.basic.githubUrl}</p>}
+                <VerificationCheckbox fieldPath="githubUrl" />
               </div>
               </div>
             </CardContent>
           </Card>
-
+          </div>
           {/* Section 2: Work Experience (Collapsible) */}
+          <div id="work-experience">
           <Collapsible open={workExperienceOpen} onOpenChange={setWorkExperienceOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <span className="text-lg font-medium">Work Experience</span>
-                  {formData.workExperiences.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {formData.workExperiences.length}
-                    </Badge>
-                  )}
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <span className="text-lg font-medium">Work Experience</span>
+                    {formData.workExperiences.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.workExperiences.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={workExperienceProgress.percentage}
+                      verified={workExperienceProgress.verified}
+                      total={workExperienceProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      workExperienceOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-work-experience"
+                    checked={isSectionFullyVerified('work-experience')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('work-experience', !!checked)}
+                    aria-label="Verify all fields in Work Experience section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-work-experience"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
                 </div>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    workExperienceOpen ? "transform rotate-180" : ""
-                  }`}
-                />
-              </Button>
-            </CollapsibleTrigger>
+              )}
+            </div>
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -1224,10 +2310,14 @@ export function CandidateCreationDialog({
                         placeholder="Select employer..."
                         searchPlaceholder="Search employers..."
                         className={errors.workExperiences?.[index]?.employerName ? "border-red-500" : ""}
+                        creatable={true}
+                        onCreateNew={(value) => handleCreateEmployer(value, index)}
+                        createLabel="Add New Employer"
                       />
                       {errors.workExperiences?.[index]?.employerName && (
                         <p className="text-sm text-red-500">{errors.workExperiences[index].employerName}</p>
                       )}
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.employerName`} />
                     </div>
 
                     <div className="space-y-2">
@@ -1243,6 +2333,7 @@ export function CandidateCreationDialog({
                       {errors.workExperiences?.[index]?.jobTitle && (
                         <p className="text-sm text-red-500">{errors.workExperiences[index].jobTitle}</p>
                       )}
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.jobTitle`} />
                     </div>
 
                     <div className="space-y-2">
@@ -1269,6 +2360,7 @@ export function CandidateCreationDialog({
                           />
                         </PopoverContent>
                       </Popover>
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.startDate`} />
                     </div>
 
                     <div className="space-y-2">
@@ -1295,6 +2387,7 @@ export function CandidateCreationDialog({
                           />
                         </PopoverContent>
                       </Popover>
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.endDate`} />
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
@@ -1307,6 +2400,20 @@ export function CandidateCreationDialog({
                         searchPlaceholder="Search tech stacks..."
                         maxDisplay={4}
                       />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor={`domains-${index}`}>Domains</Label>
+                      <MultiSelect
+                        items={horizontalDomainOptions}
+                        selected={experience.domains}
+                        onChange={(values) => handleWorkExperienceChange(index, "domains", values)}
+                        placeholder="Select domains..."
+                        searchPlaceholder="Search domains..."
+                        maxDisplay={4}
+                      />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.domains`} />
                     </div>
 
                       <div className="space-y-2">
@@ -1318,6 +2425,7 @@ export function CandidateCreationDialog({
                           placeholder="Select shift type..."
                           searchPlaceholder="Search shift types..."
                         />
+                        <VerificationCheckbox fieldPath={`workExperiences.${index}.shiftType`} />
                       </div>
 
                     <div className="space-y-2">
@@ -1329,7 +2437,17 @@ export function CandidateCreationDialog({
                         placeholder="Select work mode..."
                         searchPlaceholder="Search work modes..."
                       />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.workMode`} />
                     </div>
+                  </div>
+
+                  {/* Benefits Section */}
+                  <div className="space-y-2">
+                    <BenefitsSelector
+                      benefits={experience.benefits}
+                      onChange={(benefits) => handleWorkExperienceChange(index, "benefits", benefits)}
+                    />
+                    <VerificationCheckbox fieldPath={`workExperiences.${index}.benefits`} />
                   </div>
 
                   {/* Projects Section */}
@@ -1384,10 +2502,22 @@ export function CandidateCreationDialog({
                                   placeholder="Select project..."
                                   searchPlaceholder="Search projects..."
                                   className={errors.workExperiences?.[index]?.projects?.[projectIndex]?.projectName ? "border-red-500" : ""}
+                                  creatable={true}
+                                  createLabel="Add New Project"
+                                  onCreateNew={(searchValue) => {
+                                    setPendingProjectName(searchValue)
+                                    setPendingProjectContext({
+                                      type: 'workExperience',
+                                      workExperienceIndex: index,
+                                      projectIndex: projectIndex
+                                    })
+                                    setCreateProjectDialogOpen(true)
+                                  }}
                                 />
                                 {errors.workExperiences?.[index]?.projects?.[projectIndex]?.projectName && (
                                   <p className="text-sm text-red-500">{errors.workExperiences[index].projects![projectIndex].projectName}</p>
                                 )}
+                                <VerificationCheckbox fieldPath={`workExperiences.${index}.projects.${projectIndex}.projectName`} />
                               </div>
 
                               <div className="space-y-2">
@@ -1399,6 +2529,7 @@ export function CandidateCreationDialog({
                                   onChange={(e) => handleProjectChange(index, projectIndex, "contributionNotes", e.target.value)}
                                   className="min-h-[80px] resize-none"
                                 />
+                                <VerificationCheckbox fieldPath={`workExperiences.${index}.projects.${projectIndex}.contributionNotes`} />
                               </div>
                             </div>
                           </div>
@@ -1445,31 +2576,134 @@ export function CandidateCreationDialog({
               )}
             </CollapsibleContent>
           </Collapsible>
-
-          {/* Section 3: Standalone Projects (Collapsible) */}
-          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <FolderOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-lg font-medium">Projects</span>
-                  {formData.projects.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {formData.projects.length}
-                    </Badge>
-                  )}
+          </div>
+          {/* Section 3: Tech Stacks (Collapsible) */}
+          <div id="tech-stacks">
+          <Collapsible open={techStacksOpen} onOpenChange={setTechStacksOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Code className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-lg font-medium">Tech Stacks</span>
+                    {formData.techStacks.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.techStacks.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={techStacksProgress.percentage}
+                      verified={techStacksProgress.verified}
+                      total={techStacksProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      techStacksOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-tech-stacks"
+                    checked={isSectionFullyVerified('tech-stacks')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('tech-stacks', !!checked)}
+                    aria-label="Verify all fields in Tech Stacks section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-tech-stacks"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
                 </div>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    projectsOpen ? "transform rotate-180" : ""
-                  }`}
-                />
-              </Button>
-            </CollapsibleTrigger>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <Card>
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base">Technical Skills</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-4">
+                  <div className="space-y-2">
+                    <MultiSelect
+                      items={techStackOptions}
+                      selected={formData.techStacks}
+                      onChange={(values) => {
+                        setFormData(prev => ({ ...prev, techStacks: values }))
+                        markFieldModified('techStacks')
+                      }}
+                      placeholder="Select tech stacks..."
+                      searchPlaceholder="Search technologies..."
+                      maxDisplay={4}
+                    />
+                    <VerificationCheckbox fieldPath="techStacks" />
+                  </div>
+                </CardContent>
+              </Card>
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+          {/* Section 4: Standalone Projects (Collapsible) */}
+          <div id="projects">
+          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    <span className="text-lg font-medium">Projects</span>
+                    {formData.projects.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.projects.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={projectsProgress.percentage}
+                      verified={projectsProgress.verified}
+                      total={projectsProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      projectsOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-projects"
+                    checked={isSectionFullyVerified('projects')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('projects', !!checked)}
+                    aria-label="Verify all fields in Projects section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-projects"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -1513,10 +2747,21 @@ export function CandidateCreationDialog({
                         placeholder="Select project..."
                         searchPlaceholder="Search projects..."
                         className={errors.projects?.[index]?.projectName ? "border-red-500" : ""}
+                        creatable={true}
+                        createLabel="Add New Project"
+                        onCreateNew={(searchValue) => {
+                          setPendingProjectName(searchValue)
+                          setPendingProjectContext({
+                            type: 'independent',
+                            independentProjectIndex: index
+                          })
+                          setCreateProjectDialogOpen(true)
+                        }}
                       />
                       {errors.projects?.[index]?.projectName && (
                         <p className="text-sm text-red-500">{errors.projects[index].projectName}</p>
                       )}
+                      <VerificationCheckbox fieldPath={`projects.${index}.projectName`} />
                     </div>
 
                     <div className="space-y-2">
@@ -1528,6 +2773,7 @@ export function CandidateCreationDialog({
                         onChange={(e) => handleStandaloneProjectChange(index, "contributionNotes", e.target.value)}
                         className="min-h-[80px] resize-none"
                       />
+                      <VerificationCheckbox fieldPath={`projects.${index}.contributionNotes`} />
                     </div>
                   </CardContent>
                 </Card>
@@ -1551,31 +2797,58 @@ export function CandidateCreationDialog({
               )}
             </CollapsibleContent>
           </Collapsible>
-
-          {/* Section 4: Education (Collapsible) */}
+          </div>
+          {/* Section 5: Education (Collapsible) */}
+          <div id="education">
           <Collapsible open={educationOpen} onOpenChange={setEducationOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  <span className="text-lg font-medium">Education</span>
-                  {formData.educations.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {formData.educations.length}
-                    </Badge>
-                  )}
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <span className="text-lg font-medium">Education</span>
+                    {formData.educations.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.educations.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={educationProgress.percentage}
+                      verified={educationProgress.verified}
+                      total={educationProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      educationOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-education"
+                    checked={isSectionFullyVerified('education')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('education', !!checked)}
+                    aria-label="Verify all fields in Education section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-education"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
                 </div>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    educationOpen ? "transform rotate-180" : ""
-                  }`}
-                />
-              </Button>
-            </CollapsibleTrigger>
+              )}
+            </div>
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -1624,6 +2897,7 @@ export function CandidateCreationDialog({
                           {errors.educations?.[index]?.universityLocationId && (
                             <p className="text-sm text-red-500">{errors.educations[index].universityLocationId}</p>
                           )}
+                          <VerificationCheckbox fieldPath={`educations.${index}.universityLocationName`} />
                         </div>
 
                         <div className="space-y-2">
@@ -1639,6 +2913,7 @@ export function CandidateCreationDialog({
                           {errors.educations?.[index]?.degreeName && (
                             <p className="text-sm text-red-500">{errors.educations[index].degreeName}</p>
                           )}
+                          <VerificationCheckbox fieldPath={`educations.${index}.degreeName`} />
                         </div>
 
                         <div className="space-y-2">
@@ -1654,6 +2929,7 @@ export function CandidateCreationDialog({
                           {errors.educations?.[index]?.majorName && (
                             <p className="text-sm text-red-500">{errors.educations[index].majorName}</p>
                           )}
+                          <VerificationCheckbox fieldPath={`educations.${index}.majorName`} />
                         </div>
 
                       <div className="space-y-2">
@@ -1680,6 +2956,7 @@ export function CandidateCreationDialog({
                             />
                           </PopoverContent>
                         </Popover>
+                        <VerificationCheckbox fieldPath={`educations.${index}.startMonth`} />
                       </div>
 
                       <div className="space-y-2">
@@ -1706,6 +2983,7 @@ export function CandidateCreationDialog({
                             />
                           </PopoverContent>
                         </Popover>
+                        <VerificationCheckbox fieldPath={`educations.${index}.endMonth`} />
                       </div>
 
                       <div className="space-y-4">
@@ -1742,6 +3020,7 @@ export function CandidateCreationDialog({
                           value={education.grades}
                           onChange={(e) => handleEducationChange(index, "grades", e.target.value)}
                         />
+                        <VerificationCheckbox fieldPath={`educations.${index}.grades`} />
                       </div>
                     </div>
                   </CardContent>
@@ -1766,31 +3045,58 @@ export function CandidateCreationDialog({
               )}
             </CollapsibleContent>
           </Collapsible>
-
-          {/* Section 5: Certifications (Collapsible) */}
+          </div>
+          {/* Section 6: Certifications (Collapsible) */}
+          <div id="certifications">
           <Collapsible open={certificationsOpen} onOpenChange={setCertificationsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Award className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                  <span className="text-lg font-medium">Certifications</span>
-                  {formData.certifications.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {formData.certifications.length}
-                    </Badge>
-                  )}
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Award className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    <span className="text-lg font-medium">Certifications</span>
+                    {formData.certifications.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.certifications.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={certificationsProgress.percentage}
+                      verified={certificationsProgress.verified}
+                      total={certificationsProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      certificationsOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-certifications"
+                    checked={isSectionFullyVerified('certifications')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('certifications', !!checked)}
+                    aria-label="Verify all fields in Certifications section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-certifications"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
                 </div>
-                <ChevronDown
-                  className={`h-4 w-4 transition-transform duration-200 ${
-                    certificationsOpen ? "transform rotate-180" : ""
-                  }`}
-                />
-              </Button>
-            </CollapsibleTrigger>
+              )}
+            </div>
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
@@ -1839,6 +3145,7 @@ export function CandidateCreationDialog({
                           {errors.certifications?.[index]?.certificationId && (
                             <p className="text-sm text-red-500">{errors.certifications[index].certificationId}</p>
                           )}
+                          <VerificationCheckbox fieldPath={`certifications.${index}.certificationName`} />
                         </div>
 
                       <div className="space-y-2">
@@ -1865,6 +3172,7 @@ export function CandidateCreationDialog({
                             />
                           </PopoverContent>
                         </Popover>
+                        <VerificationCheckbox fieldPath={`certifications.${index}.issueDate`} />
                       </div>
 
                       <div className="space-y-2">
@@ -1891,6 +3199,7 @@ export function CandidateCreationDialog({
                             />
                           </PopoverContent>
                         </Popover>
+                        <VerificationCheckbox fieldPath={`certifications.${index}.expiryDate`} />
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
@@ -1906,6 +3215,7 @@ export function CandidateCreationDialog({
                         {errors.certifications?.[index]?.certificationUrl && (
                           <p className="text-sm text-red-500">{errors.certifications[index].certificationUrl}</p>
                         )}
+                        <VerificationCheckbox fieldPath={`certifications.${index}.certificationUrl`} />
                       </div>
                     </div>
                   </CardContent>
@@ -1930,6 +3240,7 @@ export function CandidateCreationDialog({
               )}
             </CollapsibleContent>
           </Collapsible>
+          </div>
           </form>
         </div>
 
@@ -1949,12 +3260,72 @@ export function CandidateCreationDialog({
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading 
-                ? (mode === "edit" ? "Updating..." : "Creating...") 
-                : (mode === "edit" ? "Update Candidate" : "Create Candidate")}
+              {getSubmitButtonText(isLoading)}
             </Button>
         </DialogFooter>
       </DialogContent>
+      
+      {/* Unsaved Changes Warning Dialog */}
+      <AlertDialog open={showUnsavedWarning} onOpenChange={setShowUnsavedWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to close? All changes will be lost.
+              {showVerification && verifiedFields.size > 0 && (
+                <span className="block mt-2 font-medium text-yellow-600 dark:text-yellow-400">
+                  {verifiedFields.size} field(s) marked for verification will not be saved.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelClose} className="cursor-pointer">
+              Keep Editing
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmClose}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
+            >
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Create Employer Dialog */}
+      <EmployerCreationDialog
+        mode="create"
+        open={createEmployerDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleEmployerCreationCancel()
+          } else {
+            setCreateEmployerDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (employerData: EmployerFormData) => {
+          await handleEmployerCreated(employerData)
+        }}
+        initialName={pendingEmployerName}
+      />
+
+      {/* Create Project Dialog */}
+      <ProjectCreationDialog
+        mode="create"
+        open={createProjectDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleProjectCreationCancel()
+          } else {
+            setCreateProjectDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (projectData: ProjectFormData) => {
+          await handleProjectCreated(projectData)
+        }}
+        initialName={pendingProjectName}
+      />
     </Dialog>
   )
 }

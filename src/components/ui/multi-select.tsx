@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { Check, ChevronsUpDown, X, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +36,9 @@ interface MultiSelectProps {
   maxDisplay?: number
   className?: string
   disabled?: boolean
+  creatable?: boolean  // New prop
+  createLabel?: string  // New prop - e.g., "Add Technology", "Add Domain"
+  onCreateNew?: (value: string) => void  // New prop - callback when creating
 }
 
 export function MultiSelect({
@@ -49,8 +52,12 @@ export function MultiSelect({
   maxDisplay = 3,
   className,
   disabled = false,
+  creatable = false,  // Default to false for backward compatibility
+  createLabel,  // e.g., "Add Technology", "Add Domain"
+  onCreateNew,
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchValue, setSearchValue] = React.useState("")
 
   // Handle wheel events to enable scrolling in dropdown
   const handleWheel = React.useCallback((e: React.WheelEvent) => {
@@ -74,6 +81,18 @@ export function MultiSelect({
     }
   }
 
+  const handleCreateNew = (value: string) => {
+    const trimmedValue = value.trim()
+    if (trimmedValue && !selected.includes(trimmedValue)) {
+      // Add the new value to selected
+      onChange([...selected, trimmedValue])
+      // Call the callback if provided
+      onCreateNew?.(trimmedValue)
+      // Clear search and close popover
+      setSearchValue("")
+      setOpen(false)
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const input = e.target as HTMLInputElement
@@ -85,13 +104,53 @@ export function MultiSelect({
     // Escape closes the combobox
     if (e.key === "Escape") {
       setOpen(false)
+      setSearchValue("")
     }
+  // Enter key creates new item if creatable and no results
+  if (creatable && e.key === "Enter" && searchValue.trim() && !items.some(item => 
+    item.value.toLowerCase() === searchValue.trim().toLowerCase() ||
+    item.label.toLowerCase() === searchValue.trim().toLowerCase()
+  )) {
+    e.preventDefault()
+    handleCreateNew(searchValue)
   }
+}
+
+  // Filter items based on search
+  const filteredItems = React.useMemo(() => {
+    if (!searchValue.trim()) return items
+    const searchLower = searchValue.toLowerCase()
+    return items.filter(item => 
+      item.label.toLowerCase().includes(searchLower) ||
+      item.value.toLowerCase().includes(searchLower)
+    )
+  }, [items, searchValue])
+
+  // Check if search value already exists
+  const searchValueExists = React.useMemo(() => {
+    if (!searchValue.trim()) return false
+    const searchLower = searchValue.trim().toLowerCase()
+    return items.some(item => 
+      item.value.toLowerCase() === searchLower ||
+      item.label.toLowerCase() === searchLower
+    ) || selected.includes(searchValue.trim())
+  }, [items, selected, searchValue])
+
+  // Check if we should show "Create" option
+  const shouldShowCreate = creatable && 
+    searchValue.trim() && 
+    !searchValueExists && 
+    filteredItems.length === 0
 
   return (
     <div className="space-y-2">
       {label && <Label>{label}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (!isOpen) {
+          setSearchValue("") // Clear search when closing
+        }
+      }}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -154,35 +213,58 @@ export function MultiSelect({
           align="start"
           onWheel={handleWheel}
         >
-          <Command>
+          <Command shouldFilter={false}>
             <CommandInput
               placeholder={searchPlaceholder}
               className="h-9"
               onKeyDown={handleKeyDown}
+              value={searchValue}
+              onValueChange={setSearchValue}
             />
             <CommandList>
-              <CommandEmpty>{emptyMessage}</CommandEmpty>
-              <CommandGroup>
-                {items.map((item) => {
-                  const isSelected = selected.includes(item.value)
-                  return (
+              {shouldShowCreate ? (
+                <>
+                  <CommandEmpty>
+                    <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                      {emptyMessage}
+                    </div>
+                  </CommandEmpty>
+                  <CommandGroup>
                     <CommandItem
-                      key={item.value}
-                      value={item.value}
-                      onSelect={() => handleSelect(item.value)}
-                      className="cursor-pointer"
+                      value={searchValue}
+                      onSelect={() => handleCreateNew(searchValue)}
+                      className="cursor-pointer font-medium text-primary"
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          isSelected ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {item.label}
+                      <Plus className="mr-2 h-4 w-4" />
+                      {createLabel || `Add "${searchValue.trim()}"`}
                     </CommandItem>
-                  )
-                })}
-              </CommandGroup>
+                  </CommandGroup>
+                </>
+              ) : filteredItems.length === 0 ? (
+                <CommandEmpty>{emptyMessage}</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  {filteredItems.map((item) => {
+                    const isSelected = selected.includes(item.value)
+                    return (
+                      <CommandItem
+                        key={item.value}
+                        value={item.value}
+                        onSelect={() => handleSelect(item.value)}
+                        className="cursor-pointer"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            isSelected ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {item.label}
+                      </CommandItem>
+                    )
+                  })}
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>

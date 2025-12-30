@@ -48,6 +48,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import {
   University,
@@ -55,6 +65,8 @@ import {
   UNIVERSITY_RANKING_COLORS,
   UNIVERSITY_RANKING_LABELS,
 } from "@/lib/types/university"
+import { UniversityDetailsModal } from "@/components/university-details-modal"
+import { toast } from "sonner"
 
 interface UniversitiesTableProps {
   universities: University[]
@@ -91,6 +103,9 @@ export function UniversitiesTable({
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [expandedUniversities, setExpandedUniversities] = useState<Set<string>>(new Set())
+  const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [universityToDelete, setUniversityToDelete] = useState<University | null>(null)
 
   const toggleUniversityExpanded = (universityId: string) => {
     setExpandedUniversities(prev => {
@@ -102,6 +117,30 @@ export function UniversitiesTable({
       }
       return newSet
     })
+  }
+
+  const handleDeleteClick = (university: University) => {
+    setUniversityToDelete(university)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (universityToDelete) {
+      // Call onDelete if provided, otherwise just show toast
+      onDelete?.(universityToDelete)
+      
+      // Show success toast
+      toast.success(`University "${universityToDelete.name}" has been deleted successfully.`)
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setUniversityToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setUniversityToDelete(null)
   }
 
   // Filtering (including location data)
@@ -316,13 +355,19 @@ export function UniversitiesTable({
               return (
                 <React.Fragment key={university.id}>
                   {/* University Master Row */}
-                  <TableRow>
+                  <TableRow 
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedUniversity(university)}
+                  >
                     <TableCell>
                       <Button
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
-                        onClick={() => toggleUniversityExpanded(university.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleUniversityExpanded(university.id)
+                        }}
                       >
                         <ChevronRightIcon 
                           className={`h-4 w-4 transition-transform duration-200 ${
@@ -385,45 +430,71 @@ export function UniversitiesTable({
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontalIcon className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>University Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {onAddLocation && (
-                            <DropdownMenuItem onClick={() => onAddLocation(university)}>
-                              <PlusIcon className="mr-2 h-4 w-4" />
-                              Add Location
-                            </DropdownMenuItem>
-                          )}
-                          {onView && (
-                            <DropdownMenuItem onClick={() => onView(university)}>
-                              <EyeIcon className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                          )}
-                          {onEdit && (
-                            <DropdownMenuItem onClick={() => onEdit(university)}>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedUniversity(university)
+                          }}
+                          title="View details"
+                        >
+                          <EyeIcon className="h-4 w-4" />
+                          <span className="sr-only">View details</span>
+                        </Button>
+                        
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-8 w-8 p-0 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontalIcon className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {onAddLocation && (
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onAddLocation(university)
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <PlusIcon className="mr-2 h-4 w-4" />
+                                Add Location
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onEdit?.(university)
+                              }}
+                              className="cursor-pointer"
+                            >
                               <EditIcon className="mr-2 h-4 w-4" />
-                              Edit University
+                              Edit
                             </DropdownMenuItem>
-                          )}
-                          {onDelete && (
                             <DropdownMenuItem
-                              onClick={() => onDelete(university)}
-                              className="text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteClick(university)
+                              }}
+                              className="text-red-600 focus:text-red-600 cursor-pointer"
                             >
                               <TrashIcon className="mr-2 h-4 w-4" />
-                              Delete University
+                              Delete
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
 
@@ -586,6 +657,46 @@ export function UniversitiesTable({
         {sortedUniversities.length} entries
         {searchQuery && ` (filtered from ${universities.length} total entries)`}
       </div>
+
+      {/* University Detail Modal */}
+      {selectedUniversity && (
+        <UniversityDetailsModal
+          university={selectedUniversity}
+          open={!!selectedUniversity}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedUniversity(null)
+            }
+          }}
+          onEdit={onEdit ? (university) => {
+            setSelectedUniversity(null) // Close detail modal
+            onEdit(university)
+          } : undefined}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{universityToDelete?.name}</strong> and all its campus locations. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

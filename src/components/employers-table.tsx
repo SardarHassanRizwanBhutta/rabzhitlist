@@ -20,6 +20,8 @@ import {
   Building2Icon,
   FolderIcon,
   UsersIcon,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -48,6 +50,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { EmployerDetailsModal } from "@/components/employer-details-modal"
+import { toast } from "sonner"
 
 import {
   Employer,
@@ -98,6 +117,9 @@ export function EmployersTable({
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [expandedEmployers, setExpandedEmployers] = useState<Set<string>>(new Set())
+  const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [employerToDelete, setEmployerToDelete] = useState<Employer | null>(null)
 
   const toggleEmployerExpanded = (employerId: string) => {
     setExpandedEmployers(prev => {
@@ -109,6 +131,30 @@ export function EmployersTable({
       }
       return newSet
     })
+  }
+
+  const handleDeleteClick = (employer: Employer) => {
+    setEmployerToDelete(employer)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (employerToDelete) {
+      // Call onDelete if provided, otherwise just show toast
+      onDelete?.(employerToDelete)
+      
+      // Show success toast
+      toast.success(`Employer "${employerToDelete.name}" has been deleted successfully.`)
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setEmployerToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setEmployerToDelete(null)
   }
 
   // Apply filters
@@ -444,20 +490,29 @@ export function EmployersTable({
               return (
                 <React.Fragment key={employer.id}>
                   {/* Employer Master Row */}
-                  <TableRow>
+                  <TableRow 
+                    className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedEmployer(employer)}
+                  >
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => toggleEmployerExpanded(employer.id)}
+                      <Collapsible 
+                        open={isExpanded} 
+                        onOpenChange={() => toggleEmployerExpanded(employer.id)}
                       >
-                        <ChevronRightIcon 
-                          className={`h-4 w-4 transition-transform duration-200 ${
-                            isExpanded ? "transform rotate-90" : ""
-                          }`}
-                        />
-                      </Button>
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </CollapsibleTrigger>
+                      </Collapsible>
                     </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -508,7 +563,10 @@ export function EmployersTable({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-400 cursor-pointer"
-                        onClick={() => handleViewProjects(employer)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewProjects(employer)
+                        }}
                         title={`View projects for ${employer.name}`}
                       >
                         <FolderIcon className="h-4 w-4" />
@@ -519,52 +577,69 @@ export function EmployersTable({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-950 dark:hover:text-green-400 cursor-pointer"
-                        onClick={() => handleViewCandidates(employer)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleViewCandidates(employer)
+                        }}
                         title={`View candidates for ${employer.name}`}
                       >
                         <UsersIcon className="h-4 w-4" />
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontalIcon className="h-4 w-4" />
+                      <div className="flex items-center gap-1">
+                        {onView && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onView(employer)
+                            }}
+                            title="View details"
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                            <span className="sr-only">View details</span>
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Employer Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {onAddLocation && (
-                            <DropdownMenuItem onClick={() => onAddLocation(employer)}>
-                              <PlusIcon className="mr-2 h-4 w-4" />
-                              Add Office
-                            </DropdownMenuItem>
-                          )}
-                          {onView && (
-                            <DropdownMenuItem onClick={() => onView(employer)}>
-                              <EyeIcon className="mr-2 h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                          )}
-                          {onEdit && (
-                            <DropdownMenuItem onClick={() => onEdit(employer)}>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontalIcon className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onEdit?.(employer)
+                              }}
+                              className="cursor-pointer"
+                            >
                               <EditIcon className="mr-2 h-4 w-4" />
-                              Edit Employer
+                              Edit
                             </DropdownMenuItem>
-                          )}
-                          {onDelete && (
                             <DropdownMenuItem
-                              onClick={() => onDelete(employer)}
-                              className="text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteClick(employer)
+                              }}
+                              className="text-red-600 focus:text-red-600 cursor-pointer"
                             >
                               <TrashIcon className="mr-2 h-4 w-4" />
-                              Delete Employer
+                              Delete
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
 
@@ -743,6 +818,43 @@ export function EmployersTable({
         Showing {startIndex + 1} to {Math.min(endIndex, sortedEmployers.length)} of{" "}
         {sortedEmployers.length} entries
       </div>
+
+      {/* Employer Detail Dialog */}
+      {selectedEmployer && (
+        <EmployerDetailsModal
+          employer={selectedEmployer}
+          open={!!selectedEmployer}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedEmployer(null)
+            }
+          }}
+          onEdit={onEdit}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{employerToDelete?.name}</strong> and all its office locations. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

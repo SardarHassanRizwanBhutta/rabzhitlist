@@ -1,3 +1,5 @@
+import { EmployerBenefit } from "./benefits"
+
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
 export type WorkMode = "Remote" | "Onsite" | "Hybrid"
 export type TimeSupportZone = "US" | "UK" | "EU" | "APAC" | "MEA"
@@ -16,9 +18,11 @@ export interface WorkExperience {
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
+  domains: string[]
   shiftType: ShiftType | "" | null
   workMode: WorkMode | "" | null
   timeSupportZones: string[]
+  benefits: EmployerBenefit[]
 }
 
 export interface CandidateCertification {
@@ -68,6 +72,7 @@ export interface Candidate {
   projects?: CandidateStandaloneProject[] // Standalone projects not associated with work experience
   certifications?: CandidateCertification[] | null
   educations?: CandidateEducation[] 
+  techStacks?: string[] // Standalone tech stacks (overall technical skills, not tied to specific employer)
   createdAt: Date
   updatedAt: Date
 }
@@ -112,5 +117,3 @@ export const CANDIDATE_STATUS_LABELS: Record<CandidateStatus, string> = {
   rejected: "Rejected",
   withdrawn: "Withdrawn"
 }
-
-

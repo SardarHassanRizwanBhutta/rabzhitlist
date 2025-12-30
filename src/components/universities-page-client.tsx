@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { UniversitiesTable } from "@/components/universities-table"
-import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
+import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
 import { UniversitiesFilterDialog, UniversityFilters } from "@/components/universities-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
@@ -24,6 +24,8 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
   const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<UniversityFilters>(initialFilters)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [universityToEdit, setUniversityToEdit] = useState<University | null>(null)
 
   // Check for URL filters
   useEffect(() => {
@@ -36,15 +38,38 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     }
   }, [searchParams])
 
-  const handleUniversitySubmit = async (data: UniversityFormData) => {
+  const handleUniversitySubmit = async (data: UniversityFormData, verificationState?: UniversityVerificationState) => {
     // Here you would typically send the data to your API
-    console.log("New university data:", data)
+    if (verificationState) {
+      console.log("University data with verification:", data, verificationState)
+    } else {
+      console.log("New university data:", data)
+    }
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500))
     
     // You could add the university to your state/cache here
-    alert("University created successfully!")
+    if (verificationState) {
+      alert("University updated and verified successfully!")
+    } else {
+      alert("University created successfully!")
+    }
+    
+    // Close edit dialog if open
+    if (editDialogOpen) {
+      setEditDialogOpen(false)
+      setUniversityToEdit(null)
+    }
+  }
+
+  const handleViewUniversity = (university: University) => {
+    // Handled by UniversitiesTable - opens detail modal
+  }
+
+  const handleEditUniversity = (university: University) => {
+    setUniversityToEdit(university)
+    setEditDialogOpen(true)
   }
 
   const handleFiltersChange = (newFilters: UniversityFilters) => {
@@ -151,7 +176,27 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
         </div>
       )}
       
-      <UniversitiesTable universities={filteredUniversities} />
+      <UniversitiesTable 
+        universities={filteredUniversities}
+        onEdit={handleEditUniversity}
+      />
+
+      {/* Edit University Dialog with Verification */}
+      {universityToEdit && (
+        <UniversityCreationDialog
+          mode="edit"
+          universityData={universityToEdit}
+          showVerification={true}
+          onSubmit={handleUniversitySubmit}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) {
+              setUniversityToEdit(null)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

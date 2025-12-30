@@ -8,7 +8,6 @@ import {
   MoreHorizontalIcon,
   SearchIcon,
   PlusIcon,
-  EyeIcon,
   EditIcon,
   TrashIcon,
   ChevronLeftIcon,
@@ -44,6 +43,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 import {
   Certification,
@@ -51,12 +60,12 @@ import {
   CERTIFICATION_LEVEL_LABELS,
 } from "@/lib/types/certification"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 
 interface CertificationsTableProps {
   certifications: Certification[]
   isLoading?: boolean
   onAdd?: () => void
-  onView?: (certification: Certification) => void
   onEdit?: (certification: Certification) => void
   onDelete?: (certification: Certification) => void
 }
@@ -70,7 +79,6 @@ export function CertificationsTable({
   certifications,
   isLoading = false,
   onAdd,
-  onView,
   onEdit,
   onDelete,
 }: CertificationsTableProps) {
@@ -79,6 +87,8 @@ export function CertificationsTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [certificationToDelete, setCertificationToDelete] = useState<Certification | null>(null)
   const router = useRouter()
   // Filtering
   const filteredCertifications = useMemo(() => {
@@ -143,6 +153,30 @@ export function CertificationsTable({
   const handleItemsPerPageChange = (value: string) => {
     setItemsPerPage(parseInt(value))
     setCurrentPage(1)
+  }
+
+  const handleDeleteClick = (certification: Certification) => {
+    setCertificationToDelete(certification)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (certificationToDelete) {
+      // Call onDelete if provided, otherwise just show toast
+      onDelete?.(certificationToDelete)
+      
+      // Show success toast
+      toast.success(`Certification "${certificationToDelete.certificationName}" has been deleted successfully.`)
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setCertificationToDelete(null)
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setCertificationToDelete(null)
   }
 
   const SortButton = ({ column, children }: { column: SortKey; children: React.ReactNode }) => (
@@ -304,27 +338,26 @@ export function CertificationsTable({
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {onView && (
-                        <DropdownMenuItem onClick={() => onView(certification)}>
-                          <EyeIcon className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                      )}
-                      {onEdit && (
-                        <DropdownMenuItem onClick={() => onEdit(certification)}>
-                          <EditIcon className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      )}
-                      {onDelete && (
-                        <DropdownMenuItem
-                          onClick={() => onDelete(certification)}
-                          className="text-red-600"
-                        >
-                          <TrashIcon className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onEdit?.(certification)
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <EditIcon className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteClick(certification)
+                        }}
+                        className="text-red-600 focus:text-red-600 cursor-pointer"
+                      >
+                        <TrashIcon className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -406,6 +439,29 @@ export function CertificationsTable({
         {sortedCertifications.length} entries
         {searchQuery && ` (filtered from ${certifications.length} total entries)`}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <strong>{certificationToDelete?.certificationName}</strong>. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

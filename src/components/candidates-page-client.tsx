@@ -4,12 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { X, Users, GraduationCap, Award, Building2, Globe } from "lucide-react"
+import { X, Users, GraduationCap, Award, Building2, Globe, Table2, Grid3x3 } from "lucide-react"
 import { CandidatesTable } from "@/components/candidates-table"
+import { CandidatesCardsView } from "@/components/candidates-cards-view"
 import { CandidateCreationDialog, CandidateFormData } from "@/components/candidate-creation-dialog"
 import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidates-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
+import { hasActiveFilters, getCandidateMatchContext } from "@/lib/utils/candidate-matches"
 import type { Candidate } from "@/lib/types/candidate"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
@@ -37,6 +39,8 @@ const initialFilters: CandidateFilters = {
   technicalAspects: [],
   // Candidate work experience tech stacks
   candidateTechStacks: [],
+  // Candidate work experience domains
+  candidateDomains: [],
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -54,6 +58,8 @@ const initialFilters: CandidateFilters = {
   majorNames: [],
   isTopper: null,
   isCheetah: null,
+  educationStartMonth: null,
+  educationEndMonth: null,
   // Certification-related filters
   certificationNames: [],
   certificationIssuingBodies: [],
@@ -69,6 +75,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
   const [universityFilter, setUniversityFilter] = useState<{ name: string; id: string } | null>(null)
   const [certificationFilter, setCertificationFilter] = useState<{ name: string; id: string }| null>(null)
   const [employerFilter, setEmployerFilter] = useState<{ name: string; id: string } | null>(null)
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table')
   // Check for URL filters
   useEffect(() => {
     const projectFilterName = searchParams.get('projectFilter')
@@ -100,30 +107,44 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       }
 
       // Current salary range filter
-      if (appliedFilters.currentSalaryMin) {
-        const minSalary = parseFloat(appliedFilters.currentSalaryMin)
-        if (!isNaN(minSalary) && candidate.currentSalary !== null && candidate.currentSalary < minSalary) {
+      if (appliedFilters.currentSalaryMin || appliedFilters.currentSalaryMax) {
+        // If any salary filter is set, exclude candidates with null salary
+        if (candidate.currentSalary === null) {
           return false
         }
-      }
-      if (appliedFilters.currentSalaryMax) {
-        const maxSalary = parseFloat(appliedFilters.currentSalaryMax)
-        if (!isNaN(maxSalary) && candidate.currentSalary !== null && candidate.currentSalary > maxSalary) {
-          return false
+        
+        if (appliedFilters.currentSalaryMin) {
+          const minSalary = parseFloat(appliedFilters.currentSalaryMin)
+          if (!isNaN(minSalary) && candidate.currentSalary < minSalary) {
+            return false
+          }
+        }
+        if (appliedFilters.currentSalaryMax) {
+          const maxSalary = parseFloat(appliedFilters.currentSalaryMax)
+          if (!isNaN(maxSalary) && candidate.currentSalary > maxSalary) {
+            return false
+          }
         }
       }
 
       // Expected salary range filter
-      if (appliedFilters.expectedSalaryMin) {
-        const minSalary = parseFloat(appliedFilters.expectedSalaryMin)
-        if (!isNaN(minSalary) && candidate.expectedSalary !== null && candidate.expectedSalary < minSalary) {
+      if (appliedFilters.expectedSalaryMin || appliedFilters.expectedSalaryMax) {
+        // If any salary filter is set, exclude candidates with null salary
+        if (candidate.expectedSalary === null) {
           return false
         }
-      }
-      if (appliedFilters.expectedSalaryMax) {
-        const maxSalary = parseFloat(appliedFilters.expectedSalaryMax)
-        if (!isNaN(maxSalary) && candidate.expectedSalary !== null && candidate.expectedSalary > maxSalary) {
-          return false
+        
+        if (appliedFilters.expectedSalaryMin) {
+          const minSalary = parseFloat(appliedFilters.expectedSalaryMin)
+          if (!isNaN(minSalary) && candidate.expectedSalary < minSalary) {
+            return false
+          }
+        }
+        if (appliedFilters.expectedSalaryMax) {
+          const maxSalary = parseFloat(appliedFilters.expectedSalaryMax)
+          if (!isNaN(maxSalary) && candidate.expectedSalary > maxSalary) {
+            return false
+          }
         }
       }
 
@@ -209,6 +230,20 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
           workExperienceTechStacks.has(filterTech.toLowerCase())
         )
         if (!hasMatchingTech) return false
+      }
+
+      // Candidate Domains filter (Work Experience) - Check only work experience domains
+      if (appliedFilters.candidateDomains.length > 0) {
+        const workExperienceDomains = new Set<string>()
+        // Add domains from work experiences only
+        candidate.workExperiences?.forEach(we => {
+          we.domains.forEach(domain => workExperienceDomains.add(domain.toLowerCase()))
+        })
+        
+        const hasMatchingDomain = appliedFilters.candidateDomains.some(filterDomain => 
+          workExperienceDomains.has(filterDomain.toLowerCase())
+        )
+        if (!hasMatchingDomain) return false
       }
 
       // Vertical Domains filter
@@ -439,6 +474,34 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         if (!appliedFilters.isCheetah && candidateIsCheetah) return false
       }
 
+      // Education Start Month filter
+      if (appliedFilters.educationStartMonth !== null && appliedFilters.educationStartMonth !== undefined) {
+        const filterStartMonth = appliedFilters.educationStartMonth
+        const hasMatchingStartMonth = candidate.educations?.some(edu => {
+          if (!edu.startMonth) return false
+          const filterYear = filterStartMonth.getFullYear()
+          const filterMonth = filterStartMonth.getMonth()
+          const eduYear = edu.startMonth.getFullYear()
+          const eduMonth = edu.startMonth.getMonth()
+          return eduYear === filterYear && eduMonth === filterMonth
+        })
+        if (!hasMatchingStartMonth) return false
+      }
+
+      // Education End Month filter (Graduation Month/Year)
+      if (appliedFilters.educationEndMonth !== null && appliedFilters.educationEndMonth !== undefined) {
+        const filterEndMonth = appliedFilters.educationEndMonth
+        const hasMatchingEndMonth = candidate.educations?.some(edu => {
+          if (!edu.endMonth) return false
+          const filterYear = filterEndMonth.getFullYear()
+          const filterMonth = filterEndMonth.getMonth()
+          const eduYear = edu.endMonth.getFullYear()
+          const eduMonth = edu.endMonth.getMonth()
+          return eduYear === filterYear && eduMonth === filterMonth
+        })
+        if (!hasMatchingEndMonth) return false
+      }
+
       // Certification-related filters - Check candidate.certifications directly
       // Get all certifications from candidate
       const candidateCerts = candidate.certifications || []
@@ -606,6 +669,34 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
     })
   }, [globalFilters, hasGlobalFilters])
 
+  // Helper function to combine URL filters with form filters for match context calculation
+  const getCombinedFilters = useCallback((): CandidateFilters => {
+    return {
+      ...filters,
+      // Merge URL-based filters into the filters object for match context calculation
+      projects: projectFilter 
+        ? (filters.projects.includes(projectFilter.name) 
+            ? filters.projects 
+            : [...filters.projects, projectFilter.name])
+        : filters.projects,
+      universities: universityFilter
+        ? (filters.universities.some(u => universityFilter.name.toLowerCase().includes(u.toLowerCase()))
+            ? filters.universities
+            : [...filters.universities, universityFilter.name])
+        : filters.universities,
+      certificationNames: certificationFilter
+        ? (filters.certificationNames.includes(certificationFilter.name)
+            ? filters.certificationNames
+            : [...filters.certificationNames, certificationFilter.name])
+        : filters.certificationNames,
+      employers: employerFilter
+        ? (filters.employers.some(e => e.toLowerCase() === employerFilter.name.toLowerCase())
+            ? filters.employers
+            : [...filters.employers, employerFilter.name])
+        : filters.employers,
+    }
+  }, [filters, projectFilter, universityFilter, certificationFilter, employerFilter])
+
   // Filter candidates by project or university (mock implementation)
   const filteredCandidates = useMemo(() => {
     let candidateList = candidates
@@ -671,8 +762,35 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
     // Apply form filters to the result
     candidateList = applyFilters(candidateList, filters)
 
+    // Sort by match count when filters are active
+    const filtersActive = hasActiveFilters(filters) || 
+                          projectFilter !== null || 
+                          universityFilter !== null || 
+                          certificationFilter !== null || 
+                          employerFilter !== null ||
+                          hasGlobalFilters
+
+    if (filtersActive) {
+      // Get combined filters that include URL-based filters for accurate match context
+      const combinedFilters = getCombinedFilters()
+
+      // Sort by match count (descending), then by name (ascending) for consistency
+      candidateList = [...candidateList].sort((a, b) => {
+        const matchContextA = getCandidateMatchContext(a, combinedFilters)
+        const matchContextB = getCandidateMatchContext(b, combinedFilters)
+        
+        // Primary sort: Match count (descending) - candidates with most matches first
+        if (matchContextA.totalMatches !== matchContextB.totalMatches) {
+          return matchContextB.totalMatches - matchContextA.totalMatches
+        }
+        
+        // Secondary sort: Candidate name (ascending) for consistent ordering when match counts are equal
+        return a.name.localeCompare(b.name)
+      })
+    }
+
     return candidateList
-  }, [candidates, projectFilter, universityFilter, certificationFilter, employerFilter, filters, applyGlobalFilters])
+  }, [candidates, projectFilter, universityFilter, certificationFilter, employerFilter, filters, applyGlobalFilters, hasGlobalFilters, getCombinedFilters])
 
   const handleCandidateSubmit = async (data: CandidateFormData) => {
     console.log("New candidate data:", data)
@@ -687,6 +805,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
 
   const handleClearFilters = () => {
     setFilters(initialFilters)
+    setViewMode('table') // Switch back to table view when filters are cleared
     console.log("Candidate filters cleared")
   }
 
@@ -726,6 +845,20 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
     if (employerFilter) return `Candidates who have worked at ${employerFilter.name}`
     return "Manage candidate profiles and recruitment pipeline"
   }
+
+  // Auto-switch to cards when filters are active
+  useEffect(() => {
+    const filtersActive = hasActiveFilters(filters) || 
+                          projectFilter !== null || 
+                          universityFilter !== null || 
+                          certificationFilter !== null || 
+                          employerFilter !== null ||
+                          hasGlobalFilters
+
+    if (filtersActive && filteredCandidates.length > 0) {
+      setViewMode('cards')
+    }
+  }, [filters, projectFilter, universityFilter, certificationFilter, employerFilter, hasGlobalFilters, filteredCandidates.length])
   
   return (
     <div className="space-y-6">
@@ -737,6 +870,29 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* View Toggle - Only show when filters are active */}
+          {(hasActiveFilters(filters) || projectFilter || universityFilter || certificationFilter || employerFilter || hasGlobalFilters) && (
+            <div className="flex items-center border rounded-lg p-1 bg-background">
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+                className="h-8 px-3 cursor-pointer"
+              >
+                <Table2 className="h-4 w-4 mr-1.5" />
+                Table
+              </Button>
+              <Button
+                variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('cards')}
+                className="h-8 px-3 cursor-pointer"
+              >
+                <Grid3x3 className="h-4 w-4 mr-1.5" />
+                Cards
+              </Button>
+            </div>
+          )}
           <CandidatesFilterDialog
             filters={filters}
             onFiltersChange={handleFiltersChange}
@@ -823,7 +979,12 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         </div>
       )}
       
-      <CandidatesTable candidates={filteredCandidates} />
+      {/* Conditional rendering based on view mode */}
+      {viewMode === 'cards' ? (
+        <CandidatesCardsView candidates={filteredCandidates} filters={getCombinedFilters()} />
+      ) : (
+        <CandidatesTable candidates={filteredCandidates} filters={getCombinedFilters()} />
+      )}
     </div>
   )
 }

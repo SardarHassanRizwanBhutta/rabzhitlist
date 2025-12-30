@@ -15,7 +15,7 @@ export const sampleProjects: Project[] = [
     status: "Development",
     description: null,
     notes: null,
-    projectLink: null,
+    projectLink: "https://miraclemorning.com/",
     projectType: "Employer",
     createdAt: new Date("2023-06-01"),
     updatedAt: new Date("2024-01-15"),

@@ -16,6 +16,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/:b:/p/raahim_z/IQByxRtJfd73RJ1W23nZsbCfAdTRvNSC73afmp0WK8D1IT4?e=tpQPwf",
+    techStacks: ["TypeScript", "GraphQL", "MongoDB", "Docker", "Kubernetes", "Redis", "Jest", "Cypress"],
     workExperiences: [
       {
         id: "we-1-1",
@@ -41,9 +42,23 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-07-01"),
         endDate: undefined,
         techStacks: ["react native", "express.js", "node.js", "aws", "sql", "nextjs", "react"],
+        domains: ["Mobile Application", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: [
+          { id: "ben-1-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-1-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-1-1-4", name: "Fuel Allowance", amount: 15000, unit: "PKR" },
+          { id: "ben-1-1-5", name: "Gym Passport", amount: null, unit: null },
+          { id: "ben-1-1-6", name: "Work from Home", amount: null, unit: null },
+          { id: "ben-1-1-8", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-1-1-9", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-1-1-10", name: "Matrimonial Leave", amount: 4, unit: "days" },
+          { id: "ben-1-1-11", name: "Grievance", amount: 3, unit: "days" },
+          { id: "ben-1-1-12", name: "Half Day", amount: 4, unit: "days" },
+          { id: "ben-1-1-13", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-1-2",
@@ -59,9 +74,17 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-08-01"),
         endDate: new Date("2021-07-31"),
         techStacks: ["react native"],
+        domains: ["Mobile Application", "E-commerce Platforms"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: [
+          { id: "ben-1-2-1", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-1-2-2", name: "EOBI", amount: null, unit: null },
+          { id: "ben-1-2-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-1-2-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-1-2-5", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       }
     ],
     projects: [
@@ -104,6 +127,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: null,
+    techStacks: ["Salesforce", "HubSpot", "Zoho CRM", "Microsoft Power BI", "Tableau", "Google Analytics"],
     workExperiences: [
       {
         id: "we-2-1",
@@ -113,9 +137,22 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-08-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation", "Communication & Collaboration"],
         shiftType: "Rotational",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: [
+          { id: "ben-2-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-2-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-2-1-3", name: "Flexible Hours", amount: null, unit: null },
+          { id: "ben-2-1-4", name: "Annual Bonus", amount: 100000, unit: "PKR" },
+          { id: "ben-2-1-5", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-2-1-6", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-2-1-7", name: "Matrimonial Leave", amount: 4, unit: "days" },
+          { id: "ben-2-1-8", name: "Grievance", amount: 3, unit: "days" },
+          { id: "ben-2-1-9", name: "Half Day", amount: 4, unit: "days" },
+          { id: "ben-2-1-10", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-2-2",
@@ -125,9 +162,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2017-05-01"),
         endDate: new Date("2020-04-30"),
         techStacks: [],
+        domains: ["IoT", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: []
       }
     ],
     certifications: [
@@ -228,6 +267,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FMuhammad%20Ahmad%20CV%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Vue.js", "Nuxt.js", "PostgreSQL", "Elasticsearch", "RabbitMQ", "Microservices", "Terraform", "GitLab CI"],
     workExperiences: [
       {
         id: "we-3-1",
@@ -243,9 +283,19 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-07-01"),
         endDate: undefined,
         techStacks: ["angular", "react", "asp.net core", "aws", "mysql"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US"]
+        timeSupportZones: ["US"],
+        benefits: [
+          { id: "ben-3-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-3-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-3-1-3", name: "Mobile Allowance", amount: 3000, unit: "PKR" },
+          { id: "ben-3-1-4", name: "Flexible Hours", amount: null, unit: null },
+          { id: "ben-3-1-5", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-3-1-6", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-3-1-7", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-3-2",
@@ -255,9 +305,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-10-01"),
         endDate: new Date("2024-06-30"),
         techStacks: ["android", "kotlin", "java", "firebase"],
+        domains: ["Mobile Application", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-3-3",
@@ -283,9 +335,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-08-01"),
         endDate: new Date("2022-11-30"),
         techStacks: ["flutter", "dart", "firebase"],
+        domains: ["Mobile Application", "Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -406,6 +460,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FDRR%20CV%20%283%29%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Swift", "iOS Development", "Xcode", "App Store Connect", "Fastlane", "CocoaPods"],
     workExperiences: [
       {
         id: "we-4-1",
@@ -421,9 +476,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-09-01"),
         endDate: undefined,
         techStacks: ["react native", "express.js", "node.js"],
+        domains: ["Mobile Application", "Workflow Automation", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: [
+          { id: "ben-4-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-4-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-4-1-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-4-1-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-4-1-5", name: "Work from Home", amount: null, unit: null },
+          { id: "ben-4-1-6", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-4-2",
@@ -433,9 +497,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-02-01"),
         endDate: new Date("2023-08-31"),
         techStacks: ["react native"],
+        domains: ["Mobile Application", "Workflow Automation", "Communication & Collaboration"],
         shiftType: null,
         workMode: null,
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: []
       },
       {
         id: "we-4-3",
@@ -445,9 +511,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-12-01"),
         endDate: new Date("2023-06-31"),
         techStacks: ["react native"],
+        domains: ["Mobile Application", "Document Management"],
         shiftType: null,
         workMode: "Remote",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: []
       },
       {
         id: "we-4-4",
@@ -457,9 +525,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-09-01"),
         endDate: new Date("2021-02-01"),
         techStacks: ["react native"],
+        domains: ["Mobile Application", "Communication & Collaboration"],
         shiftType: null,
         workMode: "Remote",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: []
       }
     ],
     projects: [
@@ -527,6 +597,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FAliyan%20Latif%27s%20Resume%202%20%282%29%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Svelte", "Tailwind CSS", "Storybook", "Webpack", "Vite", "ESLint", "Prettier"],
     workExperiences: [
       {
         id: "we-5-1",
@@ -542,9 +613,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-12-01"),
         endDate: new Date("2024-03-31"),
         techStacks: ["react", "react native", "javascript", "typescript"],
+        domains: ["Mobile Application", "E-commerce Platforms", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: [
+          { id: "ben-5-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-5-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-5-1-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-5-1-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-5-1-5", name: "Flexible Hours", amount: null, unit: null },
+          { id: "ben-5-1-6", name: "Gym Passport", amount: null, unit: null },
+        ]
       },
       {
         id: "we-5-2",
@@ -575,9 +655,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-03-01"),
         endDate: undefined,
         techStacks: ["react", "react native", "javascript", "typescript"],
+        domains: ["Mobile Application", "Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US"]
+        timeSupportZones: ["US"],
+        benefits: []
       }
     ],
     projects: [
@@ -628,6 +710,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee", 
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FCV%20UBD%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Python", "Django", "FastAPI", "Celery", "Nginx", "Gunicorn", "Pytest"],
     workExperiences: [
       {
         id: "we-6-1",
@@ -648,9 +731,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-05-01"),
         endDate: undefined,
         techStacks: ["Mern", "Mean", "postgresql", "express", "react", "node.js"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: [
+          { id: "ben-6-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-6-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-6-1-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-6-1-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-6-1-5", name: "Internet Allowance", amount: 5000, unit: "PKR" },
+          { id: "ben-6-1-6", name: "Training Sessions", amount: 2, unit: "count" },
+        ]
       }
     ],
     certifications: [
@@ -731,6 +823,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FSohaib%20Resume%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Arduino", "Raspberry Pi", "IoT Protocols", "MQTT", "Zigbee", "Bluetooth Low Energy", "Circuit Design"],
     workExperiences: [
       {
         id: "we-7-1",
@@ -740,9 +833,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2008-06-01"),
         endDate: new Date("2009-06-01"),
         techStacks: ["electronics", "pcb design"],
+        domains: ["IoT", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Remote",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: [
+          { id: "ben-7-1-1", name: "Commission Rate", amount: 5, unit: "percent" },
+          { id: "ben-7-1-2", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-7-1-3", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-7-1-4", name: "Flexible Hours", amount: null, unit: null },
+          { id: "ben-7-1-5", name: "Work from Home", amount: null, unit: null },
+          { id: "ben-7-1-6", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-7-2",
@@ -752,9 +854,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2009-07-01"),
         endDate: new Date("2011-05-01"),
         techStacks: ["embedded systems", "hardware design"],
+        domains: ["IoT", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-7-3",
@@ -770,9 +874,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2011-06-01"),
         endDate: new Date("2015-12-01"),
         techStacks: ["embedded systems", "firmware", "hardware design"],
+        domains: ["IoT", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-7-4",
@@ -788,9 +894,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2016-01-01"),
         endDate: new Date("2021-07-01"),
         techStacks: ["c/c++", "python", "micro controllers", "embedded systems", "hardware design", "firmware", "STM32", "LoRa", "AWS IoT"],
+        domains: ["IoT", "Cloud Computing", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-7-5",
@@ -800,9 +908,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-08-01"),
         endDate: new Date("2023-06-01"),
         techStacks: ["embedded systems", "firmware", "consulting"],
+        domains: ["IoT", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Remote",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: []
       },
       {
         id: "we-7-6",
@@ -818,9 +928,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-07-01"),
         endDate: undefined,
         techStacks: ["c/c++", "python", "micro controllers", "embedded systems", "hardware design", "firmware", "ASP.NET Core", "Angular", "AWS IoT", "aws"],
+        domains: ["IoT", "Cloud Computing", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: []
       }
     ],
     projects: [
@@ -913,6 +1025,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FIqra%5FResume%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Adobe Creative Suite", "Figma", "Sketch", "InVision", "Principle", "After Effects", "Blender"],
     workExperiences: [
       {
         id: "we-8-1",
@@ -922,9 +1035,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-08-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: [
+          { id: "ben-8-1-1", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-8-1-2", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-8-1-3", name: "Flexible Hours", amount: null, unit: null },
+          { id: "ben-8-1-4", name: "Gym Passport", amount: null, unit: null },
+          { id: "ben-8-1-5", name: "Work from Home", amount: null, unit: null },
+          { id: "ben-8-1-6", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
       {
         id: "we-8-2",
@@ -934,9 +1056,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-08-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-8-3",
@@ -946,9 +1070,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-10-01"),
         endDate: new Date("2023-02-01"),
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-8-4",
@@ -958,9 +1084,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-07-01"),
         endDate: new Date("2021-08-01"),
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-8-5",
@@ -970,9 +1098,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-11-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     certifications: [],
@@ -1008,6 +1138,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=rehm&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FAhmed%2DRehman%2DAndroid%2DCV%20%282%29%2Epdf&parentview=7",
+    techStacks: ["Jetpack Compose", "Material Design", "Room Database", "WorkManager", "Hilt", "Coroutines", "Flow"],
     workExperiences: [
       {
         id: "we-9-1",
@@ -1017,9 +1148,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2019-01-01"),
         endDate: new Date("2021-04-01"),
         techStacks: ["Android", "Java", "Kotlin"],
+        domains: ["Mobile Application", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: [
+          { id: "ben-9-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-9-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-9-1-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-9-1-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-9-1-5", name: "Mobile Allowance", amount: 3000, unit: "PKR" },
+          { id: "ben-9-1-6", name: "Training Budget", amount: null, unit: null },
+        ]
       },
       {
         id: "we-9-2",
@@ -1029,9 +1169,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-04-01"),
         endDate: new Date("2021-10-01"),
         techStacks: ["Android", "Java", "Kotlin"],
+        domains: ["Mobile Application", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-9-3",
@@ -1041,9 +1183,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-10-01"),
         endDate: new Date("2022-09-01"),
         techStacks: ["Android", "Java", "Kotlin"],
+        domains: ["Mobile Application", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-9-4",
@@ -1053,9 +1197,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-09-01"),
         endDate: undefined,
         techStacks: ["Android", "Java", "Kotlin"],
+        domains: ["Mobile Application", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
     ],
     projects: [
@@ -1148,6 +1294,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FIZZA%20SHAHZAD%20CV%20AI%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["TensorFlow", "Keras", "Scikit-learn", "Pandas", "NumPy", "Jupyter", "Deep Learning"],
     workExperiences: [
       {
         id: "we-10-1",
@@ -1157,9 +1304,18 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-11-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: [
+          { id: "ben-10-1-1", name: "IPD", amount: 20000, unit: "PKR" },
+          { id: "ben-10-1-2", name: "OPD", amount: 50000, unit: "PKR" },
+          { id: "ben-10-1-3", name: "Annual Leave", amount: 12, unit: "days" },
+          { id: "ben-10-1-4", name: "Casual/Sick Leave", amount: 11, unit: "days" },
+          { id: "ben-10-1-5", name: "Training Sessions", amount: 2, unit: "count" },
+          { id: "ben-10-1-6", name: "Preventive Healthcare Marketplace", amount: null, unit: null },
+        ]
       },
 
       {
@@ -1170,9 +1326,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-05-01"),
         endDate: new Date("2025-06-01"),
         techStacks: [],
+        domains: ["Business Intelligence & Analytics", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-10-3",
@@ -1182,9 +1340,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-06-15"),
         endDate: new Date("2024-07-15"),
         techStacks: ["AI", "machine learning"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-10-4",
@@ -1194,9 +1354,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-07-01"),
         endDate: undefined,
         techStacks: ["AI", "machine learning", "python"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-10-5",
@@ -1206,9 +1368,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-07-18"),
         endDate: new Date("2024-08-29"),
         techStacks: [],
+        domains: ["Document Management", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -1303,6 +1467,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FSara%20Nayab%5FResume%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Playwright", "Cypress", "Appium", "JMeter", "LoadRunner", "TestRail", "Bugzilla"],
     workExperiences: [
       {
         id: "we-11-1",
@@ -1312,9 +1477,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-03-01"),
         endDate: new Date("2022-04-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-11-2",
@@ -1324,9 +1491,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-07-01"),
         endDate: new Date("2024-02-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-11-3",
@@ -1336,9 +1505,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-02-01"),
         endDate: new Date("2025-05-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-11-4",
@@ -1348,9 +1519,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-07-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -1465,6 +1638,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FUmair%20Tahir%20Resume%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Entity Framework", "SignalR", "Azure", "Azure DevOps", "Swagger", "Serilog", "AutoMapper"],
     workExperiences: [
       {
         id: "we-12-1",
@@ -1474,9 +1648,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-06-01"),
         endDate: new Date("2022-11-01"),
         techStacks: ["Angular", "TypeScript", "JavaScript"],
+        domains: ["Document Management", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-12-2",
@@ -1486,9 +1662,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-11-01"),
         endDate: new Date("2023-04-01"),
         techStacks: [".NET Core", "C#"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-12-3",
@@ -1498,9 +1676,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-09-01"),
         endDate: new Date("2024-04-01"),
         techStacks: [".NET Core", "C#"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-12-4",
@@ -1510,9 +1690,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-04-01"),
         endDate: undefined,
         techStacks: [".NET Core", "Angular", "TypeScript", "JavaScript"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-12-5",
@@ -1522,9 +1704,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-12-01"),
         endDate: undefined,
         techStacks: ["Angular", "TypeScript", "JavaScript", ".NET Core", "C#"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -1582,6 +1766,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=mahnoor&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FMahnoor%20SQA%5FICV%2Epdf&parentview=7",
+    techStacks: ["Cucumber", "BDD", "Allure Reports", "Extent Reports", "Git", "Jenkins Pipeline", "Docker Compose"],
     workExperiences: [
       {
         id: "we-13-1",
@@ -1591,9 +1776,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-08-01"),
         endDate: new Date("2020-11-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-13-2",
@@ -1603,9 +1790,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-06-01"),
         endDate: new Date("2021-07-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-13-3",
@@ -1615,9 +1804,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-08-01"),
         endDate: new Date("2022-07-01"),
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Remote",
-        timeSupportZones: ["US"]
+        timeSupportZones: ["US"],
+        benefits: []
       },
       {
         id: "we-13-4",
@@ -1627,9 +1818,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-07-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-13-5",
@@ -1639,9 +1832,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-09-01"),
         endDate: undefined,
         techStacks: ["Selenium", "Java", "TestNG", "JUnit", "REST", "API", "Postman", "Jira"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics", "DevOps & CI/CD"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -1802,6 +1997,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=resume&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FResume%20%2816%29%2Epdf&parentview=7",
+    techStacks: ["Provider", "Riverpod", "GetX", "BLoC Pattern", "Hive", "Shared Preferences", "Google Maps API"],
     workExperiences: [
       {
         id: "we-14-1",
@@ -1811,9 +2007,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-09-01"),
         endDate: undefined,
         techStacks: ["Flutter", "Dart", "Firebase", "REST", "API", "Postman", "Jira"],
+        domains: ["Mobile Application", "Workflow Automation", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-14-2",
@@ -1823,9 +2021,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-03-01"),
         techStacks: ["React.js", "TypeScript", "JavaScript"],
+        domains: ["Document Management", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-14-3",
@@ -1835,9 +2035,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-07-01"),
         endDate: new Date("2022-06-30"),
         techStacks: ["React.js", "TypeScript", "JavaScript"],
+        domains: ["Document Management", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: []
       }
     ],
     certifications: [
@@ -1882,6 +2084,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=sufi&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FSufi%20Hassan%20Asim%20resume%2Epdf&parentview=7",
+    techStacks: ["Transformers", "Hugging Face", "LangChain", "Pinecone", "Weaviate", "Gradio", "Streamlit"],
     workExperiences: [
       {
         id: "we-15-1",
@@ -1891,9 +2094,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2019-01-01"),
         endDate: undefined,
         techStacks: ["Flask", "MongoDB", "NLP", "LLaMA API", "YOLO v5-v10", "OpenCV", "PyTorch"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Remote",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: []
       },
       {
         id: "we-15-2",
@@ -1903,9 +2108,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-06-01"),
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-15-3",
@@ -1915,9 +2122,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-03-01"),
         endDate: new Date("2024-05-01"),
         techStacks: [],
+        domains: ["Document Management", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-15-4",
@@ -1927,9 +2136,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-10-01"),
         endDate: new Date("2023-12-01"),
         techStacks: ["Python"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-15-5",
@@ -1939,9 +2150,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-01-01"),
         endDate: new Date("2024-02-01"),
         techStacks: ["Python"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-15-6",
@@ -1951,9 +2164,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-04-01"),
         endDate: new Date("2024-06-01"),
         techStacks: ["AI", "machine learning"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       }
     ],
     projects: [
@@ -2113,6 +2328,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=abdullah&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FCV%5FAbdullah%2DAmjad%5FQA%2Epdf&parentview=7",
+    techStacks: ["WebDriverIO", "Mocha", "Chai", "Newman", "Grafana", "Kibana", "ELK Stack"],
     workExperiences: [
       {
         id: "we-16-1",
@@ -2122,9 +2338,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-09-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-16-2",
@@ -2134,9 +2352,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-03-01"),
         endDate: undefined,
         techStacks: ["Selenium", "Java", "TestNG", "JUnit", "REST", "API", "Postman", "Jira"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics", "DevOps & CI/CD"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
     ],
     projects: [
@@ -2199,6 +2419,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Ex Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=mohid&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FMohid%20Anwar%20Resume%2Epdf&parentview=7",
+    techStacks: ["Next.js", "Prisma", "tRPC", "Zustand", "TanStack Query", "Stripe", "SendGrid"],
     workExperiences: [
       {
         id: "we-17-1",
@@ -2208,9 +2429,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-02-19"),
         endDate: new Date("2025-09-19"),
         techStacks: ["Mern", "Mean","React Native", "TypeScript", "JavaScript", "React", "Node.js", "Express", "AWS", "Docker", "CI/CD"],
+        domains: ["Mobile Application", "Workflow Automation", "DevOps & CI/CD"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-17-2",
@@ -2220,9 +2443,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2019-01-01"),
         endDate: undefined,
         techStacks: ["AI", "full stack", "javascript", "python"],
+        domains: ["Business Intelligence & Analytics", "Workflow Automation", "Document Management"],
         shiftType: "Morning",
         workMode: "Remote",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-17-3",
@@ -2232,9 +2457,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-07-01"),
         endDate: new Date("2024-08-01"),
         techStacks: [],
+        domains: ["Document Management", "Workflow Automation"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
     ],
     projects: [
@@ -2312,6 +2539,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=tassaduq&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FTassaduq%20Hussain%2DResume%2Epdf&parentview=7",
+    techStacks: ["NestJS", "TypeORM", "Redis Cache", "Bull Queue", "Socket.io", "Prometheus", "Grafana"],
     workExperiences: [
       {
         id: "we-18-1",
@@ -2321,9 +2549,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-07-01"),
         endDate: undefined,
         techStacks: ["React.js", "TypeScript", "Node.js", "Express", "PostgreSQL", "AWS S3"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK", "EU"]
+        timeSupportZones: ["US", "UK", "EU"],
+        benefits: []
       },
       {
         id: "we-18-2",
@@ -2333,9 +2563,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2019-01-01"),
         endDate: new Date("2023-01-01"),
         techStacks: ["Java", "Spring Boot", "MySQL"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: ["US"]
+        timeSupportZones: ["US"],
+        benefits: []
       },
       {
         id: "we-18-3",
@@ -2345,9 +2577,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-01-01"),
         endDate: undefined,
         techStacks: ["React.js", "TypeScript", "Node.js", "PostgreSQL"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-18-4",
@@ -2357,9 +2591,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-01-01"),
         endDate: new Date("2023-06-30"),
         techStacks: ["Java", "Spring Boot", "MySQL"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: ["US"]
+        timeSupportZones: ["US"],
+        benefits: []
       },
     ],
     projects: [
@@ -2432,6 +2668,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/query?q=aaqib&searchScope=all&id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FAaqib%20Khan%20resume%281%29%2Epdf&parentview=7",
+    techStacks: ["ASP.NET MVC", "WPF", "Xamarin", "gRPC", "MediatR", "FluentValidation", "Hangfire"],
     workExperiences: [
       {
         id: "we-19-1",
@@ -2441,9 +2678,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-12-01"),
         endDate: new Date("2022-12-01"),
         techStacks: ["React.js", "TypeScript", "Node.js", "PostgreSQL"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-19-2",
@@ -2453,9 +2692,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-07-01"),
         endDate: new Date("2024-01-01"),
         techStacks: [".NET", "C#"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-19-3",
@@ -2465,9 +2706,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-02-01"),
         endDate: undefined,
         techStacks: [".NET", "C#"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-19-4",
@@ -2477,9 +2720,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-07-01"),
         endDate: undefined,
         techStacks: [".NET", "C#"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["US", "UK"]
+        timeSupportZones: ["US", "UK"],
+        benefits: []
       }
     ],
     projects: [
@@ -2584,6 +2829,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: "https://dplit-my.sharepoint.com/my?id=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments%2FIqra%5FResume%2Epdf&parent=%2Fpersonal%2Fraahim%5Fz%5Fdplit%5Fcom%2FDocuments",
+    techStacks: ["Premiere Pro", "Final Cut Pro", "DaVinci Resolve", "OBS Studio", "Adobe Premiere", "Motion Graphics"],
     workExperiences: [
       {
         id: "we-20-1",
@@ -2593,9 +2839,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2025-01-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Communication & Collaboration", "Document Management"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-20-2",
@@ -2605,9 +2853,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: undefined,
         endDate: undefined,
         techStacks: [],
+        domains: ["Communication & Collaboration", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-20-3",
@@ -2617,9 +2867,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-02-01"),
         endDate: new Date("2023-12-01"),
         techStacks: [],
+        domains: ["Communication & Collaboration", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-20-4",
@@ -2629,9 +2881,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2020-02-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Communication & Collaboration", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
       {
         id: "we-20-5",
@@ -2641,9 +2895,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2023-01-01"),
         endDate: undefined,
         techStacks: [],
+        domains: ["Communication & Collaboration", "Document Management"],
         shiftType: "Morning",
         workMode: "Onsite",
-        timeSupportZones: []
+        timeSupportZones: [],
+        benefits: []
       },
     ],
     projects: [
@@ -2728,6 +2984,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: null,
+    techStacks: ["Microservices Architecture", "Event Sourcing", "CQRS", "RabbitMQ", "Kafka", "Consul", "Vault"],
     workExperiences: [
       {
         id: "we-21-1",
@@ -2743,9 +3000,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2021-01-01"),
         endDate: undefined,
         techStacks: ["ASP.NET Core", ".NET Core", "c#", "sql", "angular", "javascript", "typescript", ".NET Core APIs"],
+        domains: ["Document Management", "Workflow Automation", "Business Intelligence & Analytics"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["PAK", "US"]
+        timeSupportZones: ["PAK", "US"],
+        benefits: []
       },
     ],
     projects: [],
@@ -2769,6 +3028,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: null,
+    techStacks: ["Expo", "React Query", "Zustand", "Reanimated", "React Navigation", "CodePush", "Flipper"],
     workExperiences: [
       {
         id: "we-22-1",
@@ -2794,9 +3054,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2022-01-01"),
         endDate: undefined,
         techStacks: ["react native", "javascript", "typescript", "flutter", "node.js", "express.js", "mongodb", "firebase", "aws", "docker", "ci/cd"],
+        domains: ["Mobile Application", "Workflow Automation", "Communication & Collaboration"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["PAK", "US"]
+        timeSupportZones: ["PAK", "US"],
+        benefits: []
       },
     ],
     projects: [],
@@ -2820,6 +3082,7 @@ export const sampleCandidates: Candidate[] = [
     source: "DPL Employee",
     status: "hired",
     resume: null,
+    techStacks: ["Karate Framework", "Rest Assured", "Allure", "TestContainers", "WireMock", "Mockito", "SonarQube"],
     workExperiences: [
       {
         id: "we-23-1",
@@ -2840,9 +3103,11 @@ export const sampleCandidates: Candidate[] = [
         startDate: new Date("2024-07-01"),
         endDate: undefined,
         techStacks: ["selenium", "java", "testng", "maven", "junit", "restassured", "postman", "jenkins", "docker", "ci/cd", "python", "aws"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics", "DevOps & CI/CD"],
         shiftType: "Morning",
         workMode: "Hybrid",
-        timeSupportZones: ["PAK", "US"]
+        timeSupportZones: ["PAK", "US"],
+        benefits: []
       },
     ],
     projects: [],
