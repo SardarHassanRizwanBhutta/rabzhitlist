@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { EmployersTable } from "@/components/employers-table"
-import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
+import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { EmployersFilterDialog, EmployerFilters } from "@/components/employers-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
@@ -35,6 +35,8 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
   const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<EmployerFilters>(initialFilters)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [employerToEdit, setEmployerToEdit] = useState<Employer | null>(null)
 
   // Check for URL filters
   useEffect(() => {
@@ -48,15 +50,29 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
     }
   }, [searchParams])
 
-  const handleEmployerSubmit = async (data: EmployerFormData) => {
+  const handleEmployerSubmit = async (data: EmployerFormData, verificationState?: EmployerVerificationState) => {
     // Here you would typically send the data to your API
-    console.log("New employer data:", data)
+    if (verificationState) {
+      console.log("Employer data with verification:", data, verificationState)
+    } else {
+      console.log("New employer data:", data)
+    }
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500))
     
     // You could add the employer to your state/cache here
-    alert("Employer created successfully!")
+    if (verificationState) {
+      alert("Employer updated and verified successfully!")
+    } else {
+      alert("Employer created successfully!")
+    }
+    
+    // Close edit dialog if open
+    if (editDialogOpen) {
+      setEditDialogOpen(false)
+      setEmployerToEdit(null)
+    }
   }
 
   const handleFiltersChange = (newFilters: EmployerFilters) => {
@@ -77,16 +93,8 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
   }
 
   const handleEditEmployer = (employer: Employer) => {
-    // TODO: Implement edit employer functionality
-    alert(`Edit employer: ${employer.name}`)
-  }
-
-  const handleDeleteEmployer = (employer: Employer) => {
-    // TODO: Implement delete employer functionality
-    const confirmDelete = confirm(`Are you sure you want to delete "${employer.name}" and all its offices?`)
-    if (confirmDelete) {
-      alert(`Delete employer: ${employer.name}`)
-    }
+    setEmployerToEdit(employer)
+    setEditDialogOpen(true)
   }
 
   const handleAddLocation = (employer: Employer) => {
@@ -94,25 +102,6 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
     alert(`Add office to ${employer.name}`)
   }
 
-  const handleEditLocation = (location: EmployerLocation) => {
-    // TODO: Implement edit location functionality
-    const employer = employers.find(emp => emp.id === location.employerId)
-    alert(`Edit office: ${location.city}, ${location.country} (${employer?.name})`)
-  }
-
-  const handleDeleteLocation = (location: EmployerLocation) => {
-    if (location.isHeadquarters) {
-      alert("Cannot delete headquarters office. Please designate another office as headquarters first.")
-      return
-    }
-    
-    // TODO: Implement delete location functionality
-    const employer = employers.find(emp => emp.id === location.employerId)
-    const confirmDelete = confirm(`Are you sure you want to delete the ${location.city} office from ${employer?.name}?`)
-    if (confirmDelete) {
-      alert(`Delete office: ${location.city}, ${location.country}`)
-    }
-  }
 
   // Apply global filters to employers
   const applyGlobalFilters = (employerList: Employer[]) => {
@@ -253,11 +242,25 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
         filters={filters}
         onView={handleViewEmployer}
         onEdit={handleEditEmployer}
-        onDelete={handleDeleteEmployer}
         onAddLocation={handleAddLocation}
-        onEditLocation={handleEditLocation}
-        onDeleteLocation={handleDeleteLocation}
       />
+
+      {/* Edit Employer Dialog with Verification */}
+      {employerToEdit && (
+        <EmployerCreationDialog
+          mode="edit"
+          employerData={employerToEdit}
+          showVerification={true}
+          onSubmit={handleEmployerSubmit}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) {
+              setEmployerToEdit(null)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

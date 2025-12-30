@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { Filter } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Filter, CalendarIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
@@ -44,6 +47,8 @@ export interface CandidateFilters {
   technicalAspects: string[]
   // Candidate work experience tech stacks
   candidateTechStacks: string[]
+  // Candidate work experience domains
+  candidateDomains: string[]
   // Employer-related filters
   employerStatus: string[]
   employerCountries: string[]
@@ -61,6 +66,8 @@ export interface CandidateFilters {
   majorNames: string[]
   isTopper: boolean | null  // null = no filter, true = only toppers, false = only non-toppers
   isCheetah: boolean | null // null = no filter, true = only cheetah, false = only non-cheetah
+  educationStartMonth: Date | null
+  educationEndMonth: Date | null
   // Certification-related filters
   certificationNames: string[]
   certificationIssuingBodies: string[]
@@ -144,6 +151,21 @@ const extractUniqueCandidateTechStacks = () => {
     })
   })
   return Array.from(techStacksMap.values()).sort()
+}
+
+// Extract domains from candidate work experiences (for Candidate Domains filter)
+const extractUniqueCandidateDomains = () => {
+  const domains = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.domains.forEach(domain => {
+        if (domain) {
+          domains.add(domain)
+        }
+      })
+    })
+  })
+  return Array.from(domains).sort()
 }
 
 const extractUniqueVerticalDomains = () => {
@@ -330,6 +352,12 @@ const candidateTechStackOptions: MultiSelectOption[] = extractUniqueCandidateTec
   label: tech
 }))
 
+// Candidate work experience domains (for separate filter)
+const candidateDomainOptions: MultiSelectOption[] = extractUniqueCandidateDomains().map(domain => ({
+  value: domain,
+  label: domain
+}))
+
 const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
   value: domain,
   label: domain
@@ -432,6 +460,8 @@ const initialFilters: CandidateFilters = {
   technicalAspects: [],
   // Candidate work experience tech stacks
   candidateTechStacks: [],
+  // Candidate work experience domains
+  candidateDomains: [],
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -449,6 +479,8 @@ const initialFilters: CandidateFilters = {
   majorNames: [],
   isTopper: null,
   isCheetah: null,
+  educationStartMonth: null,
+  educationEndMonth: null,
   // Certification-related filters
   certificationNames: [],
   certificationIssuingBodies: [],
@@ -477,6 +509,7 @@ export function CandidatesFilterDialog({
     filters.projectTypes.length +
     filters.techStacks.length +
     filters.candidateTechStacks.length +
+    filters.candidateDomains.length +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
@@ -494,6 +527,8 @@ export function CandidatesFilterDialog({
     filters.majorNames.length +
     (filters.isTopper !== null ? 1 : 0) +
     (filters.isCheetah !== null ? 1 : 0) +
+    (filters.educationStartMonth ? 1 : 0) +
+    (filters.educationEndMonth ? 1 : 0) +
     filters.certificationNames.length +
     filters.certificationIssuingBodies.length +
     filters.certificationLevels.length
@@ -502,7 +537,7 @@ export function CandidatesFilterDialog({
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | null) => {
+  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -534,6 +569,7 @@ export function CandidatesFilterDialog({
     tempFilters.projectTypes.length > 0 ||
     tempFilters.techStacks.length > 0 ||
     tempFilters.candidateTechStacks.length > 0 ||
+    tempFilters.candidateDomains.length > 0 ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
@@ -551,6 +587,8 @@ export function CandidatesFilterDialog({
     tempFilters.majorNames.length > 0 ||
     tempFilters.isTopper !== null ||
     tempFilters.isCheetah !== null ||
+    tempFilters.educationStartMonth !== null ||
+    tempFilters.educationEndMonth !== null ||
     tempFilters.certificationNames.length > 0 ||
     tempFilters.certificationIssuingBodies.length > 0 ||
     tempFilters.certificationLevels.length > 0
@@ -625,6 +663,16 @@ export function CandidatesFilterDialog({
                 placeholder="Filter by technology stack..."
                 label="Technology Stack"
                 searchPlaceholder="Search technologies..."
+                maxDisplay={4}
+              />
+              
+              <MultiSelect
+                items={candidateDomainOptions}
+                selected={tempFilters.candidateDomains}
+                onChange={(values) => handleFilterChange("candidateDomains", values)}
+                placeholder="Filter by domain..."
+                label="Domains"
+                searchPlaceholder="Search domains..."
                 maxDisplay={4}
               />
             </div>
@@ -970,6 +1018,83 @@ export function CandidatesFilterDialog({
                   searchPlaceholder="Search majors..."
                   maxDisplay={3}
                 />
+              </div>
+
+              {/* Education Timeline Filters */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="educationStartMonth" className="text-sm">
+                      Start Month
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !tempFilters.educationStartMonth
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {tempFilters.educationStartMonth ? (
+                            tempFilters.educationStartMonth.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long' 
+                            })
+                          ) : (
+                            <span>Select start month</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempFilters.educationStartMonth || undefined}
+                          onSelect={(date) => handleFilterChange("educationStartMonth", date || null)}
+                          captionLayout="dropdown"
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="educationEndMonth" className="text-sm">
+                      End Month
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !tempFilters.educationEndMonth
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {tempFilters.educationEndMonth ? (
+                            tempFilters.educationEndMonth.toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'long' 
+                            })
+                          ) : (
+                            <span>Select end month</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempFilters.educationEndMonth || undefined}
+                          onSelect={(date) => handleFilterChange("educationEndMonth", date || null)}
+                          captionLayout="dropdown"
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
               </div>
 
                 {/* Achievement Checkboxes */}

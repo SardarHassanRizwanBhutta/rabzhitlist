@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { CertificationsTable } from "@/components/certifications-table"
-import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
+import { CertificationCreationDialog, CertificationFormData, CertificationVerificationState } from "@/components/certification-creation-dialog"
 import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Certification } from "@/lib/types/certification"
+import { toast } from "sonner"
 
 interface CertificationsPageClientProps {
   certifications: Certification[]
@@ -69,33 +70,45 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
     return filtered
   }, [certifications, globalFilters, hasGlobalFilters, filters])
 
-  const handleCertificationSubmit = async (data: CertificationFormData) => {
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [certificationToEdit, setCertificationToEdit] = useState<Certification | null>(null)
+
+  const handleCertificationSubmit = async (data: CertificationFormData, verificationState?: CertificationVerificationState) => {
     // Here you would typically send the data to your API
-    console.log("New certification data:", data)
+    console.log("Certification data:", data)
+    if (verificationState) {
+      console.log("Verification state:", {
+        verifiedFields: Array.from(verificationState.verifiedFields),
+        modifiedFields: Array.from(verificationState.modifiedFields)
+      })
+    }
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500))
     
-    // You could add the certification to your state/cache here
-    alert("Certification created successfully!")
-  }
-
-  const handleViewCertification = (certification: Certification) => {
-    // TODO: Implement view certification functionality
-    alert(`View certification: ${certification.certificationName}`)
+    // You could add/update the certification to your state/cache here
+    if (certificationToEdit) {
+      toast.success(`Certification "${data.certificationName}" has been updated${verificationState ? ' and verified' : ''} successfully.`)
+      setEditDialogOpen(false)
+      setCertificationToEdit(null)
+    } else {
+      toast.success(`Certification "${data.certificationName}" has been created successfully.`)
+    }
   }
 
   const handleEditCertification = (certification: Certification) => {
-    // TODO: Implement edit certification functionality
-    alert(`Edit certification: ${certification.certificationName}`)
+    setCertificationToEdit(certification)
+    setEditDialogOpen(true)
   }
 
-  const handleDeleteCertification = (certification: Certification) => {
-    // TODO: Implement delete certification functionality
-    const confirmDelete = confirm(`Are you sure you want to delete "${certification.certificationName}"?`)
-    if (confirmDelete) {
-      alert(`Delete certification: ${certification.certificationName}`)
-    }
+  const handleDeleteCertification = async (certification: Certification) => {
+    // Here you would typically send the delete request to your API
+    console.log("Delete certification:", certification.id)
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    toast.success(`Certification "${certification.certificationName}" has been deleted successfully.`)
   }
 
   const handleClearFilters = () => {
@@ -137,10 +150,26 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
       
       <CertificationsTable
         certifications={filteredCertifications}
-        onView={handleViewCertification}
         onEdit={handleEditCertification}
         onDelete={handleDeleteCertification}
       />
+
+      {/* Edit Certification Dialog */}
+      {certificationToEdit && (
+        <CertificationCreationDialog
+          mode="edit"
+          certificationData={certificationToEdit}
+          showVerification={true}
+          onSubmit={handleCertificationSubmit}
+          open={editDialogOpen}
+          onOpenChange={(open) => {
+            setEditDialogOpen(open)
+            if (!open) {
+              setCertificationToEdit(null)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

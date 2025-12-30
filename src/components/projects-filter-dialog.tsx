@@ -12,11 +12,16 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { Filter } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Filter, CalendarIcon } from "lucide-react"
 import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { cn } from "@/lib/utils"
 
 // Filter interfaces
 export interface ProjectFilters {
@@ -27,6 +32,12 @@ export interface ProjectFilters {
   horizontalDomains: string[]
   technicalAspects: string[]
   techStacks: string[]
+  startDate: Date | null
+  endDate: Date | null
+  teamSizeMin: string
+  teamSizeMax: string
+  projectName: string
+  projectLink: string
 }
 
 interface ProjectsFilterDialogProps {
@@ -121,6 +132,12 @@ const initialFilters: ProjectFilters = {
   horizontalDomains: [],
   technicalAspects: [],
   techStacks: [],
+  startDate: null,
+  endDate: null,
+  teamSizeMin: "",
+  teamSizeMax: "",
+  projectName: "",
+  projectLink: "",
 }
 
 export function ProjectsFilterDialog({
@@ -140,17 +157,50 @@ export function ProjectsFilterDialog({
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
-    filters.techStacks.length
+    filters.techStacks.length +
+    (filters.startDate ? 1 : 0) +
+    (filters.endDate ? 1 : 0) +
+    (filters.teamSizeMin ? 1 : 0) +
+    (filters.teamSizeMax ? 1 : 0) +
+    (filters.projectName.trim() ? 1 : 0) +
+    (filters.projectLink.trim() ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof ProjectFilters, value: string[]) => {
+  const handleFilterChange = (field: keyof ProjectFilters, value: string[] | Date | null | string) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
+  // Validate date range
+  const validateDateRange = (): string | null => {
+    if (tempFilters.startDate && tempFilters.endDate && tempFilters.startDate > tempFilters.endDate) {
+      return 'Start date must be before end date'
+    }
+    return null
+  }
+
+  // Validate team size range
+  const validateTeamSizeRange = (): string | null => {
+    if (tempFilters.teamSizeMin && tempFilters.teamSizeMax) {
+      const min = parseInt(tempFilters.teamSizeMin)
+      const max = parseInt(tempFilters.teamSizeMax)
+      if (!isNaN(min) && !isNaN(max) && min > max) {
+        return 'Minimum team size must be less than or equal to maximum'
+      }
+    }
+    return null
+  }
+
+  const dateRangeError = validateDateRange()
+  const teamSizeError = validateTeamSizeRange()
+
   const handleApplyFilters = () => {
+    // Validate before applying
+    if (dateRangeError || teamSizeError) {
+      return // Don't apply if there are validation errors
+    }
     onFiltersChange(tempFilters)
     setOpen(false)
   }
@@ -173,7 +223,13 @@ export function ProjectsFilterDialog({
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
-    tempFilters.techStacks.length > 0
+    tempFilters.techStacks.length > 0 ||
+    tempFilters.startDate !== null ||
+    tempFilters.endDate !== null ||
+    tempFilters.teamSizeMin !== "" ||
+    tempFilters.teamSizeMax !== "" ||
+    tempFilters.projectName.trim() !== "" ||
+    tempFilters.projectLink.trim() !== ""
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -204,6 +260,37 @@ export function ProjectsFilterDialog({
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="space-y-6">
+            {/* Project Name and Link Filters */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="projectName" className="text-sm font-medium">
+                    Project Name
+                  </Label>
+                  <Input
+                    id="projectName"
+                    type="text"
+                    placeholder="e.g., iApartments"
+                    value={tempFilters.projectName}
+                    onChange={(e) => handleFilterChange("projectName", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="projectLink" className="text-sm font-medium">
+                    Project Link
+                  </Label>
+                  <Input
+                    id="projectLink"
+                    type="text"
+                    placeholder="e.g., https://example.com"
+                    value={tempFilters.projectLink}
+                    onChange={(e) => handleFilterChange("projectLink", e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
@@ -279,6 +366,126 @@ export function ProjectsFilterDialog({
                 />
               </div>
             </div>
+
+            {/* Date Range Filters */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Date Range</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate" className="text-xs text-muted-foreground">
+                      Start Date
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !tempFilters.startDate && "text-muted-foreground",
+                            dateRangeError && "border-red-500"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {tempFilters.startDate ? (
+                            tempFilters.startDate.toLocaleDateString()
+                          ) : (
+                            <span>Select start date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempFilters.startDate || undefined}
+                          onSelect={(date) => handleFilterChange("startDate", date || null)}
+                          captionLayout="dropdown"
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate" className="text-xs text-muted-foreground">
+                      End Date
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !tempFilters.endDate && "text-muted-foreground",
+                            dateRangeError && "border-red-500"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {tempFilters.endDate ? (
+                            tempFilters.endDate.toLocaleDateString()
+                          ) : (
+                            <span>Select end date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tempFilters.endDate || undefined}
+                          onSelect={(date) => handleFilterChange("endDate", date || null)}
+                          captionLayout="dropdown"
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                {dateRangeError && (
+                  <p className="text-xs text-red-500">{dateRangeError}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Team Size Range Filter */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Team Size</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="teamSizeMin" className="text-xs text-muted-foreground">
+                      Minimum Team Size
+                    </Label>
+                    <Input
+                      id="teamSizeMin"
+                      type="number"
+                      placeholder="e.g., 5"
+                      value={tempFilters.teamSizeMin}
+                      onChange={(e) => handleFilterChange("teamSizeMin", e.target.value)}
+                      className={teamSizeError ? "border-red-500" : ""}
+                      min="1"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="teamSizeMax" className="text-xs text-muted-foreground">
+                      Maximum Team Size
+                    </Label>
+                    <Input
+                      id="teamSizeMax"
+                      type="number"
+                      placeholder="e.g., 30"
+                      value={tempFilters.teamSizeMax}
+                      onChange={(e) => handleFilterChange("teamSizeMax", e.target.value)}
+                      className={teamSizeError ? "border-red-500" : ""}
+                      min="1"
+                    />
+                  </div>
+                </div>
+                {teamSizeError && (
+                  <p className="text-xs text-red-500">{teamSizeError}</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -306,7 +513,8 @@ export function ProjectsFilterDialog({
             
             <Button 
               onClick={handleApplyFilters}
-              className="ml-auto transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer"
+              disabled={!!(dateRangeError || teamSizeError)}
+              className="ml-auto transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Apply Filters
             </Button>

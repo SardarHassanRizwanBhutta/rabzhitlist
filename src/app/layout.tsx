@@ -32,7 +32,7 @@ export default function RootLayout({
       >
         <GlobalFilterProvider>
           <NavigationSidebar>
-            {children}
+        {children}
           </NavigationSidebar>
         </GlobalFilterProvider>
         <Toaster />
