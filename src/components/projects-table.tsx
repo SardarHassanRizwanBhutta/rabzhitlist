@@ -167,6 +167,14 @@ const validateNotes = (notes: string): string | null => {
   return null
 }
 
+// Publish platform options
+const publishPlatformOptions: MultiSelectOption[] = [
+  { value: "App Store", label: "App Store (iOS)" },
+  { value: "Play Store", label: "Play Store (Android)" },
+  { value: "Web", label: "Web" },
+  { value: "Desktop", label: "Desktop" },
+]
+
 // Extract unique project types
 const extractUniqueProjectTypes = (): string[] => {
   const types = new Set<string>()
@@ -352,7 +360,9 @@ export function ProjectsTable({
         project.techStacks.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.verticalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.horizontalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.technicalAspects.some(aspect => aspect.toLowerCase().includes(searchQuery.toLowerCase()))
+        project.technicalAspects.some(aspect => aspect.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (project.isPublished && "published".includes(searchQuery.toLowerCase())) ||
+        (project.publishPlatforms && project.publishPlatforms.some(platform => platform.toLowerCase().includes(searchQuery.toLowerCase())))
     )
   }, [projects, searchQuery])
 
@@ -536,7 +546,13 @@ export function ProjectsTable({
                 onClick={() => setSelectedProject(project)}
               >
                 <TableCell className="font-medium">{project.projectName}</TableCell>
-                <TableCell>{project.employerName}</TableCell>
+                <TableCell>
+                  {project.employerName ? (
+                    project.employerName
+                  ) : (
+                    <span className="text-muted-foreground text-sm">N/A</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   {renderTags(project.techStacks, 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}
                 </TableCell>
@@ -544,7 +560,7 @@ export function ProjectsTable({
                   {renderTags(project.horizontalDomains, 2, "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200")}
                 </TableCell>
                 <TableCell>
-                  {renderTags(project.verticalDomains, 2, "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200")}
+                  {renderTags(project.verticalDomains, 2, "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200")}
                 </TableCell>
                 <TableCell>
                   {renderTags(project.technicalAspects, 2, "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200")}
@@ -1774,6 +1790,428 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
   )
 }
 
+// Inline Editable Checkbox Component
+interface InlineEditableCheckboxProps {
+  label: string
+  value: boolean
+  fieldName: string
+  onSave: (fieldName: string, newValue: boolean, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  className?: string
+  description?: string
+}
+
+const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
+  label,
+  value,
+  fieldName,
+  onSave,
+  getFieldVerification,
+  className = "",
+  description
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  
+  const verification = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verification === 'verified'
+  
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+  
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleSave = async () => {
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const valueChanged = editValue !== value
+    
+    if (!valueChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } catch (err) {
+      setEditValue(value)
+      setWillVerify(isCurrentlyVerified)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verificationData = getFieldVerification?.(fName)
+    const status = verificationData || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+  
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fieldName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-3">
+              {/* Checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`checkbox-${fieldName}`}
+                  checked={editValue}
+                  onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`checkbox-${fieldName}`}
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Published App
+                </Label>
+              </div>
+              
+              {description && (
+                <p className="text-xs text-muted-foreground pl-6 -mt-1">{description}</p>
+              )}
+              
+              {/* Mark as verified checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                  )}
+                >
+                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                </Label>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={value}
+              disabled
+              className="h-4 w-4 opacity-50"
+            />
+            <span className={cn(
+              "text-sm",
+              value ? "font-medium" : "text-muted-foreground"
+            )}>
+              {value ? 'Yes' : 'No'}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Inline Editable Combobox Component (similar to checkbox style)
+interface InlineEditableComboboxProps {
+  label: string
+  value: string
+  fieldName: string
+  options: { value: string; label: string }[]
+  onSave: (fieldName: string, newValue: string, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  placeholder?: string
+  className?: string
+}
+
+const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
+  label,
+  value,
+  fieldName,
+  options,
+  onSave,
+  getFieldVerification,
+  placeholder = "Select option...",
+  className = ""
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value || '')
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  const [open, setOpen] = useState(false)
+  
+  const verification = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verification === 'verified'
+  
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+  
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value || '')
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value || '')
+    setWillVerify(isCurrentlyVerified)
+    setOpen(false)
+  }
+  
+  const handleSave = async () => {
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const valueChanged = editValue !== value
+    
+    if (!valueChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } catch (err) {
+      setEditValue(value || '')
+      setWillVerify(isCurrentlyVerified)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verificationData = getFieldVerification?.(fName)
+    const status = verificationData || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+  
+  const displayValue = value 
+    ? (options.find(opt => opt.value === value)?.label || value)
+    : 'N/A'
+  
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fieldName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-3">
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between text-sm"
+                    disabled={isSaving}
+                  >
+                    {editValue
+                      ? options.find((option) => option.value === editValue)?.label
+                      : placeholder}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder={`Search ${label.toLowerCase()}...`} className="h-9" />
+                    <CommandList>
+                      <CommandEmpty>No option found.</CommandEmpty>
+                      <CommandGroup>
+                        {options.map((option) => (
+                          <CommandItem
+                            key={option.value}
+                            value={option.value}
+                            onSelect={(currentValue) => {
+                              setEditValue(currentValue === editValue ? "" : currentValue)
+                              setOpen(false)
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {option.label}
+                            <Check
+                              className={cn(
+                                "ml-auto h-4 w-4",
+                                editValue === option.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              
+              {/* Mark as verified checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                  )}
+                >
+                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                </Label>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="text-sm">{displayValue}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Project Detail Dialog Component
 interface ProjectDetailDialogProps {
   project: Project
@@ -1823,7 +2261,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
   }
 
   // Handle field save
-  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | string[] | null | undefined, verify: boolean) => {
+  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | string[] | boolean | null | undefined, verify: boolean = false) => {
     try {
       // Optimistic update
       setLocalProject(prev => ({
@@ -1968,14 +2406,28 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                 getFieldVerification={getFieldVerification}
               />
               
-              <InlineEditField
+              <InlineEditableCombobox
                 label="Status"
                 value={localProject.status}
                 fieldName="status"
-                fieldType="select"
                 options={statusOptions}
                 onSave={handleFieldSave}
                 getFieldVerification={getFieldVerification}
+                placeholder="Select status..."
+              />
+
+              {/* Platforms */}
+              <InlineEditableMultiSelect
+                label="Publish Platforms"
+                value={localProject.publishPlatforms || []}
+                fieldName="publishPlatforms"
+                options={publishPlatformOptions}
+                onSave={handleMultiSelectFieldSave}
+                getFieldVerification={getFieldVerification}
+                placeholder="Select platforms"
+                searchPlaceholder="Search platforms..."
+                badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                maxDisplay={4}
               />
             </div>
 
@@ -2027,6 +2479,15 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                   </Button>
                 )}
               </div>
+
+              {/* Published */}
+              <InlineEditableCheckbox
+                label="Published"
+                value={localProject.isPublished || false}
+                fieldName="isPublished"
+                onSave={handleFieldSave}
+                getFieldVerification={getFieldVerification}
+              />
             </div>
           </div>
 
@@ -2056,7 +2517,7 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                   getFieldVerification={getFieldVerification}
                   placeholder="Select vertical domains..."
                   searchPlaceholder="Search vertical domains..."
-                  badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  badgeColorClass="bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200"
                   maxDisplay={4}
                 />
 

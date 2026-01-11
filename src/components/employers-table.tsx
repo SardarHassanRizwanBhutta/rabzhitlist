@@ -52,7 +52,6 @@ import {
 } from "@/components/ui/select"
 import {
   Collapsible,
-  CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
@@ -71,6 +70,7 @@ import { toast } from "sonner"
 import {
   Employer,
   EmployerLocation,
+  TechStackWithCount,
   EMPLOYER_STATUS_COLORS,
   SALARY_POLICY_COLORS,
   EMPLOYER_STATUS_LABELS,
@@ -78,7 +78,15 @@ import {
   getEmployerSizeDisplay,
   calculateEmployerSize,
 } from "@/lib/types/employer"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { EmployerBenefit } from "@/lib/types/benefits"
 import type { EmployerFilters } from "./employers-filter-dialog"
 
 interface EmployersTableProps {
@@ -94,10 +102,262 @@ interface EmployersTableProps {
   onDeleteLocation?: (location: EmployerLocation) => void
 }
 
-type SortKey = keyof Employer | 'size'
+type SortKey = keyof Employer | 'size' | 'applicants'
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
+
+// Utility function to extract tech stacks with candidate counts from work experiences for an employer
+const getEmployerTechStacksWithCount = (employer: Employer): TechStackWithCount[] => {
+  // If employer has explicit tech stacks, return them with count = 0 (manual entry)
+  if (employer.techStacks && employer.techStacks.length > 0) {
+    return employer.techStacks.map(tech => ({ tech, count: 0 }))
+  }
+  
+  // Extract from candidates' work experiences with counts
+  const techStackCounts = new Map<string, number>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (we.employerName?.toLowerCase().trim() === employer.name.toLowerCase().trim()) {
+        we.techStacks.forEach(tech => {
+          const normalizedTech = tech.trim()
+          techStackCounts.set(
+            normalizedTech,
+            (techStackCounts.get(normalizedTech) || 0) + 1
+          )
+        })
+      }
+    })
+  })
+  
+  // Convert to array and sort by count (descending), then alphabetically
+  return Array.from(techStackCounts.entries())
+    .map(([tech, count]) => ({ tech, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count // Higher count first
+      return a.tech.localeCompare(b.tech) // Alphabetical as tiebreaker
+    })
+}
+
+// Backward-compatible function that returns just tech stack strings
+const getEmployerTechStacks = (employer: Employer): string[] => {
+  return getEmployerTechStacksWithCount(employer).map(item => item.tech)
+}
+
+// Helper function to match employer names (handles variations and partial matches)
+const matchesEmployerName = (weEmployerName: string | null | undefined, employerName: string): boolean => {
+  if (!weEmployerName) return false
+  
+  // Normalize names (case-insensitive, handle whitespace variations)
+  const normalizedWe = weEmployerName.toLowerCase().trim().replace(/\s+/g, ' ')
+  const normalizedEmp = employerName.toLowerCase().trim().replace(/\s+/g, ' ')
+  
+  // Check for exact match
+  if (normalizedWe === normalizedEmp) return true
+  
+  // Check if one name contains the other (for cases like "Interactive Group" vs "Interactive Group of Companies")
+  if (normalizedWe.includes(normalizedEmp) || normalizedEmp.includes(normalizedWe)) return true
+  
+  // Also check if normalized versions match (remove common suffixes/prefixes)
+  const normalizedWeClean = normalizedWe.replace(/\s+(of|group|companies|inc|llc|ltd|corp|corporation)\s*$/i, '').trim()
+  const normalizedEmpClean = normalizedEmp.replace(/\s+(of|group|companies|inc|llc|ltd|corp|corporation)\s*$/i, '').trim()
+  if (normalizedWeClean === normalizedEmpClean) return true
+  if (normalizedWeClean.includes(normalizedEmpClean) || normalizedEmpClean.includes(normalizedWeClean)) return true
+  
+  return false
+}
+
+// Utility function to extract benefits from candidates' work experiences for an employer
+const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
+  const benefitsMap = new Map<string, EmployerBenefit>()
+  
+  // First, add benefits from employer if they exist
+  if (employer.benefits && employer.benefits.length > 0) {
+    employer.benefits.forEach(benefit => {
+      const key = benefit.name.toLowerCase().trim()
+      if (!benefitsMap.has(key)) {
+        benefitsMap.set(key, { ...benefit })
+      }
+    })
+  }
+  
+  // Also extract from candidates' work experiences and merge
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (matchesEmployerName(we.employerName, employer.name)) {
+        we.benefits.forEach(benefit => {
+          // Use benefit name as key to deduplicate
+          const key = benefit.name.toLowerCase().trim()
+          if (!benefitsMap.has(key)) {
+            benefitsMap.set(key, { ...benefit })
+          }
+        })
+      }
+    })
+  })
+  return Array.from(benefitsMap.values())
+}
+
+// Utility function to extract shift types from candidates' work experiences for an employer
+const getEmployerShiftTypes = (employer: Employer): string[] => {
+  const shiftTypesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (matchesEmployerName(we.employerName, employer.name) && we.shiftType && we.shiftType.trim()) {
+        shiftTypesSet.add(we.shiftType.trim())
+      }
+    })
+  })
+  
+  return Array.from(shiftTypesSet).sort()
+}
+
+// Get unique work modes for an employer from candidates' work experiences
+const getEmployerWorkModes = (employer: Employer): string[] => {
+  const workModesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (matchesEmployerName(we.employerName, employer.name) && we.workMode && we.workMode.trim()) {
+        workModesSet.add(we.workMode.trim())
+      }
+    })
+  })
+  
+  return Array.from(workModesSet).sort()
+}
+
+// Get unique time support zones for an employer from candidates' work experiences
+const getEmployerTimeSupportZones = (employer: Employer): string[] => {
+  const timeZonesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (matchesEmployerName(we.employerName, employer.name)) {
+        we.timeSupportZones?.forEach(zone => {
+          if (zone && zone.trim()) {
+            timeZonesSet.add(zone.trim())
+          }
+        })
+      }
+    })
+  })
+  
+  return Array.from(timeZonesSet).sort()
+}
+
+// Count total unique candidates/employees for an employer
+const getApplicantCount = (employer: Employer): number => {
+  const uniqueCandidates = new Set<string>() // Use Set to count unique candidates
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names using improved matching logic
+      if (matchesEmployerName(we.employerName, employer.name)) {
+        uniqueCandidates.add(candidate.id) // Add candidate ID to set (unique)
+      }
+    })
+  })
+  
+  return uniqueCandidates.size
+}
+
+// Count unique developers with specific tech stacks for an employer
+// Optionally filters by shift type if provided
+const getDeveloperCountForTechStack = (
+  employer: Employer,
+  techStacks: string[],
+  shiftTypes?: string[]
+): number => {
+  if (techStacks.length === 0) return 0
+  
+  const matchingCandidates = new Set<string>() // Use Set to count unique candidates
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names using improved matching logic
+      if (!matchesEmployerName(we.employerName, employer.name)) return
+      
+      // If shift type filter is provided, check if work experience matches
+      if (shiftTypes && shiftTypes.length > 0) {
+        if (!we.shiftType || !shiftTypes.includes(we.shiftType)) {
+          return // Skip if shift type doesn't match
+        }
+      }
+      
+      // Check if candidate has any of the required tech stacks in this work experience
+      const hasMatchingTechStack = techStacks.some(filterTech =>
+        we.techStacks.some(tech =>
+          tech.toLowerCase().trim() === filterTech.toLowerCase().trim()
+        )
+      )
+      
+      if (hasMatchingTechStack) {
+        matchingCandidates.add(candidate.id) // Add candidate ID to set (unique)
+      }
+    })
+  })
+  
+  return matchingCandidates.size
+}
+
+
+// Helper to get intensity class based on count for visual emphasis
+const getCountIntensityClass = (count: number): string => {
+  if (count === 0) return "opacity-70" // Manual entry, no candidates
+  if (count >= 5) return "ring-2 ring-blue-500/30 font-medium"
+  if (count >= 3) return "font-medium"
+  return ""
+}
+
+// Render tech stacks with counts - displays badge with count in parentheses
+const renderTagsWithCount = (
+  techStacks: TechStackWithCount[],
+  maxDisplay: number = 2,
+  colorClass?: string
+) => {
+  if (!techStacks || techStacks.length === 0) {
+    return <span className="text-muted-foreground text-sm">N/A</span>
+  }
+  
+  const displayTags = techStacks.slice(0, maxDisplay)
+  const remainingCount = techStacks.length - maxDisplay
+
+  return (
+    <TooltipProvider>
+      <div className="flex flex-wrap gap-1">
+        {displayTags.map((item, index) => (
+          <Tooltip key={index}>
+            <TooltipTrigger asChild>
+              <Badge
+                variant="secondary"
+                className={`text-xs cursor-default ${colorClass || ""} ${getCountIntensityClass(item.count)}`}
+              >
+                {item.tech}
+                {item.count > 0 && (
+                  <span className="ml-1 opacity-75">({item.count})</span>
+                )}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              {item.count === 0 
+                ? "Manually added" 
+                : `${item.count} candidate${item.count > 1 ? 's' : ''} use this technology`
+              }
+            </TooltipContent>
+          </Tooltip>
+        ))}
+        {remainingCount > 0 && (
+          <Badge variant="outline" className="text-xs">
+            +{remainingCount}
+          </Badge>
+        )}
+      </div>
+    </TooltipProvider>
+  )
+}
 
 export function EmployersTable({
   employers,
@@ -167,6 +427,11 @@ export function EmployersTable({
         return false
       }
 
+      // Ranking filter
+      if (filters.rankings.length > 0 && !filters.rankings.includes(employer.ranking)) {
+        return false
+      }
+
       // Founded year filter
       if (filters.foundedYears.length > 0) {
         if (employer.foundedYear === null || !filters.foundedYears.includes(employer.foundedYear.toString())) {
@@ -188,6 +453,13 @@ export function EmployersTable({
           location.city !== null && filters.cities.includes(location.city)
         )
         if (!hasMatchingCity) return false
+      }
+
+      // Employer type filter
+      if (filters.employerTypes.length > 0) {
+        if (!filters.employerTypes.includes(employer.employerType)) {
+          return false
+        }
       }
 
       // Salary policy filter
@@ -217,6 +489,170 @@ export function EmployersTable({
         }
       }
 
+      // Minimum Locations Count filter - filter by total number of offices
+      if (filters.minLocationsCount) {
+        const minCount = parseInt(filters.minLocationsCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          if (employer.locations.length < minCount) {
+            return false
+          }
+        }
+      }
+
+      // Minimum Cities Count filter - filter by number of unique cities
+      if (filters.minCitiesCount) {
+        const minCount = parseInt(filters.minCitiesCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          // If country filter is applied, count cities only within those countries
+          // Otherwise, count all unique cities
+          let locationsToCheck = employer.locations
+          
+          if (filters.countries.length > 0) {
+            locationsToCheck = employer.locations.filter(location =>
+              location.country !== null && filters.countries.includes(location.country)
+            )
+          }
+          
+          // Count unique cities
+          const uniqueCities = new Set(
+            locationsToCheck
+              .map(location => location.city)
+              .filter(city => city !== null)
+          )
+          
+          if (uniqueCities.size < minCount) {
+            return false
+          }
+        }
+      }
+
+      // Minimum Applicants filter - filter by number of candidates/employees
+      if (filters.minApplicants) {
+        const minCount = parseInt(filters.minApplicants)
+        if (!isNaN(minCount) && minCount > 0) {
+          const applicantCount = getApplicantCount(employer)
+          if (applicantCount < minCount) {
+            return false
+          }
+        }
+      }
+
+      // Benefits filter
+      if (filters.benefits.length > 0) {
+        const employerBenefits = getEmployerBenefits(employer)
+        
+        // Normalize filter benefit names
+        const normalizedFilterBenefits = filters.benefits.map(b => b.toLowerCase().trim())
+        
+        // Check if any employer benefit matches any filter benefit
+        const hasMatchingBenefit = employerBenefits.some(benefit => {
+          const normalizedBenefitName = benefit.name.toLowerCase().trim()
+          return normalizedFilterBenefits.some(filterBenefit =>
+            normalizedBenefitName === filterBenefit
+          )
+        })
+        
+        if (!hasMatchingBenefit) return false
+      }
+
+      // Shift Type filter
+      if (filters.shiftTypes.length > 0) {
+        const employerShiftTypes = getEmployerShiftTypes(employer)
+        
+        if (filters.shiftTypesStrict) {
+          // Strict mode: ALL employees must work in selected shift types ONLY
+          // Employer's shift types must exactly match the selected shift types (no extra types)
+          const normalizedSelectedTypes = filters.shiftTypes.map(type => type.trim().toLowerCase()).sort()
+          const normalizedEmployerTypes = employerShiftTypes.map(type => type.trim().toLowerCase()).sort()
+          
+          // Check if arrays are equal (same length and same elements)
+          if (normalizedSelectedTypes.length !== normalizedEmployerTypes.length) {
+            return false
+          }
+          
+          const hasExactMatch = normalizedSelectedTypes.every((type, index) => 
+            type === normalizedEmployerTypes[index]
+          )
+          
+          if (!hasExactMatch) return false
+        } else {
+          // Non-strict mode: check if employer has candidates working in any of the selected shift types
+          const hasMatchingShiftType = filters.shiftTypes.some(filterShiftType =>
+            employerShiftTypes.includes(filterShiftType)
+          )
+          if (!hasMatchingShiftType) return false
+        }
+      }
+
+      // Work Mode filter - check if employer has candidates working in any of the selected work modes
+      if (filters.workModes.length > 0) {
+        const employerWorkModes = getEmployerWorkModes(employer)
+        
+        if (filters.workModesStrict) {
+          // Strict mode: ALL employees must work in selected work modes ONLY
+          // Employer's work modes must exactly match the selected work modes (no extra modes)
+          const normalizedSelectedModes = filters.workModes.map(mode => mode.trim().toLowerCase()).sort()
+          const normalizedEmployerModes = employerWorkModes.map(mode => mode.trim().toLowerCase()).sort()
+          
+          // Check if arrays are equal (same length and same elements)
+          if (normalizedSelectedModes.length !== normalizedEmployerModes.length) {
+            return false
+          }
+          
+          const hasExactMatch = normalizedSelectedModes.every((mode, index) => 
+            mode === normalizedEmployerModes[index]
+          )
+          
+          if (!hasExactMatch) return false
+        } else {
+          // Non-strict mode: check if employer has candidates working in any of the selected work modes
+          const hasMatchingWorkMode = filters.workModes.some(filterWorkMode =>
+            employerWorkModes.includes(filterWorkMode.trim())
+          )
+          if (!hasMatchingWorkMode) return false
+        }
+      }
+
+      // Time Support Zones filter - check if employer has candidates working in any of the selected time zones
+      if (filters.timeSupportZones.length > 0) {
+        const employerTimeZones = getEmployerTimeSupportZones(employer)
+        const hasMatchingTimeZone = filters.timeSupportZones.some(filterTimeZone =>
+          employerTimeZones.includes(filterTimeZone.trim())
+        )
+        if (!hasMatchingTimeZone) return false
+      }
+
+      // Count-based Tech Stack filter (uses employerTechStacks)
+      // Filter employers by minimum number of developers with specific tech stacks
+      if (filters.employerTechStacks.length > 0 && filters.techStackMinCount) {
+        const minCount = parseInt(filters.techStackMinCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          // Count developers with selected tech stacks, optionally filtered by shift type
+          const developerCount = getDeveloperCountForTechStack(
+            employer,
+            filters.employerTechStacks,
+            filters.shiftTypes.length > 0 ? filters.shiftTypes : undefined
+          )
+          
+          // Only include employer if they have at least the minimum count
+          if (developerCount < minCount) {
+            return false
+          }
+        }
+      }
+      
+      // Regular Tech Stack filter (only applies if count filter is not active)
+      // If count filter is active, we've already filtered above, so skip this
+      if (filters.employerTechStacks.length > 0 && !filters.techStackMinCount) {
+        const employerTechStacks = getEmployerTechStacks(employer)
+        const hasMatchingTechStack = filters.employerTechStacks.some(filterTech =>
+          employerTechStacks.some(tech =>
+            tech.toLowerCase().trim() === filterTech.toLowerCase().trim()
+          )
+        )
+        if (!hasMatchingTechStack) return false
+      }
+      
       // Project-based filters
       // Filter projects that belong to this employer (case-insensitive, handle null)
       const employerProjects = sampleProjects.filter(project => {
@@ -239,7 +675,9 @@ export function EmployersTable({
         filters.verticalDomains.length > 0 ||
         filters.horizontalDomains.length > 0 ||
         filters.technicalAspects.length > 0 ||
-        filters.projectStatus.length > 0
+        filters.projectStatus.length > 0 ||
+        filters.projectTeamSizeMin ||
+        filters.projectTeamSizeMax
 
       // If no projects found and project filters are active, exclude this employer
       if (hasProjectFilters && employerProjects.length === 0) {
@@ -288,6 +726,51 @@ export function EmployersTable({
         if (!hasMatchingProjectStatus) return false
       }
 
+      // Project Team Size filter
+      if (filters.projectTeamSizeMin || filters.projectTeamSizeMax) {
+        // Helper function to parse team size - can be "5" or "20-30"
+        const parseTeamSize = (teamSize: string | null): { min: number; max: number } | null => {
+          if (!teamSize) return null
+          
+          const rangeMatch = teamSize.match(/^(\d+)-(\d+)$/)
+          if (rangeMatch) {
+            const [, min, max] = rangeMatch
+            return { min: parseInt(min), max: parseInt(max) }
+          }
+          // Single number
+          const num = parseInt(teamSize)
+          if (isNaN(num)) return null
+          return { min: num, max: num }
+        }
+
+        const hasMatchingTeamSize = employerProjects.some(project => {
+          if (!project.teamSize) return false
+          
+          const projectTeamSize = parseTeamSize(project.teamSize)
+          if (!projectTeamSize) return false
+          
+          // Check minimum filter
+          if (filters.projectTeamSizeMin) {
+            const filterMin = parseInt(filters.projectTeamSizeMin)
+            if (!isNaN(filterMin) && projectTeamSize.max < filterMin) {
+              return false // Project's max team size is below filter minimum
+            }
+          }
+          
+          // Check maximum filter
+          if (filters.projectTeamSizeMax) {
+            const filterMax = parseInt(filters.projectTeamSizeMax)
+            if (!isNaN(filterMax) && projectTeamSize.min > filterMax) {
+              return false // Project's min team size is above filter maximum
+            }
+          }
+          
+          return true
+        })
+        
+        if (!hasMatchingTeamSize) return false
+      }
+
       return true
     })
   }, [employers, filters])
@@ -304,6 +787,10 @@ export function EmployersTable({
         const bSize = calculateEmployerSize(b.locations)
         aValue = (aSize.totalMinSize + aSize.totalMaxSize) / 2
         bValue = (bSize.totalMinSize + bSize.totalMaxSize) / 2
+      } else if (sortKey === 'applicants') {
+        // Handle applicants count sorting
+        aValue = getApplicantCount(a)
+        bValue = getApplicantCount(b)
       } else {
         aValue = a[sortKey as keyof Employer] as string | number | Date
         bValue = b[sortKey as keyof Employer] as string | number | Date
@@ -463,7 +950,8 @@ export function EmployersTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[50px]"></TableHead> {/* Expand column */}
+              {/* Expand column */}
+              <TableHead className="w-[50px]"></TableHead>
               <TableHead>
                 <SortButton column="name">Company Name</SortButton>
               </TableHead>
@@ -476,7 +964,14 @@ export function EmployersTable({
               <TableHead className="w-[100px]">
                 <SortButton column="foundedYear">Founded</SortButton>
               </TableHead>
+              <TableHead className="w-[100px]">
+                <SortButton column="applicants">Applicants</SortButton>
+              </TableHead>
               <TableHead className="w-[100px]">Offices</TableHead>
+              <TableHead className="w-[180px]">Tech Stacks</TableHead>
+              <TableHead className="w-[200px]">Benefits</TableHead>
+              <TableHead className="w-[150px]">Shift Types</TableHead>
+              <TableHead className="w-[150px]">Work Modes</TableHead>
               <TableHead className="w-[120px]">Website</TableHead>
               <TableHead className="w-[120px]">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View Employer Projects">Projects</TableHead>
@@ -533,12 +1028,107 @@ export function EmployersTable({
                         {EMPLOYER_STATUS_LABELS[employer.status]}
                       </Badge>
                     </TableCell>
-                    <TableCell>{employer.foundedYear}</TableCell>
+                    <TableCell>
+                      {employer.foundedYear ? employer.foundedYear : <span className="text-muted-foreground">N/A</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="flex items-center gap-1 font-medium">
+                        <UsersIcon className="h-3 w-3" />
+                        {getApplicantCount(employer)}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <MapPinIcon className="h-3 w-3" />
                         {employer.locations.length} office{employer.locations.length !== 1 ? 's' : ''}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {renderTagsWithCount(getEmployerTechStacksWithCount(employer), 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const benefits = getEmployerBenefits(employer)
+                        if (benefits.length === 0) {
+                          return <span className="text-muted-foreground text-sm">N/A</span>
+                        }
+                        const displayBenefits = benefits.slice(0, 2)
+                        const remainingCount = benefits.length - 2
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {displayBenefits.map((benefit, index) => (
+                              <Badge
+                                key={benefit.id || index}
+                                variant="secondary"
+                                className="text-xs bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                              >
+                                {benefit.name}
+                              </Badge>
+                            ))}
+                            {remainingCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{remainingCount}
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const shiftTypes = getEmployerShiftTypes(employer)
+                        if (shiftTypes.length === 0) {
+                          return <span className="text-muted-foreground text-sm">N/A</span>
+                        }
+                        const displayShiftTypes = shiftTypes.slice(0, 2)
+                        const remainingCount = shiftTypes.length - 2
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {displayShiftTypes.map((shiftType, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                              >
+                                {shiftType}
+                              </Badge>
+                            ))}
+                            {remainingCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{remainingCount}
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const workModes = getEmployerWorkModes(employer)
+                        if (workModes.length === 0) {
+                          return <span className="text-muted-foreground text-sm">N/A</span>
+                        }
+                        const displayWorkModes = workModes.slice(0, 2)
+                        const remainingCount = workModes.length - 2
+                        return (
+                          <div className="flex flex-wrap gap-1">
+                            {displayWorkModes.map((workMode, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="text-xs bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-200"
+                              >
+                                {workMode}
+                              </Badge>
+                            ))}
+                            {remainingCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{remainingCount}
+                              </Badge>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell>
                       {employer.websiteUrl ? (
@@ -648,7 +1238,8 @@ export function EmployersTable({
                     .sort((a, b) => b.isHeadquarters ? 1 : a.isHeadquarters ? -1 : 0) // HQ first
                     .map((location) => (
                     <TableRow key={location.id} className="bg-muted/30">
-                      <TableCell></TableCell> {/* Empty expand column */}
+                      {/* Empty expand column */}
+                      <TableCell></TableCell>
                       <TableCell>
                         <div className="flex items-start gap-3 pl-6">
                           {location.isHeadquarters ? (
@@ -682,6 +1273,9 @@ export function EmployersTable({
                           {SALARY_POLICY_LABELS[location.salaryPolicy]}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
                       <TableCell className="text-muted-foreground text-sm">—</TableCell>
                       <TableCell className="text-muted-foreground text-sm">—</TableCell>
                       <TableCell className="text-muted-foreground text-sm">—</TableCell>
@@ -723,7 +1317,8 @@ export function EmployersTable({
                   {/* Add Location Row (when expanded and has addLocation handler) */}
                   {isExpanded && onAddLocation && (
                     <TableRow className="bg-muted/10 border-dashed">
-                      <TableCell></TableCell> {/* Empty expand column */}
+                      {/* Empty expand column */}
+                      <TableCell></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2 pl-6">
                           <Button
@@ -737,7 +1332,7 @@ export function EmployersTable({
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell colSpan={8} className="text-muted-foreground text-sm"></TableCell>
+                      <TableCell colSpan={9} className="text-muted-foreground text-sm"></TableCell>
                     </TableRow>
                   )}
                 </React.Fragment>

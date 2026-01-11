@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, Target, FolderOpen, Building2, GraduationCap, Award, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin } from "lucide-react"
+import { User, Target, FolderOpen, Building2, GraduationCap, Award, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -40,7 +40,10 @@ import {
 } from "@/lib/utils/candidate-matches"
 
 const defaultFilters: CandidateFilters = {
+  basicInfoSearch: "",
+  postingTitle: "",
   cities: [],
+  status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -53,14 +56,61 @@ const defaultFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
+  startDateStart: null,
+  startDateEnd: null,
   candidateTechStacks: [],
+  candidateTechStacksRequireAll: false,
+  candidateTechStacksRequireInBoth: false,
+  techStackMinYears: {
+    techStacks: [],
+    minYears: ""
+  },
   candidateDomains: [],
+  shiftTypes: [],
+  workModes: [],
+  workModeMinYears: {
+    workModes: [],
+    minYears: ""
+  },
+  timeSupportZones: [],
+  isCurrentlyWorking: null,
+  workedWithTopDeveloper: null,
+  workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
+  isTopDeveloper: null,
+  jobTitle: "",
+  jobTitleWorkedWith: false,
+  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
+  jobTitleStartedCareer: false,  // Default: check all jobs
+  yearsOfExperienceMin: "",
+  yearsOfExperienceMax: "",
+  maxJobChangesInLastYears: {
+    maxChanges: "",
+    years: ""
+  },
+  minPromotionsInLastYears: {
+    minPromotions: "",
+    years: ""
+  },
+  continuousEmployment: null,
+  continuousEmploymentToleranceMonths: 3,
+  minPromotionsSameCompany: "",
+  joinedProjectFromStart: null,
+  joinedProjectFromStartToleranceDays: 30,
+  projectTeamSizeMin: "",
+  projectTeamSizeMax: "",
+  hasPublishedProject: null,
+  publishPlatforms: [],
   employerStatus: [],
   employerCountries: [],
   employerCities: [],
+  employerTypes: [],
+  careerTransitionFromType: [],
+  careerTransitionToType: [],
+  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
+  employerRankings: [],
   universities: [],
   universityCountries: [],
   universityRankings: [],
@@ -69,11 +119,12 @@ const defaultFilters: CandidateFilters = {
   majorNames: [],
   isTopper: null,
   isCheetah: null,
-  educationStartMonth: null,
-  educationEndMonth: null,
+  educationEndDateStart: null,
+  educationEndDateEnd: null,
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
+  personalityTypes: [],
 }
 
 interface CandidatesCardsViewProps {
@@ -98,6 +149,10 @@ const getCategoryIcon = (type: string) => {
       return GraduationCap
     case 'certifications':
       return Award
+    case 'collaboration':
+      return Star // Using Star icon for top developer collaboration
+    case 'published':
+      return Smartphone // Using Smartphone icon for published apps
     default:
       return Target
   }
@@ -124,6 +179,11 @@ const getCategoryColor = (color: string) => {
       bg: 'bg-orange-50 dark:bg-orange-950/20',
       text: 'text-orange-800 dark:text-orange-200',
       border: 'border-orange-200 dark:border-orange-800'
+    },
+    yellow: {
+      bg: 'bg-yellow-50 dark:bg-yellow-950/20',
+      text: 'text-yellow-800 dark:text-yellow-200',
+      border: 'border-yellow-200 dark:border-yellow-800'
     },
     gray: {
       bg: 'bg-gray-50 dark:bg-gray-950/20',
@@ -173,6 +233,17 @@ const getCriterionColor = (type: string): string => {
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
     // Candidate Domains
     'candidateDomain': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+    
+    // Top Developer Collaboration
+    'topDeveloper': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',
+    'sharedProject': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+    
+    // Published Apps
+    'publishedPlatform': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700',
+    'storeLink': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-700',
+    
+    // Career Transition
+    'careerTransition': 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 dark:from-purple-900 dark:to-blue-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
   }
   
   return colorMap[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border-gray-300 dark:border-gray-700'
@@ -375,6 +446,31 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
                         <span>{candidate.city}</span>
                       </div>
                     </div>
+                    {/* Career Transition Badge - Display prominently */}
+                    {activeFilters && matchContext && filters.careerTransitionFromType.length > 0 && filters.careerTransitionToType.length > 0 && (
+                      (() => {
+                        const transitionItem = matchContext.categories
+                          .flatMap(cat => cat.items)
+                          .find(item => item.matchedCriteria.some(c => c.type === 'careerTransition'))
+                        
+                        if (transitionItem) {
+                          const transitionValue = transitionItem.matchedCriteria
+                            .find(c => c.type === 'careerTransition')?.values[0] || ''
+                          return (
+                            <div className="mt-2">
+                              <Badge 
+                                variant="outline" 
+                                className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold"
+                              >
+                                <Building2 className="h-3 w-3 mr-1" />
+                                {transitionValue}
+                              </Badge>
+                            </div>
+                          )
+                        }
+                        return null
+                      })()
+                    )}
                   </div>
                 </div>
               </CardHeader>

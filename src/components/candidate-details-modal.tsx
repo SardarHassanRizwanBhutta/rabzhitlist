@@ -43,6 +43,11 @@ import {
   sampleVerificationUsers,
 } from "@/lib/sample-data/verification"
 import { toast } from "sonner"
+import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
+import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
+import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
+import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
+import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -104,6 +109,35 @@ const workModeOptions: ComboboxOption[] = [
   { label: "Hybrid", value: "Hybrid" },
 ]
 
+// Personality type options (MBTI types)
+const personalityTypeOptions: ComboboxOption[] = [
+  { value: "ESTJ", label: "ESTJ - Executive" },
+  { value: "ENTJ", label: "ENTJ - Commander" },
+  { value: "ESFJ", label: "ESFJ - Consul" },
+  { value: "ENFJ", label: "ENFJ - Protagonist" },
+  { value: "ISTJ", label: "ISTJ - Logistician" },
+  { value: "ISFJ", label: "ISFJ - Defender" },
+  { value: "INTJ", label: "INTJ - Architect" },
+  { value: "INFJ", label: "INFJ - Advocate" },
+  { value: "ESTP", label: "ESTP - Entrepreneur" },
+  { value: "ESFP", label: "ESFP - Entertainer" },
+  { value: "ENTP", label: "ENTP - Debater" },
+  { value: "ENFP", label: "ENFP - Campaigner" },
+  { value: "ISTP", label: "ISTP - Virtuoso" },
+  { value: "ISFP", label: "ISFP - Adventurer" },
+  { value: "INTP", label: "INTP - Thinker" },
+  { value: "INFP", label: "INFP - Mediator" },
+]
+
+// Time support zone options
+const timeSupportZoneOptions: MultiSelectOption[] = [
+  { label: "US", value: "US" },
+  { label: "UK", value: "UK" },
+  { label: "EU", value: "EU" },
+  { label: "APAC", value: "APAC" },
+  { label: "MEA", value: "MEA" },
+]
+
 // Extract unique degree names from sample candidates
 const extractUniqueDegreeNames = (): ComboboxOption[] => {
   const degrees = new Set<string>()
@@ -136,8 +170,35 @@ const extractUniqueMajorNames = (): ComboboxOption[] => {
   }))
 }
 
-const degreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
-const majorOptions: ComboboxOption[] = extractUniqueMajorNames()
+// Base options (extracted from sample data)
+const baseDegreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
+const baseMajorOptions: ComboboxOption[] = extractUniqueMajorNames()
+
+// Base employer options
+const baseEmployerOptions: ComboboxOption[] = sampleEmployers.map(employer => ({
+  label: employer.name,
+  value: employer.name
+}))
+
+// Base project options
+const baseProjectOptions: ComboboxOption[] = sampleProjects.map(project => ({
+  label: project.projectName,
+  value: project.projectName
+}))
+
+// Base university location options
+const baseUniversityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(university =>
+  university.locations.map(location => ({
+    label: `${university.name} - ${location.city}`,
+    value: location.id
+  }))
+)
+
+// Base certification options
+const baseCertificationOptions: ComboboxOption[] = sampleCertifications.map(cert => ({
+  label: cert.certificationName,
+  value: cert.id
+}))
 
 // Extract unique tech stacks from sample projects and candidates
 const extractUniqueTechStacks = (): MultiSelectOption[] => {
@@ -171,8 +232,10 @@ const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
   }))
 }
 
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
+// Base tech stack options
+const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+// Base horizontal domain options
+const baseHorizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
 
 interface CandidateDetailsModalProps {
   candidate: Candidate | null
@@ -208,8 +271,8 @@ const DomainBadges = ({
 
     const baseClass =
       type === "vertical"
-        ? "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-950/30 dark:text-purple-200 dark:border-purple-800"
-        : "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-950/30 dark:text-blue-200 dark:border-blue-800"
+        ? "bg-teal-100 text-teal-700 border border-teal-300 dark:bg-teal-950/30 dark:text-teal-200 dark:border-teal-800"
+        : "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-950/30 dark:text-purple-200 dark:border-purple-800"
 
     return (
       <>
@@ -270,7 +333,7 @@ const DomainBadges = ({
         </span>
       )}
       {hasTeamSize && (
-        <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-800 flex items-center gap-1">
+        <span className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-950/30 dark:text-indigo-200 dark:border-indigo-800 flex items-center gap-1">
           <Users className="size-3" />
           {teamSize}
         </span>
@@ -500,6 +563,11 @@ interface InlineEditableComboboxProps {
   searchPlaceholder?: string
   emptyMessage?: string
   className?: string
+  renderDisplay?: (displayValue: string, value: string) => React.ReactNode
+  creatable?: boolean
+  createLabel?: string
+  onCreateNew?: (searchValue: string) => void
+  onCreateDialog?: (searchValue: string) => void
 }
 
 const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
@@ -513,7 +581,12 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   placeholder = "Select option...",
   searchPlaceholder = "Search...",
   emptyMessage = "No option found.",
-  className = ""
+  className = "",
+  renderDisplay,
+  creatable = false,
+  createLabel,
+  onCreateNew,
+  onCreateDialog
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
@@ -521,6 +594,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [willVerify, setWillVerify] = useState(false)
   const [open, setOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState("")
 
   // Get current verification status
   const verification = getFieldVerification(fieldName)
@@ -553,6 +627,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
     setWillVerify(isCurrentlyVerified)
     setError(null)
     setOpen(false)
+    setSearchValue("")
   }
 
   const handleSave = async () => {
@@ -582,18 +657,91 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   const handleValueChange = (newValue: string) => {
     setEditValue(newValue)
     setOpen(false)
+    setSearchValue("")
+  }
+
+  // Filter options based on search
+  const filteredOptions = useMemo(() => {
+    if (!searchValue.trim()) return options
+    const searchLower = searchValue.toLowerCase()
+    return options.filter(option => 
+      option.label.toLowerCase().includes(searchLower) ||
+      option.value.toLowerCase().includes(searchLower)
+    )
+  }, [options, searchValue])
+
+  // Check if search value already exists
+  const searchValueExists = useMemo(() => {
+    if (!searchValue.trim()) return false
+    const searchLower = searchValue.trim().toLowerCase()
+    return options.some(option => 
+      option.value.toLowerCase() === searchLower ||
+      option.label.toLowerCase() === searchLower
+    ) || value.toLowerCase() === searchLower
+  }, [options, value, searchValue])
+
+  // Check if we should show "Create" option
+  const shouldShowCreate = creatable && 
+    searchValue.trim().length >= 2 && 
+    !searchValueExists && 
+    filteredOptions.length === 0
+
+  const handleCreateNew = () => {
+    if (onCreateNew) {
+      onCreateNew(searchValue.trim())
+      setSearchValue("")
+      setOpen(false)
+    } else if (onCreateDialog) {
+      onCreateDialog(searchValue.trim())
+      setSearchValue("")
+      setOpen(false)
+    }
   }
 
   const displayValue = value 
     ? (options.find(opt => opt.value === value)?.label || value)
     : 'N/A'
 
+  // Display mode - check if custom renderer is provided
+  if (!isEditing && renderDisplay) {
+    return (
+      <div className={cn("flex items-center justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+        <div className="flex-1 min-w-0">
+          {label && (
+            <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
+          )}
+          {renderDisplay(displayValue, value)}
+        </div>
+        {/* Three badges: Verification, History, Edit */}
+        <div className="flex items-center gap-1 shrink-0">
+          {verificationIndicator}
+          {/* Edit Icon Badge - Always visible for quick access */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleEdit}
+            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            type="button"
+            title={`Edit ${label.toLowerCase()}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   if (isEditing) {
     return (
       <div className={cn("space-y-2", className)}>
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         <div className="space-y-2">
-          <Popover open={open} onOpenChange={setOpen}>
+          <Popover open={open} onOpenChange={(isOpen) => {
+            setOpen(isOpen)
+            if (!isOpen) {
+              setSearchValue("")
+            }
+          }}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
@@ -609,28 +757,62 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-              <Command>
-                <CommandInput placeholder={searchPlaceholder} className="h-9" />
+              <Command shouldFilter={false}>
+                <CommandInput 
+                  placeholder={searchPlaceholder} 
+                  className="h-9"
+                  value={searchValue}
+                  onValueChange={setSearchValue}
+                  onKeyDown={(e) => {
+                    if (creatable && e.key === "Enter" && shouldShowCreate) {
+                      e.preventDefault()
+                      handleCreateNew()
+                    }
+                  }}
+                />
                 <CommandList>
-                  <CommandEmpty>{emptyMessage}</CommandEmpty>
-                  <CommandGroup>
-                    {options.map((option) => (
-                      <CommandItem
-                        key={option.value}
-                        value={option.value}
-                        onSelect={() => handleValueChange(option.value)}
-                        className="cursor-pointer"
-                      >
-                        {option.label}
-                        <Check
-                          className={cn(
-                            "ml-auto h-4 w-4",
-                            editValue === option.value ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
+                  {shouldShowCreate ? (
+                    <>
+                      <CommandEmpty>
+                        <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                          {emptyMessage}
+                        </div>
+                      </CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value={searchValue}
+                          onSelect={handleCreateNew}
+                          className="cursor-pointer font-medium text-primary border-t border-border"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          {createLabel 
+                            ? (searchValue.trim() ? `Create "${searchValue.trim()}"` : createLabel)
+                            : `Add "${searchValue.trim()}"`}
+                        </CommandItem>
+                      </CommandGroup>
+                    </>
+                  ) : filteredOptions.length === 0 ? (
+                    <CommandEmpty>{emptyMessage}</CommandEmpty>
+                  ) : (
+                    <CommandGroup>
+                      {filteredOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={() => handleValueChange(option.value)}
+                          className="cursor-pointer"
+                        >
+                          {option.label}
+                          <Check
+                            className={cn(
+                              "ml-auto h-4 w-4",
+                              editValue === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>
@@ -691,10 +873,16 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   return (
     <div className={cn("flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
       <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
-        <span className={`text-sm block ${!value ? 'text-muted-foreground italic' : ''}`}>
-          {displayValue}
-        </span>
+        {label && (
+          <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
+        )}
+        {renderDisplay ? (
+          renderDisplay(displayValue, value)
+        ) : (
+          <span className={`text-sm block ${!value ? 'text-muted-foreground italic' : ''}`}>
+            {displayValue}
+          </span>
+        )}
       </div>
       {/* Three badges: Verification, History, Edit */}
       <div className="flex items-center gap-1 shrink-0">
@@ -934,6 +1122,9 @@ interface InlineEditableMultiSelectProps {
   searchPlaceholder?: string
   badgeColorClass?: string
   maxDisplay?: number
+  creatable?: boolean
+  createLabel?: string
+  onCreateNew?: (value: string) => void
 }
 
 const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
@@ -948,7 +1139,10 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   placeholder = "Select items...",
   searchPlaceholder = "Search...",
   badgeColorClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  maxDisplay = 5
+  maxDisplay = 5,
+  creatable = false,
+  createLabel,
+  onCreateNew
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState<string[]>(value || [])
@@ -1038,6 +1232,9 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               placeholder={placeholder}
               searchPlaceholder={searchPlaceholder}
               maxDisplay={maxDisplay}
+              creatable={creatable}
+              createLabel={createLabel}
+              onCreateNew={onCreateNew}
             />
           </div>
           
@@ -1362,7 +1559,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
             <Badge 
               key={benefit.id || index} 
               variant="outline" 
-              className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800"
+              className="text-xs bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-300 dark:border-slate-800"
             >
               {benefit.name}
               {benefit.amount !== null && (
@@ -1691,9 +1888,261 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
   )
 }
 
+// Inline Editable Checkbox Component
+interface InlineEditableCheckboxProps {
+  label: string
+  value: boolean
+  fieldName: string
+  onSave: (fieldName: string, newValue: boolean, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  className?: string
+  description?: string
+}
+
+const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
+  label,
+  value,
+  fieldName,
+  onSave,
+  getFieldVerification,
+  className,
+  description
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  
+  const verification = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verification?.status === 'verified'
+  
+  // Initialize willVerify based on current verification status when entering edit mode
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+  
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleSave = async () => {
+    // No change check
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const valueChanged = editValue !== value
+    
+    if (!valueChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } catch (err) {
+      // Error handling - revert on error
+      setEditValue(value)
+      setWillVerify(isCurrentlyVerified)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  // Verification indicator component
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verificationData = getFieldVerification?.(fName)
+    const status = verificationData?.status || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+  
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fieldName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-3">
+              {/* Checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`checkbox-${fieldName}`}
+                  checked={editValue}
+                  onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`checkbox-${fieldName}`}
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  {label}
+                </Label>
+              </div>
+              
+              {description && (
+                <p className="text-xs text-muted-foreground pl-6 -mt-1">{description}</p>
+              )}
+              
+              {/* Mark as verified checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                  )}
+                >
+                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                </Label>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={value}
+              disabled
+              className="h-4 w-4 opacity-50"
+            />
+            <span className={cn(
+              "text-sm",
+              value ? "font-medium" : "text-muted-foreground"
+            )}>
+              {value ? 'Yes' : 'No'}
+            </span>
+            {value && (
+              <Badge 
+                variant="default" 
+                className={cn(
+                  "text-xs",
+                  label === "Topper" && "bg-yellow-500 hover:bg-yellow-600",
+                  label === "Cheetah" && "bg-orange-500 hover:bg-orange-600",
+                  label === "Top Developer" && "bg-blue-500 hover:bg-blue-600"
+                )}
+              >
+                {label}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Helper function to get job title from first work experience
 const getJobTitle = (candidate: Candidate): string => {
   return candidate.workExperiences?.[0]?.jobTitle || "N/A"
+}
+
+// Helper function to calculate total years of experience from work experiences
+const calculateYearsOfExperience = (candidate: Candidate): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  const today = new Date()
+  let totalMonths = 0
+
+  candidate.workExperiences.forEach(we => {
+    if (!we.startDate) return
+
+    const startDate = new Date(we.startDate)
+    const endDate = we.endDate ? new Date(we.endDate) : today
+
+    // Calculate months between start and end
+    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
+    const monthsDiff = endDate.getMonth() - startDate.getMonth()
+    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
+
+    // Add days for more precision (approximate)
+    const daysDiff = endDate.getDate() - startDate.getDate()
+    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
+
+    if (approximateMonths > 0) {
+      totalMonths += approximateMonths
+    }
+  })
+
+  // Convert to years (with 1 decimal place precision)
+  const totalYears = totalMonths / 12
+  return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
 }
 
 export function CandidateDetailsModal({ 
@@ -1706,6 +2155,33 @@ export function CandidateDetailsModal({
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
+  
+  // Options state (for creatable functionality)
+  const [employerOptions, setEmployerOptions] = useState<ComboboxOption[]>(baseEmployerOptions)
+  const [projectOptions, setProjectOptions] = useState<ComboboxOption[]>(baseProjectOptions)
+  const [universityLocationOptions, setUniversityLocationOptions] = useState<ComboboxOption[]>(baseUniversityLocationOptions)
+  const [certificationOptions, setCertificationOptions] = useState<ComboboxOption[]>(baseCertificationOptions)
+  const [degreeOptions, setDegreeOptions] = useState<ComboboxOption[]>(baseDegreeOptions)
+  const [majorOptions, setMajorOptions] = useState<ComboboxOption[]>(baseMajorOptions)
+  const [techStackOptions, setTechStackOptions] = useState<MultiSelectOption[]>(baseTechStackOptions)
+  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
+  
+  // Creation dialog state
+  const [createEmployerDialogOpen, setCreateEmployerDialogOpen] = useState(false)
+  const [pendingEmployerName, setPendingEmployerName] = useState<string>("")
+  const [pendingEmployerFieldName, setPendingEmployerFieldName] = useState<string | null>(null)
+  
+  const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false)
+  const [pendingProjectName, setPendingProjectName] = useState<string>("")
+  const [pendingProjectFieldName, setPendingProjectFieldName] = useState<string | null>(null)
+  
+  const [createUniversityDialogOpen, setCreateUniversityDialogOpen] = useState(false)
+  const [pendingUniversityName, setPendingUniversityName] = useState<string>("")
+  const [pendingUniversityFieldName, setPendingUniversityFieldName] = useState<string | null>(null)
+  
+  const [createCertificationDialogOpen, setCreateCertificationDialogOpen] = useState(false)
+  const [pendingCertificationName, setPendingCertificationName] = useState<string>("")
+  const [pendingCertificationFieldName, setPendingCertificationFieldName] = useState<string | null>(null)
   
   // Define sections for navigation
   const sections = [
@@ -1854,7 +2330,7 @@ export function CandidateDetailsModal({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   
   // Handle inline field save with verification
-  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[], shouldVerify: boolean) => {
+  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
     
     try {
@@ -1890,6 +2366,153 @@ export function CandidateDetailsModal({
   // Wrapper for benefits field save
   const handleBenefitsFieldSave = async (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => {
     await handleFieldSave(fieldName, newValue, shouldVerify)
+  }
+
+  // Handle employer creation
+  const handleEmployerCreated = async (employerData: EmployerFormData) => {
+    try {
+      const newEmployerName = employerData.name.trim()
+      
+      if (!newEmployerName) {
+        toast.error("Employer name is required")
+        return
+      }
+
+      // Add new employer to options
+      const newOption = { label: newEmployerName, value: newEmployerName }
+      setEmployerOptions(prev => {
+        const updated = [...prev, newOption]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the newly created employer if we have a pending field
+      if (pendingEmployerFieldName) {
+        await handleFieldSave(pendingEmployerFieldName, newEmployerName, false)
+      }
+
+      toast.success(`Employer "${newEmployerName}" has been created successfully.`)
+      setCreateEmployerDialogOpen(false)
+      setPendingEmployerName("")
+      setPendingEmployerFieldName(null)
+    } catch (error) {
+      console.error("Error creating employer:", error)
+      toast.error("Failed to create employer. Please try again.")
+    }
+  }
+
+  // Handle project creation
+  const handleProjectCreated = async (projectData: ProjectFormData) => {
+    try {
+      const newProjectName = projectData.projectName.trim()
+      
+      if (!newProjectName) {
+        toast.error("Project name is required")
+        return
+      }
+
+      // Add new project to options
+      const newOption = { label: newProjectName, value: newProjectName }
+      setProjectOptions(prev => {
+        const updated = [...prev, newOption]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the newly created project if we have a pending field
+      if (pendingProjectFieldName) {
+        await handleFieldSave(pendingProjectFieldName, newProjectName, false)
+      }
+
+      toast.success(`Project "${newProjectName}" has been created successfully.`)
+      setCreateProjectDialogOpen(false)
+      setPendingProjectName("")
+      setPendingProjectFieldName(null)
+    } catch (error) {
+      console.error("Error creating project:", error)
+      toast.error("Failed to create project. Please try again.")
+    }
+  }
+
+  // Handle university creation
+  const handleUniversityCreated = async (universityData: UniversityFormData) => {
+    try {
+      const universityName = universityData.name.trim()
+      
+      if (!universityName) {
+        toast.error("University name is required")
+        return
+      }
+
+      // Create location options for the new university
+      const newLocationOptions: ComboboxOption[] = universityData.locations.map(location => ({
+        label: `${universityName} - ${location.city}`,
+        value: location.id
+      }))
+      
+      // Add new location options to universityLocationOptions
+      setUniversityLocationOptions(prev => {
+        const updated = [...prev, ...newLocationOptions]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the first location (or main campus if available) if we have a pending field
+      if (pendingUniversityFieldName) {
+        const mainCampus = universityData.locations.find(loc => loc.isMainCampus)
+        const locationToSelect = mainCampus || universityData.locations[0]
+        
+        if (locationToSelect) {
+          await handleFieldSave(pendingUniversityFieldName, locationToSelect.id, false)
+          // Also update the name field if it exists
+          const nameFieldName = pendingUniversityFieldName.replace('.universityLocationId', '.universityLocationName')
+          await handleFieldSave(nameFieldName, `${universityName} - ${locationToSelect.city}`, false)
+        }
+      }
+
+      toast.success(`University "${universityName}" has been created successfully.`)
+      setCreateUniversityDialogOpen(false)
+      setPendingUniversityName("")
+      setPendingUniversityFieldName(null)
+    } catch (error) {
+      console.error("Error creating university:", error)
+      toast.error("Failed to create university. Please try again.")
+    }
+  }
+
+  // Handle certification creation
+  const handleCertificationCreated = async (certificationData: CertificationFormData) => {
+    try {
+      const certificationName = certificationData.certificationName.trim()
+      
+      if (!certificationName) {
+        toast.error("Certification name is required")
+        return
+      }
+
+      // Generate a new ID for the certification (in a real app, this would come from the API)
+      const newCertificationId = crypto.randomUUID()
+      
+      // Create new certification option
+      const newOption = { label: certificationName, value: newCertificationId }
+      setCertificationOptions(prev => {
+        const updated = [...prev, newOption]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the newly created certification if we have a pending field
+      if (pendingCertificationFieldName) {
+        await handleFieldSave(pendingCertificationFieldName, newCertificationId, false)
+        // Also update the name field if it exists
+        const nameFieldName = pendingCertificationFieldName.replace('.certificationId', '.certificationName')
+        await handleFieldSave(nameFieldName, certificationName, false)
+      }
+
+      toast.success(`Certification "${certificationName}" has been created successfully.`)
+      setCreateCertificationDialogOpen(false)
+      setPendingCertificationName("")
+      setPendingCertificationFieldName(null)
+    } catch (error) {
+      console.error("Error creating certification:", error)
+      toast.error("Failed to create certification. Please try again.")
+    }
   }
   
   // Handle edit submission (verification is always included in edit mode)
@@ -1988,7 +2611,7 @@ export function CandidateDetailsModal({
   // Calculate progress for each section
   const basicInfoFields = [
     'name', 'city', 'email', 'mobileNo', 'cnic', 'postingTitle', 
-    'currentSalary', 'expectedSalary', 'source', 'githubUrl', 'linkedinUrl', 'resume'
+    'currentSalary', 'expectedSalary', 'source', 'githubUrl', 'linkedinUrl', 'resume', 'personalityType'
   ]
   const basicInfoProgress = useMemo(() => 
     calculateSectionProgress(basicInfoFields),
@@ -2501,6 +3124,43 @@ export function CandidateDetailsModal({
                       getFieldVerification={getFieldVerification}
                     />
                     <DisplayField label="Source" value={candidate.source} fieldName="source" />
+                    <InlineEditableCheckbox
+                      label="Top Developer"
+                      value={candidate.isTopDeveloper === true}
+                      fieldName="isTopDeveloper"
+                      onSave={async (fieldName, newValue, verify) => {
+                        await handleFieldSave(fieldName, newValue, verify)
+                      }}
+                      getFieldVerification={getFieldVerification}
+                    />
+                    <InlineEditableCombobox
+                      label="Personality Type"
+                      value={candidate.personalityType || ''}
+                      fieldName="personalityType"
+                      options={personalityTypeOptions}
+                      onSave={handleFieldSave}
+                      verificationIndicator={<VerificationIndicator fieldName="personalityType" />}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select personality type..."
+                      searchPlaceholder="Search personality types..."
+                      emptyMessage="No personality type found."
+                      renderDisplay={(displayValue) => {
+                        const option = personalityTypeOptions.find(opt => opt.value === displayValue)
+                        return (
+                          <span className={`text-sm block ${!displayValue ? 'text-muted-foreground italic' : ''}`}>
+                            {option ? option.label : displayValue || 'N/A'}
+                          </span>
+                        )
+                      }}
+                    />
+                    <DisplayField 
+                      label="Years of Experience" 
+                      value={(() => {
+                        const years = calculateYearsOfExperience(candidate)
+                        return years > 0 ? `${years} ${years === 1 ? 'year' : 'years'}` : 'N/A'
+                      })()} 
+                      fieldName="yearsOfExperience" 
+                    />
           </div>
 
                   <Separator />
@@ -2603,15 +3263,36 @@ export function CandidateDetailsModal({
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
                                 <Building2 className="size-5 text-muted-foreground" />
-                                <button
-                                  onClick={() => handleEmployerClick(experience.employerName)}
-                                  className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                  title={`View ${experience.employerName} details`}
-                                >
-                                  {experience.employerName}
-                                </button>
-                                <VerificationIndicator fieldName={`workExperiences[${idx}].employerName`} />
-              </div>
+                                <div className="flex-1 min-w-0">
+                                  <InlineEditableCombobox
+                                    label=""
+                                    value={experience.employerName}
+                                    fieldName={`workExperiences[${idx}].employerName`}
+                                    options={employerOptions}
+                                    onSave={handleFieldSave}
+                                    placeholder="Select employer..."
+                                    searchPlaceholder="Search employers..."
+                                    verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].employerName`} />}
+                                    getFieldVerification={getFieldVerification}
+                                    creatable={true}
+                                    createLabel="Add New Employer"
+                                    onCreateDialog={(searchValue) => {
+                                      setPendingEmployerName(searchValue)
+                                      setPendingEmployerFieldName(`workExperiences[${idx}].employerName`)
+                                      setCreateEmployerDialogOpen(true)
+                                    }}
+                                    renderDisplay={(displayValue, value) => (
+                                      <button
+                                        onClick={() => handleEmployerClick(experience.employerName)}
+                                        className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer leading-tight"
+                                        title={`View ${displayValue} details`}
+                                      >
+                                        {displayValue}
+                                      </button>
+                                    )}
+                                  />
+                                </div>
+                              </div>
                               <div className="ml-7">
                                 <InlineEditableField 
                                   label="Job Title" 
@@ -2674,20 +3355,23 @@ export function CandidateDetailsModal({
                                 getFieldVerification={getFieldVerification}
                               />
                             )}
-                            {experience.timeSupportZones.length > 0 && (
-                              <div className="flex items-center gap-2 sm:col-span-2 flex-wrap">
-                                <Globe className="size-4 text-muted-foreground shrink-0" />
-                                <span className="text-muted-foreground shrink-0">Time Zones:</span>
-                                <div className="flex gap-1.5 flex-wrap">
-                                  {experience.timeSupportZones.map((zone, i) => (
-                                    <Badge key={i} variant="outline" className="text-sm">
-                                      {zone}
-                                    </Badge>
-                                  ))}
-                                </div>
-                                <VerificationIndicator fieldName={`workExperiences[${idx}].timeSupportZones`} />
-                              </div>
-                            )}
+                          </div>
+
+                          {/* Time Support Zones */}
+                          <div className="ml-7">
+                            <InlineEditableMultiSelect
+                              label="Time Support Zones"
+                              value={experience.timeSupportZones || []}
+                              fieldName={`workExperiences[${idx}].timeSupportZones`}
+                              options={timeSupportZoneOptions}
+                              onSave={handleMultiSelectFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].timeSupportZones`} />}
+                              getFieldVerification={getFieldVerification}
+                              placeholder="Select time zones..."
+                              searchPlaceholder="Search time zones..."
+                              badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              maxDisplay={5}
+                            />
                           </div>
 
                           {/* Tech Stacks */}
@@ -2704,6 +3388,20 @@ export function CandidateDetailsModal({
                               searchPlaceholder="Search technologies..."
                               badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                               maxDisplay={5}
+                              creatable={true}
+                              createLabel="Create Tech Stack"
+                              onCreateNew={(newTechStack) => {
+                                const newOption = { label: newTechStack, value: newTechStack }
+                                setTechStackOptions(prev => {
+                                  const updated = [...prev, newOption]
+                                  return updated.sort((a, b) => a.label.localeCompare(b.label))
+                                })
+                                // Add to current selection
+                                const currentValue = experience.techStacks || []
+                                if (!currentValue.includes(newTechStack)) {
+                                  handleMultiSelectFieldSave(`workExperiences[${idx}].techStacks`, [...currentValue, newTechStack], false)
+                                }
+                              }}
                             />
                           </div>
                           {/* NEW: Domains */}
@@ -2718,8 +3416,22 @@ export function CandidateDetailsModal({
                               getFieldVerification={getFieldVerification}
                               placeholder="Select domains..."
                               searchPlaceholder="Search domains..."
-                              badgeColorClass="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                              badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
                               maxDisplay={5}
+                              creatable={true}
+                              createLabel="Create Domain"
+                              onCreateNew={(newDomain) => {
+                                const newOption = { label: newDomain, value: newDomain }
+                                setHorizontalDomainOptions(prev => {
+                                  const updated = [...prev, newOption]
+                                  return updated.sort((a, b) => a.label.localeCompare(b.label))
+                                })
+                                // Add to current selection
+                                const currentValue = experience.domains || []
+                                if (!currentValue.includes(newDomain)) {
+                                  handleMultiSelectFieldSave(`workExperiences[${idx}].domains`, [...currentValue, newDomain], false)
+                                }
+                              }}
                             />
                             </div>
                           {/* Benefits */}
@@ -2746,14 +3458,33 @@ export function CandidateDetailsModal({
                                 {experience.projects.map((project, projIdx) => (
                                   <div key={project.id} className="border rounded-md p-4 bg-muted/30">
                                     <div className="flex items-center gap-2 mb-2">
-                                      <button
-                                        onClick={() => handleProjectClick(project.projectName)}
-                                        className="text-base font-medium hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                        title={`View ${project.projectName || "Unnamed Project"} details`}
-                                      >
-                                        {project.projectName || "Unnamed Project"}
-                                      </button>
-                                      <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`} />
+                                      <InlineEditableCombobox
+                                        label=""
+                                        value={project.projectName || ""}
+                                        fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`}
+                                        options={projectOptions}
+                                        onSave={handleFieldSave}
+                                        placeholder="Select project..."
+                                        searchPlaceholder="Search projects..."
+                                        verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`} />}
+                                        getFieldVerification={getFieldVerification}
+                                        creatable={true}
+                                        createLabel="Add New Project"
+                                        onCreateDialog={(searchValue) => {
+                                          setPendingProjectName(searchValue)
+                                          setPendingProjectFieldName(`workExperiences[${idx}].projects[${projIdx}].projectName`)
+                                          setCreateProjectDialogOpen(true)
+                                        }}
+                                        renderDisplay={(displayValue, value) => (
+                                          <button
+                                            onClick={() => handleProjectClick(project.projectName)}
+                                            className="text-base font-medium hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+                                            title={`View ${displayValue || "Unnamed Project"} details`}
+                                          >
+                                            {displayValue || "Unnamed Project"}
+                                          </button>
+                                        )}
+                                      />
                                     </div>
                                     {project.projectName && (
                                       <DomainBadges
@@ -2836,6 +3567,20 @@ export function CandidateDetailsModal({
                         searchPlaceholder="Search technologies..."
                         badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                         maxDisplay={6}
+                        creatable={true}
+                        createLabel="Create Tech Stack"
+                        onCreateNew={(newTechStack) => {
+                          const newOption = { label: newTechStack, value: newTechStack }
+                          setTechStackOptions(prev => {
+                            const updated = [...prev, newOption]
+                            return updated.sort((a, b) => a.label.localeCompare(b.label))
+                          })
+                          // Add to current selection
+                          const currentValue: string[] = []
+                          if (!currentValue.includes(newTechStack)) {
+                            handleMultiSelectFieldSave("techStacks", [...currentValue, newTechStack], false)
+                          }
+                        }}
                       />
                     </div>
                   ) : (
@@ -2852,6 +3597,20 @@ export function CandidateDetailsModal({
                         searchPlaceholder="Search technologies..."
                         badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
                         maxDisplay={6}
+                        creatable={true}
+                        createLabel="Create Tech Stack"
+                        onCreateNew={(newTechStack) => {
+                          const newOption = { label: newTechStack, value: newTechStack }
+                          setTechStackOptions(prev => {
+                            const updated = [...prev, newOption]
+                            return updated.sort((a, b) => a.label.localeCompare(b.label))
+                          })
+                          // Add to current selection
+                          const currentValue = candidate.techStacks || []
+                          if (!currentValue.includes(newTechStack)) {
+                            handleMultiSelectFieldSave("techStacks", [...currentValue, newTechStack], false)
+                          }
+                        }}
                       />
                     </div>
                   )}
@@ -2905,15 +3664,34 @@ export function CandidateDetailsModal({
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <button
-                                  onClick={() => handleProjectClick(project.projectName)}
-                                  className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                  title={`View ${project.projectName || "Unnamed Project"} details`}
-                                >
-                                  {project.projectName || "Unnamed Project"}
-                                </button>
-                                <VerificationIndicator fieldName={`projects[${idx}].projectName`} />
-              </div>
+                                <InlineEditableCombobox
+                                  label=""
+                                  value={project.projectName || ""}
+                                  fieldName={`projects[${idx}].projectName`}
+                                  options={projectOptions}
+                                  onSave={handleFieldSave}
+                                  placeholder="Select project..."
+                                  searchPlaceholder="Search projects..."
+                                  verificationIndicator={<VerificationIndicator fieldName={`projects[${idx}].projectName`} />}
+                                  getFieldVerification={getFieldVerification}
+                                  creatable={true}
+                                  createLabel="Add New Project"
+                                  onCreateDialog={(searchValue) => {
+                                    setPendingProjectName(searchValue)
+                                    setPendingProjectFieldName(`projects[${idx}].projectName`)
+                                    setCreateProjectDialogOpen(true)
+                                  }}
+                                  renderDisplay={(displayValue, value) => (
+                                    <button
+                                      onClick={() => handleProjectClick(project.projectName)}
+                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+                                      title={`View ${displayValue || "Unnamed Project"} details`}
+                                    >
+                                      {displayValue || "Unnamed Project"}
+                                    </button>
+                                  )}
+                                />
+                              </div>
                               {project.projectName && (
                                 <DomainBadges
                                   projectName={project.projectName}
@@ -2990,14 +3768,46 @@ export function CandidateDetailsModal({
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <button
-                                  onClick={() => handleUniversityClick(education.universityLocationId)}
-                                  className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                  title={`View ${education.universityLocationName} details`}
-                                >
-                                  {education.universityLocationName}
-                                </button>
-                                <VerificationIndicator fieldName={`educations[${idx}].universityLocationName`} />
+                                <InlineEditableCombobox
+                                  label=""
+                                  value={education.universityLocationId}
+                                  fieldName={`educations[${idx}].universityLocationId`}
+                                  options={universityLocationOptions}
+                                  onSave={async (fieldName, newValue, shouldVerify) => {
+                                    // When university location ID changes, we need to update both the ID and the name
+                                    await handleFieldSave(fieldName, newValue, shouldVerify)
+                                    // Find the university location name from the selected ID
+                                    const selectedLocation = sampleUniversities
+                                      .flatMap(uni => uni.locations)
+                                      .find(loc => loc.id === newValue)
+                                    const selectedUniversity = sampleUniversities.find(uni => 
+                                      uni.locations.some(loc => loc.id === newValue)
+                                    )
+                                    if (selectedLocation && selectedUniversity) {
+                                      await handleFieldSave(`educations[${idx}].universityLocationName`, `${selectedUniversity.name} - ${selectedLocation.city}`, shouldVerify)
+                                    }
+                                  }}
+                                  placeholder="Select university location..."
+                                  searchPlaceholder="Search universities..."
+                                  verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].universityLocationName`} />}
+                                  getFieldVerification={getFieldVerification}
+                                  creatable={true}
+                                  createLabel="Add New University"
+                                  onCreateDialog={(searchValue) => {
+                                    setPendingUniversityName(searchValue)
+                                    setPendingUniversityFieldName(`educations[${idx}].universityLocationId`)
+                                    setCreateUniversityDialogOpen(true)
+                                  }}
+                                  renderDisplay={(displayValue, value) => (
+                                    <button
+                                      onClick={() => handleUniversityClick(education.universityLocationId)}
+                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+                                      title={`View ${displayValue} details`}
+                                    >
+                                      {displayValue}
+                                    </button>
+                                  )}
+                                />
                               </div>
                               {/* Degree and Major */}
                               <div className="space-y-2">
@@ -3011,6 +3821,18 @@ export function CandidateDetailsModal({
                                   searchPlaceholder="Search degrees..."
                                   verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].degreeName`} />}
                                   getFieldVerification={getFieldVerification}
+                                  creatable={true}
+                                  createLabel="Add New Degree"
+                                  onCreateNew={(newDegree) => {
+                                    // Add the new degree to options
+                                    const newOption = { label: newDegree, value: newDegree }
+                                    setDegreeOptions(prev => {
+                                      const updated = [...prev, newOption]
+                                      return updated.sort((a, b) => a.label.localeCompare(b.label))
+                                    })
+                                    // Auto-select the newly added degree
+                                    handleFieldSave(`educations[${idx}].degreeName`, newDegree, false)
+                                  }}
                                 />
                                 {education.majorName && (
                                   <InlineEditableCombobox
@@ -3023,6 +3845,18 @@ export function CandidateDetailsModal({
                                     searchPlaceholder="Search majors..."
                                     verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].majorName`} />}
                                     getFieldVerification={getFieldVerification}
+                                    creatable={true}
+                                    createLabel="Add New Major"
+                                    onCreateNew={(newMajor) => {
+                                      // Add the new major to options
+                                      const newOption = { label: newMajor, value: newMajor }
+                                      setMajorOptions(prev => {
+                                        const updated = [...prev, newOption]
+                                        return updated.sort((a, b) => a.label.localeCompare(b.label))
+                                      })
+                                      // Auto-select the newly added major
+                                      handleFieldSave(`educations[${idx}].majorName`, newMajor, false)
+                                    }}
                                   />
                                 )}
                               </div>
@@ -3066,22 +3900,24 @@ export function CandidateDetailsModal({
                                 className="flex-1"
                               />
                             )}
-                            {education.isTopper === true && (
-                              <div className="flex items-center gap-1">
-                                <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-sm">
-                                  Topper
-                                </Badge>
-                                <VerificationIndicator fieldName={`educations[${idx}].isTopper`} />
-                              </div>
-                            )}
-                            {education.isCheetah === true && (
-                              <div className="flex items-center gap-1">
-                                <Badge variant="default" className="bg-orange-500 hover:bg-orange-600 text-sm">
-                                  Cheetah
-                                </Badge>
-                                <VerificationIndicator fieldName={`educations[${idx}].isCheetah`} />
-                              </div>
-                            )}
+                            <InlineEditableCheckbox
+                              label="Topper"
+                              value={education.isTopper === true}
+                              fieldName={`educations[${idx}].isTopper`}
+                              onSave={async (fieldName, newValue, verify) => {
+                                await handleFieldSave(fieldName, newValue, verify)
+                              }}
+                              getFieldVerification={getFieldVerification}
+                            />
+                            <InlineEditableCheckbox
+                              label="Cheetah"
+                              value={education.isCheetah === true}
+                              fieldName={`educations[${idx}].isCheetah`}
+                              onSave={async (fieldName, newValue, verify) => {
+                                await handleFieldSave(fieldName, newValue, verify)
+                              }}
+                              getFieldVerification={getFieldVerification}
+                            />
                           </div>
                         </div>
                       </div>
@@ -3138,14 +3974,40 @@ export function CandidateDetailsModal({
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-2">
-                                <button
-                                  onClick={() => handleCertificationClick(cert.certificationId, cert.certificationName)}
-                                  className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                  title={`View ${cert.certificationName} details`}
-                                >
-                                  {cert.certificationName}
-                                </button>
-                                <VerificationIndicator fieldName={`certifications[${idx}].certificationName`} />
+                                <InlineEditableCombobox
+                                  label=""
+                                  value={cert.certificationId}
+                                  fieldName={`certifications[${idx}].certificationId`}
+                                  options={certificationOptions}
+                                  onSave={async (fieldName, newValue, shouldVerify) => {
+                                    await handleFieldSave(fieldName, newValue, shouldVerify)
+                                    // Find the certification name from the selected ID
+                                    const selectedCert = sampleCertifications.find(c => c.id === newValue)
+                                    if (selectedCert) {
+                                      await handleFieldSave(`certifications[${idx}].certificationName`, selectedCert.certificationName, shouldVerify)
+                                    }
+                                  }}
+                                  placeholder="Select certification..."
+                                  searchPlaceholder="Search certifications..."
+                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationName`} />}
+                                  getFieldVerification={getFieldVerification}
+                                  creatable={true}
+                                  createLabel="Add New Certification"
+                                  onCreateDialog={(searchValue) => {
+                                    setPendingCertificationName(searchValue)
+                                    setPendingCertificationFieldName(`certifications[${idx}].certificationId`)
+                                    setCreateCertificationDialogOpen(true)
+                                  }}
+                                  renderDisplay={(displayValue, value) => (
+                                    <button
+                                      onClick={() => handleCertificationClick(cert.certificationId, cert.certificationName)}
+                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+                                      title={`View ${displayValue} details`}
+                                    >
+                                      {displayValue}
+                                    </button>
+                                  )}
+                                />
                               </div>
                               {/* Dates */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3209,6 +4071,82 @@ export function CandidateDetailsModal({
           onSubmit={handleEditSubmit}
         />
       )}
+
+      {/* Create Employer Dialog */}
+      <EmployerCreationDialog
+        mode="create"
+        open={createEmployerDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setCreateEmployerDialogOpen(false)
+            setPendingEmployerName("")
+            setPendingEmployerFieldName(null)
+          } else {
+            setCreateEmployerDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (employerData: EmployerFormData) => {
+          await handleEmployerCreated(employerData)
+        }}
+        initialName={pendingEmployerName}
+      />
+
+      {/* Create Project Dialog */}
+      <ProjectCreationDialog
+        mode="create"
+        open={createProjectDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setCreateProjectDialogOpen(false)
+            setPendingProjectName("")
+            setPendingProjectFieldName(null)
+          } else {
+            setCreateProjectDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (projectData: ProjectFormData) => {
+          await handleProjectCreated(projectData)
+        }}
+        initialName={pendingProjectName}
+      />
+
+      {/* Create University Dialog */}
+      <UniversityCreationDialog
+        mode="create"
+        open={createUniversityDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setCreateUniversityDialogOpen(false)
+            setPendingUniversityName("")
+            setPendingUniversityFieldName(null)
+          } else {
+            setCreateUniversityDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (universityData: UniversityFormData) => {
+          await handleUniversityCreated(universityData)
+        }}
+        initialName={pendingUniversityName}
+      />
+
+      {/* Create Certification Dialog */}
+      <CertificationCreationDialog
+        mode="create"
+        open={createCertificationDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setCreateCertificationDialogOpen(false)
+            setPendingCertificationName("")
+            setPendingCertificationFieldName(null)
+          } else {
+            setCreateCertificationDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (certificationData: CertificationFormData) => {
+          await handleCertificationCreated(certificationData)
+        }}
+        initialName={pendingCertificationName}
+      />
     </Dialog>
   )
 }

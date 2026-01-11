@@ -62,6 +62,8 @@ export interface ProjectFormData {
   description: string
   notes: string
   projectLink: string
+  isPublished: boolean
+  publishPlatforms: string[]
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
@@ -98,6 +100,8 @@ const initialFormData: ProjectFormData = {
   description: "",
   notes: "",
   projectLink: "",
+  isPublished: false,
+  publishPlatforms: [],
   techStacks: [],
   verticalDomains: [],
   horizontalDomains: [],
@@ -108,6 +112,14 @@ const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label])
   value: value as ProjectStatus,
   label
 }))
+
+// Publish platform options
+const publishPlatformOptions: MultiSelectOption[] = [
+  { value: "App Store", label: "App Store (iOS)" },
+  { value: "Play Store", label: "Play Store (Android)" },
+  { value: "Web", label: "Web" },
+  { value: "Desktop", label: "Desktop" },
+]
 
 // Extract unique values from project data (same as filter dialog)
 const extractUniqueTechStacks = (): string[] => {
@@ -196,6 +208,8 @@ const projectToFormData = (project: Project): ProjectFormData => {
     description: project.description || "",
     notes: project.notes || "",
     projectLink: project.projectLink || "",
+    isPublished: project.isPublished || false,
+    publishPlatforms: project.publishPlatforms ? [...project.publishPlatforms] : [],
     // Create new arrays to avoid reference issues
     techStacks: project.techStacks ? [...project.techStacks] : [],
     verticalDomains: project.verticalDomains ? [...project.verticalDomains] : [],
@@ -208,6 +222,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
 const PROJECT_VERIFICATION_FIELDS = [
   'projectName', 'employerName', 'projectType', 'teamSize', 'status', 
   'startDate', 'endDate', 'description', 'notes', 'projectLink',
+  'isPublished', 'publishPlatforms',
   'techStacks', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
 ]
 
@@ -316,7 +331,7 @@ export function ProjectCreationDialog({
     setOpen(newOpen)
   }
 
-  const handleInputChange = (field: keyof ProjectFormData, value: string | Date | undefined | string[]) => {
+  const handleInputChange = (field: keyof ProjectFormData, value: string | Date | undefined | string[] | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
     // Track modifications and auto-verify in verification mode
@@ -410,7 +425,7 @@ export function ProjectCreationDialog({
   )
 
   const contentProgress = useMemo(() => 
-    calculateSectionProgress(['description', 'notes', 'projectLink']),
+    calculateSectionProgress(['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms']),
     [verifiedFields]
   )
 
@@ -428,7 +443,7 @@ export function ProjectCreationDialog({
       'dates': ['startDate', 'endDate'],
       'tech-stack': ['techStacks'],
       'domains': ['verticalDomains', 'horizontalDomains', 'technicalAspects'],
-      'content': ['description', 'notes', 'projectLink']
+      'content': ['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms']
     }
     return fieldMap[sectionId] || []
   }
@@ -1301,6 +1316,40 @@ export function ProjectCreationDialog({
                         <p className="text-xs text-muted-foreground">
                           Optional link to project demo, repository, or documentation
                         </p>
+                      </div>
+
+                      {/* Published Status */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="isPublished"
+                              checked={formData.isPublished}
+                              onCheckedChange={(checked) => {
+                                handleInputChange("isPublished", checked === true)
+                              }}
+                            />
+                            <Label htmlFor="isPublished" className="cursor-pointer">
+                              Published App
+                            </Label>
+                          </div>
+                          <VerificationCheckbox fieldName="isPublished" />
+                        </div>
+                      </div>
+
+                      {/* Publish Platforms */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <VerificationCheckbox fieldName="publishPlatforms" />
+                        </div>
+                        <MultiSelect
+                          items={publishPlatformOptions}
+                          selected={formData.publishPlatforms}
+                          onChange={(values) => handleInputChange("publishPlatforms", values)}
+                          placeholder="Select platforms"
+                          label="Platforms (optional)"
+                          searchPlaceholder="Search platforms..."
+                        />
                       </div>
                     </CardContent>
                   </CollapsibleContent>

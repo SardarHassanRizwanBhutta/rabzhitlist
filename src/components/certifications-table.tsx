@@ -307,7 +307,13 @@ export function CertificationsTable({
                 <TableCell className="font-medium">
                   {certification.certificationName}
                 </TableCell>
-                <TableCell>{certification.issuingBody}</TableCell>
+                <TableCell>
+                  {certification.issuingBody ? (
+                    certification.issuingBody
+                  ) : (
+                    <span className="text-muted-foreground text-sm">N/A</span>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge
                     variant="secondary"

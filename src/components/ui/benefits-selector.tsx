@@ -19,7 +19,6 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-  CommandSeparator,
 } from "@/components/ui/command"
 import {
   Dialog,
@@ -60,6 +59,7 @@ export function BenefitsSelector({
   className,
 }: BenefitsSelectorProps) {
   const [open, setOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState("")
   const [customDialogOpen, setCustomDialogOpen] = useState(false)
   const [customBenefitName, setCustomBenefitName] = useState("")
   const [customHasAmount, setCustomHasAmount] = useState(false)
@@ -68,6 +68,64 @@ export function BenefitsSelector({
 
   // Get selected benefit names
   const selectedNames = benefits.map(b => b.name)
+
+  // Filter predefined benefits based on search
+  const filteredBenefits = React.useMemo(() => {
+    if (!searchValue.trim()) return PREDEFINED_BENEFITS
+    const searchLower = searchValue.toLowerCase()
+    return PREDEFINED_BENEFITS.filter(benefit => 
+      benefit.name.toLowerCase().includes(searchLower)
+    )
+  }, [searchValue])
+
+  // Check if search value already exists
+  const searchValueExists = React.useMemo(() => {
+    if (!searchValue.trim()) return false
+    const searchLower = searchValue.trim().toLowerCase()
+    return PREDEFINED_BENEFITS.some(benefit => 
+      benefit.name.toLowerCase() === searchLower
+    ) || selectedNames.some(name => name.toLowerCase() === searchLower)
+  }, [searchValue, selectedNames])
+
+  // Check if we should show "Create" option
+  const shouldShowCreate = searchValue.trim().length >= 2 && 
+    !searchValueExists && 
+    filteredBenefits.length === 0
+
+  // Handle creating new benefit from search - opens dialog
+  const handleCreateNewBenefit = () => {
+    if (!searchValue.trim() || searchValueExists) return
+    
+    // Pre-fill the benefit name and open dialog
+    setCustomBenefitName(searchValue.trim())
+    setCustomHasAmount(false)
+    setCustomAmount("")
+    setCustomUnit("PKR")
+    setOpen(false)
+    setCustomDialogOpen(true)
+  }
+
+  // Add custom benefit from dialog
+  const handleAddCustomBenefit = () => {
+    if (!customBenefitName.trim()) return
+
+    const newBenefit: EmployerBenefit = {
+      id: generateBenefitId(),
+      name: customBenefitName.trim(),
+      amount: customHasAmount ? (parseInt(customAmount) || 0) : null,
+      unit: customHasAmount ? customUnit : null,
+    }
+    
+    onChange([...benefits, newBenefit])
+    
+    // Reset form
+    setCustomBenefitName("")
+    setCustomHasAmount(false)
+    setCustomAmount("")
+    setCustomUnit("PKR")
+    setCustomDialogOpen(false)
+    setSearchValue("")
+  }
 
   // Get icon for benefit based on unit type
   const getBenefitIcon = (benefitName: string) => {
@@ -120,26 +178,6 @@ export function BenefitsSelector({
     onChange(benefits.filter(b => b.id !== benefitId))
   }
 
-  // Add custom benefit
-  const handleAddCustomBenefit = () => {
-    if (!customBenefitName.trim()) return
-
-    const newBenefit: EmployerBenefit = {
-      id: generateBenefitId(),
-      name: customBenefitName.trim(),
-      amount: customHasAmount ? (parseInt(customAmount) || 0) : null,
-      unit: customHasAmount ? customUnit : null,
-    }
-    
-    onChange([...benefits, newBenefit])
-    
-    // Reset form
-    setCustomBenefitName("")
-    setCustomHasAmount(false)
-    setCustomAmount("")
-    setCustomUnit("PKR")
-    setCustomDialogOpen(false)
-  }
 
   // Get unit label for display
   const getUnitLabel = (unit: BenefitUnit | null): string => {
@@ -153,7 +191,12 @@ export function BenefitsSelector({
       
       {/* Benefit Selector Dropdown */}
       <div className="flex gap-2">
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(isOpen) => {
+          setOpen(isOpen)
+          if (!isOpen) {
+            setSearchValue("") // Clear search when closing
+          }
+        }}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
@@ -170,117 +213,74 @@ export function BenefitsSelector({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[300px] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search benefits..." />
+            <Command shouldFilter={false}>
+              <CommandInput 
+                placeholder="Search benefits..." 
+                value={searchValue}
+                onValueChange={setSearchValue}
+                onKeyDown={(e) => {
+                  if (shouldShowCreate && e.key === "Enter") {
+                    e.preventDefault()
+                    handleCreateNewBenefit()
+                  }
+                }}
+              />
               <CommandList>
-                <CommandEmpty>No benefit found.</CommandEmpty>
-                <CommandGroup>
-                  {PREDEFINED_BENEFITS.map((benefit) => {
-                    const isSelected = selectedNames.includes(benefit.name)
-                    return (
+                {shouldShowCreate ? (
+                  <>
+                    <CommandEmpty>
+                      <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                        No benefit found.
+                      </div>
+                    </CommandEmpty>
+                    <CommandGroup>
                       <CommandItem
-                        key={benefit.name}
-                        value={benefit.name}
-                        onSelect={() => toggleBenefit(benefit.name)}
-                        className="cursor-pointer"
+                        value={searchValue}
+                        onSelect={handleCreateNewBenefit}
+                        className="cursor-pointer font-medium text-primary"
                       >
-                        <div className="flex items-center gap-2 flex-1">
-                          <Check
-                            className={cn(
-                              "h-4 w-4",
-                              isSelected ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          <span>{benefit.name}</span>
-                          {benefit.hasAmount && benefit.defaultUnit && (
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              ({benefit.defaultUnit === "days" ? "days" : benefit.defaultUnit === "count" ? "count" : benefit.defaultUnit === "percent" ? "%" : "PKR"})
-                            </span>
-                          )}
-                        </div>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create New Benefit
                       </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
-                <CommandSeparator />
-                <CommandGroup>
-                  <CommandItem
-                    onSelect={() => {
-                      setOpen(false)
-                      setCustomDialogOpen(true)
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Custom Benefit
-                  </CommandItem>
-                </CommandGroup>
+                    </CommandGroup>
+                  </>
+                ) : filteredBenefits.length === 0 ? (
+                  <CommandEmpty>No benefit found.</CommandEmpty>
+                ) : (
+                  <CommandGroup>
+                    {filteredBenefits.map((benefit) => {
+                      const isSelected = selectedNames.includes(benefit.name)
+                      return (
+                        <CommandItem
+                          key={benefit.name}
+                          value={benefit.name}
+                          onSelect={() => toggleBenefit(benefit.name)}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2 flex-1">
+                            <Check
+                              className={cn(
+                                "h-4 w-4",
+                                isSelected ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <span>{benefit.name}</span>
+                            {benefit.hasAmount && benefit.defaultUnit && (
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                ({benefit.defaultUnit === "days" ? "days" : benefit.defaultUnit === "count" ? "count" : benefit.defaultUnit === "percent" ? "%" : "PKR"})
+                              </span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      )
+                    })}
+                  </CommandGroup>
+                )}
               </CommandList>
             </Command>
           </PopoverContent>
         </Popover>
       </div>
-
-      {/* Selected Benefits Display */}
-      {benefits.length > 0 && (
-        <div className="space-y-2">
-          {benefits.map((benefit) => {
-            const template = PREDEFINED_BENEFITS.find(b => b.name === benefit.name)
-            const requiresAmount = template?.hasAmount ?? (benefit.amount !== null)
-            const currentUnit = benefit.unit || template?.defaultUnit || "PKR"
-            
-            return (
-              <div 
-                key={benefit.id} 
-                className="flex items-center gap-2 p-2 border rounded-md bg-muted/30"
-              >
-                <Badge variant="secondary" className="shrink-0">
-                  {benefit.name}
-                </Badge>
-                
-                {requiresAmount && (
-                  <div className="flex items-center gap-1 flex-1">
-                    <Input
-                      type="number"
-                      placeholder="Amount"
-                      value={benefit.amount ?? ""}
-                      onChange={(e) => updateBenefitAmount(benefit.id, parseInt(e.target.value) || 0)}
-                      disabled={disabled}
-                      className="h-8 w-24"
-                    />
-                    <Select
-                      value={currentUnit}
-                      onValueChange={(value) => updateBenefitUnit(benefit.id, value as BenefitUnit)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="h-8 w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PKR">PKR</SelectItem>
-                        <SelectItem value="days">Days</SelectItem>
-                        <SelectItem value="count">Count</SelectItem>
-                        <SelectItem value="percent">Percent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeBenefit(benefit.id)}
-                  disabled={disabled}
-                  className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            )
-          })}
-        </div>
-      )}
 
       {/* Custom Benefit Dialog */}
       <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
@@ -348,7 +348,13 @@ export function BenefitsSelector({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setCustomDialogOpen(false)}
+              onClick={() => {
+                setCustomDialogOpen(false)
+                setCustomBenefitName("")
+                setCustomHasAmount(false)
+                setCustomAmount("")
+                setCustomUnit("PKR")
+              }}
             >
               Cancel
             </Button>
@@ -362,6 +368,68 @@ export function BenefitsSelector({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Selected Benefits Display */}
+      {benefits.length > 0 && (
+        <div className="space-y-2">
+          {benefits.map((benefit) => {
+            const template = PREDEFINED_BENEFITS.find(b => b.name === benefit.name)
+            const requiresAmount = template?.hasAmount ?? (benefit.amount !== null)
+            const currentUnit = benefit.unit || template?.defaultUnit || "PKR"
+            
+            return (
+              <div 
+                key={benefit.id} 
+                className="flex items-center gap-2 p-2 border rounded-md bg-muted/30"
+              >
+                <Badge variant="secondary" className="shrink-0">
+                  {benefit.name}
+                </Badge>
+                
+                {requiresAmount && (
+                  <div className="flex items-center gap-1 flex-1">
+                    <Input
+                      type="number"
+                      placeholder="Amount"
+                      value={benefit.amount ?? ""}
+                      onChange={(e) => updateBenefitAmount(benefit.id, parseInt(e.target.value) || 0)}
+                      disabled={disabled}
+                      className="h-8 w-24"
+                    />
+                    <Select
+                      value={currentUnit}
+                      onValueChange={(value) => updateBenefitUnit(benefit.id, value as BenefitUnit)}
+                      disabled={disabled}
+                    >
+                      <SelectTrigger className="h-8 w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PKR">PKR</SelectItem>
+                        <SelectItem value="days">Days</SelectItem>
+                        <SelectItem value="count">Count</SelectItem>
+                        <SelectItem value="percent">Percent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeBenefit(benefit.id)}
+                  disabled={disabled}
+                  className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
     </div>
   )
 }

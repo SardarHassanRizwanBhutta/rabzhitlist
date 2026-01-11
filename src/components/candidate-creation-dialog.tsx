@@ -52,6 +52,8 @@ import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import { Candidate } from "@/lib/types/candidate"
 import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from "@/components/project-creation-dialog"
+import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
+import { CertificationCreationDialog, CertificationFormData, CertificationVerificationState } from "@/components/certification-creation-dialog"
 import { toast } from "sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
@@ -151,6 +153,10 @@ export interface CandidateFormData {
   
   // Standalone Tech Stacks - overall technical skills (not tied to specific employer)
   techStacks: string[]
+  // Top Developer flag
+  isTopDeveloper: boolean
+  // Personality Type
+  personalityType: string
 }
 
 // Extract unique employers from sample candidates
@@ -224,8 +230,10 @@ const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
   }))
 }
 
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
+// Base tech stack options (extracted from sample data)
+const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+// Base horizontal domain options (extracted from sample data)
+const baseHorizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
 const shiftTypeOptions: ComboboxOption[] = [
   { label: "Morning", value: "Morning" },
   { label: "Evening", value: "Evening" },
@@ -239,23 +247,42 @@ const workModeOptions: ComboboxOption[] = [
   { label: "Onsite", value: "Onsite" },
   { label: "Hybrid", value: "Hybrid" },
 ]
-/*
-const timeSupportZoneOptions: ComboboxOption[] = [
+
+// Personality type options (MBTI types)
+const personalityTypeOptions: ComboboxOption[] = [
+  { value: "ESTJ", label: "ESTJ - Executive" },
+  { value: "ENTJ", label: "ENTJ - Commander" },
+  { value: "ESFJ", label: "ESFJ - Consul" },
+  { value: "ENFJ", label: "ENFJ - Protagonist" },
+  { value: "ISTJ", label: "ISTJ - Logistician" },
+  { value: "ISFJ", label: "ISFJ - Defender" },
+  { value: "INTJ", label: "INTJ - Architect" },
+  { value: "INFJ", label: "INFJ - Advocate" },
+  { value: "ESTP", label: "ESTP - Entrepreneur" },
+  { value: "ESFP", label: "ESFP - Entertainer" },
+  { value: "ENTP", label: "ENTP - Debater" },
+  { value: "ENFP", label: "ENFP - Campaigner" },
+  { value: "ISTP", label: "ISTP - Virtuoso" },
+  { value: "ISFP", label: "ISFP - Adventurer" },
+  { value: "INTP", label: "INTP - Thinker" },
+  { value: "INFP", label: "INFP - Mediator" },
+]
+
+const timeSupportZoneOptions: MultiSelectOption[] = [
   { label: "US", value: "US" },
   { label: "UK", value: "UK" },
   { label: "EU", value: "EU" },
   { label: "APAC", value: "APAC" },
   { label: "MEA", value: "MEA" },
 ]
-*/
-// Convert sample certifications to combobox options
-const certificationOptions: ComboboxOption[] = sampleCertifications.map(cert => ({
+// Base certification options (extracted from sample data)
+const baseCertificationOptions: ComboboxOption[] = sampleCertifications.map(cert => ({
   label: cert.certificationName,
   value: cert.id
 }))
 
-// Convert university locations to combobox options
-const universityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(university =>
+// Base university location options (extracted from sample data)
+const baseUniversityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(university =>
   university.locations.map(location => ({
     label: `${university.name} - ${location.city}`,
     value: location.id
@@ -278,7 +305,8 @@ const extractUniqueDegreeNames = (): ComboboxOption[] => {
   }))
 }
 
-const degreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
+// Base degree options (extracted from sample data)
+const baseDegreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
 
 // Extract unique major names from sample candidates
 const extractUniqueMajorNames = (): ComboboxOption[] => {
@@ -296,7 +324,8 @@ const extractUniqueMajorNames = (): ComboboxOption[] => {
   }))
 }
 
-const majorOptions: ComboboxOption[] = extractUniqueMajorNames()
+// Base major options (extracted from sample data)
+const baseMajorOptions: ComboboxOption[] = extractUniqueMajorNames()
 
 // Reusable Combobox component following Shadcn/ui pattern
 interface ComboboxProps {
@@ -546,6 +575,8 @@ const initialFormData: CandidateFormData = {
   certifications: [],
   educations: [],
   techStacks: [],
+  isTopDeveloper: false,
+  personalityType: "",
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -610,6 +641,8 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       isCheetah: edu.isCheetah ?? false,
     })) || [],
     techStacks: candidate.techStacks || [],
+    isTopDeveloper: candidate.isTopDeveloper ?? false,
+    personalityType: candidate.personalityType || "",
   }
 }
 
@@ -684,6 +717,26 @@ export function CandidateCreationDialog({
     independentProjectIndex?: number
   } | null>(null)
   
+  // University creation state
+  const [universityLocationOptions, setUniversityLocationOptions] = useState<ComboboxOption[]>(baseUniversityLocationOptions)
+  const [createUniversityDialogOpen, setCreateUniversityDialogOpen] = useState(false)
+  const [pendingUniversityName, setPendingUniversityName] = useState<string>("")
+  const [pendingEducationIndex, setPendingEducationIndex] = useState<number | null>(null)
+  
+  // Certification creation state
+  const [certificationOptions, setCertificationOptions] = useState<ComboboxOption[]>(baseCertificationOptions)
+  const [createCertificationDialogOpen, setCreateCertificationDialogOpen] = useState(false)
+  const [pendingCertificationName, setPendingCertificationName] = useState<string>("")
+  const [pendingCertificationIndex, setPendingCertificationIndex] = useState<number | null>(null)
+  
+  // Degree and Major options state (for creatable functionality)
+  const [degreeOptions, setDegreeOptions] = useState<ComboboxOption[]>(baseDegreeOptions)
+  const [majorOptions, setMajorOptions] = useState<ComboboxOption[]>(baseMajorOptions)
+  
+  // Tech Stack and Domain options state (for creatable functionality)
+  const [techStackOptions, setTechStackOptions] = useState<MultiSelectOption[]>(baseTechStackOptions)
+  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
+  
   const [errors, setErrors] = useState<{
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>>
     workExperiences?: { 
@@ -710,7 +763,7 @@ export function CandidateCreationDialog({
     if (!showVerification) return { total: 0, verified: 0, percentage: 0 }
     
     // Count all verifiable fields
-    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl']
+    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl', 'personalityType']
     let total = basicFields.length
     let verified = basicFields.filter(f => verifiedFields.has(f)).length
     
@@ -793,7 +846,7 @@ export function CandidateCreationDialog({
   // Calculate section-specific progress
   const basicInfoProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
-    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl']
+    const basicFields = ['name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl', 'personalityType']
     const total = basicFields.length
     const verified = basicFields.filter(f => verifiedFields.has(f)).length
     return { 
@@ -1375,6 +1428,128 @@ export function CandidateCreationDialog({
     setCreateProjectDialogOpen(false)
     setPendingProjectName("")
     setPendingProjectContext(null)
+  }
+
+  // Handle university creation
+  const handleUniversityCreated = async (universityData: UniversityFormData) => {
+    try {
+      const universityName = universityData.name.trim()
+      
+      if (!universityName) {
+        toast.error("University name is required")
+        return
+      }
+
+      // Create location options for the new university
+      const newLocationOptions: ComboboxOption[] = universityData.locations.map(location => ({
+        label: `${universityName} - ${location.city}`,
+        value: location.id
+      }))
+      
+      // Add new location options to universityLocationOptions
+      setUniversityLocationOptions(prev => {
+        const updated = [...prev, ...newLocationOptions]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the first location (or main campus if available) in the relevant education field
+      if (pendingEducationIndex !== null) {
+        // Find main campus first, otherwise use first location
+        const mainCampus = universityData.locations.find(loc => loc.isMainCampus)
+        const locationToSelect = mainCampus || universityData.locations[0]
+        
+        if (locationToSelect) {
+          // Update the education field with the location ID and name
+          setFormData(prev => ({
+            ...prev,
+            educations: prev.educations.map((edu, i) =>
+              i === pendingEducationIndex ? {
+                ...edu,
+                universityLocationId: locationToSelect.id,
+                universityLocationName: `${universityName} - ${locationToSelect.city}`
+              } : edu
+            )
+          }))
+        }
+      }
+
+      // Show success toast
+      toast.success(`University "${universityName}" has been created successfully.`)
+
+      // Close dialog and reset state
+      setCreateUniversityDialogOpen(false)
+      setPendingUniversityName("")
+      setPendingEducationIndex(null)
+    } catch (error) {
+      console.error("Error creating university:", error)
+      toast.error("Failed to create university. Please try again.")
+    }
+  }
+
+  // Handle university creation cancel
+  const handleUniversityCreationCancel = () => {
+    setCreateUniversityDialogOpen(false)
+    setPendingUniversityName("")
+    setPendingEducationIndex(null)
+  }
+
+  // Handle certification creation success
+  const handleCertificationCreated = async (certificationData: CertificationFormData) => {
+    try {
+      const certificationName = certificationData.certificationName.trim()
+      
+      if (!certificationName) {
+        toast.error("Certification name is required")
+        return
+      }
+
+      // Generate a new ID for the certification (in a real app, this would come from the API)
+      const newCertificationId = crypto.randomUUID()
+      
+      // Create new certification option
+      const newCertificationOption: ComboboxOption = {
+        label: certificationName,
+        value: newCertificationId
+      }
+      
+      // Add new certification to options list
+      setCertificationOptions(prev => {
+        const updated = [...prev, newCertificationOption]
+        return updated.sort((a, b) => a.label.localeCompare(b.label))
+      })
+
+      // Auto-select the newly created certification in the relevant certification field
+      if (pendingCertificationIndex !== null) {
+        setFormData(prev => ({
+          ...prev,
+          certifications: prev.certifications.map((cert, i) =>
+            i === pendingCertificationIndex ? {
+              ...cert,
+              certificationId: newCertificationId,
+              certificationName: certificationName
+            } : cert
+          )
+        }))
+      }
+
+      // Show success toast
+      toast.success(`Certification "${certificationName}" has been created successfully.`)
+
+      // Close dialog and reset state
+      setCreateCertificationDialogOpen(false)
+      setPendingCertificationName("")
+      setPendingCertificationIndex(null)
+    } catch (error) {
+      console.error("Error creating certification:", error)
+      toast.error("Failed to create certification. Please try again.")
+    }
+  }
+
+  // Handle certification creation cancel
+  const handleCertificationCreationCancel = () => {
+    setCreateCertificationDialogOpen(false)
+    setPendingCertificationName("")
+    setPendingCertificationIndex(null)
   }
 
   const handleWorkExperienceChange = (
@@ -2203,6 +2378,48 @@ export function CandidateCreationDialog({
                 {errors.basic?.githubUrl && <p className="text-sm text-red-500">{errors.basic.githubUrl}</p>}
                 <VerificationCheckbox fieldPath="githubUrl" />
               </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isTopDeveloper"
+                    checked={formData.isTopDeveloper}
+                    onCheckedChange={(checked) => {
+                      setFormData(prev => ({ ...prev, isTopDeveloper: !!checked }))
+                      if (showVerification) {
+                        setModifiedFields(prev => new Set(prev).add("isTopDeveloper"))
+                        setVerifiedFields(prev => new Set(prev).add("isTopDeveloper"))
+                      }
+                    }}
+                  />
+                  <Label htmlFor="isTopDeveloper" className="text-sm font-normal cursor-pointer">
+                    Top Developer
+                  </Label>
+                </div>
+                <VerificationCheckbox fieldPath="isTopDeveloper" />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="personalityType">Personality Type</Label>
+                <ReusableCombobox
+                  options={personalityTypeOptions}
+                  value={formData.personalityType}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({ ...prev, personalityType: value }))
+                    if (showVerification) {
+                      setModifiedFields(prev => new Set(prev).add("personalityType"))
+                      setVerifiedFields(prev => new Set(prev).add("personalityType"))
+                    }
+                  }}
+                  placeholder="Select personality type..."
+                  searchPlaceholder="Search personality types..."
+                  className={errors.basic?.personalityType ? "border-red-500" : ""}
+                />
+                {errors.basic?.personalityType && (
+                  <p className="text-sm text-red-500">{errors.basic.personalityType}</p>
+                )}
+                <VerificationCheckbox fieldPath="personalityType" />
+              </div>
               </div>
             </CardContent>
           </Card>
@@ -2399,6 +2616,18 @@ export function CandidateCreationDialog({
                         placeholder="Select technologies..."
                         searchPlaceholder="Search tech stacks..."
                         maxDisplay={4}
+                        creatable={true}
+                        createLabel="Create New Tech Stack"
+                        onCreateNew={(newTechStack) => {
+                          // Add the new tech stack to options
+                          const newOption = { label: newTechStack, value: newTechStack }
+                          setTechStackOptions(prev => {
+                            const updated = [...prev, newOption]
+                            return updated.sort((a, b) => a.label.localeCompare(b.label))
+                          })
+                          // Auto-select the newly added tech stack
+                          handleWorkExperienceChange(index, "techStacks", [...experience.techStacks, newTechStack])
+                        }}
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
                     </div>
@@ -2412,6 +2641,18 @@ export function CandidateCreationDialog({
                         placeholder="Select domains..."
                         searchPlaceholder="Search domains..."
                         maxDisplay={4}
+                        creatable={true}
+                        createLabel="Create New Domain"
+                        onCreateNew={(newDomain) => {
+                          // Add the new domain to options
+                          const newOption = { label: newDomain, value: newDomain }
+                          setHorizontalDomainOptions(prev => {
+                            const updated = [...prev, newOption]
+                            return updated.sort((a, b) => a.label.localeCompare(b.label))
+                          })
+                          // Auto-select the newly added domain
+                          handleWorkExperienceChange(index, "domains", [...experience.domains, newDomain])
+                        }}
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.domains`} />
                     </div>
@@ -2439,6 +2680,20 @@ export function CandidateCreationDialog({
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.workMode`} />
                     </div>
+                  </div>
+
+                  {/* Time Support Zones */}
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor={`timeSupportZones-${index}`}>Time Support Zones</Label>
+                    <MultiSelect
+                      items={timeSupportZoneOptions}
+                      selected={experience.timeSupportZones}
+                      onChange={(values) => handleWorkExperienceChange(index, "timeSupportZones", values)}
+                      placeholder="Select time zones..."
+                      searchPlaceholder="Search time zones..."
+                      maxDisplay={5}
+                    />
+                    <VerificationCheckbox fieldPath={`workExperiences.${index}.timeSupportZones`} />
                   </div>
 
                   {/* Benefits Section */}
@@ -2645,6 +2900,19 @@ export function CandidateCreationDialog({
                       placeholder="Select tech stacks..."
                       searchPlaceholder="Search technologies..."
                       maxDisplay={4}
+                      creatable={true}
+                      createLabel="Create New Tech Stack"
+                      onCreateNew={(newTechStack) => {
+                        // Add the new tech stack to options
+                        const newOption = { label: newTechStack, value: newTechStack }
+                        setTechStackOptions(prev => {
+                          const updated = [...prev, newOption]
+                          return updated.sort((a, b) => a.label.localeCompare(b.label))
+                        })
+                        // Auto-select the newly added tech stack
+                        setFormData(prev => ({ ...prev, techStacks: [...prev.techStacks, newTechStack] }))
+                        markFieldModified('techStacks')
+                      }}
                     />
                     <VerificationCheckbox fieldPath="techStacks" />
                   </div>
@@ -2893,6 +3161,13 @@ export function CandidateCreationDialog({
                             placeholder="Select university location..."
                             searchPlaceholder="Search universities..."
                             className={errors.educations?.[index]?.universityLocationId ? "border-red-500" : ""}
+                            creatable={true}
+                            createLabel="Add New University"
+                            onCreateNew={(searchValue) => {
+                              setPendingUniversityName(searchValue)
+                              setPendingEducationIndex(index)
+                              setCreateUniversityDialogOpen(true)
+                            }}
                           />
                           {errors.educations?.[index]?.universityLocationId && (
                             <p className="text-sm text-red-500">{errors.educations[index].universityLocationId}</p>
@@ -2909,6 +3184,18 @@ export function CandidateCreationDialog({
                             placeholder="Select degree..."
                             searchPlaceholder="Search degrees..."
                             className={errors.educations?.[index]?.degreeName ? "border-red-500" : ""}
+                            creatable={true}
+                            createLabel="Add New Degree"
+                            onCreateNew={(newDegree) => {
+                              // Add the new degree to options
+                              const newOption = { label: newDegree, value: newDegree }
+                              setDegreeOptions(prev => {
+                                const updated = [...prev, newOption]
+                                return updated.sort((a, b) => a.label.localeCompare(b.label))
+                              })
+                              // Auto-select the newly added degree
+                              handleEducationChange(index, "degreeName", newDegree)
+                            }}
                           />
                           {errors.educations?.[index]?.degreeName && (
                             <p className="text-sm text-red-500">{errors.educations[index].degreeName}</p>
@@ -2925,6 +3212,18 @@ export function CandidateCreationDialog({
                             placeholder="Select major..."
                             searchPlaceholder="Search majors..."
                             className={errors.educations?.[index]?.majorName ? "border-red-500" : ""}
+                            creatable={true}
+                            createLabel="Add New Major"
+                            onCreateNew={(newMajor) => {
+                              // Add the new major to options
+                              const newOption = { label: newMajor, value: newMajor }
+                              setMajorOptions(prev => {
+                                const updated = [...prev, newOption]
+                                return updated.sort((a, b) => a.label.localeCompare(b.label))
+                              })
+                              // Auto-select the newly added major
+                              handleEducationChange(index, "majorName", newMajor)
+                            }}
                           />
                           {errors.educations?.[index]?.majorName && (
                             <p className="text-sm text-red-500">{errors.educations[index].majorName}</p>
@@ -3141,6 +3440,13 @@ export function CandidateCreationDialog({
                             placeholder="Select certification..."
                             searchPlaceholder="Search certifications..."
                             className={errors.certifications?.[index]?.certificationId ? "border-red-500" : ""}
+                            creatable={true}
+                            createLabel="Add New Certification"
+                            onCreateNew={(searchValue) => {
+                              setPendingCertificationName(searchValue)
+                              setPendingCertificationIndex(index)
+                              setCreateCertificationDialogOpen(true)
+                            }}
                           />
                           {errors.certifications?.[index]?.certificationId && (
                             <p className="text-sm text-red-500">{errors.certifications[index].certificationId}</p>
@@ -3325,6 +3631,40 @@ export function CandidateCreationDialog({
           await handleProjectCreated(projectData)
         }}
         initialName={pendingProjectName}
+      />
+
+      {/* Create University Dialog */}
+      <UniversityCreationDialog
+        mode="create"
+        open={createUniversityDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleUniversityCreationCancel()
+          } else {
+            setCreateUniversityDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (universityData: UniversityFormData) => {
+          await handleUniversityCreated(universityData)
+        }}
+        initialName={pendingUniversityName}
+      />
+
+      {/* Create Certification Dialog */}
+      <CertificationCreationDialog
+        mode="create"
+        open={createCertificationDialogOpen}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            handleCertificationCreationCancel()
+          } else {
+            setCreateCertificationDialogOpen(isOpen)
+          }
+        }}
+        onSubmit={async (certificationData: CertificationFormData) => {
+          await handleCertificationCreated(certificationData)
+        }}
+        initialName={pendingCertificationName}
       />
     </Dialog>
   )

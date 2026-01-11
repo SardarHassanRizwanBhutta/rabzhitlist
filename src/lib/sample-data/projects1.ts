@@ -19,6 +19,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-06-01"),
     updatedAt: new Date("2024-01-15"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-002", 
@@ -38,6 +40,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-08-15"),
     updatedAt: new Date("2024-01-10"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-003",
@@ -57,6 +61,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-03-25"),
     updatedAt: new Date("2024-01-20"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-004",
@@ -76,6 +82,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-08-05"),
     updatedAt: new Date("2024-01-05"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-005",
@@ -95,6 +103,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-01-01"),
     updatedAt: new Date("2023-12-31"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-006",
@@ -114,6 +124,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-09-15"),
     updatedAt: new Date("2024-01-12"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-007",
@@ -133,6 +145,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-02-15"),
     updatedAt: new Date("2024-01-15"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-008",
@@ -152,6 +166,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-009",
@@ -171,6 +187,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-010",
@@ -190,6 +208,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-011",
@@ -209,6 +229,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-012",
@@ -228,6 +250,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-013",
@@ -247,6 +271,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-014",
@@ -266,6 +292,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-015",
@@ -285,6 +313,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-016",
@@ -304,6 +334,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-017",
@@ -323,6 +355,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-018",
@@ -342,6 +376,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-019",
@@ -361,6 +397,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-020",
@@ -380,6 +418,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-021",
@@ -399,6 +439,8 @@ export const sampleProjects: Project[] = [
     projectType: "Freelance",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-022",
@@ -418,6 +460,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-023",
@@ -437,6 +481,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-024",
@@ -456,6 +502,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-025",
@@ -475,6 +523,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-026",
@@ -494,6 +544,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-027",
@@ -513,6 +565,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-028",
@@ -532,6 +586,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-029",
@@ -551,6 +607,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-030",
@@ -570,6 +628,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-031",
@@ -589,6 +649,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-032",
@@ -608,6 +670,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-033",
@@ -627,6 +691,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-034",
@@ -646,6 +712,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-035",
@@ -665,6 +733,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-036",
@@ -684,6 +754,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-037",
@@ -703,6 +775,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-038",
@@ -722,6 +796,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-039",
@@ -741,6 +817,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-040",
@@ -760,6 +838,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-041",
@@ -779,6 +859,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-042",
@@ -798,6 +880,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-043",
@@ -817,6 +901,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-044",
@@ -836,6 +922,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-045",
@@ -855,6 +943,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-046",
@@ -874,6 +964,8 @@ export const sampleProjects: Project[] = [
     projectType: "Academic",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-047",
@@ -893,6 +985,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-048",
@@ -912,6 +1006,8 @@ export const sampleProjects: Project[] = [
     projectType: "Freelance",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-049",
@@ -931,6 +1027,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-050",
@@ -950,6 +1048,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-051",
@@ -969,6 +1069,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-052",
@@ -988,6 +1090,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-053",
@@ -1007,6 +1111,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-054",
@@ -1026,6 +1132,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-055",
@@ -1045,6 +1153,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-056",
@@ -1064,6 +1174,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-057",
@@ -1083,6 +1195,8 @@ export const sampleProjects: Project[] = [
     projectType: "Employer",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-058",
@@ -1102,6 +1216,8 @@ export const sampleProjects: Project[] = [
     projectType: "Academic",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-059",
@@ -1121,6 +1237,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-060",
@@ -1140,6 +1258,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-061",
@@ -1159,6 +1279,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-062",
@@ -1178,6 +1300,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-063",
@@ -1197,6 +1321,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-064",
@@ -1216,6 +1342,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-065",
@@ -1235,6 +1363,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-066",
@@ -1254,6 +1384,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-067",
@@ -1273,6 +1405,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-068",
@@ -1292,6 +1426,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-069",
@@ -1311,6 +1447,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
   {
     id: "proj-070",
@@ -1330,6 +1468,8 @@ export const sampleProjects: Project[] = [
     projectType: "Personal",
     createdAt: new Date("2023-07-01"),
     updatedAt: new Date("2024-01-18"),
+    isPublished: false,
+    publishPlatforms: [],
   },
 
 ]

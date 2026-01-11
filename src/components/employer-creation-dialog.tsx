@@ -37,6 +37,11 @@ import {
 } from "@/components/ui/select"
 import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react"
 import { Employer, EmployerStatus, SalaryPolicy, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS } from "@/lib/types/employer"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { sampleProjects } from "@/lib/sample-data/projects"
+import { EmployerBenefit } from "@/lib/types/benefits"
+import { BenefitsSelector } from "@/components/ui/benefits-selector"
 
 // Form data interfaces
 export interface EmployerLocationFormData {
@@ -56,6 +61,8 @@ export interface EmployerFormData {
   linkedinUrl: string
   status: EmployerStatus | ""
   foundedYear: string
+  techStacks: string[]
+  benefits: EmployerBenefit[]
   locations: EmployerLocationFormData[]
 }
 
@@ -95,6 +102,8 @@ const initialFormData: EmployerFormData = {
   linkedinUrl: "",
   status: "",
   foundedYear: "",
+  techStacks: [],
+  benefits: [],
   locations: [createEmptyLocation()], // Start with one location
 }
 
@@ -110,6 +119,137 @@ const salaryPolicyOptions = Object.entries(SALARY_POLICY_LABELS).map(([value, la
   label
 }))
 
+// Extract unique tech stacks from candidates and projects
+const extractUniqueTechStacks = (): MultiSelectOption[] => {
+  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
+  
+  // From candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    })
+    // Also include standalone tech stacks from candidate level
+    candidate.techStacks?.forEach(tech => {
+      const lowerTech = tech.toLowerCase().trim()
+      if (lowerTech && !techStacksMap.has(lowerTech)) {
+        techStacksMap.set(lowerTech, tech.trim())
+      }
+    })
+  })
+  
+  // From projects
+  sampleProjects.forEach(project => {
+    project.techStacks.forEach(tech => {
+      const lowerTech = tech.toLowerCase().trim()
+      if (lowerTech && !techStacksMap.has(lowerTech)) {
+        techStacksMap.set(lowerTech, tech.trim())
+      }
+    })
+  })
+  
+  return Array.from(techStacksMap.values()).sort().map(tech => ({
+    label: tech,
+    value: tech
+  }))
+}
+
+// Tech stack options
+const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+
+// Create a map for case-insensitive lookup of tech stack options
+const techStackOptionsMap = new Map<string, string>() // Map<lowercase, original>
+techStackOptions.forEach(option => {
+  const lower = option.value.toLowerCase().trim()
+  if (!techStackOptionsMap.has(lower)) {
+    techStackOptionsMap.set(lower, option.value)
+  }
+})
+
+// Helper to normalize tech stack to match options (case-insensitive)
+const normalizeTechStack = (tech: string): string => {
+  const normalized = tech.trim()
+  const lower = normalized.toLowerCase()
+  // Return the original case from options if found, otherwise return trimmed original
+  return techStackOptionsMap.get(lower) || normalized
+}
+
+// Get tech stacks for an employer (from employer data or candidates)
+const getEmployerTechStacks = (employer: Employer): string[] => {
+  const techStacksSet = new Set<string>()
+  
+  // If employer has explicit tech stacks, add them first (normalized to match options)
+  if (employer.techStacks && employer.techStacks.length > 0) {
+    employer.techStacks.forEach(tech => {
+      techStacksSet.add(normalizeTechStack(tech))
+    })
+  }
+  
+  // Also extract from candidates' work experiences (normalized to match options)
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (exact match after normalization)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      // Use exact match for precision, but also handle common variations
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch) {
+        we.techStacks.forEach(tech => {
+          const normalized = normalizeTechStack(tech)
+          if (normalized) {
+            techStacksSet.add(normalized)
+          }
+        })
+      }
+    })
+  })
+  
+  return Array.from(techStacksSet).sort()
+}
+
+// Get benefits for an employer (from employer data or candidates)
+const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
+  const benefitsMap = new Map<string, EmployerBenefit>()
+  
+  // First, use benefits from employer if they exist
+  if (employer.benefits && employer.benefits.length > 0) {
+    employer.benefits.forEach(benefit => {
+      const key = benefit.name.toLowerCase().trim()
+      benefitsMap.set(key, { ...benefit })
+    })
+  }
+  
+  // Also extract from candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (exact match after normalization)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      // Use exact match for precision, but also handle common variations
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch) {
+        we.benefits.forEach(benefit => {
+          // Use benefit name as key to deduplicate
+          const key = benefit.name.toLowerCase().trim()
+          // Only add if not already present (employer's explicit benefits take precedence)
+          if (!benefitsMap.has(key)) {
+            benefitsMap.set(key, { ...benefit })
+          }
+        })
+      }
+    })
+  })
+  return Array.from(benefitsMap.values())
+}
+
 // Helper function to convert Employer to EmployerFormData
 const employerToFormData = (employer: Employer): EmployerFormData => {
   return {
@@ -118,6 +258,8 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     linkedinUrl: employer.linkedinUrl || "",
     status: employer.status || "",
     foundedYear: employer.foundedYear?.toString() || "",
+    techStacks: getEmployerTechStacks(employer),
+    benefits: getEmployerBenefits(employer),
     locations: employer.locations.map(loc => ({
       id: loc.id,
       country: loc.country || "",
@@ -853,6 +995,40 @@ export function EmployerCreationDialog({
                           />
                           {errors.employer?.linkedinUrl && <p className="text-sm text-red-500">{errors.employer.linkedinUrl}</p>}
                           <VerificationCheckbox fieldName="linkedinUrl" />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor="techStacks">Tech Stacks</Label>
+                          <MultiSelect
+                            items={techStackOptions}
+                            selected={formData.techStacks}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, techStacks: values }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("techStacks"))
+                                setVerifiedFields(prev => new Set(prev).add("techStacks"))
+                              }
+                            }}
+                            placeholder="Select technologies..."
+                            searchPlaceholder="Search technologies..."
+                            maxDisplay={4}
+                          />
+                          <VerificationCheckbox fieldName="techStacks" />
+                        </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor="benefits">Benefits</Label>
+                          <BenefitsSelector
+                            benefits={formData.benefits}
+                            onChange={(benefits) => {
+                              setFormData(prev => ({ ...prev, benefits }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("benefits"))
+                                setVerifiedFields(prev => new Set(prev).add("benefits"))
+                              }
+                            }}
+                          />
+                          <VerificationCheckbox fieldName="benefits" />
                         </div>
                       </div>
                     </CardContent>

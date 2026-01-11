@@ -21,16 +21,25 @@ const initialFilters: ProjectFilters = {
   status: [],
   projectTypes: [],
   employers: [],
+  employerCities: [],
+  employerCountries: [],
+  employerTypes: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
   techStacks: [],
-  startDate: null,
-  endDate: null,
+  completionDateStart: null,
+  completionDateEnd: null,
+  startEndDateStart: null,
+  startEndDateEnd: null,
+  startDateStart: null,
+  startDateEnd: null,
   teamSizeMin: "",
   teamSizeMax: "",
   projectName: "",
   projectLink: "",
+  isPublished: null,
+  publishPlatforms: [],
 }
 
 export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
@@ -184,6 +193,44 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
         if (!hasMatchingEmployer) return false
       }
 
+      // Employer Cities filter
+      if (filters.employerCities.length > 0) {
+        if (project.employerName === null) {
+          return false
+        }
+        // Find the employer for this project (case-insensitive match)
+        const employer = sampleEmployers.find(emp => 
+          emp.name.trim().toLowerCase() === project.employerName?.trim().toLowerCase()
+        )
+        if (!employer) {
+          return false
+        }
+        // Check if employer has any location in the selected cities
+        const hasMatchingCity = employer.locations.some(location => 
+          location.city !== null && filters.employerCities.includes(location.city)
+        )
+        if (!hasMatchingCity) return false
+      }
+
+      // Employer Countries filter
+      if (filters.employerCountries.length > 0) {
+        if (project.employerName === null) {
+          return false
+        }
+        // Find the employer for this project (case-insensitive match)
+        const employer = sampleEmployers.find(emp => 
+          emp.name.trim().toLowerCase() === project.employerName?.trim().toLowerCase()
+        )
+        if (!employer) {
+          return false
+        }
+        // Check if employer has any location in the selected countries
+        const hasMatchingCountry = employer.locations.some(location => 
+          location.country !== null && filters.employerCountries.includes(location.country)
+        )
+        if (!hasMatchingCountry) return false
+      }
+
       // Tech Stacks filter
       if (filters.techStacks.length > 0) {
         const hasMatchingTech = project.techStacks.some(tech =>
@@ -217,66 +264,127 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
       }
 
       // Date Range filters
-      // If both startDate and endDate are set, filter projects that have activity within the range
-      // (project starts before/on filter end date AND project ends after/on filter start date, or is ongoing)
-      // If only startDate is set, filter projects that start on or after that date
-      // If only endDate is set, filter projects that end on or before that date (or started before if ongoing)
-      if (filters.startDate || filters.endDate) {
-        const projectStartDate = project.startDate ? new Date(project.startDate) : null
-        const projectEndDate = project.endDate ? new Date(project.endDate) : null
+      const projectStartDate = project.startDate ? new Date(project.startDate) : null
+      const projectEndDate = project.endDate ? new Date(project.endDate) : null
 
-        // If both dates are set, check if project has activity within the date range
-        if (filters.startDate && filters.endDate) {
-          const filterStartDate = new Date(filters.startDate)
-          const filterEndDate = new Date(filters.endDate)
-          
-          // Set times for proper comparison
-          filterStartDate.setHours(0, 0, 0, 0)
-          filterEndDate.setHours(23, 59, 59, 999)
-          
-          // For date range filtering, include projects that:
-          // 1. Have an end date within the range (completed projects)
-          // 2. Are ongoing but started before/on filter end date (active during range)
-          if (projectEndDate) {
-            // Completed project - check if end date is within the range
-            projectEndDate.setHours(23, 59, 59, 999)
-            if (projectEndDate < filterStartDate || projectEndDate > filterEndDate) {
-              return false
-            }
-          } else {
-            // Ongoing project (endDate is null) - include if it started before/on filter end date
-            if (!projectStartDate) return false
-            projectStartDate.setHours(0, 0, 0, 0)
-            if (projectStartDate > filterEndDate) {
-              return false
-            }
-          }
-        } else if (filters.startDate) {
-          // Only start date filter - project should start on or after filter start date
-          if (!projectStartDate) return false
-          const filterStartDate = new Date(filters.startDate)
-          filterStartDate.setHours(0, 0, 0, 0)
-          projectStartDate.setHours(0, 0, 0, 0)
-          if (projectStartDate < filterStartDate) return false
-        } else if (filters.endDate) {
-          // Only end date filter - project should end on or before filter end date
-          // For ongoing projects (no end date), include them if they started before or on filter end date
-          if (projectEndDate) {
-            const filterEndDate = new Date(filters.endDate)
-            filterEndDate.setHours(23, 59, 59, 999)
-            projectEndDate.setHours(23, 59, 59, 999)
-            if (projectEndDate > filterEndDate) return false
-          } else if (projectStartDate) {
-            // Ongoing project - include if it started before or on filter end date
-            const filterEndDate = new Date(filters.endDate)
-            filterEndDate.setHours(23, 59, 59, 999)
-            projectStartDate.setHours(0, 0, 0, 0)
-            if (projectStartDate > filterEndDate) return false
-          } else {
-            // No start or end date - exclude
-            return false
-          }
+      // 1. Completion Date Range Filter - filters by endDate only
+      if (filters.completionDateStart && filters.completionDateEnd) {
+        const filterStartDate = new Date(filters.completionDateStart)
+        const filterEndDate = new Date(filters.completionDateEnd)
+        filterStartDate.setHours(0, 0, 0, 0)
+        filterEndDate.setHours(23, 59, 59, 999)
+        
+        // Only check project end date (completion date)
+        if (!projectEndDate) {
+          return false  // Exclude ongoing projects
         }
+        
+        projectEndDate.setHours(23, 59, 59, 999)
+        if (projectEndDate < filterStartDate || projectEndDate > filterEndDate) {
+          return false
+        }
+      } else if (filters.completionDateStart && !filters.completionDateEnd) {
+        // Only completion start date - project must have completed on or after this date
+        const filterStartDate = new Date(filters.completionDateStart)
+        filterStartDate.setHours(0, 0, 0, 0)
+        if (!projectEndDate) return false
+        projectEndDate.setHours(23, 59, 59, 999)
+        if (projectEndDate < filterStartDate) return false
+      } else if (filters.completionDateEnd && !filters.completionDateStart) {
+        // Only completion end date - project must have completed on or before this date
+        const filterEndDate = new Date(filters.completionDateEnd)
+        filterEndDate.setHours(23, 59, 59, 999)
+        if (!projectEndDate) return false
+        projectEndDate.setHours(23, 59, 59, 999)
+        if (projectEndDate > filterEndDate) return false
+      }
+
+      // 2. Start & End Date Range Filter - filters projects that started AND completed within range
+      if (filters.startEndDateStart && filters.startEndDateEnd) {
+        const filterStartDate = new Date(filters.startEndDateStart)
+        const filterEndDate = new Date(filters.startEndDateEnd)
+        filterStartDate.setHours(0, 0, 0, 0)
+        filterEndDate.setHours(23, 59, 59, 999)
+        
+        // Project must have started within range
+        if (!projectStartDate) {
+          return false
+        }
+        projectStartDate.setHours(0, 0, 0, 0)
+        if (projectStartDate < filterStartDate || projectStartDate > filterEndDate) {
+          return false
+        }
+        
+        // Project must have completed within range
+        if (!projectEndDate) {
+          return false  // Exclude ongoing projects
+        }
+        projectEndDate.setHours(23, 59, 59, 999)
+        if (projectEndDate < filterStartDate || projectEndDate > filterEndDate) {
+          return false
+        }
+      } else if (filters.startEndDateStart && !filters.startEndDateEnd) {
+        // Only start & end start date - project must have started on or after this date AND completed
+        const filterStartDate = new Date(filters.startEndDateStart)
+        filterStartDate.setHours(0, 0, 0, 0)
+        if (!projectStartDate) return false
+        projectStartDate.setHours(0, 0, 0, 0)
+        if (projectStartDate < filterStartDate) return false
+        if (!projectEndDate) return false  // Must be completed
+      } else if (filters.startEndDateEnd && !filters.startEndDateStart) {
+        // Only start & end end date - project must have started AND completed on or before this date
+        const filterEndDate = new Date(filters.startEndDateEnd)
+        filterEndDate.setHours(23, 59, 59, 999)
+        if (!projectStartDate || !projectEndDate) return false
+        projectStartDate.setHours(0, 0, 0, 0)
+        projectEndDate.setHours(23, 59, 59, 999)
+        if (projectStartDate > filterEndDate || projectEndDate > filterEndDate) return false
+      }
+
+      // 3. Start Date Range Filter - filters by startDate only
+      if (filters.startDateStart && filters.startDateEnd) {
+        const filterStartDate = new Date(filters.startDateStart)
+        const filterEndDate = new Date(filters.startDateEnd)
+        filterStartDate.setHours(0, 0, 0, 0)
+        filterEndDate.setHours(23, 59, 59, 999)
+        
+        // Only check project start date
+        if (!projectStartDate) {
+          return false
+        }
+        
+        projectStartDate.setHours(0, 0, 0, 0)
+        if (projectStartDate < filterStartDate || projectStartDate > filterEndDate) {
+          return false
+        }
+      } else if (filters.startDateStart && !filters.startDateEnd) {
+        // Only start date start - project must have started on or after this date
+        const filterStartDate = new Date(filters.startDateStart)
+        filterStartDate.setHours(0, 0, 0, 0)
+        if (!projectStartDate) return false
+        projectStartDate.setHours(0, 0, 0, 0)
+        if (projectStartDate < filterStartDate) return false
+      } else if (filters.startDateEnd && !filters.startDateStart) {
+        // Only start date end - project must have started on or before this date
+        const filterEndDate = new Date(filters.startDateEnd)
+        filterEndDate.setHours(23, 59, 59, 999)
+        if (!projectStartDate) return false
+        projectStartDate.setHours(0, 0, 0, 0)
+        if (projectStartDate > filterEndDate) return false
+      }
+
+      // Employer Types filter
+      if (filters.employerTypes.length > 0) {
+        if (project.employerName === null) {
+          return false
+        }
+        // Find the employer for this project (case-insensitive match)
+        const employer = sampleEmployers.find(emp =>
+          emp.name.toLowerCase() === project.employerName!.toLowerCase()
+        )
+        if (!employer) return false
+        
+        if (!filters.employerTypes.includes(employer.employerType)) return false
       }
 
       // Team Size filter
@@ -312,6 +420,38 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
             return false // Project's min team size is above filter maximum
           }
         }
+      }
+
+      // Published App filter
+      if (filters.isPublished !== null) {
+        if (filters.isPublished === true && !project.isPublished) {
+          return false // Filter requires published, but project is not published
+        }
+        if (filters.isPublished === false && project.isPublished) {
+          return false // Filter requires unpublished, but project is published
+        }
+        
+        // If platform filter is also applied, further filter by platforms
+        if (filters.publishPlatforms.length > 0 && project.isPublished) {
+          const hasPlatformMatch = project.publishPlatforms?.some(platform =>
+            filters.publishPlatforms.includes(platform)
+          )
+          if (!hasPlatformMatch) return false
+        }
+      }
+      
+      // Filter by platforms only (independent of isPublished)
+      // If platforms are selected but isPublished is not checked,
+      // we still filter for published projects (platforms imply published status)
+      if (filters.publishPlatforms.length > 0 && filters.isPublished !== true) {
+        // Find published projects with matching platforms
+        if (!project.isPublished) {
+          return false // Platforms imply published status
+        }
+        const hasPlatformMatch = project.publishPlatforms?.some(platform =>
+          filters.publishPlatforms.includes(platform)
+        )
+        if (!hasPlatformMatch) return false
       }
 
       return true

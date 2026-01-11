@@ -42,6 +42,7 @@ import { Certification, CertificationLevel, CERTIFICATION_LEVEL_LABELS } from "@
 export interface CertificationFormData {
   certificationName: string
   issuingBody: string
+  issuingBodyWebsite: string
   certificationLevel: CertificationLevel | ""
 }
 
@@ -61,11 +62,13 @@ interface CertificationCreationDialogProps {
   onSubmit?: (data: CertificationFormData, verificationState?: CertificationVerificationState) => Promise<void> | void
   onOpenChange?: (open: boolean) => void
   open?: boolean
+  initialName?: string
 }
 
 const initialFormData: CertificationFormData = {
   certificationName: "",
   issuingBody: "",
+  issuingBodyWebsite: "",
   certificationLevel: "",
 }
 
@@ -80,13 +83,14 @@ const certificationToFormData = (certification: Certification): CertificationFor
   return {
     certificationName: certification.certificationName || "",
     issuingBody: certification.issuingBody || "",
+    issuingBodyWebsite: (certification as unknown as { issuingBodyWebsite?: string }).issuingBodyWebsite || "",
     certificationLevel: certification.certificationLevel || "",
   }
 }
 
 // All verifiable fields for certifications
 const CERTIFICATION_VERIFICATION_FIELDS = [
-  'certificationName', 'issuingBody', 'certificationLevel'
+  'certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel'
 ]
 
 export function CertificationCreationDialog({
@@ -97,6 +101,7 @@ export function CertificationCreationDialog({
   onSubmit,
   onOpenChange,
   open: controlledOpen,
+  initialName,
 }: CertificationCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -131,8 +136,12 @@ export function CertificationCreationDialog({
         setFormData(formDataFromCertification)
         initialFormDataRef.current = formDataFromCertification
       } else {
-        setFormData(initialFormData)
-        initialFormDataRef.current = initialFormData
+        // In create mode, check for initialName prop
+        const formDataToUse = initialName 
+          ? { ...initialFormData, certificationName: initialName }
+          : initialFormData
+        setFormData(formDataToUse)
+        initialFormDataRef.current = formDataToUse
       }
       setErrors({})
       setModifiedFields(new Set())
@@ -151,7 +160,7 @@ export function CertificationCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, certificationData, showVerification])
+  }, [open, mode, certificationData, showVerification, initialName])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -242,7 +251,7 @@ export function CertificationCreationDialog({
 
   // Section progress calculations
   const basicInfoProgress = useMemo(() => 
-    calculateSectionProgress(['certificationName', 'issuingBody', 'certificationLevel']),
+    calculateSectionProgress(['certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel']),
     [verifiedFields]
   )
 
@@ -256,7 +265,7 @@ export function CertificationCreationDialog({
   // Helper to get field names for a section
   const getSectionFieldNames = (sectionId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      'basic-info': ['certificationName', 'issuingBody', 'certificationLevel'],
+      'basic-info': ['certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel'],
     }
     return fieldMap[sectionId] || []
   }
@@ -347,6 +356,15 @@ export function CertificationCreationDialog({
       newErrors.issuingBody = "Issuing body is required"
     }
 
+    // URL validation for issuing body website
+    if (formData.issuingBodyWebsite.trim()) {
+      try {
+        new URL(formData.issuingBodyWebsite.trim())
+      } catch {
+        newErrors.issuingBodyWebsite = "Please enter a valid URL (e.g., https://example.com)"
+      }
+    }
+
     if (!formData.certificationLevel) {
       newErrors.certificationLevel = "Certification level is required"
     }
@@ -424,7 +442,7 @@ export function CertificationCreationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        {mode === "create" && !showVerification && (
+        {mode === "create" && !showVerification && controlledOpen === undefined && (
           <DialogTrigger asChild>
             {children || (
               <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">
@@ -556,6 +574,28 @@ export function CertificationCreationDialog({
                         )}
                         <p className="text-xs text-muted-foreground">
                           Organization that issues this certification
+                        </p>
+                      </div>
+
+                      {/* Issuing Body Website */}
+                      <div className="space-y-2">
+                        <Label htmlFor="issuingBodyWebsite">Issuing Body Website</Label>
+                        <Input
+                          id="issuingBodyWebsite"
+                          type="url"
+                          placeholder="https://aws.amazon.com"
+                          value={formData.issuingBodyWebsite}
+                          onChange={(e) => handleInputChange("issuingBodyWebsite", e.target.value)}
+                          className={errors.issuingBodyWebsite ? "border-red-500" : ""}
+                        />
+                        {errors.issuingBodyWebsite ? (
+                          <p className="text-sm text-red-500">{errors.issuingBodyWebsite}</p>
+                        ) : null}
+                        {showVerification && (
+                          <VerificationCheckbox fieldName="issuingBodyWebsite" />
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Website URL of the issuing body for verification purposes
                         </p>
                       </div>
 

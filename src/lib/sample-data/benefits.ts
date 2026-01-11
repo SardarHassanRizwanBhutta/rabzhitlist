@@ -40,7 +40,7 @@ export const PREDEFINED_BENEFITS: BenefitTemplate[] = [
   { name: "Provident Fund Matching", hasAmount: true, defaultUnit: "percent" as BenefitUnit },
   { name: "Profit Sharing", hasAmount: true, defaultUnit: "percent" as BenefitUnit },
   { name: "Commission Rate", hasAmount: true, defaultUnit: "percent" as BenefitUnit },
-  { name: "Salary Increment", hasAmount: true, defaultUnit: "percent" as BenefitUnit },
+  { name: "Provident Fund", hasAmount: true, defaultUnit: "percent" as BenefitUnit },
   
   // Simple benefits (NO amounts)
   { name: "Gym Passport", hasAmount: false, defaultUnit: null },

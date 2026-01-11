@@ -71,6 +71,7 @@ interface UniversityCreationDialogProps {
   onSubmit?: (data: UniversityFormData, verificationState?: UniversityVerificationState) => Promise<void> | void
   onOpenChange?: (open: boolean) => void
   open?: boolean
+  initialName?: string
 }
 
 const createEmptyLocation = (): UniversityLocationFormData => ({
@@ -134,6 +135,7 @@ export function UniversityCreationDialog({
   onSubmit,
   onOpenChange,
   open: controlledOpen,
+  initialName,
 }: UniversityCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -171,8 +173,12 @@ export function UniversityCreationDialog({
         setFormData(formDataFromUniversity)
         initialFormDataRef.current = formDataFromUniversity
       } else {
-        setFormData(initialFormData)
-        initialFormDataRef.current = initialFormData
+        // In create mode, check for initialName prop
+        const formDataToUse = initialName 
+          ? { ...initialFormData, name: initialName }
+          : initialFormData
+        setFormData(formDataToUse)
+        initialFormDataRef.current = formDataToUse
       }
       setErrors({})
       setModifiedFields(new Set())
@@ -191,7 +197,7 @@ export function UniversityCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, universityData, showVerification])
+  }, [open, mode, universityData, showVerification, initialName])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -607,7 +613,7 @@ export function UniversityCreationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        {mode === "create" && !showVerification && (
+        {mode === "create" && !showVerification && controlledOpen === undefined && (
           <DialogTrigger asChild>
             {children || (
               <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">

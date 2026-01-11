@@ -49,15 +49,52 @@ interface CandidatesTableProps {
 }
 
 type SortDirection = "asc" | "desc" | null
-type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status"
+type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status" | "yearsOfExperience"
 
 // Helper function to get job title from first work experience
 const getJobTitle = (candidate: Candidate): string => {
   return candidate.workExperiences?.[0]?.jobTitle || "N/A"
 }
 
+// Helper function to calculate total years of experience from work experiences
+const calculateYearsOfExperience = (candidate: Candidate): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  const today = new Date()
+  let totalMonths = 0
+
+  candidate.workExperiences.forEach(we => {
+    if (!we.startDate) return
+
+    const startDate = new Date(we.startDate)
+    const endDate = we.endDate ? new Date(we.endDate) : today
+
+    // Calculate months between start and end
+    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
+    const monthsDiff = endDate.getMonth() - startDate.getMonth()
+    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
+
+    // Add days for more precision (approximate)
+    const daysDiff = endDate.getDate() - startDate.getDate()
+    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
+
+    if (approximateMonths > 0) {
+      totalMonths += approximateMonths
+    }
+  })
+
+  // Convert to years (with 1 decimal place precision)
+  const totalYears = totalMonths / 12
+  return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
+}
+
 const defaultFilters: CandidateFilters = {
+  basicInfoSearch: "",
+  postingTitle: "",
   cities: [],
+  status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -71,13 +108,58 @@ const defaultFilters: CandidateFilters = {
   horizontalDomains: [],
   technicalAspects: [],
   candidateTechStacks: [],
+  candidateTechStacksRequireAll: false,
+  candidateTechStacksRequireInBoth: false,
+  techStackMinYears: {
+    techStacks: [],
+    minYears: ""
+  },
   candidateDomains: [],
+  shiftTypes: [],
+  workModes: [],
+  workModeMinYears: {
+    workModes: [],
+    minYears: ""
+  },
+  timeSupportZones: [],
+  isCurrentlyWorking: null,
+  workedWithTopDeveloper: null,
+  workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
+  isTopDeveloper: null,
+  jobTitle: "",
+  jobTitleWorkedWith: false,
+  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
+  jobTitleStartedCareer: false,  // Default: check all jobs
+  yearsOfExperienceMin: "",
+  yearsOfExperienceMax: "",
+  maxJobChangesInLastYears: {
+    maxChanges: "",
+    years: ""
+  },
+  minPromotionsInLastYears: {
+    minPromotions: "",
+    years: ""
+  },
+  continuousEmployment: null,
+  continuousEmploymentToleranceMonths: 3,
+  minPromotionsSameCompany: "",
+  joinedProjectFromStart: null,
+  joinedProjectFromStartToleranceDays: 30,
+  projectTeamSizeMin: "",
+  projectTeamSizeMax: "",
+  hasPublishedProject: null,
+  publishPlatforms: [],
   employerStatus: [],
   employerCountries: [],
   employerCities: [],
+  employerTypes: [],
+  careerTransitionFromType: [],
+  careerTransitionToType: [],
+  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
+  employerRankings: [],
   universities: [],
   universityCountries: [],
   universityRankings: [],
@@ -86,11 +168,14 @@ const defaultFilters: CandidateFilters = {
   majorNames: [],
   isTopper: null,
   isCheetah: null,
-  educationStartMonth: null,
-  educationEndMonth: null,
+  educationEndDateStart: null,
+  educationEndDateEnd: null,
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
+  personalityTypes: [],
+  startDateStart: null,
+  startDateEnd: null,
 }
 
 export function CandidatesTable({ candidates, filters = defaultFilters }: CandidatesTableProps) {
@@ -176,10 +261,13 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
       let aValue: string | number | null
       let bValue: string | number | null
 
-      // Handle jobTitle separately since it's not a direct property
+      // Handle jobTitle and yearsOfExperience separately since they're not direct properties
       if (sortColumn === "jobTitle") {
         aValue = getJobTitle(a)
         bValue = getJobTitle(b)
+      } else if (sortColumn === "yearsOfExperience") {
+        aValue = calculateYearsOfExperience(a)
+        bValue = calculateYearsOfExperience(b)
       } else {
         // TypeScript type narrowing for other sort columns
         const sortKey = sortColumn as "name" | "expectedSalary" | "city" | "status"
@@ -318,6 +406,11 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                 Job Title
               </SortableHeader>
               
+              {/* Years of Experience - Hidden on mobile */}
+              <SortableHeader column="yearsOfExperience" className="hidden md:table-cell">
+                Years of Experience
+              </SortableHeader>
+              
               {/* Expected Salary - Always visible */}
               <SortableHeader column="expectedSalary">
                 Expected Salary
@@ -395,6 +488,21 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                   >
                     <div className="max-w-[200px]">
                       <div className="truncate">{getJobTitle(candidate)}</div>
+                    </div>
+                  </TableCell>
+                  
+                  {/* Years of Experience - Hidden on mobile */}
+                  <TableCell 
+                    className="hidden md:table-cell"
+                    onClick={() => setSelectedCandidate(candidate)}
+                  >
+                    <div className="max-w-[150px]">
+                      <div className="truncate">
+                        {(() => {
+                          const years = calculateYearsOfExperience(candidate)
+                          return years > 0 ? `${years} ${years === 1 ? 'year' : 'years'}` : 'N/A'
+                        })()}
+                      </div>
                     </div>
                   </TableCell>
                   
@@ -600,6 +708,11 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                                           {typeof item.context.isCheetah === 'boolean' && item.context.isCheetah && (
                                             <Badge variant="default" className="ml-2 bg-orange-500 hover:bg-orange-600 text-xs">
                                               Cheetah
+                                            </Badge>
+                                          )}
+                                          {typeof item.context.isTopDeveloper === 'boolean' && item.context.isTopDeveloper && (
+                                            <Badge variant="default" className="ml-2 bg-blue-500 hover:bg-blue-600 text-xs">
+                                              Top Developer
                                             </Badge>
                                           )}
                                         </div>

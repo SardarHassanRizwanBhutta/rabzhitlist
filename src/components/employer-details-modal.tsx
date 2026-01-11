@@ -20,7 +20,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 
-import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_COLORS, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS } from "@/lib/types/employer"
+import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_COLORS, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS, TechStackWithCount } from "@/lib/types/employer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -57,6 +57,10 @@ import { sampleCandidates } from "@/lib/sample-data/candidates"
 
 import { Users } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { EmployerBenefit } from "@/lib/types/benefits"
+import { BenefitsSelector } from "@/components/ui/benefits-selector"
+import { formatBenefitAmount } from "@/lib/sample-data/benefits"
 
 // DomainBadges component for displaying vertical and horizontal domains
 const DomainBadges = ({
@@ -459,6 +463,560 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
   )
 }
 
+// Helper to get intensity class based on count for visual emphasis
+const getCountIntensityClass = (count: number): string => {
+  if (count === 0) return "opacity-70" // Manual entry, no candidates
+  if (count >= 5) return "ring-2 ring-blue-500/30 font-medium"
+  if (count >= 3) return "font-medium"
+  return ""
+}
+
+// Inline Editable Multi-Select With Count Component
+interface InlineEditableMultiSelectWithCountProps {
+  label: string
+  displayValue: TechStackWithCount[] // For display with counts
+  editValue: string[] // For editing (just the tech names)
+  fieldName: string
+  options: MultiSelectOption[]
+  onSave: (fieldName: string, newValue: string[], shouldVerify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  className?: string
+  placeholder?: string
+  searchPlaceholder?: string
+  badgeColorClass?: string
+  maxDisplay?: number
+}
+
+const InlineEditableMultiSelectWithCount: React.FC<InlineEditableMultiSelectWithCountProps> = ({
+  label,
+  displayValue,
+  editValue: initialEditValue,
+  fieldName,
+  options,
+  onSave,
+  getFieldVerification,
+  className = "",
+  placeholder = "Select options...",
+  searchPlaceholder = "Search...",
+  badgeColorClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  maxDisplay = 4
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<string[]>(initialEditValue || [])
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Get current verification status
+  const verificationStatus = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verificationStatus === 'verified'
+
+  // Update editValue when prop changes (but not when editing)
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditValue(initialEditValue || [])
+    }
+  }, [initialEditValue, isEditing])
+
+  // Initialize willVerify based on current verification status when entering edit mode
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(initialEditValue || [])
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(initialEditValue || [])
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    // No change check
+    const currentValue = initialEditValue || []
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const arraysEqual = currentValue.length === editValue.length && 
+      currentValue.every((val, idx) => val === editValue[idx])
+    
+    if (arraysEqual && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    // Save
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch (err) {
+      setError('Failed to save. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Verification indicator component
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verification = getFieldVerification?.(fName)
+    const status = verification || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+
+  const displayItems = displayValue || []
+  const shouldTruncate = displayItems.length > maxDisplay
+  const displayItemsToShow = shouldTruncate && !isExpanded 
+    ? displayItems.slice(0, maxDisplay)
+    : displayItems
+  const remainingCount = shouldTruncate && !isExpanded 
+    ? displayItems.length - maxDisplay
+    : 0
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-3 py-3 px-3 rounded-md bg-muted/30 border", className)}>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
+        </div>
+        <div className="space-y-3">
+          <div className="w-full">
+            <MultiSelect
+              items={options}
+              selected={editValue}
+              onChange={(values) => setEditValue(values)}
+              placeholder={placeholder}
+              searchPlaceholder={searchPlaceholder}
+              maxDisplay={maxDisplay}
+            />
+          </div>
+          
+          {/* Mark as verified checkbox */}
+          <div className="flex items-center gap-2 pl-1">
+            <Checkbox
+              id={`verify-${fieldName}`}
+              checked={willVerify}
+              onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+              disabled={isSaving}
+              className="h-4 w-4"
+            />
+            <Label 
+              htmlFor={`verify-${fieldName}`}
+              className={cn(
+                "text-xs cursor-pointer",
+                willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+              )}
+            >
+              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+            </Label>
+          </div>
+          
+          <div className="flex gap-1 shrink-0">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 w-8 p-0"
+              title={willVerify ? "Save & Verify" : "Save"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-8 w-8 p-0"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          {/* Error Message */}
+          {error && (
+            <p className="text-xs text-red-500">{error}</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-3">
+        <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
+        <div className="flex items-center gap-1 shrink-0">
+          <VerificationIndicator fieldName={fieldName} />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleEdit}
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            type="button"
+            title="Edit field"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+      
+      {displayItems.length === 0 ? (
+        <div className="text-sm text-muted-foreground italic">N/A</div>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1">
+            {displayItemsToShow.map((item, index) => (
+              <Tooltip key={index}>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="secondary"
+                    className={`text-xs cursor-default ${badgeColorClass} ${getCountIntensityClass(item.count)}`}
+                  >
+                    {item.tech}
+                    {item.count > 0 && (
+                      <span className="ml-1 opacity-75">({item.count})</span>
+                    )}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {item.count === 0 
+                    ? "Manually added" 
+                    : `${item.count} candidate${item.count > 1 ? 's' : ''} use this technology`
+                  }
+                </TooltipContent>
+              </Tooltip>
+            ))}
+            {remainingCount > 0 && !isExpanded && (
+              <Badge 
+                variant="outline" 
+                className="text-xs cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => setIsExpanded(!isExpanded)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setIsExpanded(!isExpanded)
+                  }
+                }}
+              >
+                Show {remainingCount} more
+              </Badge>
+            )}
+          </div>
+          {shouldTruncate && isExpanded && (
+            <Badge 
+              variant="outline" 
+              className="text-xs cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+              onClick={() => setIsExpanded(!isExpanded)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setIsExpanded(!isExpanded)
+                }
+              }}
+            >
+              Show less
+            </Badge>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Inline Editable Benefits Component
+interface InlineEditableBenefitsProps {
+  label: string
+  value: EmployerBenefit[]
+  fieldName: string
+  onSave: (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  className?: string
+  maxDisplay?: number
+}
+
+const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
+  label,
+  value,
+  fieldName,
+  onSave,
+  getFieldVerification,
+  className = "",
+  maxDisplay = 4
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<EmployerBenefit[]>(value || [])
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Get current verification status
+  const verificationStatus = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verificationStatus === 'verified'
+
+  // Update editValue when value prop changes (but not when editing)
+  React.useEffect(() => {
+    if (!isEditing) {
+      setEditValue(value || [])
+    }
+  }, [value, isEditing])
+
+  // Initialize willVerify based on current verification status when entering edit mode
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value || [])
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value || [])
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    // No change check
+    const currentValue = value || []
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const arraysEqual = currentValue.length === editValue.length && 
+      currentValue.every((val, idx) => 
+        val.id === editValue[idx]?.id && 
+        val.name === editValue[idx]?.name &&
+        val.amount === editValue[idx]?.amount &&
+        val.unit === editValue[idx]?.unit
+      )
+    
+    if (arraysEqual && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    // Save
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch (err) {
+      setError('Failed to save. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Verification indicator component
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verification = getFieldVerification?.(fName)
+    const status = verification || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+
+  const displayItems = value || []
+  const shouldTruncate = displayItems.length > maxDisplay
+  const displayItemsToShow = shouldTruncate && !isExpanded 
+    ? displayItems.slice(0, maxDisplay)
+    : displayItems
+  const remainingCount = shouldTruncate && !isExpanded 
+    ? displayItems.length - maxDisplay
+    : 0
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-3 py-3 px-3 rounded-md bg-muted/30 border", className)}>
+        <div className="flex items-center justify-between mb-2">
+          <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
+        </div>
+        <div className="space-y-3">
+          <div className="w-full">
+            <BenefitsSelector
+              benefits={editValue}
+              onChange={(benefits) => setEditValue(benefits)}
+            />
+          </div>
+          
+          {/* Mark as verified checkbox */}
+          <div className="flex items-center gap-2 pl-1">
+            <Checkbox
+              id={`verify-${fieldName}`}
+              checked={willVerify}
+              onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+              disabled={isSaving}
+              className="h-4 w-4"
+            />
+            <Label 
+              htmlFor={`verify-${fieldName}`}
+              className={cn(
+                "text-xs cursor-pointer",
+                willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+              )}
+            >
+              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+            </Label>
+          </div>
+          
+          <div className="flex gap-1 shrink-0">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 w-8 p-0"
+              title={willVerify ? "Save & Verify" : "Save"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-8 w-8 p-0"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          
+          {/* Error Message */}
+          {error && (
+            <p className="text-xs text-red-500">{error}</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Display mode
+  return (
+    <div className={cn("py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-3">
+        <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
+        <div className="flex items-center gap-1 shrink-0">
+          <VerificationIndicator fieldName={fieldName} />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleEdit}
+            className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            type="button"
+            title={`Edit ${label.toLowerCase()}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+      {displayItems.length > 0 ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2 min-h-[2rem]">
+            {displayItemsToShow.map((benefit, index) => (
+              <Badge 
+                key={benefit.id || index} 
+                variant="outline" 
+                className="text-xs bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-300 dark:border-slate-800"
+              >
+                {benefit.name}
+                {benefit.amount !== null && benefit.unit && (
+                  <span className="ml-1 font-semibold">
+                    : {formatBenefitAmount(benefit.amount, benefit.unit)}
+                  </span>
+                )}
+              </Badge>
+            ))}
+            {remainingCount > 0 && !isExpanded && (
+              <Badge 
+                variant="outline" 
+                className="text-xs cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                onClick={() => setIsExpanded(true)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setIsExpanded(true)
+                  }
+                }}
+              >
+                Show {remainingCount} more
+              </Badge>
+            )}
+            {isExpanded && shouldTruncate && (
+              <Badge 
+                variant="outline" 
+                className="text-xs cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                onClick={() => setIsExpanded(false)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setIsExpanded(false)
+                  }
+                }}
+              >
+                Show less
+              </Badge>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground italic">No benefits selected</p>
+      )}
+    </div>
+  )
+}
+
 // Inline Editable Checkbox Component
 interface InlineEditableCheckboxProps {
   label: string
@@ -672,10 +1230,215 @@ export interface EmployerDetailsModalProps {
   onEdit?: (employer: Employer) => void
 }
 
+// Extract unique tech stacks from candidates and projects
+const extractUniqueTechStacks = (): MultiSelectOption[] => {
+  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
+  
+  // From candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    })
+    // Also include standalone tech stacks from candidate level
+    candidate.techStacks?.forEach(tech => {
+      const lowerTech = tech.toLowerCase().trim()
+      if (lowerTech && !techStacksMap.has(lowerTech)) {
+        techStacksMap.set(lowerTech, tech.trim())
+      }
+    })
+  })
+  
+  // From projects
+  sampleProjects.forEach(project => {
+    project.techStacks.forEach(tech => {
+      const lowerTech = tech.toLowerCase().trim()
+      if (lowerTech && !techStacksMap.has(lowerTech)) {
+        techStacksMap.set(lowerTech, tech.trim())
+      }
+    })
+  })
+  
+  return Array.from(techStacksMap.values()).sort().map(tech => ({
+    label: tech,
+    value: tech
+  }))
+}
+
+// Get tech stacks with counts for an employer (from employer data or candidates)
+const getEmployerTechStacksWithCount = (employer: Employer): TechStackWithCount[] => {
+  // Extract from candidates' work experiences with counts
+  const techStackCounts = new Map<string, number>()
+  const explicitTechStacks = new Set<string>()
+  
+  // If employer has explicit tech stacks, mark them (they'll have count = 0)
+  if (employer.techStacks && employer.techStacks.length > 0) {
+    employer.techStacks.forEach(tech => {
+      const normalized = tech.trim()
+      explicitTechStacks.add(normalized)
+      techStackCounts.set(normalized, 0) // Manual entry, count = 0
+    })
+  }
+  
+  // Extract from candidates' work experiences with counts
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (exact match after normalization)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      // Use exact match for precision, but also handle common variations
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch) {
+        we.techStacks.forEach(tech => {
+          const normalizedTech = tech.trim()
+          if (normalizedTech) {
+            // Only increment count if not already explicitly set (explicit ones stay at 0)
+            if (!explicitTechStacks.has(normalizedTech)) {
+              techStackCounts.set(
+                normalizedTech,
+                (techStackCounts.get(normalizedTech) || 0) + 1
+              )
+            }
+          }
+        })
+      }
+    })
+  })
+  
+  // Convert to array and sort by count (descending), then alphabetically
+  return Array.from(techStackCounts.entries())
+    .map(([tech, count]) => ({ tech, count }))
+    .sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count // Higher count first
+      return a.tech.localeCompare(b.tech) // Alphabetical as tiebreaker
+    })
+}
+
+// Backward-compatible function that returns just tech stack strings
+// Note: This function should be used with the normalizeTechStack helper when called from component
+const getEmployerTechStacks = (employer: Employer): string[] => {
+  return getEmployerTechStacksWithCount(employer).map(item => item.tech)
+}
+
+// Get benefits for an employer (from employer data or candidates)
+const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
+  const benefitsMap = new Map<string, EmployerBenefit>()
+  
+  // First, use benefits from employer if they exist
+  if (employer.benefits && employer.benefits.length > 0) {
+    employer.benefits.forEach(benefit => {
+      const key = benefit.name.toLowerCase().trim()
+      benefitsMap.set(key, { ...benefit })
+    })
+  }
+  
+  // Also extract from candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (exact match after normalization)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      // Use exact match for precision, but also handle common variations
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch) {
+        we.benefits.forEach(benefit => {
+          // Use benefit name as key to deduplicate
+          const key = benefit.name.toLowerCase().trim()
+          // Only add if not already present (employer's explicit benefits take precedence)
+          if (!benefitsMap.has(key)) {
+            benefitsMap.set(key, { ...benefit })
+          }
+        })
+      }
+    })
+  })
+  return Array.from(benefitsMap.values())
+}
+
+// Get shift types for an employer (from candidates' work experiences)
+const getEmployerShiftTypes = (employer: Employer): string[] => {
+  const shiftTypesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (case-insensitive)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch && we.shiftType && we.shiftType.trim()) {
+        shiftTypesSet.add(we.shiftType.trim())
+      }
+    })
+  })
+  
+  return Array.from(shiftTypesSet).sort()
+}
+
+// Get work modes for an employer (from candidates' work experiences)
+const getEmployerWorkModes = (employer: Employer): string[] => {
+  const workModesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      // Match employer names (case-insensitive)
+      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
+      const employerName = employer.name.toLowerCase().trim()
+      const isMatch = weEmployerName === employerName || 
+                     (weEmployerName && employerName && 
+                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
+      if (isMatch && we.workMode && we.workMode.trim()) {
+        workModesSet.add(we.workMode.trim())
+      }
+    })
+  })
+  
+  return Array.from(workModesSet).sort()
+}
+
 export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: EmployerDetailsModalProps) {
   const router = useRouter()
   // Local state for employer data (for optimistic updates)
   const [localEmployer, setLocalEmployer] = useState<Employer>(employer)
+  
+  // Tech stack options
+  const techStackOptions = React.useMemo(() => extractUniqueTechStacks(), [])
+  
+  // Create a map for case-insensitive lookup of tech stack options
+  const techStackOptionsMap = React.useMemo(() => {
+    const map = new Map<string, string>() // Map<lowercase, original>
+    techStackOptions.forEach(option => {
+      const lower = option.value.toLowerCase().trim()
+      if (!map.has(lower)) {
+        map.set(lower, option.value)
+      }
+    })
+    return map
+  }, [techStackOptions])
+  
+  // Helper to normalize tech stack to match options (case-insensitive)
+  const normalizeTechStack = React.useCallback((tech: string): string => {
+    const normalized = tech.trim()
+    const lower = normalized.toLowerCase()
+    // Return the original case from options if found, otherwise return trimmed original
+    return techStackOptionsMap.get(lower) || normalized
+  }, [techStackOptionsMap])
+  
+  // Get normalized tech stacks for editing (ensures they match options)
+  const getNormalizedEmployerTechStacks = React.useCallback((employer: Employer): string[] => {
+    const extracted = getEmployerTechStacks(employer)
+    // Normalize tech stacks to match options (case-insensitive)
+    return extracted.map(tech => normalizeTechStack(tech))
+  }, [normalizeTechStack])
   
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "projects", "candidates"]))
@@ -799,6 +1562,48 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
       
       toast.success(`Team size updated${verify ? ' and verified' : ''}`)
     } catch (error) {
+      setLocalEmployer(employer)
+      toast.error('Failed to save field')
+      throw error
+    }
+  }
+  
+  // Handle multi-select field save
+  const handleMultiSelectFieldSave = async (fieldName: string, newValue: string[], verify: boolean) => {
+    try {
+      // Optimistic update
+      setLocalEmployer(prev => ({
+        ...prev,
+        [fieldName]: newValue
+      }))
+      
+      // TODO: API call to save field
+      // await updateEmployerField(employer.id, fieldName, newValue, verify)
+      
+      toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
+    } catch (error) {
+      // Revert on error
+      setLocalEmployer(employer)
+      toast.error('Failed to save field')
+      throw error
+    }
+  }
+  
+  // Handle benefits field save
+  const handleBenefitsFieldSave = async (fieldName: string, newValue: EmployerBenefit[], verify: boolean) => {
+    try {
+      // Optimistic update
+      setLocalEmployer(prev => ({
+        ...prev,
+        [fieldName]: newValue
+      }))
+      
+      // TODO: API call to save field
+      // await updateEmployerField(employer.id, fieldName, newValue, verify)
+      
+      toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
+    } catch (error) {
+      // Revert on error
       setLocalEmployer(employer)
       toast.error('Failed to save field')
       throw error
@@ -941,6 +1746,83 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                           Visit LinkedIn
                         </Button>
                       )}
+                    </div>
+                    
+                    {/* Tech Stacks - Full Width */}
+                    <div className="md:col-span-2">
+                      <InlineEditableMultiSelectWithCount
+                        label="Tech Stacks"
+                        displayValue={getEmployerTechStacksWithCount(localEmployer)}
+                        editValue={getNormalizedEmployerTechStacks(localEmployer)}
+                        fieldName="techStacks"
+                        options={techStackOptions}
+                        onSave={handleMultiSelectFieldSave}
+                        getFieldVerification={getFieldVerification}
+                        placeholder="Select technologies..."
+                        searchPlaceholder="Search technologies..."
+                        badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                        maxDisplay={4}
+                      />
+                    </div>
+                    
+                    {/* Benefits - Full Width */}
+                    <div className="md:col-span-2">
+                      <InlineEditableBenefits
+                        label="Benefits"
+                        value={getEmployerBenefits(localEmployer)}
+                        fieldName="benefits"
+                        onSave={handleBenefitsFieldSave}
+                        getFieldVerification={getFieldVerification}
+                        maxDisplay={4}
+                      />
+                    </div>
+                    
+                    {/* Shift Types */}
+                    <div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Shift Types</Label>
+                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                          {(() => {
+                            const shiftTypes = getEmployerShiftTypes(localEmployer)
+                            if (shiftTypes.length === 0) {
+                              return <span className="text-muted-foreground text-sm">N/A</span>
+                            }
+                            return shiftTypes.map((shiftType, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
+                              >
+                                {shiftType}
+                              </Badge>
+                            ))
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Work Modes */}
+                    <div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Work Modes</Label>
+                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                          {(() => {
+                            const workModes = getEmployerWorkModes(localEmployer)
+                            if (workModes.length === 0) {
+                              return <span className="text-muted-foreground text-sm">N/A</span>
+                            }
+                            return workModes.map((workMode, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="text-xs bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-200"
+                              >
+                                {workMode}
+                              </Badge>
+                            ))
+                          })()}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
