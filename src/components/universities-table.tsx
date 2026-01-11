@@ -67,6 +67,7 @@ import {
 } from "@/lib/types/university"
 import { UniversityDetailsModal } from "@/components/university-details-modal"
 import { toast } from "sonner"
+import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
 
 interface UniversitiesTableProps {
   universities: University[]
@@ -80,7 +81,7 @@ interface UniversitiesTableProps {
   onDeleteLocation?: (location: UniversityLocation) => void
 }
 
-type SortKey = keyof University
+type SortKey = keyof University | "jobSuccessRatio"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -163,8 +164,17 @@ export function UniversitiesTable({
   // Sorting
   const sortedUniversities = useMemo(() => {
     return [...filteredUniversities].sort((a, b) => {
-      const aValue = a[sortKey]
-      const bValue = b[sortKey]
+      // Handle job success ratio sorting (calculated field)
+      if (sortKey === "jobSuccessRatio") {
+        const aStats = calculateUniversityJobSuccessRatio(a)
+        const bStats = calculateUniversityJobSuccessRatio(b)
+        const comparison = aStats.successRatio - bStats.successRatio
+        return sortDirection === "asc" ? comparison : -comparison
+      }
+
+      // Handle regular university fields
+      const aValue = a[sortKey as keyof University]
+      const bValue = b[sortKey as keyof University]
 
       if (aValue === bValue) return 0
 
@@ -343,6 +353,9 @@ export function UniversitiesTable({
               <TableHead className="w-[140px]">
                 <SortButton column="ranking">Ranking</SortButton>
               </TableHead>
+              <TableHead className="w-[160px]">
+                <SortButton column="jobSuccessRatio">Placement Rate</SortButton>
+              </TableHead>
               <TableHead className="w-[120px]">Website</TableHead>
               <TableHead className="w-[120px]">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View University Graduates">Graduates</TableHead>
@@ -399,6 +412,24 @@ export function UniversitiesTable({
                       >
                         {UNIVERSITY_RANKING_LABELS[university.ranking]}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const stats = calculateUniversityJobSuccessRatio(university)
+                        if (stats.totalGraduates === 0) {
+                          return <span className="text-muted-foreground text-sm">N/A</span>
+                        }
+                        return (
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium text-sm">
+                              {stats.successRatio.toFixed(1)}%
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {stats.successfulPlacements}/{stats.totalGraduates} graduates
+                            </span>
+                          </div>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell>
                       {university.websiteUrl ? (

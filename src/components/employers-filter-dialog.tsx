@@ -14,12 +14,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+
 import { Filter } from "lucide-react"
-import { EmployerStatus, SalaryPolicy, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS } from "@/lib/types/employer"
+import { EmployerStatus, SalaryPolicy, EmployerRanking, EmployerType, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
 import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { sampleCandidates } from "@/lib/sample-data/candidates"
 
 // Filter interfaces
 export interface EmployerFilters {
@@ -27,15 +30,32 @@ export interface EmployerFilters {
   foundedYears: string[]
   countries: string[]
   cities: string[]
+  employerTypes: EmployerType[]  // Filter by employer type (Product Based, Client Based)
   salaryPolicies: SalaryPolicy[]
   sizeMin: string
   sizeMax: string
+  minLocationsCount: string  // Minimum total number of offices/locations
+  minCitiesCount: string  // Minimum number of unique cities (optionally within selected country)
+  minApplicants: string  // Minimum number of applicants/employees (candidates with work experience at this employer)
+  // Employer-based filters
+  employerTechStacks: string[]
+  benefits: string[]
+  shiftTypes: string[]
+  shiftTypesStrict: boolean  // When true, requires ALL employees work in selected shift types only
+  workModes: string[]
+  workModesStrict: boolean  // When true, requires ALL employees work in selected work modes only
+  timeSupportZones: string[]
+  techStackMinCount: string  // Minimum count of developers with selected tech stacks (used with employerTechStacks)
+  rankings: EmployerRanking[]  // Employer ranking filter
+
   // Project-based filters
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
   projectStatus: string[]
+  projectTeamSizeMin: string  // Minimum project team size
+  projectTeamSizeMax: string  // Maximum project team size (optional)
 }
 
 interface EmployersFilterDialogProps {
@@ -78,6 +98,115 @@ const extractUniqueFoundedYears = (): number[] => {
     }
   })
   return Array.from(years).sort((a, b) => b - a) // Newest first
+}
+
+// Extract unique tech stacks from employers (from employer data or candidates)
+const extractUniqueEmployerTechStacks = (): string[] => {
+  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
+  
+  // From employer tech stacks
+  sampleEmployers.forEach(employer => {
+    if (employer.techStacks) {
+      employer.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    }
+  })
+  
+  // From candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.techStacks.forEach(tech => {
+        const lowerTech = tech.toLowerCase().trim()
+        if (lowerTech && !techStacksMap.has(lowerTech)) {
+          techStacksMap.set(lowerTech, tech.trim())
+        }
+      })
+    })
+  })
+  
+  return Array.from(techStacksMap.values()).sort()
+}
+
+// Extract unique benefits from candidates' work experiences
+const extractUniqueBenefits = (): string[] => {
+  const benefitsMap = new Map<string, string>() // Map<lowercase, original>
+  
+  // Extract from employers' explicit benefits
+  sampleEmployers.forEach(employer => {
+    if (employer.benefits && employer.benefits.length > 0) {
+      employer.benefits.forEach(benefit => {
+        const lowerBenefit = benefit.name.toLowerCase().trim()
+        if (lowerBenefit && !benefitsMap.has(lowerBenefit)) {
+          benefitsMap.set(lowerBenefit, benefit.name.trim())
+        }
+      })
+    }
+  })
+  
+  // Also extract from candidates' work experiences
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.benefits.forEach(benefit => {
+        const lowerBenefit = benefit.name.toLowerCase().trim()
+        if (lowerBenefit && !benefitsMap.has(lowerBenefit)) {
+          benefitsMap.set(lowerBenefit, benefit.name.trim())
+        }
+      })
+    })
+  })
+  
+  return Array.from(benefitsMap.values()).sort()
+}
+
+// Extract unique shift types from candidates' work experiences
+const extractUniqueShiftTypes = (): string[] => {
+  const shiftTypesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (we.shiftType && we.shiftType.trim()) {
+        shiftTypesSet.add(we.shiftType.trim())
+      }
+    })
+  })
+  
+  return Array.from(shiftTypesSet).sort()
+}
+
+// Extract unique work modes from candidates' work experiences
+const extractUniqueWorkModes = (): string[] => {
+  const workModesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (we.workMode && we.workMode.trim()) {
+        workModesSet.add(we.workMode.trim())
+      }
+    })
+  })
+  
+  return Array.from(workModesSet).sort()
+}
+
+// Extract unique time support zones from candidates' work experiences
+const extractUniqueTimeSupportZones = (): string[] => {
+  const timeZonesSet = new Set<string>()
+  
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      we.timeSupportZones?.forEach(zone => {
+        if (zone && zone.trim()) {
+          timeZonesSet.add(zone.trim())
+        }
+      })
+    })
+  })
+  
+  return Array.from(timeZonesSet).sort()
 }
 
 // Extract unique project-based data for employers
@@ -132,6 +261,11 @@ const salaryPolicyOptions: MultiSelectOption[] = Object.entries(SALARY_POLICY_LA
   label
 }))
 
+const rankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABELS).map(([value, label]) => ({
+  value: value as EmployerRanking,
+  label
+}))
+
 const countryOptions: MultiSelectOption[] = extractUniqueCountries().map(country => ({
   value: country,
   label: country
@@ -145,6 +279,32 @@ const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
 const foundedYearOptions: MultiSelectOption[] = extractUniqueFoundedYears().map(year => ({
   value: year.toString(),
   label: year.toString()
+}))
+
+// Employer-based filter options
+const employerTechStackOptions: MultiSelectOption[] = extractUniqueEmployerTechStacks().map(tech => ({
+  value: tech,
+  label: tech
+}))
+
+const benefitOptions: MultiSelectOption[] = extractUniqueBenefits().map(benefit => ({
+  value: benefit,
+  label: benefit
+}))
+
+const shiftTypeOptions: MultiSelectOption[] = extractUniqueShiftTypes().map(shiftType => ({
+  value: shiftType,
+  label: shiftType
+}))
+
+const workModeOptions: MultiSelectOption[] = extractUniqueWorkModes().map(workMode => ({
+  value: workMode,
+  label: workMode
+}))
+
+const timeSupportZoneOptions: MultiSelectOption[] = extractUniqueTimeSupportZones().map(timeZone => ({
+  value: timeZone,
+  label: timeZone
 }))
 
 // Project-based filter options
@@ -178,15 +338,31 @@ const initialFilters: EmployerFilters = {
   foundedYears: [],
   countries: [],
   cities: [],
+  employerTypes: [],
   salaryPolicies: [],
   sizeMin: "",
   sizeMax: "",
+  minLocationsCount: "",
+  minCitiesCount: "",
+  minApplicants: "",
+  // Employer-based filters
+  employerTechStacks: [],
+  benefits: [],
+  shiftTypes: [],
+  shiftTypesStrict: false,
+  workModes: [],
+  workModesStrict: false,
+  timeSupportZones: [],
+  rankings: [],
+  techStackMinCount: "",
   // Project-based filters
   techStacks: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
   projectStatus: [],
+  projectTeamSizeMin: "",
+  projectTeamSizeMax: "",
 }
 
 export function EmployersFilterDialog({
@@ -204,21 +380,39 @@ export function EmployersFilterDialog({
     filters.foundedYears.length +
     filters.countries.length +
     filters.cities.length +
+    filters.employerTypes.length +
     filters.salaryPolicies.length +
     (filters.sizeMin ? 1 : 0) +
     (filters.sizeMax ? 1 : 0) +
+    (filters.minLocationsCount ? 1 : 0) +
+    (filters.minCitiesCount ? 1 : 0) +
+    filters.employerTechStacks.length +
+    filters.benefits.length +
+    filters.shiftTypes.length +
+    (filters.shiftTypesStrict ? 1 : 0) +
+    filters.workModes.length +
+    (filters.workModesStrict ? 1 : 0) +
+    filters.timeSupportZones.length +
+    filters.rankings.length +
+    (filters.techStackMinCount ? 1 : 0) +
+    (filters.minApplicants ? 1 : 0) +
     filters.techStacks.length +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
-    filters.projectStatus.length
+    filters.projectStatus.length +
+    (filters.projectTeamSizeMin ? 1 : 0) +
+    (filters.projectTeamSizeMax ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string) => {
-    setTempFilters(prev => ({ ...prev, [field]: value }))
+  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean) => {
+    setTempFilters(prev => {
+      const updated = { ...prev, [field]: value }
+      return updated
+    })
   }
 
   const handleApplyFilters = () => {
@@ -242,14 +436,29 @@ export function EmployersFilterDialog({
     tempFilters.foundedYears.length > 0 ||
     tempFilters.countries.length > 0 ||
     tempFilters.cities.length > 0 ||
+    tempFilters.employerTypes.length > 0 ||
     tempFilters.salaryPolicies.length > 0 ||
     tempFilters.sizeMin ||
     tempFilters.sizeMax ||
+    tempFilters.minLocationsCount ||
+    tempFilters.minCitiesCount ||
+    tempFilters.employerTechStacks.length > 0 ||
+    tempFilters.benefits.length > 0 ||
+    tempFilters.shiftTypes.length > 0 ||
+    tempFilters.shiftTypesStrict ||
+    tempFilters.workModes.length > 0 ||
+    tempFilters.workModesStrict ||
+    tempFilters.timeSupportZones.length > 0 ||
+    tempFilters.rankings.length > 0 ||
+    tempFilters.techStackMinCount ||
+    tempFilters.minApplicants ||
     tempFilters.techStacks.length > 0 ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
-    tempFilters.projectStatus.length > 0
+    tempFilters.projectStatus.length > 0 ||
+    tempFilters.projectTeamSizeMin ||
+    tempFilters.projectTeamSizeMax
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -332,6 +541,54 @@ export function EmployersFilterDialog({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="minLocationsCount" className="text-sm font-semibold">
+                    Minimum Offices
+                  </Label>
+                  <Input
+                    id="minLocationsCount"
+                    type="number"
+                    placeholder="e.g., 2"
+                    min="1"
+                    value={tempFilters.minLocationsCount}
+                    onChange={(e) => handleFilterChange("minLocationsCount", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minCitiesCount" className="text-sm font-semibold">
+                    Minimum Cities
+                  </Label>
+                  <Input
+                    id="minCitiesCount"
+                    type="number"
+                    placeholder="e.g., 2"
+                    min="1"
+                    value={tempFilters.minCitiesCount}
+                    onChange={(e) => handleFilterChange("minCitiesCount", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="minApplicants" className="text-sm font-semibold">
+                  Minimum Applicants
+                </Label>
+                <Input
+                  id="minApplicants"
+                  type="number"
+                  placeholder="e.g., 50"
+                  min="1"
+                  value={tempFilters.minApplicants}
+                  onChange={(e) => handleFilterChange("minApplicants", e.target.value)}
+                />
+                {tempFilters.minApplicants && (
+                  <p className="text-xs text-muted-foreground">
+                    Filters employers with at least {tempFilters.minApplicants} applicants (candidates with work experience at this employer).
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
                   items={countryOptions}
                   selected={tempFilters.countries}
@@ -354,6 +611,16 @@ export function EmployersFilterDialog({
               </div>
 
               <MultiSelect
+                items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
+                selected={tempFilters.employerTypes}
+                onChange={(values) => handleFilterChange("employerTypes", values)}
+                placeholder="Filter by employer type..."
+                label="Employer Type"
+                searchPlaceholder="Search types..."
+                maxDisplay={3}
+              />
+
+              <MultiSelect
                 items={salaryPolicyOptions}
                 selected={tempFilters.salaryPolicies}
                 onChange={(values) => handleFilterChange("salaryPolicies", values)}
@@ -361,6 +628,152 @@ export function EmployersFilterDialog({
                 label="Salary Policies"
                 maxDisplay={3}
               />
+            </div>
+
+            {/* Employer-Based Filters */}
+            <div className="space-y-4">
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-4">Employer Characteristics</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <MultiSelect
+                      items={employerTechStackOptions}
+                      selected={tempFilters.employerTechStacks}
+                      onChange={(values) => handleFilterChange("employerTechStacks", values)}
+                      placeholder="Filter by tech stacks..."
+                      label="Tech Stacks"
+                      searchPlaceholder="Search tech stacks..."
+                      maxDisplay={3}
+                    />
+                    
+                    {/* Minimum Developer Count Input */}
+                    <div className="space-y-1">
+                      <Label htmlFor="techStackMinCount" className="text-xs text-muted-foreground">
+                        Minimum Developer Count (optional)
+                      </Label>
+                      <Input
+                        id="techStackMinCount"
+                        type="number"
+                        placeholder="e.g., 15"
+                        value={tempFilters.techStackMinCount}
+                        onChange={(e) => handleFilterChange("techStackMinCount", e.target.value)}
+                        min="1"
+                        disabled={tempFilters.employerTechStacks.length === 0}
+                      />
+                      {tempFilters.techStackMinCount && (
+                        <p className="text-xs text-muted-foreground">
+                          {tempFilters.employerTechStacks.length === 0 
+                            ? "Select tech stacks first"
+                            : `Filters employers with at least ${tempFilters.techStackMinCount} developers${tempFilters.shiftTypes.length > 0 ? ` working in ${tempFilters.shiftTypes.join(", ")}` : ""} with selected tech stacks`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <MultiSelect
+                    items={benefitOptions}
+                    selected={tempFilters.benefits}
+                    onChange={(values) => handleFilterChange("benefits", values)}
+                    placeholder="Filter by benefits..."
+                    label="Benefits"
+                    searchPlaceholder="Search benefits..."
+                    maxDisplay={3}
+                  />
+
+                  <div className="space-y-2">
+                    <MultiSelect
+                      items={shiftTypeOptions}
+                      selected={tempFilters.shiftTypes}
+                      onChange={(values) => handleFilterChange("shiftTypes", values)}
+                      placeholder="Filter by shift type..."
+                      label="Shift Type"
+                      searchPlaceholder="Search shift types..."
+                      maxDisplay={3}
+                    />
+                    
+                    {tempFilters.shiftTypes.length > 0 && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="shiftTypesStrict"
+                          checked={tempFilters.shiftTypesStrict}
+                          onCheckedChange={(checked) => {
+                            handleFilterChange("shiftTypesStrict", checked === true)
+                          }}
+                        />
+                        <Label
+                          htmlFor="shiftTypesStrict"
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Strictly (all employees must work in selected shift type(s) only)
+                        </Label>
+                      </div>
+                    )}
+                    
+                    {tempFilters.shiftTypesStrict && tempFilters.shiftTypes.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Only employers where ALL employees work in {tempFilters.shiftTypes.join(", ")}. Employers with any other shift types will be excluded.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <MultiSelect
+                      items={workModeOptions}
+                      selected={tempFilters.workModes}
+                      onChange={(values) => handleFilterChange("workModes", values)}
+                      placeholder="Filter by work mode..."
+                      label="Work Mode"
+                      searchPlaceholder="Search work modes..."
+                      maxDisplay={3}
+                    />
+                    
+                    {tempFilters.workModes.length > 0 && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="workModesStrict"
+                          checked={tempFilters.workModesStrict}
+                          onCheckedChange={(checked) => {
+                            handleFilterChange("workModesStrict", checked === true)
+                          }}
+                        />
+                        <Label
+                          htmlFor="workModesStrict"
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Strictly (all employees must work in selected mode(s) only)
+                        </Label>
+                      </div>
+                    )}
+                    
+                    {tempFilters.workModesStrict && tempFilters.workModes.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Only employers where ALL employees work in {tempFilters.workModes.join(", ")}. Employers with any other work modes will be excluded.
+                      </p>
+                    )}
+                  </div>
+
+                  <MultiSelect
+                    items={timeSupportZoneOptions}
+                    selected={tempFilters.timeSupportZones}
+                    onChange={(values) => handleFilterChange("timeSupportZones", values)}
+                    placeholder="Filter by time zone..."
+                    label="Time Support Zones"
+                    searchPlaceholder="Search time zones..."
+                    maxDisplay={5}
+                  />
+
+                  <MultiSelect
+                    items={rankingOptions}
+                    selected={tempFilters.rankings}
+                    onChange={(values) => handleFilterChange("rankings", values)}
+                    placeholder="Filter by ranking..."
+                    label="Company Ranking"
+                    maxDisplay={3}
+                  />
+                </div>
+
+              </div>
             </div>
 
             {/* Project-Based Filters */}
@@ -421,6 +834,43 @@ export function EmployersFilterDialog({
                     label="Project Status"
                     maxDisplay={3}
                   />
+                </div>
+
+                {/* Project Team Size Range Filter */}
+                <div className="space-y-3 mt-4">
+                  <Label className="text-sm font-semibold">Project Team Size</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="projectTeamSizeMin" className="text-xs text-muted-foreground">
+                        Minimum Team Size
+                      </Label>
+                      <Input
+                        id="projectTeamSizeMin"
+                        type="number"
+                        placeholder="e.g., 10"
+                        value={tempFilters.projectTeamSizeMin}
+                        onChange={(e) => handleFilterChange("projectTeamSizeMin", e.target.value)}
+                        min="1"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="projectTeamSizeMax" className="text-xs text-muted-foreground">
+                        Maximum Team Size (optional)
+                      </Label>
+                      <Input
+                        id="projectTeamSizeMax"
+                        type="number"
+                        placeholder="e.g., 50"
+                        value={tempFilters.projectTeamSizeMax}
+                        onChange={(e) => handleFilterChange("projectTeamSizeMax", e.target.value)}
+                        min="1"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Filter employers by the team size of their projects. Projects can have single numbers (e.g., &quot;5&quot;) or ranges (e.g., &quot;20-30&quot;).
+                  </p>
                 </div>
               </div>
             </div>

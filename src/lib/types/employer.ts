@@ -12,6 +12,14 @@ export interface EmployerLocation {
   updatedAt: Date
 }
 
+import { EmployerBenefit } from "./benefits"
+
+// Tech stack with candidate count for displaying frequency
+export interface TechStackWithCount {
+  tech: string
+  count: number
+}
+
 export interface Employer {
   id: string
   name: string
@@ -19,7 +27,11 @@ export interface Employer {
   linkedinUrl: string | null
   status: EmployerStatus
   foundedYear: number | null
+  ranking: EmployerRanking
+  employerType: EmployerType
   locations: EmployerLocation[]
+  techStacks?: string[]
+  benefits?: EmployerBenefit[]
   createdAt: Date
   updatedAt: Date
 }
@@ -40,6 +52,20 @@ export type SalaryPolicy =
   | "Standard"
   | "Tax Free"
   | "Remittance"
+
+export type EmployerRanking =
+  | "Top"
+  | "Standard"
+  | "DPL Favourite"
+
+export type EmployerType =
+  | "Product Based"
+  | "Client Based"
+
+export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
+  "Product Based": "Product Based",
+  "Client Based": "Client Based",
+}
 
 export interface EmployerTableColumn {
   id: keyof Employer | 'actions'
@@ -75,6 +101,18 @@ export const SALARY_POLICY_LABELS: Record<SalaryPolicy, string> = {
   Standard: "Standard",
   "Tax Free": "Tax Free",
   Remittance: "Remittance"
+}
+
+export const EMPLOYER_RANKING_COLORS: Record<EmployerRanking, string> = {
+  Top: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Standard: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+  "DPL Favourite": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+}
+
+export const EMPLOYER_RANKING_LABELS: Record<EmployerRanking, string> = {
+  Top: "Top",
+  Standard: "Standard",
+  "DPL Favourite": "DPL Favourite"
 }
 
 // Size calculation utilities

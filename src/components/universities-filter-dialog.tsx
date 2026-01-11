@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { Filter } from "lucide-react"
 import { UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
@@ -22,6 +24,7 @@ export interface UniversityFilters {
   countries: string[]
   rankings: UniversityRanking[]
   cities: string[]
+  minJobSuccessRatio: string  // Minimum job success ratio (e.g., "80" for 80%)
 }
 
 interface UniversitiesFilterDialogProps {
@@ -70,6 +73,7 @@ const initialFilters: UniversityFilters = {
   countries: [],
   rankings: [],
   cities: [],
+  minJobSuccessRatio: "",
 }
 
 export function UniversitiesFilterDialog({
@@ -85,13 +89,14 @@ export function UniversitiesFilterDialog({
   const activeFilterCount = 
     filters.countries.length +
     filters.rankings.length +
-    filters.cities.length
+    filters.cities.length +
+    (filters.minJobSuccessRatio ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof UniversityFilters, value: string[]) => {
+  const handleFilterChange = (field: keyof UniversityFilters, value: string[] | string) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -114,7 +119,8 @@ export function UniversitiesFilterDialog({
   const hasAnyTempFilters = 
     tempFilters.countries.length > 0 ||
     tempFilters.rankings.length > 0 ||
-    tempFilters.cities.length > 0
+    tempFilters.cities.length > 0 ||
+    tempFilters.minJobSuccessRatio !== ""
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -175,6 +181,23 @@ export function UniversitiesFilterDialog({
                 searchPlaceholder="Search cities..."
                 maxDisplay={4}
               />
+
+              <div className="space-y-2">
+                <Label htmlFor="minJobSuccessRatio">Minimum Job Success Ratio (%)</Label>
+                <Input
+                  id="minJobSuccessRatio"
+                  type="number"
+                  placeholder="e.g., 80"
+                  value={tempFilters.minJobSuccessRatio}
+                  onChange={(e) => handleFilterChange("minJobSuccessRatio", e.target.value)}
+                  min="0"
+                  max="100"
+                  step="0.1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Filter universities with at least this job success percentage
+                </p>
+              </div>
             </div>
           </div>
         </div>

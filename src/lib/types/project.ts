@@ -1,3 +1,5 @@
+export type PublishPlatform = "App Store" | "Play Store" | "Web" | "Desktop"
+
 export interface Project {
   id: string
   projectName: string
@@ -14,6 +16,8 @@ export interface Project {
   notes: string | null
   projectLink: string | null
   projectType: ProjectType
+  isPublished: boolean  // Is this project/app published on any platform?
+  publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop)
   createdAt: Date
   updatedAt: Date
 }
@@ -23,6 +27,7 @@ export type ProjectType =
   | "Freelance"
   | "Employer"
   | "Personal"
+  | "Open Source"
 
 export type ProjectStatus = 
   | "Development"

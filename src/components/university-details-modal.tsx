@@ -23,6 +23,7 @@ import {
 import { University, UniversityRanking, UNIVERSITY_RANKING_COLORS, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -546,7 +547,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   const [localUniversity, setLocalUniversity] = useState<University>(university)
   
   // Collapsible sections state
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "statistics"]))
   
   // Update local university when prop changes
   React.useEffect(() => {
@@ -864,6 +865,66 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                         </div>
                       ))
                   )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Job Success Statistics Section */}
+          <Collapsible 
+            open={expandedSections.has("statistics")} 
+            onOpenChange={() => toggleSection("statistics")}
+          >
+            <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <GraduationCap className="size-5" />
+                      Job Success Statistics
+                    </CardTitle>
+                    {expandedSections.has("statistics") ? (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {(() => {
+                    const stats = calculateUniversityJobSuccessRatio(localUniversity)
+                    if (stats.totalGraduates === 0) {
+                      return (
+                        <p className="text-base text-muted-foreground text-center py-6">
+                          No graduates found from this university
+                        </p>
+                      )
+                    }
+                    return (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-4 rounded-lg border bg-muted/30">
+                            <div className="text-sm text-muted-foreground mb-1">Total Graduates</div>
+                            <div className="text-2xl font-bold">{stats.totalGraduates}</div>
+                          </div>
+                          <div className="p-4 rounded-lg border bg-muted/30">
+                            <div className="text-sm text-muted-foreground mb-1">Successful Placements</div>
+                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                              {stats.successfulPlacements}
+                            </div>
+                          </div>
+                          <div className="p-4 rounded-lg border bg-muted/30">
+                            <div className="text-sm text-muted-foreground mb-1">Success Ratio</div>
+                            <div className="text-2xl font-bold text-primary">
+                              {stats.successRatio.toFixed(1)}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </CardContent>
               </CollapsibleContent>
             </Card>

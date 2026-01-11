@@ -109,6 +109,8 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: false
       }
     ],
+    isTopDeveloper: true,
+    personalityType: "INTJ",
     createdAt: new Date("2024-01-15"),
     updatedAt: new Date("2024-01-15")
   },
@@ -249,6 +251,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: false
       }
     ],
+    personalityType: "ENFP",
     createdAt: new Date("2024-01-12"),
     updatedAt: new Date("2024-01-20")
   },
@@ -442,6 +445,8 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: true
       }
     ],
+    isTopDeveloper: true,
+    personalityType: "ENTP",
     createdAt: new Date("2024-01-10"),
     updatedAt: new Date("2024-01-22")
   },
@@ -579,6 +584,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ISTP",
     createdAt: new Date("2024-01-08"),
     updatedAt: new Date("2024-01-18")
   },
@@ -693,6 +699,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ISFP",
     createdAt: new Date("2024-01-05"),
     updatedAt: new Date("2024-01-25")
   },
@@ -805,6 +812,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "INTP",
     createdAt: new Date("2024-01-03"),
     updatedAt: new Date("2024-01-28")
   },
@@ -858,7 +866,9 @@ export const sampleCandidates: Candidate[] = [
         shiftType: "Morning",
         workMode: "Onsite",
         timeSupportZones: [],
-        benefits: []
+        benefits: [
+          { id: "ben-7-2-1", name: "Provident Fund", amount: 5, unit: "percent" },
+        ]
       },
       {
         id: "we-7-3",
@@ -1007,6 +1017,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ISTJ",
     createdAt: new Date("2024-01-01"),
     updatedAt: new Date("2024-01-30")
   },
@@ -1120,6 +1131,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ESFP",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -1276,6 +1288,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ESTP",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -1449,6 +1462,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ISFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -1478,7 +1492,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2022-04-01"),
         techStacks: [],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1492,7 +1506,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2024-02-01"),
         techStacks: [],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1506,7 +1520,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2025-05-01"),
         techStacks: [],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1520,7 +1534,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: undefined,
         techStacks: [],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1620,6 +1634,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ESTJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -1649,7 +1664,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2022-11-01"),
         techStacks: ["Angular", "TypeScript", "JavaScript"],
         domains: ["Document Management", "Workflow Automation"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1663,7 +1678,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2023-04-01"),
         techStacks: [".NET Core", "C#"],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1677,7 +1692,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: new Date("2024-04-01"),
         techStacks: [".NET Core", "C#"],
         domains: ["Workflow Automation", "Business Intelligence & Analytics"],
-        shiftType: "Morning",
+        shiftType: "Night",
         workMode: "Onsite",
         timeSupportZones: [],
         benefits: []
@@ -1748,6 +1763,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ESFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -1979,6 +1995,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ENFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -2066,6 +2083,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "INFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -2310,6 +2328,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       },
     ],
+    personalityType: "INFP",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -2401,6 +2420,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ENTJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -2650,6 +2670,8 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    isTopDeveloper: true,
+    personalityType: "INTJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -2811,6 +2833,7 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    personalityType: "ENFP",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -3010,6 +3033,8 @@ export const sampleCandidates: Candidate[] = [
     projects: [],
     certifications: [],
     educations: [],
+    isTopDeveloper: true,
+    personalityType: "ENTP",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -3064,6 +3089,8 @@ export const sampleCandidates: Candidate[] = [
     projects: [],
     certifications: [],
     educations: [],
+    isTopDeveloper: true,
+    personalityType: "ESTJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },
@@ -3113,6 +3140,7 @@ export const sampleCandidates: Candidate[] = [
     projects: [],
     certifications: [],
     educations: [],
+    personalityType: "ISFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
   },

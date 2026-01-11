@@ -73,6 +73,8 @@ export interface Candidate {
   certifications?: CandidateCertification[] | null
   educations?: CandidateEducation[] 
   techStacks?: string[] // Standalone tech stacks (overall technical skills, not tied to specific employer)
+  isTopDeveloper?: boolean | null // Top developer flag
+  personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   createdAt: Date
   updatedAt: Date
 }

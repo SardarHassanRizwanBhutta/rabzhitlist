@@ -20,15 +20,31 @@ const initialFilters: EmployerFilters = {
   foundedYears: [],
   countries: [],
   cities: [],
+  employerTypes: [],
   salaryPolicies: [],
   sizeMin: "",
   sizeMax: "",
+  minLocationsCount: "",
+  minCitiesCount: "",
+  minApplicants: "",
+  // Employer-based filters
+  employerTechStacks: [],
+  benefits: [],
+  shiftTypes: [],
+  shiftTypesStrict: false,
+  workModes: [],
+  workModesStrict: false,
+  timeSupportZones: [],
+  rankings: [],
+  techStackMinCount: "",
   // Project-based filters
   techStacks: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
   projectStatus: [],
+  projectTeamSizeMin: "",
+  projectTeamSizeMax: "",
 }
 
 export function EmployersPageClient({ employers }: EmployersPageClientProps) {

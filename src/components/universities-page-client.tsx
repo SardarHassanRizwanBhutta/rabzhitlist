@@ -9,6 +9,7 @@ import { UniversitiesFilterDialog, UniversityFilters } from "@/components/univer
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { University } from "@/lib/types/university"
+import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
 
 interface UniversitiesPageClientProps {
   universities: University[]
@@ -18,6 +19,7 @@ const initialFilters: UniversityFilters = {
   countries: [],
   rankings: [],
   cities: [],
+  minJobSuccessRatio: "",
 }
 
 export function UniversitiesPageClient({ universities }: UniversitiesPageClientProps) {
@@ -141,6 +143,15 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
           filters.cities.includes(location.city)
         )
         if (!hasMatchingCity) return false
+      }
+
+      // Job Success Ratio filter
+      if (filters.minJobSuccessRatio) {
+        const minRatio = parseFloat(filters.minJobSuccessRatio)
+        if (!isNaN(minRatio) && minRatio >= 0 && minRatio <= 100) {
+          const { successRatio } = calculateUniversityJobSuccessRatio(university)
+          if (successRatio < minRatio) return false
+        }
       }
 
       return true

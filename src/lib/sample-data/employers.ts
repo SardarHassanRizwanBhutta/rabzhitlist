@@ -8,6 +8,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://pk.linkedin.com/company/dpl-it",
     status: "Active",
     foundedYear: 2003,
+    ranking: "DPL Favourite",
+    employerType: "Client Based",
     locations: [
       {
         id: "loc-emp-001-001",
@@ -46,6 +48,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/unitedsol-pvt-ltd/",
     status: "Active",
     foundedYear: 2005,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-002-001",
@@ -71,6 +75,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/medequips-smc/?originalSubdomain=pk",
     status: "Active",
     foundedYear: 1979,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-003-001",
@@ -96,6 +102,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/radwi/about/",
     status: "Active",
     foundedYear: 2021,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-004-001",
@@ -121,6 +129,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/eziline/",
     status: "Active",
     foundedYear: 2007,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-005-001",
@@ -146,6 +156,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/develoitsolutions/about/",
     status: "Active",
     foundedYear: 2019,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-006-001",
@@ -171,6 +183,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/myproappz/about/",
     status: "Active",
     foundedYear: 2019,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-007-001",
@@ -196,6 +210,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-008-001",
@@ -221,6 +237,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/ninjas-code/about/",
     status: "Active",
     foundedYear: 2018,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-009-001",
@@ -246,6 +264,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/interactive-group/",
     status: "Active",
     foundedYear: 1984,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-010-001",
@@ -271,6 +291,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Closed",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-011-001",
@@ -296,6 +318,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/fair-deal-marketing-pvt-ltd/",
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-012-001",
@@ -321,6 +345,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/sukalidesign/",
     status: "Active",
     foundedYear: 2019,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-013-001",
@@ -346,6 +372,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/viltcosolution/about/",
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-014-001",
@@ -371,6 +399,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/absoluit/",
     status: "Active",
     foundedYear: 2016,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-015-001",
@@ -396,6 +426,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: 2017,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-016-001",
@@ -421,6 +453,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/ninesol-technologies/",
     status: "Active",
     foundedYear: 2014,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-017-001",
@@ -446,6 +480,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-018-001",
@@ -471,6 +507,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/octaloop-itandns/about/",
     status: "Active",
     foundedYear: 2018,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-019-001",
@@ -496,6 +534,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: 2000,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-020-001",
@@ -521,6 +561,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/arok-dev/",
     status: "Active",
     foundedYear: 2025,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-010-001",
@@ -546,6 +588,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/ptcl-official/",
     status: "Active",
     foundedYear: 2001,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-022-001",
@@ -584,6 +628,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/hypersoftech/",
     status: "Active",
     foundedYear: 2020,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-023-001",
@@ -609,6 +655,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/the-microzone/",
     status: "Active",
     foundedYear: 2021,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-024-001",
@@ -634,6 +682,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/askaribanklimited/",
     status: "Active",
     foundedYear: 1991,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-025-001",
@@ -659,6 +709,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/csvantage/",
     status: "Active",
     foundedYear: 2019,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-026-001",
@@ -684,6 +736,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/strahlen-studios/about/",
     status: "Active",
     foundedYear: 2013,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-027-001",
@@ -709,6 +763,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-028-001",
@@ -734,6 +790,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/inexins-technologies-pvt-ltd/",
     status: "Active",
     foundedYear: 2015,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-029-001",
@@ -759,6 +817,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/arpatech/",
     status: "Active",
     foundedYear: 2003,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-030-001",
@@ -784,6 +844,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/technology-ally-inc-/about/",
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-031-001",
@@ -809,6 +871,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/xorddotcom/",
     status: "Active",
     foundedYear: 2018,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-032-001",
@@ -834,6 +898,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/afiniti-com/",
     status: "Active",
     foundedYear: 2006,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-033-001",
@@ -859,6 +925,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/tecklogic/",
     status: "Active",
     foundedYear: 2015,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-034-001",
@@ -884,6 +952,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/cyber-reconnaissance-and-combat-center/",
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-035-001",
@@ -909,6 +979,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/launchifyllc/about/",
     status: "Active",
     foundedYear: 2024,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-036-001",
@@ -934,6 +1006,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/aicommunitypakistan/about/",
     status: "Active",
     foundedYear: 2022,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-037-001",
@@ -959,6 +1033,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-038-001",
@@ -984,6 +1060,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/wrpstudios",
     status: "Active",
     foundedYear: 2010,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-039-001",
@@ -1009,6 +1087,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/asf-tech/",
     status: "Active",
     foundedYear: 2023,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-040-001",
@@ -1034,6 +1114,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/ubiquify/",
     status: "Active",
     foundedYear: 2018,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-041-001",
@@ -1059,6 +1141,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/qbatch/",
     status: "Active",
     foundedYear: 2016,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-042-001",
@@ -1084,6 +1168,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-043-001",
@@ -1109,6 +1195,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: null,
     status: "Active",
     foundedYear: 2024,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-044-001",
@@ -1134,6 +1222,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/asianithouse/",
     status: "Active",
     foundedYear: 2014,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-045-001",
@@ -1159,6 +1249,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/emumba/",
     status: "Active",
     foundedYear: 2011,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-046-001",
@@ -1184,6 +1276,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/blackoakdigital/",
     status: "Active",
     foundedYear: 2021,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-047-001",
@@ -1209,6 +1303,8 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/company/star-land-marketing-private-limited/",
     status: "Active",
     foundedYear: 2010,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-048-001",
@@ -1234,10 +1330,39 @@ export const sampleEmployers: Employer[] = [
     linkedinUrl: "https://www.linkedin.com/in/mahir-lodhi-8697bb247",
     status: "Active",
     foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
     locations: [
       {
         id: "loc-emp-049-001",
         employerId: "emp-049",
+        country: "Pakistan",
+        city: "Islamabad",
+        address: null,
+        isHeadquarters: true,
+        salaryPolicy: "Standard",
+        minSize: null,
+        maxSize: null,
+        createdAt: new Date("2023-08-01"),
+        updatedAt: new Date("2023-08-01"),
+      },
+    ],
+    createdAt: new Date("2023-08-01"),
+    updatedAt: new Date("2023-08-01"),
+  },
+  {
+    id: "emp-050",
+    name: "CUST Research Centre",
+    websiteUrl: null,
+    linkedinUrl: null,
+    status: "Active",
+    foundedYear: null,
+    ranking: "Standard",
+    employerType: "Product Based",
+    locations: [
+      {
+        id: "loc-emp-050-001",
+        employerId: "emp-050",
         country: "Pakistan",
         city: "Islamabad",
         address: null,
