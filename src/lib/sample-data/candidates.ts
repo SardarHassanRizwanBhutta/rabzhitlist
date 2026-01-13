@@ -111,6 +111,15 @@ export const sampleCandidates: Candidate[] = [
     ],
     isTopDeveloper: true,
     personalityType: "INTJ",
+    organizationalRoles: [
+      {
+        id: "org-role-1-1",
+        organizationName: "PASHA",
+        role: "Board Member",
+        startDate: new Date("2023-01-01"),
+        endDate: undefined,
+      }
+    ],
     createdAt: new Date("2024-01-15"),
     updatedAt: new Date("2024-01-15")
   },
@@ -252,6 +261,15 @@ export const sampleCandidates: Candidate[] = [
       }
     ],
     personalityType: "ENFP",
+    organizationalRoles: [
+      {
+        id: "org-role-3-1",
+        organizationName: "PASHA",
+        role: "CEO",
+        startDate: new Date("2022-06-01"),
+        endDate: undefined,
+      }
+    ],
     createdAt: new Date("2024-01-12"),
     updatedAt: new Date("2024-01-20")
   },
@@ -447,6 +465,15 @@ export const sampleCandidates: Candidate[] = [
     ],
     isTopDeveloper: true,
     personalityType: "ENTP",
+    organizationalRoles: [
+      {
+        id: "org-role-4-1",
+        organizationName: "PASHA",
+        role: "Advisor",
+        startDate: new Date("2023-03-01"),
+        endDate: undefined,
+      }
+    ],
     createdAt: new Date("2024-01-10"),
     updatedAt: new Date("2024-01-22")
   },

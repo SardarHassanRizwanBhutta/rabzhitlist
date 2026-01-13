@@ -32,6 +32,7 @@ export interface Employer {
   locations: EmployerLocation[]
   techStacks?: string[]
   benefits?: EmployerBenefit[]
+  tags?: string[]  // e.g., ["DPL Competitive", "Enterprise", "Startup"]
   createdAt: Date
   updatedAt: Date
 }
@@ -61,10 +62,12 @@ export type EmployerRanking =
 export type EmployerType =
   | "Product Based"
   | "Client Based"
+  | "Resource Augmentation"
 
 export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
   "Product Based": "Product Based",
   "Client Based": "Client Based",
+  "Resource Augmentation": "Resource Augmentation",
 }
 
 export interface EmployerTableColumn {

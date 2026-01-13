@@ -432,6 +432,8 @@ const initialFilters: CandidateFilters = {
   projectStatus: [],
   projectTypes: [],
   techStacks: [],
+  clientLocations: [],
+  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -495,6 +497,7 @@ const initialFilters: CandidateFilters = {
   // Published project filters
   hasPublishedProject: null,
   publishPlatforms: [],
+  minProjectDownloadCount: "",
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -526,6 +529,12 @@ const initialFilters: CandidateFilters = {
   certificationLevels: [],
   // Personality type filter
   personalityTypes: [],
+  // Organizational roles filter
+  organizationalRoles: {
+    organizationNames: [],
+    roles: []
+  },
+  source: [],
 }
 
 // Debug function - Remove after testing
@@ -673,9 +682,37 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         return false
       }
 
+      // Source filter
+      if (appliedFilters.source.length > 0 && !appliedFilters.source.includes(candidate.source)) {
+        return false
+      }
+
       // Personality type filter
       if (appliedFilters.personalityTypes.length > 0) {
         if (!candidate.personalityType || !appliedFilters.personalityTypes.includes(candidate.personalityType)) {
+          return false
+        }
+      }
+
+      // Organizational Roles filter
+      if (appliedFilters.organizationalRoles?.organizationNames.length > 0) {
+        const hasMatchingRole = candidate.organizationalRoles?.some(orgRole => {
+          const orgMatches = appliedFilters.organizationalRoles.organizationNames.some(filterOrg =>
+            orgRole.organizationName.toLowerCase().trim() === filterOrg.toLowerCase().trim()
+          )
+          
+          // If roles filter is specified, also check role match
+          if (appliedFilters.organizationalRoles.roles && appliedFilters.organizationalRoles.roles.length > 0) {
+            const roleMatches = appliedFilters.organizationalRoles.roles.some(filterRole =>
+              orgRole.role.toLowerCase().trim() === filterRole.toLowerCase().trim()
+            )
+            return orgMatches && roleMatches
+          }
+          
+          return orgMatches
+        })
+        
+        if (!hasMatchingRole) {
           return false
         }
       }
@@ -1533,6 +1570,38 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         if (!hasMatchingAspect) return false
       }
 
+      // Client Locations filter
+      if (appliedFilters.clientLocations.length > 0) {
+        const candidateClientLocations = new Set<string>()
+        candidateProjects.forEach(project => {
+          if (project.clientLocation) {
+            candidateClientLocations.add(project.clientLocation)
+          }
+        })
+        
+        const hasMatchingClientLocation = appliedFilters.clientLocations.some(filterLocation => 
+          candidateClientLocations.has(filterLocation)
+        )
+        if (!hasMatchingClientLocation) return false
+      }
+
+      // Minimum Client Location Count filter
+      if (appliedFilters.minClientLocationCount) {
+        const minCount = parseInt(appliedFilters.minClientLocationCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          const uniqueClientLocations = new Set<string>()
+          candidateProjects.forEach(project => {
+            if (project.clientLocation) {
+              uniqueClientLocations.add(project.clientLocation)
+            }
+          })
+          
+          if (uniqueClientLocations.size < minCount) {
+            return false
+          }
+        }
+      }
+
       // Project Date Range filters
       // Start Date Range Filter - filters candidates who worked on projects that started within the range
       if (appliedFilters.startDateStart || appliedFilters.startDateEnd) {
@@ -1664,6 +1733,57 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         
         // Must have at least one published project on selected platforms
         if (publishedProjects.length === 0) return false
+      }
+
+      // Download Count filter for candidate projects
+      if (appliedFilters.minProjectDownloadCount) {
+        const minCount = parseInt(appliedFilters.minProjectDownloadCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          // ENHANCEMENT: If jobTitle is also provided, check AND logic
+          if (appliedFilters.jobTitle && appliedFilters.jobTitle.trim() && !appliedFilters.jobTitleWorkedWith) {
+            const filterJobTitle = appliedFilters.jobTitle.trim().toLowerCase()
+            
+            // Find work experiences with matching job title
+            const matchingWorkExperiences = candidate.workExperiences?.filter(we => {
+              if (!we.jobTitle || typeof we.jobTitle !== 'string' || !we.jobTitle.trim()) {
+                return false
+              }
+              const jobTitleLower = we.jobTitle.trim().toLowerCase()
+              return jobTitleLower.includes(filterJobTitle)
+            }) || []
+            
+            if (matchingWorkExperiences.length === 0) {
+              return false // No matching job title found
+            }
+            
+            // Get project names from matching work experiences only
+            const projectNamesFromMatchingWE = matchingWorkExperiences.flatMap(we =>
+              we.projects.map(p => p.projectName).filter(name => name)
+            )
+            
+            // Find projects from sampleProjects that match AND have minimum download count
+            const matchingProjects = sampleProjects.filter(project => {
+              const nameMatches = projectNamesFromMatchingWE.some(name => 
+                name.toLowerCase() === project.projectName.toLowerCase()
+              )
+              const downloadCountMatches = project.downloadCount !== undefined && 
+                                           project.downloadCount >= minCount
+              return nameMatches && downloadCountMatches
+            })
+            
+            if (matchingProjects.length === 0) {
+              return false // No project with matching job title has minimum download count
+            }
+          } else {
+            // Original behavior: Check all candidate projects
+            const hasProjectWithMinDownloads = candidateProjects.some(project =>
+              project.downloadCount !== undefined && project.downloadCount >= minCount
+            )
+            if (!hasProjectWithMinDownloads) {
+              return false
+            }
+          }
+        }
       }
 
       // Employer-related filters - Check employers the candidate worked for

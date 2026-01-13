@@ -24,6 +24,7 @@ const initialFilters: ProjectFilters = {
   employerCities: [],
   employerCountries: [],
   employerTypes: [],
+  clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -40,6 +41,7 @@ const initialFilters: ProjectFilters = {
   projectLink: "",
   isPublished: null,
   publishPlatforms: [],
+  minDownloadCount: "",
 }
 
 export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
@@ -229,6 +231,16 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
           location.country !== null && filters.employerCountries.includes(location.country)
         )
         if (!hasMatchingCountry) return false
+      }
+
+      // Client Locations filter
+      if (filters.clientLocations.length > 0) {
+        if (!project.clientLocation) {
+          return false
+        }
+        if (!filters.clientLocations.includes(project.clientLocation)) {
+          return false
+        }
       }
 
       // Tech Stacks filter
@@ -452,6 +464,16 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
           filters.publishPlatforms.includes(platform)
         )
         if (!hasPlatformMatch) return false
+      }
+
+      // Download Count filter
+      if (filters.minDownloadCount) {
+        const minCount = parseInt(filters.minDownloadCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          if (!project.downloadCount || project.downloadCount < minCount) {
+            return false
+          }
+        }
       }
 
       return true

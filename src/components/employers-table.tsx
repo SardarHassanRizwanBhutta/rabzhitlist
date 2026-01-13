@@ -248,6 +248,98 @@ const getEmployerTimeSupportZones = (employer: Employer): string[] => {
   return Array.from(timeZonesSet).sort()
 }
 
+/**
+ * Calculate cumulative years of experience with specific tech stacks in projects for an employer.
+ * Handles overlapping periods by merging them.
+ * @param employer - The employer to calculate for
+ * @param techStacks - Array of tech stack names to check (case-insensitive)
+ * @returns Total cumulative years (rounded to 1 decimal place)
+ */
+const calculateProjectTechStackYears = (employer: Employer, techStacks: string[]): number => {
+  if (techStacks.length === 0) return 0
+
+  // Get all projects for this employer
+  const employerProjects = sampleProjects.filter(project => {
+    if (project.employerName === null) return false
+    return project.employerName.trim().toLowerCase() === employer.name.trim().toLowerCase()
+  })
+
+  if (employerProjects.length === 0) return 0
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  // Normalize tech stacks to lowercase for comparison
+  const normalizedTechStacks = techStacks.map(ts => ts.toLowerCase().trim())
+
+  // Collect all date ranges for projects that have any of the selected tech stacks
+  const dateRanges: Array<{ start: Date, end: Date }> = []
+
+  employerProjects.forEach(project => {
+    // Check if this project has any of the selected tech stacks
+    const hasMatchingTechStack = project.techStacks.some(tech =>
+      normalizedTechStacks.includes(tech.toLowerCase().trim())
+    )
+
+    if (!hasMatchingTechStack || !project.startDate) return
+
+    const startDate = new Date(project.startDate)
+    startDate.setHours(0, 0, 0, 0)
+
+    // Use endDate if available, otherwise use today (ongoing project)
+    const endDate = project.endDate ? new Date(project.endDate) : today
+    endDate.setHours(0, 0, 0, 0)
+
+    // Only add valid date ranges
+    if (startDate <= endDate) {
+      dateRanges.push({ start: startDate, end: endDate })
+    }
+  })
+
+  if (dateRanges.length === 0) return 0
+
+  // Sort by start date
+  dateRanges.sort((a, b) => a.start.getTime() - b.start.getTime())
+
+  // Merge overlapping periods
+  const mergedRanges: Array<{ start: Date, end: Date }> = []
+  let currentRange = { ...dateRanges[0] }
+
+  for (let i = 1; i < dateRanges.length; i++) {
+    const nextRange = dateRanges[i]
+
+    // If current range overlaps or is adjacent to next range, merge them
+    if (currentRange.end >= nextRange.start) {
+      // Merge: extend current range to the maximum end date
+      currentRange.end = currentRange.end > nextRange.end ? currentRange.end : nextRange.end
+    } else {
+      // No overlap: save current range and start a new one
+      mergedRanges.push(currentRange)
+      currentRange = { ...nextRange }
+    }
+  }
+  mergedRanges.push(currentRange)
+
+  // Calculate total months across all merged ranges
+  let totalMonths = 0
+
+  mergedRanges.forEach(range => {
+    const yearsDiff = range.end.getFullYear() - range.start.getFullYear()
+    const monthsDiff = range.end.getMonth() - range.start.getMonth()
+    const daysDiff = range.end.getDate() - range.start.getDate()
+
+    const totalMonthsForRange = yearsDiff * 12 + monthsDiff + (daysDiff / 30)
+    
+    if (totalMonthsForRange > 0) {
+      totalMonths += totalMonthsForRange
+    }
+  })
+
+  // Convert to years (with 1 decimal place precision)
+  const totalYears = totalMonths / 12
+  return Math.round(totalYears * 10) / 10
+}
+
 // Count total unique candidates/employees for an employer
 const getApplicantCount = (employer: Employer): number => {
   const uniqueCandidates = new Set<string>() // Use Set to count unique candidates
@@ -432,6 +524,22 @@ export function EmployersTable({
         return false
       }
 
+      // Tags filter
+      if (filters.tags.length > 0) {
+        if (!employer.tags || employer.tags.length === 0) {
+          return false
+        }
+        
+        // Check if employer has at least one of the selected tags
+        const hasMatchingTag = filters.tags.some(filterTag =>
+          employer.tags!.some(tag => tag.toLowerCase() === filterTag.toLowerCase())
+        )
+        
+        if (!hasMatchingTag) {
+          return false
+        }
+      }
+
       // Founded year filter
       if (filters.foundedYears.length > 0) {
         if (employer.foundedYear === null || !filters.foundedYears.includes(employer.foundedYear.toString())) {
@@ -534,6 +642,128 @@ export function EmployersTable({
           if (applicantCount < minCount) {
             return false
           }
+        }
+      }
+
+      // Employee Cities filter - filter employers by their employees' cities
+      if (filters.employeeCities.length > 0) {
+        const hasEmployeeFromCity = sampleCandidates.some(candidate => {
+          // Check if candidate is from one of the selected cities
+          if (!filters.employeeCities.includes(candidate.city)) return false
+          
+          // Check if candidate has worked at this employer
+          return candidate.workExperiences?.some(we =>
+            matchesEmployerName(we.employerName, employer.name)
+          )
+        })
+        if (!hasEmployeeFromCity) return false
+      }
+
+      // Employee Countries filter - filter employers by their employees' countries (using city-to-country mapping)
+      if (filters.employeeCountries.length > 0) {
+        // City to Country mapping (same as in filter dialog)
+        const CITY_TO_COUNTRY_MAP: Record<string, string> = {
+          // Pakistan cities
+          "Karachi": "Pakistan",
+          "Lahore": "Pakistan",
+          "Islamabad": "Pakistan",
+          "Rawalpindi": "Pakistan",
+          "Faisalabad": "Pakistan",
+          "Multan": "Pakistan",
+          "Peshawar": "Pakistan",
+          "Quetta": "Pakistan",
+          "Sialkot": "Pakistan",
+          "Hyderabad": "Pakistan",
+          "Gujranwala": "Pakistan",
+          "Sargodha": "Pakistan",
+          "Bahawalpur": "Pakistan",
+          "Sukkur": "Pakistan",
+          "Larkana": "Pakistan",
+          "Sheikhupura": "Pakistan",
+          "Rahim Yar Khan": "Pakistan",
+          "Gujrat": "Pakistan",
+          "Kasur": "Pakistan",
+          "Mardan": "Pakistan",
+          // US cities (common ones)
+          "New York": "United States",
+          "Los Angeles": "United States",
+          "Chicago": "United States",
+          "Houston": "United States",
+          "Phoenix": "United States",
+          "Philadelphia": "United States",
+          "San Antonio": "United States",
+          "San Diego": "United States",
+          "Dallas": "United States",
+          "San Jose": "United States",
+          "Austin": "United States",
+          "Jacksonville": "United States",
+          "San Francisco": "United States",
+          "Columbus": "United States",
+          "Fort Worth": "United States",
+          "Charlotte": "United States",
+          "Seattle": "United States",
+          "Denver": "United States",
+          "Washington": "United States",
+          "Boston": "United States",
+          "El Paso": "United States",
+          "Detroit": "United States",
+          "Nashville": "United States",
+          "Portland": "United States",
+          "Oklahoma City": "United States",
+          "Las Vegas": "United States",
+          "Memphis": "United States",
+          "Louisville": "United States",
+          "Baltimore": "United States",
+          "Milwaukee": "United States",
+        }
+        
+        const hasEmployeeFromCountry = sampleCandidates.some(candidate => {
+          // Map candidate's city to country
+          const candidateCountry = candidate.city ? CITY_TO_COUNTRY_MAP[candidate.city] : null
+          if (!candidateCountry || !filters.employeeCountries.includes(candidateCountry)) {
+            return false
+          }
+          
+          // Check if candidate has worked at this employer
+          return candidate.workExperiences?.some(we =>
+            matchesEmployerName(we.employerName, employer.name)
+          )
+        })
+        if (!hasEmployeeFromCountry) return false
+      }
+
+      // Employees with Organizational Role filter
+      if (filters.employeesWithOrganizationalRole?.organizationName) {
+        const organizationName = filters.employeesWithOrganizationalRole.organizationName.trim()
+        const filterRoles = filters.employeesWithOrganizationalRole.roles || []
+        
+        // Check if any candidate works at this employer AND has the specified organizational role
+        const hasMatchingEmployee = sampleCandidates.some(candidate => {
+          // Check if candidate works/has worked at this employer
+          const hasWorkExperienceAtEmployer = candidate.workExperiences?.some(we =>
+            matchesEmployerName(we.employerName, employer.name)
+          )
+          
+          if (!hasWorkExperienceAtEmployer) return false
+          
+          // Check if candidate has matching organizational role
+          return candidate.organizationalRoles?.some(orgRole => {
+            const orgMatches = orgRole.organizationName.toLowerCase().trim() === organizationName.toLowerCase().trim()
+            
+            // If roles filter is specified, also check role match
+            if (filterRoles.length > 0) {
+              const roleMatches = filterRoles.some(filterRole =>
+                orgRole.role.toLowerCase().trim() === filterRole.toLowerCase().trim()
+              )
+              return orgMatches && roleMatches
+            }
+            
+            return orgMatches
+          })
+        })
+        
+        if (!hasMatchingEmployee) {
+          return false
         }
       }
 
@@ -672,12 +902,17 @@ export function EmployersTable({
       // If any project-based filter is active, check if employer has matching projects
       const hasProjectFilters = 
         filters.techStacks.length > 0 ||
+        (filters.projectTechStackMinYears?.techStacks.length || 0) > 0 ||
         filters.verticalDomains.length > 0 ||
         filters.horizontalDomains.length > 0 ||
         filters.technicalAspects.length > 0 ||
+        filters.clientLocations.length > 0 ||
         filters.projectStatus.length > 0 ||
         filters.projectTeamSizeMin ||
-        filters.projectTeamSizeMax
+        filters.projectTeamSizeMax ||
+        filters.hasPublishedProject !== null ||
+        filters.publishPlatforms.length > 0 ||
+        filters.minDownloadCount
 
       // If no projects found and project filters are active, exclude this employer
       if (hasProjectFilters && employerProjects.length === 0) {
@@ -690,6 +925,17 @@ export function EmployersTable({
           arraysMatch(project.techStacks, filters.techStacks)
         )
         if (!hasMatchingTechStack) return false
+      }
+
+      // Project Tech Stack Minimum Years filter
+      if (filters.projectTechStackMinYears?.techStacks.length > 0 && filters.projectTechStackMinYears?.minYears) {
+        const minYears = parseFloat(filters.projectTechStackMinYears.minYears)
+        if (!isNaN(minYears) && minYears > 0) {
+          const totalYears = calculateProjectTechStackYears(employer, filters.projectTechStackMinYears.techStacks)
+          if (totalYears < minYears) {
+            return false
+          }
+        }
       }
 
       // Vertical domains filter
@@ -714,6 +960,14 @@ export function EmployersTable({
           arraysMatch(project.technicalAspects, filters.technicalAspects)
         )
         if (!hasMatchingTechnicalAspect) return false
+      }
+
+      // Client Locations filter
+      if (filters.clientLocations.length > 0) {
+        const hasMatchingClientLocation = employerProjects.some(project =>
+          project.clientLocation && filters.clientLocations.includes(project.clientLocation)
+        )
+        if (!hasMatchingClientLocation) return false
       }
 
       // Project status filter
@@ -769,6 +1023,42 @@ export function EmployersTable({
         })
         
         if (!hasMatchingTeamSize) return false
+      }
+
+      // Has Published Project filter
+      if (filters.hasPublishedProject === true) {
+        const hasPublished = employerProjects.some(project => project.isPublished === true)
+        if (!hasPublished) {
+          return false
+        }
+      }
+
+      // Publish Platforms filter
+      if (filters.publishPlatforms.length > 0) {
+        const hasMatchingPlatform = employerProjects.some(project => {
+          if (!project.isPublished || !project.publishPlatforms || project.publishPlatforms.length === 0) {
+            return false
+          }
+          return filters.publishPlatforms.some(filterPlatform =>
+            project.publishPlatforms.some(platform =>
+              platform.toLowerCase().trim() === filterPlatform.toLowerCase().trim()
+            )
+          )
+        })
+        if (!hasMatchingPlatform) return false
+      }
+
+      // Download Count filter
+      if (filters.minDownloadCount) {
+        const minCount = parseInt(filters.minDownloadCount)
+        if (!isNaN(minCount) && minCount > 0) {
+          const hasProjectWithMinDownloads = employerProjects.some(project =>
+            project.downloadCount !== undefined && project.downloadCount >= minCount
+          )
+          if (!hasProjectWithMinDownloads) {
+            return false
+          }
+        }
       }
 
       return true

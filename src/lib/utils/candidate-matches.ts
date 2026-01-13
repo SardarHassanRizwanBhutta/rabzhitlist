@@ -51,6 +51,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.projectStatus.length > 0 ||
     filters.projectTypes.length > 0 ||
     filters.techStacks.length > 0 ||
+    filters.clientLocations.length > 0 ||
+    filters.minClientLocationCount ||
     filters.verticalDomains.length > 0 ||
     filters.horizontalDomains.length > 0 ||
     filters.technicalAspects.length > 0 ||
@@ -82,6 +84,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.projectTeamSizeMax ||
     filters.hasPublishedProject === true ||
     filters.publishPlatforms.length > 0 ||
+    filters.minProjectDownloadCount ||
     filters.employerStatus.length > 0 ||
     filters.employerCountries.length > 0 ||
     filters.employerCities.length > 0 ||
@@ -106,7 +109,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.certificationNames.length > 0 ||
     filters.certificationIssuingBodies.length > 0 ||
     filters.certificationLevels.length > 0 ||
-    filters.personalityTypes.length > 0
+    filters.personalityTypes.length > 0 ||
+    filters.source.length > 0
   )
 }
 

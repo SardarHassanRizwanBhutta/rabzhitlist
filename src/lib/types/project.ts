@@ -4,6 +4,7 @@ export interface Project {
   id: string
   projectName: string
   employerName: string | null
+  clientLocation?: string | null  // Where the client is located (e.g., "San Francisco", "Silicon Valley", "United States")
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
@@ -18,6 +19,7 @@ export interface Project {
   projectType: ProjectType
   isPublished: boolean  // Is this project/app published on any platform?
   publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop)
+  downloadCount?: number  // Download count (e.g., 150000 for 150K downloads)
   createdAt: Date
   updatedAt: Date
 }

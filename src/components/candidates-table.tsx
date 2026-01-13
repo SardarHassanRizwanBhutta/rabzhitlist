@@ -104,6 +104,8 @@ const defaultFilters: CandidateFilters = {
   projectStatus: [],
   projectTypes: [],
   techStacks: [],
+  clientLocations: [],
+  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -149,6 +151,7 @@ const defaultFilters: CandidateFilters = {
   projectTeamSizeMax: "",
   hasPublishedProject: null,
   publishPlatforms: [],
+  minProjectDownloadCount: "",
   employerStatus: [],
   employerCountries: [],
   employerCities: [],
@@ -174,6 +177,11 @@ const defaultFilters: CandidateFilters = {
   certificationIssuingBodies: [],
   certificationLevels: [],
   personalityTypes: [],
+  organizationalRoles: {
+    organizationNames: [],
+    roles: []
+  },
+  source: [],
   startDateStart: null,
   startDateEnd: null,
 }
