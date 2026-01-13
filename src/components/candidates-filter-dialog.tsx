@@ -49,6 +49,8 @@ export interface CandidateFilters {
   projectStatus: string[]
   projectTypes: string[]
   techStacks: string[]
+  clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
+  minClientLocationCount: string  // Minimum number of unique client locations/countries (e.g., "2" for multi-country projects)
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
@@ -115,6 +117,7 @@ export interface CandidateFilters {
   // Published project filters
   hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
   publishPlatforms: string[]  // ["App Store", "Play Store"] - filter by specific platforms
+  minProjectDownloadCount: string  // Minimum download count for projects candidate worked on (e.g., "100000" for 100K+)
   // Employer-related filters
   employerStatus: string[]
   employerCountries: string[]
@@ -147,6 +150,13 @@ export interface CandidateFilters {
   certificationLevels: string[]
   // Personality type filter
   personalityTypes: string[]  // Filter by personality types (e.g., ["ESTJ", "INTJ"])
+  // Organizational roles filter
+  organizationalRoles: {
+    organizationNames: string[]  // e.g., ["PASHA"]
+    roles?: string[]              // Optional: specific roles (e.g., ["CEO", "Board Member"])
+  }
+  // Source filter
+  source: string[]  // Filter by candidate source (e.g., ["Referral", "DPL Employee"])
 }
 
 interface CandidatesFilterDialogProps {
@@ -257,6 +267,17 @@ const extractUniqueHorizontalDomains = () => {
     project.horizontalDomains.forEach(domain => domains.add(domain))
   })
   return Array.from(domains).sort()
+}
+
+// Extract unique client locations from projects
+const extractUniqueClientLocations = () => {
+  const locations = new Set<string>()
+  sampleProjects.forEach(project => {
+    if (project.clientLocation) {
+      locations.add(project.clientLocation)
+    }
+  })
+  return Array.from(locations).sort()
 }
 
 const extractUniqueTechnicalAspects = () => {
@@ -481,6 +502,11 @@ const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspect
   label: aspect
 }))
 
+const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(location => ({
+  value: location,
+  label: location
+}))
+
 // Employer-related filter options
 const employerStatusOptions: MultiSelectOption[] = extractUniqueEmployerStatuses().map(status => ({
   value: status,
@@ -576,6 +602,61 @@ const personalityTypeOptions: MultiSelectOption[] = [
   { value: "INFP", label: "INFP - Mediator" },
 ]
 
+// Extract unique source values from candidates
+const extractUniqueSources = (): string[] => {
+  const sources = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    if (candidate.source && candidate.source.trim()) {
+      sources.add(candidate.source.trim())
+    }
+  })
+  // Add common source options that might not be in sample data yet
+  const commonSources = ["Referral", "DPL Employee", "Job Portal", "LinkedIn", "Direct Application", "University", "Career Fair"]
+  commonSources.forEach(source => sources.add(source))
+  return Array.from(sources).sort()
+}
+
+// Extract unique organization names from candidates' organizational roles
+const extractUniqueOrganizationNames = (): string[] => {
+  const organizations = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.organizationalRoles?.forEach(orgRole => {
+      if (orgRole.organizationName && orgRole.organizationName.trim()) {
+        organizations.add(orgRole.organizationName.trim())
+      }
+    })
+  })
+  return Array.from(organizations).sort()
+}
+
+// Extract unique roles from candidates' organizational roles
+const extractUniqueRoles = (): string[] => {
+  const roles = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.organizationalRoles?.forEach(orgRole => {
+      if (orgRole.role && orgRole.role.trim()) {
+        roles.add(orgRole.role.trim())
+      }
+    })
+  })
+  return Array.from(roles).sort()
+}
+
+const organizationNameOptions: MultiSelectOption[] = extractUniqueOrganizationNames().map(org => ({
+  value: org,
+  label: org
+}))
+
+const roleOptions: MultiSelectOption[] = extractUniqueRoles().map(role => ({
+  value: role,
+  label: role
+}))
+
+const sourceOptions: MultiSelectOption[] = extractUniqueSources().map(source => ({
+  value: source,
+  label: source
+}))
+
 const initialFilters: CandidateFilters = {
   // Global search for basic info fields
   basicInfoSearch: "",
@@ -592,6 +673,8 @@ const initialFilters: CandidateFilters = {
   projectStatus: [],
   projectTypes: [],
   techStacks: [],
+  clientLocations: [],
+  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -657,6 +740,7 @@ const initialFilters: CandidateFilters = {
   // Published project filters
   hasPublishedProject: null,
   publishPlatforms: [],
+  minProjectDownloadCount: "",
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
@@ -688,6 +772,12 @@ const initialFilters: CandidateFilters = {
   certificationLevels: [],
   // Personality type filter
   personalityTypes: [],
+  // Organizational roles filter
+  organizationalRoles: {
+    organizationNames: [],
+    roles: []
+  },
+  source: [],
 }
 
 export function CandidatesFilterDialog({
@@ -710,6 +800,7 @@ export function CandidatesFilterDialog({
     { id: "employers", sectionId: "filter-employers", label: "Employers" },
     { id: "education", sectionId: "filter-education", label: "Education" },
     { id: "certifications", sectionId: "filter-certifications", label: "Certifications" },
+    { id: "organizational-roles", sectionId: "filter-organizational-roles", label: "Organizational" },
   ]
   
   // Scroll to section function
@@ -767,6 +858,7 @@ export function CandidatesFilterDialog({
           updated.cities = []
           updated.status = []
           updated.personalityTypes = []
+          updated.source = []
           updated.currentSalaryMin = ""
           updated.currentSalaryMax = ""
           updated.expectedSalaryMin = ""
@@ -816,6 +908,8 @@ export function CandidatesFilterDialog({
           updated.projectStatus = []
           updated.projectTypes = []
           updated.techStacks = []
+          updated.clientLocations = []
+          updated.minClientLocationCount = ""
           updated.verticalDomains = []
           updated.horizontalDomains = []
           updated.technicalAspects = []
@@ -825,6 +919,7 @@ export function CandidatesFilterDialog({
           updated.projectTeamSizeMax = ""
           updated.hasPublishedProject = null
           updated.publishPlatforms = []
+          updated.minProjectDownloadCount = ""
           break
         case "employers":
           updated.employers = []
@@ -856,6 +951,12 @@ export function CandidatesFilterDialog({
           updated.certificationNames = []
           updated.certificationIssuingBodies = []
           updated.certificationLevels = []
+          break
+        case "organizational-roles":
+          updated.organizationalRoles = {
+            organizationNames: [],
+            roles: []
+          }
           break
       }
       return updated
@@ -926,6 +1027,7 @@ export function CandidatesFilterDialog({
           tempFilters.cities.length +
           tempFilters.status.length +
           tempFilters.personalityTypes.length +
+          tempFilters.source.length +
           (tempFilters.currentSalaryMin ? 1 : 0) +
           (tempFilters.currentSalaryMax ? 1 : 0) +
           (tempFilters.expectedSalaryMin ? 1 : 0) +
@@ -958,6 +1060,8 @@ export function CandidatesFilterDialog({
           tempFilters.projectStatus.length +
           tempFilters.projectTypes.length +
           tempFilters.techStacks.length +
+          tempFilters.clientLocations.length +
+          (tempFilters.minClientLocationCount ? 1 : 0) +
           tempFilters.verticalDomains.length +
           tempFilters.horizontalDomains.length +
           tempFilters.technicalAspects.length +
@@ -966,7 +1070,8 @@ export function CandidatesFilterDialog({
           (tempFilters.projectTeamSizeMin ? 1 : 0) +
           (tempFilters.projectTeamSizeMax ? 1 : 0) +
           (tempFilters.hasPublishedProject ? 1 : 0) +
-          tempFilters.publishPlatforms.length
+          tempFilters.publishPlatforms.length +
+          (tempFilters.minProjectDownloadCount ? 1 : 0)
         )
       case "employers":
         return (
@@ -1002,6 +1107,11 @@ export function CandidatesFilterDialog({
           tempFilters.certificationIssuingBodies.length +
           tempFilters.certificationLevels.length
         )
+      case "organizational-roles":
+        return (
+          (tempFilters.organizationalRoles?.organizationNames.length || 0) +
+          (tempFilters.organizationalRoles?.roles?.length || 0)
+        )
       default:
         return 0
     }
@@ -1017,7 +1127,7 @@ export function CandidatesFilterDialog({
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string } | { maxChanges: string, years: string } | { minPromotions: string, years: string }) => {
+  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string } | { maxChanges: string, years: string } | { minPromotions: string, years: string } | { organizationNames: string[], roles?: string[] }) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -1058,6 +1168,8 @@ export function CandidatesFilterDialog({
     tempFilters.cities.length > 0 ||
     tempFilters.status.length > 0 ||
     tempFilters.personalityTypes.length > 0 ||
+    tempFilters.source.length > 0 ||
+    (tempFilters.organizationalRoles && (tempFilters.organizationalRoles.organizationNames.length > 0 || (tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0))) ||
     tempFilters.currentSalaryMin ||
     tempFilters.currentSalaryMax ||
     tempFilters.expectedSalaryMin ||
@@ -1068,6 +1180,8 @@ export function CandidatesFilterDialog({
     tempFilters.projectStatus.length > 0 ||
     tempFilters.projectTypes.length > 0 ||
     tempFilters.techStacks.length > 0 ||
+    tempFilters.clientLocations.length > 0 ||
+    tempFilters.minClientLocationCount ||
     tempFilters.candidateTechStacks.length > 0 ||
     (tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears) ||
     tempFilters.candidateDomains.length > 0 ||
@@ -1095,6 +1209,7 @@ export function CandidatesFilterDialog({
     tempFilters.projectTeamSizeMax ||
     tempFilters.hasPublishedProject !== null ||
     tempFilters.publishPlatforms.length > 0 ||
+    tempFilters.minProjectDownloadCount ||
     tempFilters.employerStatus.length > 0 ||
     tempFilters.employerCountries.length > 0 ||
     tempFilters.employerCities.length > 0 ||
@@ -1155,7 +1270,7 @@ export function CandidatesFilterDialog({
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[550px] lg:max-w-[600px] max-h-[90vh] flex flex-col p-0 [&>button]:cursor-pointer">
+      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[850px] max-h-[90vh] flex flex-col p-0 [&>button]:cursor-pointer">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -1166,14 +1281,14 @@ export function CandidatesFilterDialog({
         {/* Sticky Tabs Navigation */}
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border">
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-12 rounded-none border-0 bg-transparent p-0">
+            <TabsList className="grid w-full grid-cols-3 md:grid-cols-4 lg:grid-cols-7 h-12 rounded-none border-0 bg-transparent p-0">
               {sections.map((section) => {
                 const sectionFilterCount = getSectionFilterCount(section.id)
                 return (
                   <TabsTrigger
                     key={section.id}
                     value={section.id}
-                    className="text-xs px-4 py-2 rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground border-b-2 border-transparent flex items-center justify-center gap-1.5"
+                    className="text-xs px-3 md:px-4 py-2 rounded-t transition-colors whitespace-nowrap h-12 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:bg-muted data-[state=inactive]:hover:text-foreground border-b-2 border-transparent flex items-center justify-center gap-1.5"
                   >
                     <span>{section.label}</span>
                     {sectionFilterCount > 0 && (
@@ -1282,6 +1397,22 @@ export function CandidatesFilterDialog({
                 />
                 <p className="text-xs text-muted-foreground">
                   Filter candidates by their MBTI personality type (e.g., ESTJ, INTJ, ENFP)
+                </p>
+              </div>
+
+              {/* Source Filter */}
+              <div className="space-y-3">
+                <MultiSelect
+                  items={sourceOptions}
+                  selected={tempFilters.source}
+                  onChange={(values) => handleFilterChange("source", values)}
+                  placeholder="Filter by source..."
+                  label="Source"
+                  searchPlaceholder="Search sources..."
+                  maxDisplay={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Filter candidates by their source (e.g., Referral, DPL Employee, Job Portal)
                 </p>
               </div>
 
@@ -2214,6 +2345,34 @@ export function CandidatesFilterDialog({
                 maxDisplay={3}
               />
 
+              <MultiSelect
+                items={clientLocationOptions}
+                selected={tempFilters.clientLocations}
+                onChange={(values) => handleFilterChange("clientLocations", values)}
+                placeholder="Filter by client location..."
+                label="Client Location"
+                searchPlaceholder="Search locations..."
+                maxDisplay={3}
+              />
+
+              {/* Minimum Client Location Count Filter */}
+              <div className="space-y-3">
+                <Label htmlFor="minClientLocationCount" className="text-sm font-semibold">
+                  Minimum Client Locations/Countries
+                </Label>
+                <Input
+                  id="minClientLocationCount"
+                  type="number"
+                  placeholder="e.g., 2 (for multi-country projects)"
+                  min="1"
+                  value={tempFilters.minClientLocationCount}
+                  onChange={(e) => handleFilterChange("minClientLocationCount", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Filter candidates who have worked on projects in at least this many different client locations/countries (e.g., 2 for multi-country projects)
+                </p>
+              </div>
+
               {/* Start Date Range Filter */}
               <div className="space-y-3">
                 <div className="space-y-2">
@@ -2359,6 +2518,24 @@ export function CandidatesFilterDialog({
                   {tempFilters.publishPlatforms.length === 0 
                     ? "Select platforms to filter by specific app stores (e.g., App Store, Play Store). Leave empty to match any platform."
                     : "Filtering for apps published on selected platforms. Combine with 'Published App' checkbox and mobile tech stacks for mobile developers."}
+                </p>
+              </div>
+
+              {/* Minimum Project Download Count Filter */}
+              <div className="space-y-3">
+                <Label htmlFor="minProjectDownloadCount" className="text-sm font-semibold">
+                  Minimum Project Download Count
+                </Label>
+                <Input
+                  id="minProjectDownloadCount"
+                  type="number"
+                  placeholder="e.g., 100000 (for 100K+)"
+                  min="0"
+                  value={tempFilters.minProjectDownloadCount}
+                  onChange={(e) => handleFilterChange("minProjectDownloadCount", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Filter candidates who have worked on at least one project/app with this many downloads (e.g., 100000 for 100K+)
                 </p>
               </div>
             </section>
@@ -2780,6 +2957,71 @@ export function CandidatesFilterDialog({
                   maxDisplay={3}
                 />
               </div>
+            </section>
+
+            {/* Organizational Roles Filter Section */}
+            <section id="filter-organizational-roles" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground">Organizational Role</h3>
+                {getSectionFilterCount("organizational-roles") > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => clearSectionFilters("organizational-roles")}
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <MultiSelect
+                  items={organizationNameOptions}
+                  selected={tempFilters.organizationalRoles?.organizationNames || []}
+                  onChange={(values) => {
+                    handleFilterChange("organizationalRoles", {
+                      organizationNames: values,
+                      roles: tempFilters.organizationalRoles?.roles || []
+                    })
+                  }}
+                  placeholder="Filter by organization..."
+                  label="Organization"
+                  searchPlaceholder="Search organizations..."
+                  maxDisplay={3}
+                />
+                <MultiSelect
+                  items={roleOptions}
+                  selected={tempFilters.organizationalRoles?.roles || []}
+                  onChange={(values) => {
+                    handleFilterChange("organizationalRoles", {
+                      organizationNames: tempFilters.organizationalRoles?.organizationNames || [],
+                      roles: values
+                    })
+                  }}
+                  placeholder="Filter by role (optional)..."
+                  label="Role (Optional)"
+                  searchPlaceholder="Search roles..."
+                  maxDisplay={3}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Filter candidates by their organizational roles/affiliations (e.g., CEO, Board Member at PASHA)
+              </p>
+              {(tempFilters.organizationalRoles?.organizationNames.length || 0) > 0 && (
+                <p className="text-xs text-muted-foreground pl-6">
+                  {tempFilters.organizationalRoles.organizationNames.length > 0 && (
+                    <>
+                      Organizations: {tempFilters.organizationalRoles.organizationNames.join(", ")}
+                      {tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0 && " | "}
+                    </>
+                  )}
+                  {tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0 && (
+                    <>Roles: {tempFilters.organizationalRoles.roles.join(", ")}</>
+                  )}
+                </p>
+              )}
             </section>
           </div>
         </div>

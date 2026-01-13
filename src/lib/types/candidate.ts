@@ -53,6 +53,14 @@ export interface CandidateStandaloneProject {
   contributionNotes: string | null
 }
 
+export interface OrganizationalRole {
+  id: string
+  organizationName: string  // e.g., "PASHA"
+  role: string              // e.g., "CEO", "Board Member", "Advisor"
+  startDate?: Date
+  endDate?: Date
+}
+
 export interface Candidate {
   id: string
   name: string
@@ -75,6 +83,7 @@ export interface Candidate {
   techStacks?: string[] // Standalone tech stacks (overall technical skills, not tied to specific employer)
   isTopDeveloper?: boolean | null // Top developer flag
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
+  organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
   createdAt: Date
   updatedAt: Date
 }

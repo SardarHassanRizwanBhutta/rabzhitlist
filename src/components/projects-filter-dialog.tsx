@@ -33,6 +33,7 @@ export interface ProjectFilters {
   employerCities: string[]  // Filter by employer's city
   employerCountries: string[]  // Filter by employer's country
   employerTypes: string[]  // Filter by employer type (Product Based, Client Based)
+  clientLocations: string[]  // Filter by client's location (e.g., "San Francisco", "Silicon Valley", "United States")
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
@@ -52,6 +53,7 @@ export interface ProjectFilters {
   projectLink: string
   isPublished: boolean | null  // null = no filter, true = only published, false = only unpublished
   publishPlatforms: string[]  // ["App Store", "Play Store", "Web", "Desktop"]
+  minDownloadCount: string  // Minimum download count (e.g., "100000" for 100K+)
 }
 
 interface ProjectsFilterDialogProps {
@@ -154,6 +156,17 @@ const extractUniqueEmployerCountries = (): string[] => {
   return Array.from(countries).sort()
 }
 
+// Extract unique client locations from projects
+const extractUniqueClientLocations = (): string[] => {
+  const locations = new Set<string>()
+  sampleProjects.forEach(project => {
+    if (project.clientLocation) {
+      locations.add(project.clientLocation)
+    }
+  })
+  return Array.from(locations).sort()
+}
+
 // Filter options
 const statusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({
   value: value as ProjectStatus,
@@ -178,6 +191,11 @@ const employerCityOptions: MultiSelectOption[] = extractUniqueEmployerCities().m
 const employerCountryOptions: MultiSelectOption[] = extractUniqueEmployerCountries().map(country => ({
   value: country,
   label: country
+}))
+
+const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(location => ({
+  value: location,
+  label: location
 }))
 
 const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
@@ -215,6 +233,7 @@ const initialFilters: ProjectFilters = {
   employerCities: [],
   employerCountries: [],
   employerTypes: [],
+  clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -231,6 +250,7 @@ const initialFilters: ProjectFilters = {
   projectLink: "",
   isPublished: null,
   publishPlatforms: [],
+  minDownloadCount: "",
 }
 
 export function ProjectsFilterDialog({
@@ -250,6 +270,7 @@ export function ProjectsFilterDialog({
     filters.employerCities.length +
     filters.employerCountries.length +
     filters.employerTypes.length +
+    filters.clientLocations.length +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
@@ -265,7 +286,8 @@ export function ProjectsFilterDialog({
     (filters.projectName.trim() ? 1 : 0) +
     (filters.projectLink.trim() ? 1 : 0) +
     (filters.isPublished !== null ? 1 : 0) +
-    filters.publishPlatforms.length
+    filters.publishPlatforms.length +
+    (filters.minDownloadCount ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
@@ -337,6 +359,7 @@ export function ProjectsFilterDialog({
     tempFilters.employerCities.length > 0 ||
     tempFilters.employerCountries.length > 0 ||
     tempFilters.employerTypes.length > 0 ||
+    tempFilters.clientLocations.length > 0 ||
     tempFilters.completionDateStart !== null ||
     tempFilters.completionDateEnd !== null ||
     tempFilters.startEndDateStart !== null ||
@@ -479,6 +502,18 @@ export function ProjectsFilterDialog({
                   placeholder="Filter by employer type..."
                   label="Employer Type"
                   searchPlaceholder="Search types..."
+                  maxDisplay={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <MultiSelect
+                  items={clientLocationOptions}
+                  selected={tempFilters.clientLocations}
+                  onChange={(values) => handleFilterChange("clientLocations", values)}
+                  placeholder="Filter by client location..."
+                  label="Client Location"
+                  searchPlaceholder="Search locations..."
                   maxDisplay={3}
                 />
               </div>
@@ -835,7 +870,7 @@ export function ProjectsFilterDialog({
             </div>
 
             {/* Publish Platforms Filter */}
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4">
               <MultiSelect
                 items={publishPlatformOptions}
                 selected={tempFilters.publishPlatforms}
@@ -848,6 +883,24 @@ export function ProjectsFilterDialog({
                 {tempFilters.publishPlatforms.length === 0 
                   ? "Select platforms to filter by specific app stores (e.g., App Store, Play Store). Leave empty to match any platform."
                   : "Filtering for projects published on selected platforms. Combine with 'Published App' checkbox for published projects only."}
+              </p>
+            </div>
+
+            {/* Download Count Filter */}
+            <div className="space-y-3 mt-4">
+              <Label htmlFor="minDownloadCount" className="text-sm font-semibold">
+                Minimum Download Count
+              </Label>
+              <Input
+                id="minDownloadCount"
+                type="number"
+                placeholder="e.g., 100000 (for 100K+)"
+                min="0"
+                value={tempFilters.minDownloadCount}
+                onChange={(e) => handleFilterChange("minDownloadCount", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Filter projects with at least this many downloads (e.g., 100000 for 100K+)
               </p>
             </div>
           </div>

@@ -32,7 +32,7 @@ import {
   ChevronsUpDown
 } from "lucide-react"
 
-import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { Candidate, OrganizationalRole, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState } from "@/components/candidate-creation-dialog"
@@ -2151,7 +2151,7 @@ export function CandidateDetailsModal({
   onOpenChange 
 }: CandidateDetailsModalProps) {
   const router = useRouter()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "organizational-roles", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
@@ -2191,6 +2191,7 @@ export function CandidateDetailsModal({
     { id: "independent-projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
+    { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
   ]
 
   const projectsByName = useMemo(() => {
@@ -2330,7 +2331,7 @@ export function CandidateDetailsModal({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   
   // Handle inline field save with verification
-  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
+  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean | OrganizationalRole[], shouldVerify: boolean) => {
     if (!candidate) return
     
     try {
@@ -2698,6 +2699,22 @@ export function CandidateDetailsModal({
     return calculateSectionProgress(fields)
   }, [verifications, candidate])
 
+  const organizationalRolesProgress = useMemo(() => {
+    if (!candidate?.organizationalRoles || candidate.organizationalRoles.length === 0) {
+      return { percentage: 0, verified: 0, total: 0 }
+    }
+    
+    const fields: string[] = []
+    candidate.organizationalRoles.forEach((orgRole, idx) => {
+      fields.push(`organizationalRoles[${idx}].organizationName`)
+      fields.push(`organizationalRoles[${idx}].role`)
+      fields.push(`organizationalRoles[${idx}].startDate`)
+      fields.push(`organizationalRoles[${idx}].endDate`)
+    })
+    
+    return calculateSectionProgress(fields)
+  }, [verifications, candidate])
+
   // Helper function to get progress for a section by sectionId
   const getSectionProgress = (sectionId: string) => {
     switch (sectionId) {
@@ -2713,6 +2730,8 @@ export function CandidateDetailsModal({
         return educationProgress
       case 'certifications':
         return certificationsProgress
+      case 'organizational-roles':
+        return organizationalRolesProgress
       default:
         return { percentage: 0, verified: 0, total: 0 }
     }
@@ -3123,7 +3142,15 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="expectedSalary" />}
                       getFieldVerification={getFieldVerification}
                     />
-                    <DisplayField label="Source" value={candidate.source} fieldName="source" />
+                    <InlineEditableField
+                      label="Source"
+                      value={candidate.source}
+                      fieldName="source"
+                      fieldType="text"
+                      onSave={handleFieldSave}
+                      verificationIndicator={<VerificationIndicator fieldName="source" />}
+                      getFieldVerification={getFieldVerification}
+                    />
                     <InlineEditableCheckbox
                       label="Top Developer"
                       value={candidate.isTopDeveloper === true}
@@ -4052,6 +4079,103 @@ export function CandidateDetailsModal({
                         </div>
                       </div>
                     ))
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+          </section>
+
+          {/* Organizational Roles */}
+          <section id="organizational-roles">
+            <Collapsible 
+              open={expandedSections.has("organizational-roles")} 
+              onOpenChange={() => toggleSection("organizational-roles")}
+            >
+              <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="size-5" />
+                      Organizational Roles
+                      {candidate.organizationalRoles && candidate.organizationalRoles.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {candidate.organizationalRoles.length}
+                        </Badge>
+                      )}
+                      <SectionProgressBadge 
+                        percentage={organizationalRolesProgress.percentage}
+                        verified={organizationalRolesProgress.verified}
+                        total={organizationalRolesProgress.total}
+                      />
+                    </CardTitle>
+                    {expandedSections.has("organizational-roles") ? (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-6">
+                  {candidate.organizationalRoles && candidate.organizationalRoles.length > 0 && (
+                    candidate.organizationalRoles.map((orgRole, idx) => (
+                      <div key={orgRole.id}>
+                        {idx > 0 && <Separator className="my-6" />}
+                        <div className="space-y-3">
+                          {/* Organization Name */}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <InlineEditableField
+                                label="Organization Name"
+                                value={orgRole.organizationName}
+                                fieldName={`organizationalRoles[${idx}].organizationName`}
+                                fieldType="text"
+                                onSave={handleFieldSave}
+                                verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].organizationName`} />}
+                                getFieldVerification={getFieldVerification}
+                              />
+                              {/* Role */}
+                              <InlineEditableField
+                                label="Role"
+                                value={orgRole.role}
+                                fieldName={`organizationalRoles[${idx}].role`}
+                                fieldType="text"
+                                onSave={handleFieldSave}
+                                verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].role`} />}
+                                getFieldVerification={getFieldVerification}
+                              />
+                              {/* Dates */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                <InlineEditableDate
+                                  label="Start Date"
+                                  value={orgRole.startDate}
+                                  fieldName={`organizationalRoles[${idx}].startDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={(date) => date ? formatDate(date) : 'N/A'}
+                                  verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].startDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="End Date"
+                                  value={orgRole.endDate}
+                                  fieldName={`organizationalRoles[${idx}].endDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={(date) => date ? formatDate(date) : 'Present'}
+                                  verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].endDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {(!candidate.organizationalRoles || candidate.organizationalRoles.length === 0) && (
+                    <p className="text-base text-muted-foreground text-center py-6">No organizational roles recorded.</p>
                   )}
                 </CardContent>
               </CollapsibleContent>

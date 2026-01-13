@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/command"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen, ShieldCheck, Code } from "lucide-react"
+import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen, ShieldCheck, Code, Building2 } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleUniversities } from "@/lib/sample-data/universities"
@@ -126,6 +126,14 @@ export interface CandidateEducation {
   isCheetah: boolean
 }
 
+export interface OrganizationalRoleFormData {
+  id: string
+  organizationName: string
+  role: string
+  startDate: Date | undefined
+  endDate: Date | undefined
+}
+
 export interface CandidateFormData {
   // Basic Information
   name: string
@@ -138,6 +146,7 @@ export interface CandidateFormData {
   email: string
   linkedinUrl: string
   githubUrl: string
+  source: string
   
   // Work Experience - dynamic array
   workExperiences: WorkExperience[]
@@ -157,6 +166,8 @@ export interface CandidateFormData {
   isTopDeveloper: boolean
   // Personality Type
   personalityType: string
+  // Organizational Roles - dynamic array
+  organizationalRoles: OrganizationalRoleFormData[]
 }
 
 // Extract unique employers from sample candidates
@@ -570,6 +581,7 @@ const initialFormData: CandidateFormData = {
   email: "",
   linkedinUrl: "",
   githubUrl: "",
+  source: "",
   workExperiences: [],
   projects: [],
   certifications: [],
@@ -577,6 +589,7 @@ const initialFormData: CandidateFormData = {
   techStacks: [],
   isTopDeveloper: false,
   personalityType: "",
+  organizationalRoles: [],
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -592,6 +605,7 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
     email: candidate.email || "",
     linkedinUrl: candidate.linkedinUrl || "",
     githubUrl: candidate.githubUrl || "",
+    source: candidate.source || "",
     workExperiences: candidate.workExperiences?.map(we => ({
       id: we.id,
       employerName: we.employerName || "",
@@ -643,6 +657,13 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
     techStacks: candidate.techStacks || [],
     isTopDeveloper: candidate.isTopDeveloper ?? false,
     personalityType: candidate.personalityType || "",
+    organizationalRoles: candidate.organizationalRoles?.map(orgRole => ({
+      id: orgRole.id,
+      organizationName: orgRole.organizationName || "",
+      role: orgRole.role || "",
+      startDate: orgRole.startDate,
+      endDate: orgRole.endDate,
+    })) || [],
   }
 }
 
@@ -692,6 +713,7 @@ export function CandidateCreationDialog({
     { id: "projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
+    { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
   ], [])
 
   const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
@@ -699,6 +721,7 @@ export function CandidateCreationDialog({
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
+  const [organizationalRolesOpen, setOrganizationalRolesOpen] = useState(true)
   
   // Employer creation state
   const [employerOptions, setEmployerOptions] = useState<ComboboxOption[]>(baseEmployerOptions)
@@ -738,7 +761,7 @@ export function CandidateCreationDialog({
   const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
   
   const [errors, setErrors] = useState<{
-    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>>
+    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'organizationalRoles'>, string>>
     workExperiences?: { 
       [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
@@ -747,6 +770,7 @@ export function CandidateCreationDialog({
     projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
+    organizationalRoles?: { [index: number]: Partial<Record<keyof OrganizationalRoleFormData, string>> }
     techStacks?: string
   }>({})
   
@@ -806,6 +830,15 @@ export function CandidateCreationDialog({
     // Tech Stacks
     total += 1 // techStacks
     if (verifiedFields.has('techStacks')) verified++
+    
+    // Organizational Roles
+    formData.organizationalRoles.forEach((_, idx) => {
+      const orgRoleFields = ['organizationName', 'role', 'startDate', 'endDate']
+      orgRoleFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`organizationalRoles.${idx}.${f}`)) verified++
+      })
+    })
     
     return { 
       total, 
@@ -939,6 +972,26 @@ export function CandidateCreationDialog({
       total
     }
   }, [showVerification, verifiedFields, formData.certifications])
+
+  const organizationalRolesProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.organizationalRoles.forEach((_, idx) => {
+      const orgRoleFields = ['organizationName', 'role', 'startDate', 'endDate']
+      orgRoleFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`organizationalRoles.${idx}.${f}`)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.organizationalRoles])
 
   const techStacksProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
@@ -1311,7 +1364,7 @@ export function CandidateCreationDialog({
     return 'Save & Verify'
   }
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'organizationalRoles'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     markFieldModified(field)
     // Clear error when user starts typing
@@ -1992,16 +2045,35 @@ export function CandidateCreationDialog({
       }
     })
 
+    // Organizational Roles validation (only validate if organizational roles exist)
+    const organizationalRoleErrors: { [index: number]: Partial<Record<keyof OrganizationalRoleFormData, string>> } = {}
+    formData.organizationalRoles.forEach((orgRole, index) => {
+      const orgRoleErrors: Partial<Record<keyof OrganizationalRoleFormData, string>> = {}
+      
+      // Only validate if at least one field is filled (user started entering data)
+      const hasAnyData = orgRole.organizationName || orgRole.role || orgRole.startDate || orgRole.endDate
+      
+      if (hasAnyData) {
+        if (!orgRole.organizationName) orgRoleErrors.organizationName = "Organization name is required"
+        if (!orgRole.role) orgRoleErrors.role = "Role is required"
+      }
+      
+      if (Object.keys(orgRoleErrors).length > 0) {
+        organizationalRoleErrors[index] = orgRoleErrors
+      }
+    })
+
     const newErrors = {
       basic: Object.keys(basicErrors).length > 0 ? basicErrors : undefined,
       workExperiences: Object.keys(workExperienceErrors).length > 0 ? workExperienceErrors : undefined,
       projects: Object.keys(projectErrors).length > 0 ? projectErrors : undefined,
       certifications: Object.keys(certificationErrors).length > 0 ? certificationErrors : undefined,
       educations: Object.keys(educationErrors).length > 0 ? educationErrors : undefined,
+      organizationalRoles: Object.keys(organizationalRoleErrors).length > 0 ? organizationalRoleErrors : undefined,
     }
 
     setErrors(newErrors)
-    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations
+    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations && !newErrors.organizationalRoles
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2058,6 +2130,7 @@ export function CandidateCreationDialog({
       setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
+      setOrganizationalRolesOpen(true)
     } else if (mode === "create" && open) {
       setFormData(initialFormData)
       initialFormDataRef.current = initialFormData
@@ -2070,6 +2143,7 @@ export function CandidateCreationDialog({
       setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
+      setOrganizationalRolesOpen(true)
     }
   }, [mode, candidateData, open])
 
@@ -2090,6 +2164,7 @@ export function CandidateCreationDialog({
     setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
+    setOrganizationalRolesOpen(false)
   }
 
   // Verification checkbox component
@@ -2377,6 +2452,20 @@ export function CandidateCreationDialog({
                 />
                 {errors.basic?.githubUrl && <p className="text-sm text-red-500">{errors.basic.githubUrl}</p>}
                 <VerificationCheckbox fieldPath="githubUrl" />
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="source">Source</Label>
+                <Input
+                  id="source"
+                  type="text"
+                  placeholder="e.g., Referral, DPL Employee, Job Portal"
+                  value={formData.source}
+                  onChange={(e) => handleInputChange("source", e.target.value)}
+                  className={errors.basic?.source ? "border-red-500" : ""}
+                />
+                {errors.basic?.source && <p className="text-sm text-red-500">{errors.basic.source}</p>}
+                <VerificationCheckbox fieldPath="source" />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -3541,6 +3630,256 @@ export function CandidateCreationDialog({
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Your First Certification
+                  </Button>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+
+          {/* Organizational Roles Section */}
+          <div id="organizational-roles">
+            <Collapsible open={organizationalRolesOpen} onOpenChange={setOrganizationalRolesOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-lg font-medium">Organizational Roles</span>
+                    {formData.organizationalRoles.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.organizationalRoles.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={organizationalRolesProgress.percentage}
+                      verified={organizationalRolesProgress.verified}
+                      total={organizationalRolesProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      organizationalRolesOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-organizational-roles"
+                    checked={isSectionFullyVerified('organizationalRoles')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('organizationalRoles', !!checked)}
+                    aria-label="Verify all fields in Organizational Roles section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-organizational-roles"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Add organizational roles and affiliations (e.g., CEO, Board Member at PASHA)
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newOrgRole: OrganizationalRoleFormData = {
+                      id: crypto.randomUUID(),
+                      organizationName: "",
+                      role: "",
+                      startDate: undefined,
+                      endDate: undefined
+                    }
+                    setFormData(prev => ({
+                      ...prev,
+                      organizationalRoles: [...prev.organizationalRoles, newOrgRole]
+                    }))
+                  }}
+                  className="flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Organizational Role
+                </Button>
+              </div>
+
+              {formData.organizationalRoles.map((orgRole, index) => (
+                <Card key={orgRole.id} className="relative">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>Organizational Role {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            organizationalRoles: prev.organizationalRoles.filter((_, i) => i !== index)
+                          }))
+                        }}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`orgRole-orgName-${index}`}>Organization Name *</Label>
+                        <Input
+                          id={`orgRole-orgName-${index}`}
+                          type="text"
+                          placeholder="e.g., PASHA"
+                          value={orgRole.organizationName}
+                          onChange={(e) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              organizationalRoles: prev.organizationalRoles.map((or, i) => 
+                                i === index ? { ...or, organizationName: e.target.value } : or
+                              )
+                            }))
+                          }}
+                          className={errors.organizationalRoles?.[index]?.organizationName ? "border-red-500" : ""}
+                        />
+                        {errors.organizationalRoles?.[index]?.organizationName && (
+                          <p className="text-sm text-red-500">{errors.organizationalRoles[index].organizationName}</p>
+                        )}
+                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.organizationName`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`orgRole-role-${index}`}>Role *</Label>
+                        <Input
+                          id={`orgRole-role-${index}`}
+                          type="text"
+                          placeholder="e.g., CEO, Board Member"
+                          value={orgRole.role}
+                          onChange={(e) => {
+                            setFormData(prev => ({
+                              ...prev,
+                              organizationalRoles: prev.organizationalRoles.map((or, i) => 
+                                i === index ? { ...or, role: e.target.value } : or
+                              )
+                            }))
+                          }}
+                          className={errors.organizationalRoles?.[index]?.role ? "border-red-500" : ""}
+                        />
+                        {errors.organizationalRoles?.[index]?.role && (
+                          <p className="text-sm text-red-500">{errors.organizationalRoles[index].role}</p>
+                        )}
+                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.role`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`orgRole-startDate-${index}`}>Start Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              id={`orgRole-startDate-${index}`}
+                              className="w-full justify-between font-normal"
+                            >
+                              {orgRole.startDate ? orgRole.startDate.toLocaleDateString() : "Select start date"}
+                              <CalendarIcon />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={orgRole.startDate}
+                              captionLayout="dropdown"
+                              onSelect={(date) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  organizationalRoles: prev.organizationalRoles.map((or, i) => 
+                                    i === index ? { ...or, startDate: date } : or
+                                  )
+                                }))
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.startDate`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`orgRole-endDate-${index}`}>End Date</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              id={`orgRole-endDate-${index}`}
+                              className="w-full justify-between font-normal"
+                            >
+                              {orgRole.endDate ? orgRole.endDate.toLocaleDateString() : "Select end date"}
+                              <CalendarIcon />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={orgRole.endDate}
+                              captionLayout="dropdown"
+                              onSelect={(date) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  organizationalRoles: prev.organizationalRoles.map((or, i) => 
+                                    i === index ? { ...or, endDate: date } : or
+                                  )
+                                }))
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.endDate`} />
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {formData.organizationalRoles.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground mb-2">No organizational roles added yet</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newOrgRole: OrganizationalRoleFormData = {
+                        id: crypto.randomUUID(),
+                        organizationName: "",
+                        role: "",
+                        startDate: undefined,
+                        endDate: undefined
+                      }
+                      setFormData(prev => ({
+                        ...prev,
+                        organizationalRoles: [...prev.organizationalRoles, newOrgRole]
+                      }))
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Your First Organizational Role
                   </Button>
                 </div>
               )}

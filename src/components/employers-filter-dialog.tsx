@@ -19,7 +19,7 @@ import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 
 import { Filter } from "lucide-react"
 import { EmployerStatus, SalaryPolicy, EmployerRanking, EmployerType, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
-import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
+import { ProjectStatus, PROJECT_STATUS_LABELS, PublishPlatform } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -37,6 +37,9 @@ export interface EmployerFilters {
   minLocationsCount: string  // Minimum total number of offices/locations
   minCitiesCount: string  // Minimum number of unique cities (optionally within selected country)
   minApplicants: string  // Minimum number of applicants/employees (candidates with work experience at this employer)
+  // Employee location filters - filter employers by where their employees/candidates are located
+  employeeCities: string[]  // Filter employers by their employees' cities (e.g., ["Karachi", "Lahore", "Islamabad"])
+  employeeCountries: string[]  // Filter employers by their employees' countries (e.g., ["Pakistan"])
   // Employer-based filters
   employerTechStacks: string[]
   benefits: string[]
@@ -47,15 +50,31 @@ export interface EmployerFilters {
   timeSupportZones: string[]
   techStackMinCount: string  // Minimum count of developers with selected tech stacks (used with employerTechStacks)
   rankings: EmployerRanking[]  // Employer ranking filter
+  tags: string[]  // Filter by tags like "DPL Competitive", "Enterprise"
+  // Employees with organizational roles filter
+  employeesWithOrganizationalRole: {
+    organizationName: string  // e.g., "PASHA"
+    roles?: string[]          // Optional: specific roles (e.g., ["CEO", "Board Member"])
+  }
 
   // Project-based filters
   techStacks: string[]
+  // Project tech stack minimum years of experience
+  projectTechStackMinYears: {
+    techStacks: string[]
+    minYears: string
+  }
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
+  clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   projectStatus: string[]
   projectTeamSizeMin: string  // Minimum project team size
   projectTeamSizeMax: string  // Maximum project team size (optional)
+  // Published App filters
+  hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
+  publishPlatforms: string[]  // ["App Store", "Play Store", "Web", "Desktop"] - filter by specific platforms
+  minDownloadCount: string  // Minimum download count (e.g., "100000" for 100K+) - filter employers by their projects' download count
 }
 
 interface EmployersFilterDialogProps {
@@ -98,6 +117,85 @@ const extractUniqueFoundedYears = (): number[] => {
     }
   })
   return Array.from(years).sort((a, b) => b - a) // Newest first
+}
+
+// City to Country mapping (used for employee location filtering)
+const CITY_TO_COUNTRY_MAP: Record<string, string> = {
+  // Pakistan cities
+  "Karachi": "Pakistan",
+  "Lahore": "Pakistan",
+  "Islamabad": "Pakistan",
+  "Rawalpindi": "Pakistan",
+  "Faisalabad": "Pakistan",
+  "Multan": "Pakistan",
+  "Peshawar": "Pakistan",
+  "Quetta": "Pakistan",
+  "Sialkot": "Pakistan",
+  "Hyderabad": "Pakistan",
+  "Gujranwala": "Pakistan",
+  "Sargodha": "Pakistan",
+  "Bahawalpur": "Pakistan",
+  "Sukkur": "Pakistan",
+  "Larkana": "Pakistan",
+  "Sheikhupura": "Pakistan",
+  "Rahim Yar Khan": "Pakistan",
+  "Gujrat": "Pakistan",
+  "Kasur": "Pakistan",
+  "Mardan": "Pakistan",
+  // US cities (common ones)
+  "New York": "United States",
+  "Los Angeles": "United States",
+  "Chicago": "United States",
+  "Houston": "United States",
+  "Phoenix": "United States",
+  "Philadelphia": "United States",
+  "San Antonio": "United States",
+  "San Diego": "United States",
+  "Dallas": "United States",
+  "San Jose": "United States",
+  "Austin": "United States",
+  "Jacksonville": "United States",
+  "San Francisco": "United States",
+  "Columbus": "United States",
+  "Fort Worth": "United States",
+  "Charlotte": "United States",
+  "Seattle": "United States",
+  "Denver": "United States",
+  "Washington": "United States",
+  "Boston": "United States",
+  "El Paso": "United States",
+  "Detroit": "United States",
+  "Nashville": "United States",
+  "Portland": "United States",
+  "Oklahoma City": "United States",
+  "Las Vegas": "United States",
+  "Memphis": "United States",
+  "Louisville": "United States",
+  "Baltimore": "United States",
+  "Milwaukee": "United States",
+  // Add more mappings as needed
+}
+
+// Extract unique cities from candidates (employee locations)
+const extractUniqueEmployeeCities = (): string[] => {
+  const cities = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    if (candidate.city) {
+      cities.add(candidate.city)
+    }
+  })
+  return Array.from(cities).sort()
+}
+
+// Extract unique countries from candidates using city-to-country mapping
+const extractUniqueEmployeeCountries = (): string[] => {
+  const countries = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    if (candidate.city && CITY_TO_COUNTRY_MAP[candidate.city]) {
+      countries.add(CITY_TO_COUNTRY_MAP[candidate.city])
+    }
+  })
+  return Array.from(countries).sort()
 }
 
 // Extract unique tech stacks from employers (from employer data or candidates)
@@ -218,6 +316,24 @@ const extractUniqueTechStacks = (): string[] => {
   return Array.from(techStacks).sort()
 }
 
+// Extract unique roles from candidates' organizational roles
+const extractUniqueRoles = (): string[] => {
+  const roles = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.organizationalRoles?.forEach(orgRole => {
+      if (orgRole.role && orgRole.role.trim()) {
+        roles.add(orgRole.role.trim())
+      }
+    })
+  })
+  return Array.from(roles).sort()
+}
+
+const roleOptions: MultiSelectOption[] = extractUniqueRoles().map(role => ({
+  value: role,
+  label: role
+}))
+
 const extractUniqueVerticalDomains = (): string[] => {
   const domains = new Set<string>()
   sampleProjects.forEach(project => {
@@ -240,6 +356,17 @@ const extractUniqueTechnicalAspects = (): string[] => {
     project.technicalAspects.forEach(aspect => aspects.add(aspect))
   })
   return Array.from(aspects).sort()
+}
+
+// Extract unique client locations from projects
+const extractUniqueClientLocations = (): string[] => {
+  const locations = new Set<string>()
+  sampleProjects.forEach(project => {
+    if (project.clientLocation) {
+      locations.add(project.clientLocation)
+    }
+  })
+  return Array.from(locations).sort()
 }
 
 const extractUniqueProjectStatuses = (): ProjectStatus[] => {
@@ -266,6 +393,24 @@ const rankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABE
   label
 }))
 
+// Extract unique tags from employers
+const extractUniqueTags = (): string[] => {
+  const tags = new Set<string>()
+  sampleEmployers.forEach(employer => {
+    employer.tags?.forEach(tag => {
+      if (tag && tag.trim()) {
+        tags.add(tag.trim())
+      }
+    })
+  })
+  return Array.from(tags).sort()
+}
+
+const tagOptions: MultiSelectOption[] = extractUniqueTags().map(tag => ({
+  value: tag,
+  label: tag
+}))
+
 const countryOptions: MultiSelectOption[] = extractUniqueCountries().map(country => ({
   value: country,
   label: country
@@ -279,6 +424,17 @@ const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
 const foundedYearOptions: MultiSelectOption[] = extractUniqueFoundedYears().map(year => ({
   value: year.toString(),
   label: year.toString()
+}))
+
+// Employee location filter options
+const employeeCityOptions: MultiSelectOption[] = extractUniqueEmployeeCities().map(city => ({
+  value: city,
+  label: city
+}))
+
+const employeeCountryOptions: MultiSelectOption[] = extractUniqueEmployeeCountries().map(country => ({
+  value: country,
+  label: country
 }))
 
 // Employer-based filter options
@@ -328,6 +484,11 @@ const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspect
   label: aspect
 }))
 
+const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(location => ({
+  value: location,
+  label: location
+}))
+
 const projectStatusOptions: MultiSelectOption[] = extractUniqueProjectStatuses().map(status => ({
   value: status,
   label: PROJECT_STATUS_LABELS[status]
@@ -345,6 +506,8 @@ const initialFilters: EmployerFilters = {
   minLocationsCount: "",
   minCitiesCount: "",
   minApplicants: "",
+  employeeCities: [],
+  employeeCountries: [],
   // Employer-based filters
   employerTechStacks: [],
   benefits: [],
@@ -354,15 +517,29 @@ const initialFilters: EmployerFilters = {
   workModesStrict: false,
   timeSupportZones: [],
   rankings: [],
+  tags: [],
   techStackMinCount: "",
+  employeesWithOrganizationalRole: {
+    organizationName: "",
+    roles: []
+  },
   // Project-based filters
   techStacks: [],
+  projectTechStackMinYears: {
+    techStacks: [],
+    minYears: ""
+  },
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
+  clientLocations: [],
   projectStatus: [],
   projectTeamSizeMin: "",
   projectTeamSizeMax: "",
+  // Published App filters
+  hasPublishedProject: null,
+  publishPlatforms: [],
+  minDownloadCount: "",
 }
 
 export function EmployersFilterDialog({
@@ -394,21 +571,30 @@ export function EmployersFilterDialog({
     (filters.workModesStrict ? 1 : 0) +
     filters.timeSupportZones.length +
     filters.rankings.length +
+    filters.tags.length +
     (filters.techStackMinCount ? 1 : 0) +
     (filters.minApplicants ? 1 : 0) +
+    (filters.employeesWithOrganizationalRole?.organizationName ? 1 : 0) +
+    filters.employeeCities.length +
+    filters.employeeCountries.length +
     filters.techStacks.length +
+    ((filters.projectTechStackMinYears?.techStacks.length || 0) > 0 && filters.projectTechStackMinYears?.minYears ? 1 : 0) +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalAspects.length +
+    filters.clientLocations.length +
     filters.projectStatus.length +
     (filters.projectTeamSizeMin ? 1 : 0) +
-    (filters.projectTeamSizeMax ? 1 : 0)
+    (filters.projectTeamSizeMax ? 1 : 0) +
+    (filters.hasPublishedProject !== null ? 1 : 0) +
+    filters.publishPlatforms.length +
+    (filters.minDownloadCount ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean) => {
+  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean | null | { techStacks: string[], minYears: string } | { organizationName: string, roles?: string[] }) => {
     setTempFilters(prev => {
       const updated = { ...prev, [field]: value }
       return updated
@@ -450,15 +636,23 @@ export function EmployersFilterDialog({
     tempFilters.workModesStrict ||
     tempFilters.timeSupportZones.length > 0 ||
     tempFilters.rankings.length > 0 ||
+    tempFilters.tags.length > 0 ||
     tempFilters.techStackMinCount ||
     tempFilters.minApplicants ||
+    (tempFilters.employeesWithOrganizationalRole?.organizationName) ||
+    tempFilters.employeeCities.length > 0 ||
+    tempFilters.employeeCountries.length > 0 ||
     tempFilters.techStacks.length > 0 ||
+    (tempFilters.projectTechStackMinYears && tempFilters.projectTechStackMinYears.techStacks.length > 0 && tempFilters.projectTechStackMinYears.minYears) ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
+    tempFilters.clientLocations.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
     tempFilters.projectTeamSizeMin ||
-    tempFilters.projectTeamSizeMax
+    tempFilters.projectTeamSizeMax ||
+    tempFilters.hasPublishedProject !== null ||
+    tempFilters.publishPlatforms.length > 0
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -584,6 +778,90 @@ export function EmployersFilterDialog({
                 {tempFilters.minApplicants && (
                   <p className="text-xs text-muted-foreground">
                     Filters employers with at least {tempFilters.minApplicants} applicants (candidates with work experience at this employer).
+                  </p>
+                )}
+              </div>
+
+              {/* Employee Locations Filter */}
+              <div className="space-y-3 border-t pt-4">
+                <Label className="text-sm font-semibold">Employee Locations</Label>
+                <p className="text-xs text-muted-foreground">
+                  Filter employers based on where their employees/candidates are located
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <MultiSelect
+                    items={employeeCityOptions}
+                    selected={tempFilters.employeeCities}
+                    onChange={(values) => handleFilterChange("employeeCities", values)}
+                    placeholder="Filter by employee cities..."
+                    label="Employee Cities"
+                    searchPlaceholder="Search cities..."
+                    maxDisplay={3}
+                  />
+                  
+                  <MultiSelect
+                    items={employeeCountryOptions}
+                    selected={tempFilters.employeeCountries}
+                    onChange={(values) => handleFilterChange("employeeCountries", values)}
+                    placeholder="Filter by employee countries..."
+                    label="Employee Countries"
+                    searchPlaceholder="Search countries..."
+                    maxDisplay={3}
+                  />
+                </div>
+                
+                {(tempFilters.employeeCities.length > 0 || tempFilters.employeeCountries.length > 0) && (
+                  <p className="text-xs text-muted-foreground">
+                    Filters employers with at least one employee/candidate from the selected {tempFilters.employeeCities.length > 0 && "cities"}{tempFilters.employeeCities.length > 0 && tempFilters.employeeCountries.length > 0 && " or "}{tempFilters.employeeCountries.length > 0 && "countries"}
+                  </p>
+                )}
+              </div>
+
+              {/* Employees with Organizational Role Filter */}
+              <div className="space-y-3 border-t pt-4">
+                <Label className="text-sm font-semibold">Employees with Organizational Role</Label>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="orgRoleOrganization" className="text-xs text-muted-foreground">
+                      Organization Name
+                    </Label>
+                    <Input
+                      id="orgRoleOrganization"
+                      type="text"
+                      placeholder="e.g., PASHA"
+                      value={tempFilters.employeesWithOrganizationalRole?.organizationName || ""}
+                      onChange={(e) => {
+                        handleFilterChange("employeesWithOrganizationalRole", {
+                          organizationName: e.target.value,
+                          roles: tempFilters.employeesWithOrganizationalRole?.roles || []
+                        })
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="orgRoleRoles" className="text-xs text-muted-foreground">
+                      Roles (Optional)
+                    </Label>
+                    <MultiSelect
+                      items={roleOptions}
+                      selected={tempFilters.employeesWithOrganizationalRole?.roles || []}
+                      onChange={(values) => {
+                        handleFilterChange("employeesWithOrganizationalRole", {
+                          organizationName: tempFilters.employeesWithOrganizationalRole?.organizationName || "",
+                          roles: values
+                        })
+                      }}
+                      placeholder="Select roles (optional)..."
+                      searchPlaceholder="Search roles..."
+                      maxDisplay={3}
+                    />
+                  </div>
+                </div>
+                {tempFilters.employeesWithOrganizationalRole?.organizationName && (
+                  <p className="text-xs text-muted-foreground">
+                    Filters employers with employees who have organizational roles at {tempFilters.employeesWithOrganizationalRole.organizationName}
+                    {tempFilters.employeesWithOrganizationalRole.roles && tempFilters.employeesWithOrganizationalRole.roles.length > 0 && ` (roles: ${tempFilters.employeesWithOrganizationalRole.roles.join(", ")})`}.
                   </p>
                 )}
               </div>
@@ -771,6 +1049,16 @@ export function EmployersFilterDialog({
                     label="Company Ranking"
                     maxDisplay={3}
                   />
+
+                  <MultiSelect
+                    items={tagOptions}
+                    selected={tempFilters.tags}
+                    onChange={(values) => handleFilterChange("tags", values)}
+                    placeholder="Filter by tags..."
+                    label="Tags"
+                    searchPlaceholder="Search tags..."
+                    maxDisplay={3}
+                  />
                 </div>
 
               </div>
@@ -801,6 +1089,70 @@ export function EmployersFilterDialog({
                     searchPlaceholder="Search aspects..."
                     maxDisplay={3}
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <MultiSelect
+                    items={clientLocationOptions}
+                    selected={tempFilters.clientLocations}
+                    onChange={(values) => handleFilterChange("clientLocations", values)}
+                    placeholder="Filter by client location..."
+                    label="Client Location"
+                    searchPlaceholder="Search locations..."
+                    maxDisplay={3}
+                  />
+                </div>
+
+                {/* Project Tech Stack Minimum Years Filter */}
+                <div className="space-y-2 mt-4">
+                  <Label className="text-sm font-semibold">Project Tech Stack Experience (Years)</Label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Column 1: Tech Stacks MultiSelect */}
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Technologies</Label>
+                      <MultiSelect
+                        items={techStackOptions}
+                        selected={tempFilters.projectTechStackMinYears?.techStacks || []}
+                        onChange={(values) => {
+                          handleFilterChange("projectTechStackMinYears", {
+                            techStacks: values,
+                            minYears: tempFilters.projectTechStackMinYears?.minYears || ""
+                          })
+                        }}
+                        placeholder="Select technologies..."
+                        searchPlaceholder="Search technologies..."
+                        maxDisplay={3}
+                      />
+                    </div>
+                    
+                    {/* Column 2: Years Input */}
+                    <div className="space-y-1">
+                      <Label htmlFor="projectTechStackMinYears" className="text-xs text-muted-foreground">
+                        Minimum Years
+                      </Label>
+                      <Input
+                        id="projectTechStackMinYears"
+                        type="number"
+                        placeholder="e.g., 3"
+                        value={tempFilters.projectTechStackMinYears?.minYears || ""}
+                        onChange={(e) => {
+                          handleFilterChange("projectTechStackMinYears", {
+                            techStacks: tempFilters.projectTechStackMinYears?.techStacks || [],
+                            minYears: e.target.value
+                          })
+                        }}
+                        min="0"
+                        step="0.1"
+                        disabled={!tempFilters.projectTechStackMinYears?.techStacks || tempFilters.projectTechStackMinYears.techStacks.length === 0}
+                      />
+                    </div>
+                  </div>
+                  
+                  {tempFilters.projectTechStackMinYears && tempFilters.projectTechStackMinYears.techStacks.length > 0 && tempFilters.projectTechStackMinYears.minYears && (
+                    <p className="text-xs text-muted-foreground">
+                      Employers must have {tempFilters.projectTechStackMinYears.techStacks.length > 1 ? 'all' : ''} selected technology{tempFilters.projectTechStackMinYears.techStacks.length > 1 ? 's' : ''} in projects with at least {tempFilters.projectTechStackMinYears.minYears} years of cumulative experience (overlapping periods are merged).
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -870,6 +1222,62 @@ export function EmployersFilterDialog({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Filter employers by the team size of their projects. Projects can have single numbers (e.g., &quot;5&quot;) or ranges (e.g., &quot;20-30&quot;).
+                  </p>
+                </div>
+
+                {/* Published App Filter */}
+                <div className="space-y-3 mt-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="hasPublishedProject"
+                      checked={tempFilters.hasPublishedProject === true}
+                      onCheckedChange={(checked) => {
+                        handleFilterChange("hasPublishedProject", checked ? true : null)
+                      }}
+                    />
+                    <Label htmlFor="hasPublishedProject" className="text-sm cursor-pointer">
+                      Published App
+                    </Label>
+                  </div>
+                </div>
+
+                {/* Publish Platforms Filter */}
+                <div className="space-y-2 mt-4">
+                  <MultiSelect
+                    items={[
+                      { value: "App Store", label: "App Store" },
+                      { value: "Play Store", label: "Play Store" },
+                      { value: "Web", label: "Web" },
+                      { value: "Desktop", label: "Desktop" }
+                    ]}
+                    selected={tempFilters.publishPlatforms}
+                    onChange={(values) => handleFilterChange("publishPlatforms", values)}
+                    placeholder="Select platforms"
+                    label="Publish Platforms"
+                    searchPlaceholder="Search platforms..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {tempFilters.publishPlatforms.length === 0 
+                      ? "Select platforms to filter by specific app stores (e.g., App Store, Play Store). Leave empty to match any platform."
+                      : "Filtering for employers with projects published on selected platforms. Combine with 'Published App' checkbox for published projects only."}
+                  </p>
+                </div>
+
+                {/* Download Count Filter */}
+                <div className="space-y-3 mt-4">
+                  <Label htmlFor="minDownloadCount" className="text-sm font-semibold">
+                    Minimum Download Count
+                  </Label>
+                  <Input
+                    id="minDownloadCount"
+                    type="number"
+                    placeholder="e.g., 100000 (for 100K+)"
+                    min="0"
+                    value={tempFilters.minDownloadCount}
+                    onChange={(e) => handleFilterChange("minDownloadCount", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Filter employers with at least one project/app with this many downloads
                   </p>
                 </div>
               </div>
