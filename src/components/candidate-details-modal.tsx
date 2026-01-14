@@ -32,7 +32,7 @@ import {
   ChevronsUpDown
 } from "lucide-react"
 
-import { Candidate, OrganizationalRole, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { Candidate, OrganizationalRole, Competition, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState } from "@/components/candidate-creation-dialog"
@@ -2191,6 +2191,7 @@ export function CandidateDetailsModal({
     { id: "independent-projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
+    { id: "competitions", sectionId: "competitions", label: "Competitions", shortLabel: "Comp" },
     { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
   ]
 
@@ -2699,6 +2700,22 @@ export function CandidateDetailsModal({
     return calculateSectionProgress(fields)
   }, [verifications, candidate])
 
+  const competitionsProgress = useMemo(() => {
+    if (!candidate?.competitions || candidate.competitions.length === 0) {
+      return { percentage: 0, verified: 0, total: 0 }
+    }
+    
+    const fields: string[] = []
+    candidate.competitions.forEach((comp, idx) => {
+      fields.push(`competitions[${idx}].competitionName`)
+      fields.push(`competitions[${idx}].ranking`)
+      fields.push(`competitions[${idx}].year`)
+      fields.push(`competitions[${idx}].url`)
+    })
+    
+    return calculateSectionProgress(fields)
+  }, [verifications, candidate])
+
   const organizationalRolesProgress = useMemo(() => {
     if (!candidate?.organizationalRoles || candidate.organizationalRoles.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
@@ -2730,6 +2747,8 @@ export function CandidateDetailsModal({
         return educationProgress
       case 'certifications':
         return certificationsProgress
+      case 'competitions':
+        return competitionsProgress
       case 'organizational-roles':
         return organizationalRolesProgress
       default:
@@ -2910,6 +2929,7 @@ export function CandidateDetailsModal({
   const independentProjects = candidate.projects || []
   const educations = candidate.educations || []
   const certifications = candidate.certifications || []
+  const competitions = candidate.competitions || []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -4073,6 +4093,112 @@ export function CandidateDetailsModal({
                               validation={validateURL}
                               onSave={handleFieldSave}
                               verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
+                              getFieldVerification={getFieldVerification}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+          </section>
+
+          {/* Competitions */}
+          <section id="competitions">
+            <Collapsible 
+              open={expandedSections.has("competitions")} 
+              onOpenChange={() => toggleSection("competitions")}
+            >
+              <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Award className="size-5" />
+                      Competitions
+                      {competitions.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {competitions.length}
+                        </Badge>
+                      )}
+                      <SectionProgressBadge 
+                        percentage={competitionsProgress.percentage}
+                        verified={competitionsProgress.verified}
+                        total={competitionsProgress.total}
+                      />
+                    </CardTitle>
+                    {expandedSections.has("competitions") ? (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-6">
+                  {competitions.length === 0 ? (
+                    <p className="text-base text-muted-foreground text-center py-6">No competitions recorded</p>
+                  ) : (
+                    competitions.map((comp, idx) => (
+                      <div key={comp.id}>
+                        {idx > 0 && <Separator className="my-6" />}
+                        <div className="space-y-3">
+                          {/* Competition Name */}
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <InlineEditableField
+                                label="Competition Name"
+                                value={comp.competitionName}
+                                fieldName={`competitions[${idx}].competitionName`}
+                                fieldType="text"
+                                onSave={handleFieldSave}
+                                verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].competitionName`} />}
+                                getFieldVerification={getFieldVerification}
+                              />
+                              {/* Ranking and Year */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                                {comp.ranking && (
+                                  <InlineEditableField
+                                    label="Ranking"
+                                    value={comp.ranking}
+                                    fieldName={`competitions[${idx}].ranking`}
+                                    fieldType="text"
+                                    onSave={handleFieldSave}
+                                    verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].ranking`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                )}
+                                {comp.year && (
+                                  <InlineEditableField
+                                    label="Year"
+                                    value={comp.year.toString()}
+                                    fieldName={`competitions[${idx}].year`}
+                                    fieldType="number"
+                                    onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
+                                      const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
+                                      await handleFieldSave(fieldName, yearValue, shouldVerify)
+                                    }}
+                                    verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].year`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {/* Competition URL */}
+                          {comp.url && (
+                            <InlineEditableField 
+                              label="URL" 
+                              value={comp.url} 
+                              fieldName={`competitions[${idx}].url`}
+                              fieldType="url"
+                              validation={validateURL}
+                              onSave={handleFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].url`} />}
                               getFieldVerification={getFieldVerification}
                             />
                           )}

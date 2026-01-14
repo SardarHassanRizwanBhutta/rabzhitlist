@@ -61,6 +61,14 @@ export interface OrganizationalRole {
   endDate?: Date
 }
 
+export interface Competition {
+  id: string
+  competitionName: string  // e.g., "HackerOne", "Bugcrowd", "Kaggle", "CVE"
+  ranking?: string         // e.g., "Hall of Fame", "Top 1%", "Gold Medal", "Rank 50"
+  year?: number
+  url?: string
+}
+
 export interface Candidate {
   id: string
   name: string
@@ -84,6 +92,7 @@ export interface Candidate {
   isTopDeveloper?: boolean | null // Top developer flag
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
+  competitions?: Competition[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms)
   createdAt: Date
   updatedAt: Date
 }

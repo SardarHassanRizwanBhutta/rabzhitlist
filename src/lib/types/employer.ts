@@ -12,6 +12,33 @@ export interface EmployerLocation {
   updatedAt: Date
 }
 
+export type LayoffReason = 
+  | "Cost reduction"
+  | "Restructuring"
+  | "Economic downturn"
+  | "Funding issues"
+  | "Other"
+
+export interface Layoff {
+  id: string
+  employerId: string
+  layoffDate: Date
+  numberOfEmployeesLaidOff: number
+  reason: LayoffReason
+  reasonOther?: string  // Required when reason is "Other"
+  source: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export const LAYOFF_REASON_LABELS: Record<LayoffReason, string> = {
+  "Cost reduction": "Cost reduction",
+  "Restructuring": "Restructuring",
+  "Economic downturn": "Economic downturn",
+  "Funding issues": "Funding issues",
+  "Other": "Other"
+}
+
 import { EmployerBenefit } from "./benefits"
 
 // Tech stack with candidate count for displaying frequency
@@ -33,6 +60,7 @@ export interface Employer {
   techStacks?: string[]
   benefits?: EmployerBenefit[]
   tags?: string[]  // e.g., ["DPL Competitive", "Enterprise", "Startup"]
+  layoffs?: Layoff[]  // One-to-many relationship with Layoffs
   createdAt: Date
   updatedAt: Date
 }

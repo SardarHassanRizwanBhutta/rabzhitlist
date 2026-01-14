@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, Target, FolderOpen, Building2, GraduationCap, Award, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone } from "lucide-react"
+import { User, Target, FolderOpen, Building2, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -127,6 +127,8 @@ const defaultFilters: CandidateFilters = {
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
+  competitionPlatforms: [],
+  internationalBugBountyOnly: false,
   personalityTypes: [],
   organizationalRoles: {
     organizationNames: [],
@@ -157,6 +159,8 @@ const getCategoryIcon = (type: string) => {
       return GraduationCap
     case 'certifications':
       return Award
+    case 'competitions':
+      return Trophy
     case 'collaboration':
       return Star // Using Star icon for top developer collaboration
     case 'published':
@@ -236,6 +240,10 @@ const getCriterionColor = (type: string): string => {
     'certification': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700',
     'issuingBody': 'bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-200 border-stone-300 dark:border-stone-700',
     'level': 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700',
+    
+    // Competitions
+    'competitionPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
+    'internationalBugBounty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     
     // Candidate Tech Stacks
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
@@ -527,11 +535,39 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
                                   })
                                 })
 
+                                // Check if this is a competitions category
+                                const isCompetitions = category.type === 'competitions'
+                                
+                                // For competitions, check if all badge values are the same as item name (redundant)
+                                const isRedundantHeading = isCompetitions && 
+                                  allBadges.length > 0 && 
+                                  allBadges.every(badge => badge.value === item.name)
+                                
+                                // Get additional context for competitions
+                                const competitionContext = isCompetitions && item.context ? {
+                                  ranking: item.context.ranking as string | undefined,
+                                  year: item.context.year as number | undefined
+                                } : null
+
                                 return (
                                   <div key={itemIndex} className="space-y-2">
-                                    <div className="font-medium text-sm">{item.name}</div>
+                                    {/* Only show heading if it's not redundant or if there's additional context */}
+                                    {(!isRedundantHeading || (competitionContext && (competitionContext.ranking || competitionContext.year))) && (
+                                      <div className="font-medium text-sm">{item.name}</div>
+                                    )}
+                                    
                                     {/* Display all badges in a compact row */}
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                      {/* For competitions with redundant heading, show competition name as first badge */}
+                                      {isRedundantHeading && !competitionContext && (
+                                        <Badge 
+                                          variant="outline" 
+                                          className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700 text-xs h-5 px-2 border font-medium"
+                                        >
+                                          {item.name}
+                                        </Badge>
+                                      )}
+                                      
                                       {allBadges.map((badge, badgeIndex) => (
                                         <Badge 
                                           key={badgeIndex}
@@ -541,7 +577,24 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
                                           {badge.value}
                                         </Badge>
                                       ))}
+                                      
+                                      {/* Show additional context for competitions (ranking, year) */}
+                                      {competitionContext && (
+                                        <>
+                                          {competitionContext.ranking && (
+                                            <span className="text-xs text-muted-foreground ml-1">
+                                              {competitionContext.ranking}
+                                            </span>
+                                          )}
+                                          {competitionContext.year && (
+                                            <span className="text-xs text-muted-foreground">
+                                              ({competitionContext.year})
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
                                     </div>
+                                    
                                     {itemIndex < category.items.length - 1 && (
                                       <Separator className="my-2" />
                                     )}

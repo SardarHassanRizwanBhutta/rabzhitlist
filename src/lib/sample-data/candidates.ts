@@ -120,6 +120,7 @@ export const sampleCandidates: Candidate[] = [
         endDate: undefined,
       }
     ],
+    competitions: [],
     createdAt: new Date("2024-01-15"),
     updatedAt: new Date("2024-01-15")
   },
@@ -268,6 +269,22 @@ export const sampleCandidates: Candidate[] = [
         role: "CEO",
         startDate: new Date("2022-06-01"),
         endDate: undefined,
+      }
+    ],
+    competitions: [
+      {
+        id: "comp-2-1",
+        competitionName: "Kaggle",
+        ranking: "Top 5%",
+        year: 2023,
+        url: "https://www.kaggle.com/abdulrehman6149"
+      },
+      {
+        id: "comp-2-2",
+        competitionName: "Kaggle",
+        ranking: "Gold Medal",
+        year: 2024,
+        url: "https://www.kaggle.com/abdulrehman6149"
       }
     ],
     createdAt: new Date("2024-01-12"),
@@ -1661,6 +1678,22 @@ export const sampleCandidates: Candidate[] = [
         isCheetah: null
       }
     ],
+    competitions: [
+      {
+        id: "comp-11-1",
+        competitionName: "HackerOne",
+        ranking: "Hall of Fame",
+        year: 2023,
+        url: "https://hackerone.com/saranayab"
+      },
+      {
+        id: "comp-11-2",
+        competitionName: "Bugcrowd",
+        ranking: "Top Researcher",
+        year: 2024,
+        url: "https://bugcrowd.com/saranayab"
+      }
+    ],
     personalityType: "ESTJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")
@@ -2020,6 +2053,29 @@ export const sampleCandidates: Candidate[] = [
         grades: null,
         isTopper: null,
         isCheetah: null
+      }
+    ],
+    competitions: [
+      {
+        id: "comp-13-1",
+        competitionName: "HackerOne",
+        ranking: "Hall of Fame",
+        year: 2022,
+        url: "https://hackerone.com/mahnoorraza"
+      },
+      {
+        id: "comp-13-2",
+        competitionName: "Synack",
+        ranking: "Top 10%",
+        year: 2023,
+        url: "https://synack.com/mahnoorraza"
+      },
+      {
+        id: "comp-13-3",
+        competitionName: "Bugcrowd",
+        ranking: "Gold Medal",
+        year: 2024,
+        url: "https://bugcrowd.com/mahnoorraza"
       }
     ],
     personalityType: "ENFJ",
@@ -3167,6 +3223,22 @@ export const sampleCandidates: Candidate[] = [
     projects: [],
     certifications: [],
     educations: [],
+    competitions: [
+      {
+        id: "comp-23-1",
+        competitionName: "HackerOne",
+        ranking: "Top Researcher",
+        year: 2023,
+        url: "https://hackerone.com/maryamsiddiqui"
+      },
+      {
+        id: "comp-23-2",
+        competitionName: "CVE",
+        ranking: "CVE-2023-12345",
+        year: 2023,
+        url: "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2023-12345"
+      }
+    ],
     personalityType: "ISFJ",
     createdAt: new Date("2023-12-28"),
     updatedAt: new Date("2024-02-01")

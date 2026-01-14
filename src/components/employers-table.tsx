@@ -22,6 +22,7 @@ import {
   UsersIcon,
   ChevronRight,
   ChevronDown,
+  AlertTriangle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
@@ -919,6 +920,93 @@ export function EmployersTable({
         return false
       }
       
+      // Layoff filters
+      const employerLayoffs = employer.layoffs || []
+      
+      // Filter by layoff date range
+      if (filters.layoffDateStart || filters.layoffDateEnd) {
+        const startDate = filters.layoffDateStart 
+          ? new Date(filters.layoffDateStart)
+          : null
+        const endDate = filters.layoffDateEnd 
+          ? new Date(filters.layoffDateEnd)
+          : new Date() // If no end date specified, use today
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0)
+        if (endDate) {
+          endDate.setHours(23, 59, 59, 999) // Include the entire end date
+        }
+        
+        const hasLayoffInRange = employerLayoffs.some(layoff => {
+          const layoffDate = new Date(layoff.layoffDate)
+          layoffDate.setHours(0, 0, 0, 0)
+          
+          if (startDate && endDate) {
+            // Both dates specified - check if layoff is within range
+            return layoffDate >= startDate && layoffDate <= endDate
+          } else if (startDate) {
+            // Only start date - check if layoff is on or after start date
+            return layoffDate >= startDate
+          } else if (endDate) {
+            // Only end date - check if layoff is on or before end date
+            return layoffDate <= endDate
+          }
+          
+          return false
+        })
+        
+        if (!hasLayoffInRange) {
+          return false
+        }
+      }
+      
+      // Filter by minimum employees laid off
+      if (filters.minLayoffEmployees && filters.minLayoffEmployees.trim() !== "") {
+        const minEmployees = parseInt(filters.minLayoffEmployees)
+        if (!isNaN(minEmployees) && minEmployees > 0) {
+          // If date range is specified, only count layoffs within that period
+          let relevantLayoffs = employerLayoffs
+          
+          if (filters.layoffDateStart || filters.layoffDateEnd) {
+            const startDate = filters.layoffDateStart 
+              ? new Date(filters.layoffDateStart)
+              : null
+            const endDate = filters.layoffDateEnd 
+              ? new Date(filters.layoffDateEnd)
+              : new Date()
+            
+            if (startDate) startDate.setHours(0, 0, 0, 0)
+            if (endDate) {
+              endDate.setHours(23, 59, 59, 999)
+            }
+            
+            relevantLayoffs = employerLayoffs.filter(layoff => {
+              const layoffDate = new Date(layoff.layoffDate)
+              layoffDate.setHours(0, 0, 0, 0)
+              
+              if (startDate && endDate) {
+                return layoffDate >= startDate && layoffDate <= endDate
+              } else if (startDate) {
+                return layoffDate >= startDate
+              } else if (endDate) {
+                return layoffDate <= endDate
+              }
+              
+              return false
+            })
+          }
+          
+          // Calculate total employees laid off in relevant period
+          const totalEmployeesLaidOff = relevantLayoffs.reduce((sum, layoff) => 
+            sum + layoff.numberOfEmployeesLaidOff, 0
+          )
+          
+          if (totalEmployeesLaidOff < minEmployees) {
+            return false
+          }
+        }
+      }
+      
       // Technology stack filter
       if (filters.techStacks.length > 0) {
         const hasMatchingTechStack = employerProjects.some(project =>
@@ -1303,6 +1391,12 @@ export function EmployersTable({
                       <div className="flex items-center gap-2">
                         <Building2Icon className="h-4 w-4 text-muted-foreground" />
                         {employer.name}
+                        {employer.layoffs && employer.layoffs.length > 0 && (
+                          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-800">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            {employer.layoffs.length}
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>

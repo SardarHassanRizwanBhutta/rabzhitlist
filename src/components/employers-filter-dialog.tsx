@@ -16,8 +16,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
-import { Filter } from "lucide-react"
+import { Filter, CalendarIcon } from "lucide-react"
 import { EmployerStatus, SalaryPolicy, EmployerRanking, EmployerType, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
 import { ProjectStatus, PROJECT_STATUS_LABELS, PublishPlatform } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
@@ -75,6 +78,10 @@ export interface EmployerFilters {
   hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
   publishPlatforms: string[]  // ["App Store", "Play Store", "Web", "Desktop"] - filter by specific platforms
   minDownloadCount: string  // Minimum download count (e.g., "100000" for 100K+) - filter employers by their projects' download count
+  // Layoff filters
+  layoffDateStart: Date | null  // Start date for layoff date range (null = no filter)
+  layoffDateEnd: Date | null    // End date for layoff date range (null = up to today or no filter)
+  minLayoffEmployees: string    // Minimum number of employees laid off (e.g., "20") - empty string means no filter
 }
 
 interface EmployersFilterDialogProps {
@@ -540,6 +547,10 @@ const initialFilters: EmployerFilters = {
   hasPublishedProject: null,
   publishPlatforms: [],
   minDownloadCount: "",
+  // Layoff filters
+  layoffDateStart: null,
+  layoffDateEnd: null,
+  minLayoffEmployees: "",
 }
 
 export function EmployersFilterDialog({
@@ -588,13 +599,16 @@ export function EmployersFilterDialog({
     (filters.projectTeamSizeMax ? 1 : 0) +
     (filters.hasPublishedProject !== null ? 1 : 0) +
     filters.publishPlatforms.length +
-    (filters.minDownloadCount ? 1 : 0)
+    (filters.minDownloadCount ? 1 : 0) +
+    (filters.layoffDateStart ? 1 : 0) +
+    (filters.layoffDateEnd ? 1 : 0) +
+    (filters.minLayoffEmployees ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean | null | { techStacks: string[], minYears: string } | { organizationName: string, roles?: string[] }) => {
+  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean | null | Date | { techStacks: string[], minYears: string } | { organizationName: string, roles?: string[] }) => {
     setTempFilters(prev => {
       const updated = { ...prev, [field]: value }
       return updated
@@ -652,7 +666,11 @@ export function EmployersFilterDialog({
     tempFilters.projectTeamSizeMin ||
     tempFilters.projectTeamSizeMax ||
     tempFilters.hasPublishedProject !== null ||
-    tempFilters.publishPlatforms.length > 0
+    tempFilters.publishPlatforms.length > 0 ||
+    tempFilters.minDownloadCount ||
+    tempFilters.layoffDateStart ||
+    tempFilters.layoffDateEnd ||
+    tempFilters.minLayoffEmployees
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1279,6 +1297,117 @@ export function EmployersFilterDialog({
                   <p className="text-xs text-muted-foreground">
                     Filter employers with at least one project/app with this many downloads
                   </p>
+                </div>
+
+                {/* Layoff Filters */}
+                <div className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">
+                      Layoff Date Range
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Filter employers by layoff dates. For &quot;past N years&quot;, select dates manually (e.g., Jan 1, 2021 to today for past 4 years).
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="layoffDateStart" className="text-xs text-muted-foreground">
+                          From Date
+                        </Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !tempFilters.layoffDateStart && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                              {tempFilters.layoffDateStart ? (
+                                tempFilters.layoffDateStart.toLocaleDateString()
+                              ) : (
+                                <span>Select start date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={tempFilters.layoffDateStart || undefined}
+                              onSelect={(date) => handleFilterChange("layoffDateStart", date || null)}
+                              captionLayout="dropdown"
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="layoffDateEnd" className="text-xs text-muted-foreground">
+                          To Date
+                        </Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !tempFilters.layoffDateEnd && "text-muted-foreground"
+                              )}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                              {tempFilters.layoffDateEnd ? (
+                                tempFilters.layoffDateEnd.toLocaleDateString()
+                              ) : (
+                                <span>Select end date (optional)</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={tempFilters.layoffDateEnd || undefined}
+                              onSelect={(date) => handleFilterChange("layoffDateEnd", date || null)}
+                              captionLayout="dropdown"
+                              disabled={(date) => {
+                                if (tempFilters.layoffDateStart) {
+                                  return date < tempFilters.layoffDateStart
+                                }
+                                return false
+                              }}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                    {(tempFilters.layoffDateStart || tempFilters.layoffDateEnd) && (
+                      <p className="text-xs text-muted-foreground">
+                        {tempFilters.layoffDateStart && tempFilters.layoffDateEnd
+                          ? `Filtering layoffs from ${tempFilters.layoffDateStart.toLocaleDateString()} to ${tempFilters.layoffDateEnd.toLocaleDateString()}`
+                          : tempFilters.layoffDateStart
+                          ? `Filtering layoffs from ${tempFilters.layoffDateStart.toLocaleDateString()} onwards`
+                          : `Filtering layoffs up to ${tempFilters.layoffDateEnd?.toLocaleDateString()}`
+                        }
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="minLayoffEmployees" className="text-sm font-semibold">
+                      Minimum Employees Laid Off
+                    </Label>
+                    <Input
+                      id="minLayoffEmployees"
+                      type="number"
+                      placeholder="e.g., 20"
+                      min="1"
+                      value={tempFilters.minLayoffEmployees}
+                      onChange={(e) => handleFilterChange("minLayoffEmployees", e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Filter employers that have laid off at least this many employees within the selected date range. Leave empty to ignore this filter.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
