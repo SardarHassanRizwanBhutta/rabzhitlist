@@ -1306,7 +1306,7 @@ export function EmployersFilterDialog({
                       Layoff Date Range
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Filter employers by layoff dates. For "past N years", select dates manually (e.g., Jan 1, 2021 to today for past 4 years).
+                      Filter employers by layoff dates. For &quot;past N years&quot;, select dates manually (e.g., Jan 1, 2021 to today for past 4 years).
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
