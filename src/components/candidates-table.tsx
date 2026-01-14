@@ -176,6 +176,8 @@ const defaultFilters: CandidateFilters = {
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
+  competitionPlatforms: [],
+  internationalBugBountyOnly: false,
   personalityTypes: [],
   organizationalRoles: {
     organizationNames: [],

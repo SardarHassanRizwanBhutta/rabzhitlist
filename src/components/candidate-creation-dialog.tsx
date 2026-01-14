@@ -49,7 +49,7 @@ import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
-import { Candidate } from "@/lib/types/candidate"
+import { Candidate, Competition } from "@/lib/types/candidate"
 import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from "@/components/project-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
@@ -168,6 +168,8 @@ export interface CandidateFormData {
   personalityType: string
   // Organizational Roles - dynamic array
   organizationalRoles: OrganizationalRoleFormData[]
+  // Competitions - dynamic array
+  competitions: Competition[]
 }
 
 // Extract unique employers from sample candidates
@@ -590,6 +592,7 @@ const initialFormData: CandidateFormData = {
   isTopDeveloper: false,
   personalityType: "",
   organizationalRoles: [],
+  competitions: [],
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -664,6 +667,13 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       startDate: orgRole.startDate,
       endDate: orgRole.endDate,
     })) || [],
+    competitions: candidate.competitions?.map(comp => ({
+      id: comp.id,
+      competitionName: comp.competitionName || "",
+      ranking: comp.ranking || "",
+      year: comp.year,
+      url: comp.url || "",
+    })) || [],
   }
 }
 
@@ -713,6 +723,7 @@ export function CandidateCreationDialog({
     { id: "projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
+    { id: "competitions", sectionId: "competitions", label: "Competitions", shortLabel: "Comp" },
     { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
   ], [])
 
@@ -720,6 +731,7 @@ export function CandidateCreationDialog({
   const [techStacksOpen, setTechStacksOpen] = useState(true)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
+  const [competitionsOpen, setCompetitionsOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
   const [organizationalRolesOpen, setOrganizationalRolesOpen] = useState(true)
   
@@ -761,7 +773,7 @@ export function CandidateCreationDialog({
   const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
   
   const [errors, setErrors] = useState<{
-    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'organizationalRoles'>, string>>
+    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'organizationalRoles' | 'competitions'>, string>>
     workExperiences?: { 
       [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
@@ -770,6 +782,7 @@ export function CandidateCreationDialog({
     projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
+    competitions?: { [index: number]: Partial<Record<keyof Competition, string>> }
     organizationalRoles?: { [index: number]: Partial<Record<keyof OrganizationalRoleFormData, string>> }
     techStacks?: string
   }>({})
@@ -830,6 +843,15 @@ export function CandidateCreationDialog({
     // Tech Stacks
     total += 1 // techStacks
     if (verifiedFields.has('techStacks')) verified++
+    
+    // Competitions
+    formData.competitions.forEach((_, idx) => {
+      const competitionFields = ['competitionName', 'ranking', 'year', 'url']
+      competitionFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`competitions.${idx}.${f}`)) verified++
+      })
+    })
     
     // Organizational Roles
     formData.organizationalRoles.forEach((_, idx) => {
@@ -973,6 +995,26 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.certifications])
 
+  const competitionsProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    
+    formData.competitions.forEach((_, idx) => {
+      const competitionFields = ['competitionName', 'ranking', 'year', 'url']
+      competitionFields.forEach(f => {
+        total++
+        if (verifiedFields.has(`competitions.${idx}.${f}`)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [showVerification, verifiedFields, formData.competitions])
+
   const organizationalRolesProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     let total = 0
@@ -1019,6 +1061,8 @@ export function CandidateCreationDialog({
         return educationProgress
       case 'certifications':
         return certificationsProgress
+      case 'competitions':
+        return competitionsProgress
       default:
         return { percentage: 0, verified: 0, total: 0 }
     }
@@ -1127,7 +1171,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, scrollToElement])
+  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, competitionsOpen, organizationalRolesOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1276,6 +1320,17 @@ export function CandidateCreationDialog({
           )
         })
         break
+      
+      case 'competitions':
+        formData.competitions.forEach((_, idx) => {
+          fields.push(
+            `competitions.${idx}.competitionName`,
+            `competitions.${idx}.ranking`,
+            `competitions.${idx}.year`,
+            `competitions.${idx}.url`
+          )
+        })
+        break
     }
     
     return fields
@@ -1364,7 +1419,7 @@ export function CandidateCreationDialog({
     return 'Save & Verify'
   }
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'organizationalRoles'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'organizationalRoles' | 'competitions'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     markFieldModified(field)
     // Clear error when user starts typing
@@ -1796,6 +1851,65 @@ export function CandidateCreationDialog({
       setErrors(prev => ({
         ...prev,
         certifications: newCertificationErrors
+      }))
+    }
+  }
+
+  const createEmptyCompetition = (): Competition => ({
+    id: `comp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    competitionName: "",
+    ranking: "",
+    year: undefined,
+    url: "",
+  })
+
+  const handleCompetitionChange = (
+    index: number,
+    field: keyof Competition,
+    value: string | number | undefined
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      competitions: prev.competitions.map((comp, i) =>
+        i === index ? { ...comp, [field]: value } : comp
+      )
+    }))
+    
+    // Clear error when user starts typing
+    if (errors.competitions?.[index]?.[field]) {
+      setErrors(prev => ({
+        ...prev,
+        competitions: {
+          ...prev.competitions,
+          [index]: {
+            ...prev.competitions?.[index],
+            [field]: undefined
+          }
+        }
+      }))
+    }
+  }
+
+  const addCompetition = () => {
+    setFormData(prev => ({
+      ...prev,
+      competitions: [...prev.competitions, createEmptyCompetition()]
+    }))
+  }
+
+  const removeCompetition = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      competitions: prev.competitions.filter((_, i) => i !== index)
+    }))
+    
+    // Clear errors for removed competition
+    if (errors.competitions?.[index]) {
+      const newCompetitionErrors = { ...errors.competitions }
+      delete newCompetitionErrors[index]
+      setErrors(prev => ({
+        ...prev,
+        competitions: newCompetitionErrors
       }))
     }
   }
@@ -3630,6 +3744,174 @@ export function CandidateCreationDialog({
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Your First Certification
+                  </Button>
+                </div>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+
+          {/* Competitions Section */}
+          <div id="competitions">
+          <Collapsible open={competitionsOpen} onOpenChange={setCompetitionsOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Award className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <span className="text-lg font-medium">Competitions</span>
+                    {formData.competitions.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">
+                        {formData.competitions.length}
+                      </Badge>
+                    )}
+                    <SectionProgressBadge 
+                      percentage={competitionsProgress.percentage}
+                      verified={competitionsProgress.verified}
+                      total={competitionsProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      competitionsOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div 
+                  className="flex items-center gap-2 px-2" 
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-competitions"
+                    checked={isSectionFullyVerified('competitions')}
+                    onCheckedChange={(checked) => handleVerifyAllSection('competitions', !!checked)}
+                    aria-label="Verify all fields in Competitions section"
+                  />
+                  <Label 
+                    htmlFor="verify-all-competitions"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Add competitions and achievements (e.g., Kaggle, Bug Bounty platforms)
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addCompetition}
+                  className="flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Competition
+                </Button>
+              </div>
+
+              {formData.competitions.map((competition, index) => (
+                <Card key={competition.id} className="relative">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>Competition {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeCompetition(index)}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`competitionName-${index}`}>Competition Name *</Label>
+                        <Input
+                          id={`competitionName-${index}`}
+                          type="text"
+                          placeholder="e.g., HackerOne, Kaggle, Bugcrowd..."
+                          value={competition.competitionName}
+                          onChange={(e) => handleCompetitionChange(index, "competitionName", e.target.value)}
+                          className={errors.competitions?.[index]?.competitionName ? "border-red-500" : ""}
+                        />
+                        {errors.competitions?.[index]?.competitionName && (
+                          <p className="text-sm text-red-500">{errors.competitions[index].competitionName}</p>
+                        )}
+                        <VerificationCheckbox fieldPath={`competitions.${index}.competitionName`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`ranking-${index}`}>Ranking</Label>
+                        <Input
+                          id={`ranking-${index}`}
+                          type="text"
+                          placeholder="e.g., Top 1%, Hall of Fame, Gold Medal..."
+                          value={competition.ranking || ""}
+                          onChange={(e) => handleCompetitionChange(index, "ranking", e.target.value)}
+                        />
+                        <VerificationCheckbox fieldPath={`competitions.${index}.ranking`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`year-${index}`}>Year</Label>
+                        <Input
+                          id={`year-${index}`}
+                          type="number"
+                          placeholder="e.g., 2023"
+                          value={competition.year || ""}
+                          onChange={(e) => handleCompetitionChange(index, "year", e.target.value ? parseInt(e.target.value) : undefined)}
+                          min="1900"
+                          max={new Date().getFullYear()}
+                        />
+                        <VerificationCheckbox fieldPath={`competitions.${index}.year`} />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`url-${index}`}>URL</Label>
+                        <Input
+                          id={`url-${index}`}
+                          type="url"
+                          placeholder="https://..."
+                          value={competition.url || ""}
+                          onChange={(e) => handleCompetitionChange(index, "url", e.target.value)}
+                          className={errors.competitions?.[index]?.url ? "border-red-500" : ""}
+                        />
+                        {errors.competitions?.[index]?.url && (
+                          <p className="text-sm text-red-500">{errors.competitions[index].url}</p>
+                        )}
+                        <VerificationCheckbox fieldPath={`competitions.${index}.url`} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {formData.competitions.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-center">
+                  <Award className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground mb-2">No competitions added yet</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addCompetition}
+                    className="cursor-pointer"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Your First Competition
                   </Button>
                 </div>
               )}

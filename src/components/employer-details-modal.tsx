@@ -18,9 +18,13 @@ import {
   ChevronRight,
   MapPin,
   ShieldCheck,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  CalendarIcon,
 } from "lucide-react"
 
-import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_COLORS, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS, TechStackWithCount } from "@/lib/types/employer"
+import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_COLORS, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS, TechStackWithCount, Layoff, LayoffReason, LAYOFF_REASON_LABELS } from "@/lib/types/employer"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -61,6 +65,15 @@ import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { EmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import { formatBenefitAmount } from "@/lib/sample-data/benefits"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
 
 // DomainBadges component for displaying vertical and horizontal domains
 const DomainBadges = ({
@@ -1410,6 +1423,12 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
   // Local state for employer data (for optimistic updates)
   const [localEmployer, setLocalEmployer] = useState<Employer>(employer)
   
+  // Sync local employer when prop changes
+  React.useEffect(() => {
+    setLocalEmployer(employer)
+    setLayoffs(employer.layoffs || [])
+  }, [employer])
+  
   // Tech stack options
   const techStackOptions = React.useMemo(() => extractUniqueTechStacks(), [])
   
@@ -1441,7 +1460,12 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
   }, [normalizeTechStack])
   
   // Collapsible sections state
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "projects", "candidates"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "projects", "candidates", "layoffs"]))
+  
+  // Layoffs state
+  const [layoffs, setLayoffs] = useState<Layoff[]>(localEmployer.layoffs || [])
+  const [isLayoffFormOpen, setIsLayoffFormOpen] = useState(false)
+  const [editingLayoff, setEditingLayoff] = useState<Layoff | null>(null)
 
   // Get projects for this employer
   const employerProjects = React.useMemo(() => {
@@ -1607,6 +1631,71 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
       setLocalEmployer(employer)
       toast.error('Failed to save field')
       throw error
+    }
+  }
+  
+  // Handle layoff save (add or update)
+  const handleLayoffSave = async (layoffData: Omit<Layoff, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      if (editingLayoff) {
+        // Update existing layoff
+        const updatedLayoff: Layoff = {
+          ...editingLayoff,
+          ...layoffData,
+          updatedAt: new Date()
+        }
+        const updatedLayoffs = layoffs.map(l => l.id === editingLayoff.id ? updatedLayoff : l)
+        setLayoffs(updatedLayoffs)
+        setLocalEmployer(prev => ({
+          ...prev,
+          layoffs: updatedLayoffs
+        }))
+        toast.success('Layoff updated')
+      } else {
+        // Add new layoff
+        const newLayoff: Layoff = {
+          id: `layoff-${Date.now()}`,
+          ...layoffData,
+          employerId: localEmployer.id,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        const updatedLayoffs = [...layoffs, newLayoff]
+        setLayoffs(updatedLayoffs)
+        setLocalEmployer(prev => ({
+          ...prev,
+          layoffs: updatedLayoffs
+        }))
+        toast.success('Layoff added')
+      }
+      
+      // TODO: API call to save layoff
+      // await saveLayoff(localEmployer.id, layoffData)
+      
+      setIsLayoffFormOpen(false)
+      setEditingLayoff(null)
+    } catch (error) {
+      toast.error('Failed to save layoff')
+      throw error
+    }
+  }
+  
+  // Handle layoff delete
+  const handleDeleteLayoff = async (layoffId: string) => {
+    try {
+      const updatedLayoffs = layoffs.filter(l => l.id !== layoffId)
+      setLayoffs(updatedLayoffs)
+      setLocalEmployer(prev => ({
+        ...prev,
+        layoffs: updatedLayoffs
+      }))
+      
+      // TODO: API call to delete layoff
+      // await deleteLayoff(localEmployer.id, layoffId)
+      
+      toast.success('Layoff deleted')
+    } catch (error) {
+      toast.error('Failed to delete layoff')
     }
   }
   
@@ -2178,6 +2267,123 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
             </Card>
           </Collapsible>
 
+          {/* Layoffs Section */}
+          <Collapsible 
+            open={expandedSections.has("layoffs")} 
+            onOpenChange={() => toggleSection("layoffs")}
+          >
+            <Card>
+              <CollapsibleTrigger className="w-full">
+                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="size-5 text-orange-600" />
+                      Layoffs
+                      {layoffs.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">
+                          {layoffs.length}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    {expandedSections.has("layoffs") ? (
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="size-4 text-muted-foreground" />
+                    )}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {layoffs.length === 0 ? (
+                    <p className="text-base text-muted-foreground text-center py-6">No layoffs recorded</p>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-muted-foreground">
+                          Track layoff events for this employer
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setEditingLayoff(null)
+                            setIsLayoffFormOpen(true)
+                          }}
+                          className="gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Layoff
+                        </Button>
+                      </div>
+                    <div className="space-y-2">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left p-2 font-medium">Date</th>
+                              <th className="text-left p-2 font-medium">Employees</th>
+                              <th className="text-left p-2 font-medium">Reason</th>
+                              <th className="text-left p-2 font-medium">Source</th>
+                              <th className="text-right p-2 font-medium">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {layoffs
+                              .sort((a, b) => new Date(b.layoffDate).getTime() - new Date(a.layoffDate).getTime())
+                              .map((layoff) => (
+                                <tr key={layoff.id} className="border-b hover:bg-muted/50">
+                                  <td className="p-2">
+                                    {format(new Date(layoff.layoffDate), "MMM dd, yyyy")}
+                                  </td>
+                                  <td className="p-2">{layoff.numberOfEmployeesLaidOff.toLocaleString()}</td>
+                                  <td className="p-2">
+                                    {layoff.reason === "Other" && layoff.reasonOther
+                                      ? `${LAYOFF_REASON_LABELS[layoff.reason]}: ${layoff.reasonOther}`
+                                      : LAYOFF_REASON_LABELS[layoff.reason]}
+                                  </td>
+                                  <td className="p-2">{layoff.source}</td>
+                                  <td className="p-2">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setEditingLayoff(layoff)
+                                          setIsLayoffFormOpen(true)
+                                        }}
+                                        className="h-7 w-7 p-0"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteLayoff(layoff.id)
+                                        }}
+                                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    </>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Employer Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
@@ -2192,6 +2398,240 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
             Close
           </Button>
         </DialogFooter>
+      </DialogContent>
+
+      {/* Layoff Form Dialog */}
+      <LayoffFormDialog
+        open={isLayoffFormOpen}
+        onOpenChange={setIsLayoffFormOpen}
+        layoff={editingLayoff}
+        onSave={handleLayoffSave}
+      />
+    </Dialog>
+  )
+}
+
+// Layoff Form Dialog Component
+interface LayoffFormDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  layoff: Layoff | null
+  onSave: (layoffData: Omit<Layoff, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
+}
+
+function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDialogProps) {
+  const [layoffDate, setLayoffDate] = useState<Date | undefined>(
+    layoff ? new Date(layoff.layoffDate) : undefined
+  )
+  const [numberOfEmployeesLaidOff, setNumberOfEmployeesLaidOff] = useState<string>(
+    layoff ? layoff.numberOfEmployeesLaidOff.toString() : ""
+  )
+  const [reason, setReason] = useState<LayoffReason>(layoff?.reason || "Cost reduction")
+  const [reasonOther, setReasonOther] = useState<string>(layoff?.reasonOther || "")
+  const [source, setSource] = useState<string>(layoff?.source || "")
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSaving, setIsSaving] = useState(false)
+
+  React.useEffect(() => {
+    if (layoff) {
+      setLayoffDate(new Date(layoff.layoffDate))
+      setNumberOfEmployeesLaidOff(layoff.numberOfEmployeesLaidOff.toString())
+      setReason(layoff.reason)
+      setReasonOther(layoff.reasonOther || "")
+      setSource(layoff.source)
+    } else {
+      // Reset form for new layoff
+      setLayoffDate(undefined)
+      setNumberOfEmployeesLaidOff("")
+      setReason("Cost reduction")
+      setReasonOther("")
+      setSource("")
+    }
+    setErrors({})
+  }, [layoff, open])
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    if (!layoffDate) {
+      newErrors.layoffDate = "Layoff date is required"
+    } else {
+      const today = new Date()
+      today.setHours(23, 59, 59, 999)
+      if (layoffDate > today) {
+        newErrors.layoffDate = "Layoff date cannot be in the future"
+      }
+    }
+
+    if (!numberOfEmployeesLaidOff || numberOfEmployeesLaidOff.trim() === "") {
+      newErrors.numberOfEmployeesLaidOff = "Number of employees is required"
+    } else {
+      const num = parseInt(numberOfEmployeesLaidOff)
+      if (isNaN(num) || num <= 0) {
+        newErrors.numberOfEmployeesLaidOff = "Number must be a positive integer"
+      }
+    }
+
+    if (!source || source.trim() === "") {
+      newErrors.source = "Source is required"
+    }
+
+    if (reason === "Other" && (!reasonOther || reasonOther.trim() === "")) {
+      newErrors.reasonOther = "Please specify the reason"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validate()) {
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave({
+        employerId: "", // Will be set by parent
+        layoffDate: layoffDate!,
+        numberOfEmployeesLaidOff: parseInt(numberOfEmployeesLaidOff),
+        reason,
+        reasonOther: reason === "Other" ? reasonOther : undefined,
+        source: source.trim()
+      })
+      onOpenChange(false)
+    } catch (error) {
+      // Error already handled in parent
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>{layoff ? "Edit Layoff" : "Add Layoff"}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Layoff Date */}
+          <div className="space-y-2">
+            <Label htmlFor="layoffDate">Layoff Date *</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !layoffDate && "text-muted-foreground",
+                    errors.layoffDate && "border-destructive"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                  {layoffDate ? format(layoffDate, "PPP") : "Pick a date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={layoffDate}
+                  onSelect={setLayoffDate}
+                  disabled={(date) => date > new Date()}
+                  captionLayout="dropdown"
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            {errors.layoffDate && (
+              <p className="text-sm text-destructive">{errors.layoffDate}</p>
+            )}
+          </div>
+
+          {/* Number of Employees */}
+          <div className="space-y-2">
+            <Label htmlFor="numberOfEmployeesLaidOff">Number of Employees Laid Off *</Label>
+            <Input
+              id="numberOfEmployeesLaidOff"
+              type="number"
+              min="1"
+              value={numberOfEmployeesLaidOff}
+              onChange={(e) => setNumberOfEmployeesLaidOff(e.target.value)}
+              placeholder="e.g., 50"
+              className={errors.numberOfEmployeesLaidOff ? "border-destructive" : ""}
+            />
+            {errors.numberOfEmployeesLaidOff && (
+              <p className="text-sm text-destructive">{errors.numberOfEmployeesLaidOff}</p>
+            )}
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-2">
+            <Label htmlFor="reason">Reason *</Label>
+            <Select value={reason} onValueChange={(value) => setReason(value as LayoffReason)}>
+              <SelectTrigger className={errors.reason ? "border-destructive" : ""}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(LAYOFF_REASON_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {reason === "Other" && (
+              <div className="mt-2">
+                <Input
+                  placeholder="Specify reason"
+                  value={reasonOther}
+                  onChange={(e) => setReasonOther(e.target.value)}
+                  className={errors.reasonOther ? "border-destructive" : ""}
+                />
+                {errors.reasonOther && (
+                  <p className="text-sm text-destructive mt-1">{errors.reasonOther}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Source */}
+          <div className="space-y-2">
+            <Label htmlFor="source">Source *</Label>
+            <Input
+              id="source"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              placeholder="e.g., Company announcement, News article"
+              className={errors.source ? "border-destructive" : ""}
+            />
+            {errors.source && (
+              <p className="text-sm text-destructive">{errors.source}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

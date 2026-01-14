@@ -35,13 +35,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react"
-import { Employer, EmployerStatus, SalaryPolicy, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS } from "@/lib/types/employer"
+import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react"
+import { Employer, EmployerStatus, SalaryPolicy, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, Layoff, LayoffReason, LAYOFF_REASON_LABELS } from "@/lib/types/employer"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { EmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 
 // Form data interfaces
 export interface EmployerLocationFormData {
@@ -55,6 +59,15 @@ export interface EmployerLocationFormData {
   maxSize: string
 }
 
+export interface LayoffFormData {
+  id: string
+  layoffDate: Date | undefined
+  numberOfEmployeesLaidOff: string
+  reason: LayoffReason
+  reasonOther: string
+  source: string
+}
+
 export interface EmployerFormData {
   name: string
   websiteUrl: string
@@ -64,6 +77,7 @@ export interface EmployerFormData {
   techStacks: string[]
   benefits: EmployerBenefit[]
   locations: EmployerLocationFormData[]
+  layoffs: LayoffFormData[]
 }
 
 // Verification state export
@@ -96,6 +110,15 @@ const createEmptyLocation = (): EmployerLocationFormData => ({
   maxSize: "",
 })
 
+const createEmptyLayoff = (): LayoffFormData => ({
+  id: crypto.randomUUID(),
+  layoffDate: undefined,
+  numberOfEmployeesLaidOff: "",
+  reason: "Cost reduction",
+  reasonOther: "",
+  source: "",
+})
+
 const initialFormData: EmployerFormData = {
   name: "",
   websiteUrl: "",
@@ -105,6 +128,7 @@ const initialFormData: EmployerFormData = {
   techStacks: [],
   benefits: [],
   locations: [createEmptyLocation()], // Start with one location
+  layoffs: [],
 }
 
 // Status options
@@ -269,6 +293,14 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
       salaryPolicy: loc.salaryPolicy || "",
       minSize: loc.minSize?.toString() || "",
       maxSize: loc.maxSize?.toString() || "",
+    })),
+    layoffs: (employer.layoffs || []).map(layoff => ({
+      id: layoff.id,
+      layoffDate: new Date(layoff.layoffDate),
+      numberOfEmployeesLaidOff: layoff.numberOfEmployeesLaidOff.toString(),
+      reason: layoff.reason,
+      reasonOther: layoff.reasonOther || "",
+      source: layoff.source,
     }))
   }
 }
@@ -305,8 +337,9 @@ export function EmployerCreationDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<EmployerFormData>(initialFormData)
   const [errors, setErrors] = useState<{
-    employer?: Partial<Record<keyof Omit<EmployerFormData, 'locations'>, string>>
+    employer?: Partial<Record<keyof Omit<EmployerFormData, 'locations' | 'layoffs'>, string>>
     locations?: { [index: number]: Partial<Record<keyof EmployerLocationFormData, string>> }
+    layoffs?: { [index: number]: Partial<Record<keyof LayoffFormData, string>> }
   }>({})
   const initialFormDataRef = useRef<EmployerFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
@@ -377,7 +410,7 @@ export function EmployerCreationDialog({
     setOpen(newOpen)
   }
 
-  const handleInputChange = (field: keyof Omit<EmployerFormData, 'locations'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<EmployerFormData, 'locations' | 'layoffs'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
     // Track modifications and auto-verify in verification mode
@@ -466,9 +499,71 @@ export function EmployerCreationDialog({
     }
   }
 
+  const handleLayoffChange = (
+    index: number,
+    field: keyof LayoffFormData,
+    value: string | Date | undefined | LayoffReason
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      layoffs: prev.layoffs.map((layoff, i) => {
+        if (i === index) {
+          return { ...layoff, [field]: value }
+        }
+        return layoff
+      })
+    }))
+    
+    // Track modifications and auto-verify in verification mode
+    if (showVerification) {
+      const fieldPath = `layoffs[${index}].${field}`
+      setModifiedFields(prev => new Set(prev).add(fieldPath))
+      setVerifiedFields(prev => new Set(prev).add(fieldPath))
+    }
+    
+    // Clear error when user starts typing
+    if (errors.layoffs?.[index]?.[field]) {
+      setErrors(prev => ({
+        ...prev,
+        layoffs: {
+          ...prev.layoffs,
+          [index]: {
+            ...prev.layoffs?.[index],
+            [field]: undefined
+          }
+        }
+      }))
+    }
+  }
+
+  const addLayoff = () => {
+    setFormData(prev => ({
+      ...prev,
+      layoffs: [...prev.layoffs, createEmptyLayoff()]
+    }))
+  }
+
+  const removeLayoff = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      layoffs: prev.layoffs.filter((_, i) => i !== index)
+    }))
+    
+    // Clear errors for removed layoff
+    if (errors.layoffs?.[index]) {
+      const newLayoffErrors = { ...errors.layoffs }
+      delete newLayoffErrors[index]
+      setErrors(prev => ({
+        ...prev,
+        layoffs: newLayoffErrors
+      }))
+    }
+  }
+
   const validateForm = (): boolean => {
-    const employerErrors: Partial<Record<keyof Omit<EmployerFormData, 'locations'>, string>> = {}
+    const employerErrors: Partial<Record<keyof Omit<EmployerFormData, 'locations' | 'layoffs'>, string>> = {}
     const locationErrors: { [index: number]: Partial<Record<keyof EmployerLocationFormData, string>> } = {}
+    const layoffErrors: { [index: number]: Partial<Record<keyof LayoffFormData, string>> } = {}
 
     // Employer validation
     if (!formData.name.trim()) employerErrors.name = "Employer name is required"
@@ -622,6 +717,30 @@ export function EmployerCreationDialog({
     }
   }, [verifiedFields, formData.locations])
 
+  const layoffsProgress = useMemo(() => {
+    let total = 0
+    let verified = 0
+    
+    formData.layoffs.forEach((_, idx) => {
+      const layoffFields = [
+        `layoffs[${idx}].layoffDate`,
+        `layoffs[${idx}].numberOfEmployeesLaidOff`,
+        `layoffs[${idx}].reason`,
+        `layoffs[${idx}].source`
+      ]
+      layoffFields.forEach(fieldName => {
+        total++
+        if (verifiedFields.has(fieldName)) verified++
+      })
+    })
+    
+    return { 
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total
+    }
+  }, [verifiedFields, formData.layoffs])
+
   // Overall verification progress
   const verificationProgress = useMemo(() => {
     let total = EMPLOYER_VERIFICATION_FIELDS.length
@@ -641,8 +760,22 @@ export function EmployerCreationDialog({
       })
     })
     
+    // Count layoff fields
+    formData.layoffs.forEach((_, idx) => {
+      const layoffFields = [
+        `layoffs[${idx}].layoffDate`,
+        `layoffs[${idx}].numberOfEmployeesLaidOff`,
+        `layoffs[${idx}].reason`,
+        `layoffs[${idx}].source`
+      ]
+      total += layoffFields.length
+      layoffFields.forEach(fieldName => {
+        if (verifiedFields.has(fieldName)) verified++
+      })
+    })
+    
     return total > 0 ? Math.round((verified / total) * 100) : 0
-  }, [verifiedFields, formData.locations])
+  }, [verifiedFields, formData.locations, formData.layoffs])
 
   // Helper to get field names for a section
   const getSectionFieldNames = (sectionId: string): string[] => {
@@ -653,6 +786,18 @@ export function EmployerCreationDialog({
       const fields: string[] = []
       formData.locations.forEach((_, idx) => {
         fields.push(...getLocationFieldNames(idx))
+      })
+      return fields
+    }
+    if (sectionId === 'layoffs') {
+      const fields: string[] = []
+      formData.layoffs.forEach((_, idx) => {
+        fields.push(
+          `layoffs[${idx}].layoffDate`,
+          `layoffs[${idx}].numberOfEmployeesLaidOff`,
+          `layoffs[${idx}].reason`,
+          `layoffs[${idx}].source`
+        )
       })
       return fields
     }
@@ -1259,6 +1404,210 @@ export function EmployerCreationDialog({
                     </div>
                   </CardContent>
                 </Card>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Layoffs Section */}
+              <Collapsible 
+                open={expandedSections.has("layoffs")} 
+                onOpenChange={() => toggleSection("layoffs")}
+              >
+                <div className="flex items-center gap-2">
+                  <CollapsibleTrigger asChild className="flex-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-between cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        <span className="text-lg font-medium">Layoffs</span>
+                        {formData.layoffs.length > 0 && (
+                          <Badge variant="secondary" className="ml-2">
+                            {formData.layoffs.length}
+                          </Badge>
+                        )}
+                        {showVerification && (
+                          <SectionProgressBadge 
+                            percentage={layoffsProgress.percentage}
+                            verified={layoffsProgress.verified}
+                            total={layoffsProgress.total}
+                          />
+                        )}
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          expandedSections.has("layoffs") ? "transform rotate-180" : ""
+                        }`}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                  {showVerification && (
+                    <div 
+                      className="flex items-center gap-2 px-2" 
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        id="verify-all-layoffs"
+                        checked={isSectionFullyVerified("layoffs")}
+                        onCheckedChange={(checked) => handleVerifyAllSection("layoffs", checked === true)}
+                        aria-label="Verify all fields in Layoffs section"
+                      />
+                      <Label 
+                        htmlFor="verify-all-layoffs"
+                        className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                      >
+                        Verify All
+                      </Label>
+                    </div>
+                  )}
+                </div>
+                <CollapsibleContent className="space-y-4 mt-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Track layoff events for this employer
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addLayoff}
+                      className="flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Layoff
+                    </Button>
+                  </div>
+                  {formData.layoffs.length === 0 ? (
+                    <p className="text-base text-muted-foreground text-center py-6">No layoffs recorded</p>
+                  ) : (
+                    <Card>
+                      <CardContent className="pt-0">
+                        <div className="space-y-4">
+                          {formData.layoffs.map((layoff, index) => (
+                            <Card key={layoff.id} className="relative">
+                              <CardHeader className="pb-4">
+                                <CardTitle className="flex items-center justify-between text-base">
+                                  <span>Layoff {index + 1}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeLayoff(index)}
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="pt-0">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`layoffDate-${index}`}>Layoff Date *</Label>
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full justify-start text-left font-normal",
+                                            !layoff.layoffDate && "text-muted-foreground",
+                                            errors.layoffs?.[index]?.layoffDate && "border-red-500"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                          {layoff.layoffDate ? format(layoff.layoffDate, "PPP") : "Pick a date"}
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={layoff.layoffDate}
+                                          onSelect={(date) => handleLayoffChange(index, "layoffDate", date)}
+                                          disabled={(date) => date > new Date()}
+                                          captionLayout="dropdown"
+                                          initialFocus
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                    {errors.layoffs?.[index]?.layoffDate && (
+                                      <p className="text-sm text-red-500">{errors.layoffs[index].layoffDate}</p>
+                                    )}
+                                    <VerificationCheckbox fieldName={`layoffs[${index}].layoffDate`} />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`numberOfEmployeesLaidOff-${index}`}>Number of Employees Laid Off *</Label>
+                                    <Input
+                                      id={`numberOfEmployeesLaidOff-${index}`}
+                                      type="number"
+                                      min="1"
+                                      value={layoff.numberOfEmployeesLaidOff}
+                                      onChange={(e) => handleLayoffChange(index, "numberOfEmployeesLaidOff", e.target.value)}
+                                      placeholder="e.g., 50"
+                                      className={errors.layoffs?.[index]?.numberOfEmployeesLaidOff ? "border-red-500" : ""}
+                                    />
+                                    {errors.layoffs?.[index]?.numberOfEmployeesLaidOff && (
+                                      <p className="text-sm text-red-500">{errors.layoffs[index].numberOfEmployeesLaidOff}</p>
+                                    )}
+                                    <VerificationCheckbox fieldName={`layoffs[${index}].numberOfEmployeesLaidOff`} />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`reason-${index}`}>Reason *</Label>
+                                    <Select 
+                                      value={layoff.reason} 
+                                      onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReason)}
+                                    >
+                                      <SelectTrigger className={errors.layoffs?.[index]?.reason ? "border-red-500" : ""}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {Object.entries(LAYOFF_REASON_LABELS).map(([value, label]) => (
+                                          <SelectItem key={value} value={value}>
+                                            {label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {layoff.reason === "Other" && (
+                                      <div className="mt-2">
+                                        <Input
+                                          placeholder="Specify reason"
+                                          value={layoff.reasonOther}
+                                          onChange={(e) => handleLayoffChange(index, "reasonOther", e.target.value)}
+                                          className={errors.layoffs?.[index]?.reasonOther ? "border-red-500" : ""}
+                                        />
+                                        {errors.layoffs?.[index]?.reasonOther && (
+                                          <p className="text-sm text-red-500 mt-1">{errors.layoffs[index].reasonOther}</p>
+                                        )}
+                                      </div>
+                                    )}
+                                    <VerificationCheckbox fieldName={`layoffs[${index}].reason`} />
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`source-${index}`}>Source *</Label>
+                                    <Input
+                                      id={`source-${index}`}
+                                      value={layoff.source}
+                                      onChange={(e) => handleLayoffChange(index, "source", e.target.value)}
+                                      placeholder="e.g., Company announcement, News article"
+                                      className={errors.layoffs?.[index]?.source ? "border-red-500" : ""}
+                                    />
+                                    {errors.layoffs?.[index]?.source && (
+                                      <p className="text-sm text-red-500">{errors.layoffs[index].source}</p>
+                                    )}
+                                    <VerificationCheckbox fieldName={`layoffs[${index}].source`} />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </CollapsibleContent>
               </Collapsible>
           </form>

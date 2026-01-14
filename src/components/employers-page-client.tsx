@@ -61,6 +61,10 @@ const initialFilters: EmployerFilters = {
   hasPublishedProject: null,
   publishPlatforms: [],
   minDownloadCount: "",
+  // Layoff filters
+  layoffDateStart: null,
+  layoffDateEnd: null,
+  minLayoffEmployees: "",
 }
 
 export function EmployersPageClient({ employers }: EmployersPageClientProps) {

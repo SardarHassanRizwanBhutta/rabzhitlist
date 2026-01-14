@@ -527,6 +527,8 @@ const initialFilters: CandidateFilters = {
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
+  competitionPlatforms: [],
+  internationalBugBountyOnly: false,
   // Personality type filter
   personalityTypes: [],
   // Organizational roles filter
@@ -2155,6 +2157,41 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
           candidateCertifications.some(cert => cert.certificationLevel === filterLevel)
         )
         if (!hasMatchingLevel) return false
+      }
+
+      // Competition-related filters
+      const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
+        "HackerOne",
+        "Bugcrowd",
+        "Synack",
+        "Cobalt",
+        "Intigriti",
+        "YesWeHack",
+        "CVE",
+        "Immunefi",
+        "HackenProof",
+      ]
+
+      // Competition Platforms filter
+      if (appliedFilters.competitionPlatforms.length > 0) {
+        const candidateCompetitions = candidate.competitions || []
+        const hasMatchingPlatform = appliedFilters.competitionPlatforms.some(filterPlatform => 
+          candidateCompetitions.some(comp => 
+            comp.competitionName.toLowerCase() === filterPlatform.toLowerCase()
+          )
+        )
+        if (!hasMatchingPlatform) return false
+      }
+
+      // International Bug Bounty Only filter
+      if (appliedFilters.internationalBugBountyOnly) {
+        const candidateCompetitions = candidate.competitions || []
+        const hasInternationalPlatform = candidateCompetitions.some(comp => 
+          INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform => 
+            comp.competitionName.toLowerCase() === platform.toLowerCase()
+          )
+        )
+        if (!hasInternationalPlatform) return false
       }
 
       return true

@@ -157,6 +157,9 @@ export interface CandidateFilters {
   }
   // Source filter
   source: string[]  // Filter by candidate source (e.g., ["Referral", "DPL Employee"])
+  // Competition-related filters
+  competitionPlatforms: string[]  // Filter by competition platforms (e.g., ["HackerOne", "Kaggle"])
+  internationalBugBountyOnly: boolean  // When true, only shows candidates with international bug bounty platforms
 }
 
 interface CandidatesFilterDialogProps {
@@ -410,6 +413,32 @@ const extractUniqueCertificationLevels = () => {
   return Array.from(levels).sort()
 }
 
+// International bug bounty platforms list
+const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
+  "HackerOne",
+  "Bugcrowd",
+  "Synack",
+  "Cobalt",
+  "Intigriti",
+  "YesWeHack",
+  "CVE",
+  "Immunefi",
+  "HackenProof",
+]
+
+// Extract unique competition platforms from candidates
+const extractUniqueCompetitionPlatforms = () => {
+  const platforms = new Set<string>()
+  sampleCandidates.forEach(candidate => {
+    candidate.competitions?.forEach(competition => {
+      if (competition.competitionName) {
+        platforms.add(competition.competitionName)
+      }
+    })
+  })
+  return Array.from(platforms).sort()
+}
+
 const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
   value: city,
   label: city
@@ -580,6 +609,12 @@ const certificationIssuingBodyOptions: MultiSelectOption[] = extractUniqueCertif
 const certificationLevelOptions: MultiSelectOption[] = extractUniqueCertificationLevels().map(level => ({
   value: level,
   label: level
+}))
+
+// Competition-related filter options
+const competitionPlatformOptions: MultiSelectOption[] = extractUniqueCompetitionPlatforms().map(platform => ({
+  value: platform,
+  label: platform
 }))
 
 // Personality type options (MBTI types)
@@ -778,6 +813,9 @@ const initialFilters: CandidateFilters = {
     roles: []
   },
   source: [],
+  // Competition-related filters
+  competitionPlatforms: [],
+  internationalBugBountyOnly: false,
 }
 
 export function CandidatesFilterDialog({
@@ -800,7 +838,8 @@ export function CandidatesFilterDialog({
     { id: "employers", sectionId: "filter-employers", label: "Employers" },
     { id: "education", sectionId: "filter-education", label: "Education" },
     { id: "certifications", sectionId: "filter-certifications", label: "Certifications" },
-    { id: "organizational-roles", sectionId: "filter-organizational-roles", label: "Organizational" },
+    { id: "competitions", sectionId: "filter-competitions", label: "Competitions" },
+    // { id: "organizational-roles", sectionId: "filter-organizational-roles", label: "Organizational" },
   ]
   
   // Scroll to section function
@@ -1112,6 +1151,11 @@ export function CandidatesFilterDialog({
           (tempFilters.organizationalRoles?.organizationNames.length || 0) +
           (tempFilters.organizationalRoles?.roles?.length || 0)
         )
+      case "competitions":
+        return (
+          tempFilters.competitionPlatforms.length +
+          (tempFilters.internationalBugBountyOnly ? 1 : 0)
+        )
       default:
         return 0
     }
@@ -1230,7 +1274,9 @@ export function CandidatesFilterDialog({
     tempFilters.educationEndDateEnd !== null ||
     tempFilters.certificationNames.length > 0 ||
     tempFilters.certificationIssuingBodies.length > 0 ||
-    tempFilters.certificationLevels.length > 0
+    tempFilters.certificationLevels.length > 0 ||
+    tempFilters.competitionPlatforms.length > 0 ||
+    tempFilters.internationalBugBountyOnly
 
   // Validation for salary inputs
   const validateSalaryInput = (value: string): boolean => {
@@ -2957,6 +3003,48 @@ export function CandidatesFilterDialog({
                   maxDisplay={3}
                 />
               </div>
+            </section>
+
+            {/* Competitions Filter Section */}
+            <section id="filter-competitions" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground">Competitions</h3>
+                {getSectionFilterCount("competitions") > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => clearSectionFilters("competitions")}
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+              
+              <MultiSelect
+                items={competitionPlatformOptions}
+                selected={tempFilters.competitionPlatforms}
+                onChange={(values) => handleFilterChange("competitionPlatforms", values)}
+                placeholder="Filter by competition platform..."
+                label="Competition Platform"
+                searchPlaceholder="Search platforms..."
+                maxDisplay={3}
+              />
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="internationalBugBountyOnly"
+                  checked={tempFilters.internationalBugBountyOnly}
+                  onCheckedChange={(checked) => handleFilterChange("internationalBugBountyOnly", !!checked)}
+                />
+                <Label htmlFor="internationalBugBountyOnly" className="text-sm font-normal cursor-pointer">
+                  International Bug Bounty Platforms Only
+                </Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                When enabled, only shows candidates with competitions from international bug bounty platforms (HackerOne, Bugcrowd, Synack, etc.)
+              </p>
             </section>
 
             {/* Organizational Roles Filter Section */}

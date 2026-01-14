@@ -19,7 +19,7 @@ export interface MatchItem {
 }
 
 export interface MatchCategory {
-  type: 'projects' | 'employers' | 'education' | 'certifications' | 'basic' | 'collaboration' | 'published'
+  type: 'projects' | 'employers' | 'education' | 'certifications' | 'competitions' | 'basic' | 'collaboration' | 'published'
   label: string
   icon: string
   color: string
@@ -109,6 +109,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.certificationNames.length > 0 ||
     filters.certificationIssuingBodies.length > 0 ||
     filters.certificationLevels.length > 0 ||
+    filters.competitionPlatforms.length > 0 ||
+    filters.internationalBugBountyOnly ||
     filters.personalityTypes.length > 0 ||
     filters.source.length > 0
   )
@@ -1065,6 +1067,85 @@ export function getCandidateMatchContext(
         color: 'orange',
         count: certificationItems.length,
         items: certificationItems
+      })
+    }
+  }
+
+  // Competition Matches
+  const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
+    "HackerOne",
+    "Bugcrowd",
+    "Synack",
+    "Cobalt",
+    "Intigriti",
+    "YesWeHack",
+    "CVE",
+    "Immunefi",
+    "HackenProof",
+  ]
+
+  const hasCompetitionFilters = !!(
+    filters.competitionPlatforms.length > 0 ||
+    filters.internationalBugBountyOnly
+  )
+
+  if (hasCompetitionFilters) {
+    const competitionItems: MatchItem[] = []
+
+    candidate.competitions?.forEach(comp => {
+      const matchedCriteria: MatchCriterion[] = []
+      let hasMatch = false
+
+      // Competition platform match
+      if (filters.competitionPlatforms.length > 0) {
+        if (filters.competitionPlatforms.some(platform => 
+          platform.toLowerCase() === comp.competitionName.toLowerCase()
+        )) {
+          matchedCriteria.push({
+            type: 'competitionPlatform',
+            label: 'Competition Platform',
+            values: [comp.competitionName]
+          })
+          hasMatch = true
+        }
+      }
+
+      // International bug bounty only filter
+      if (filters.internationalBugBountyOnly) {
+        const isInternationalPlatform = INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform =>
+          platform.toLowerCase() === comp.competitionName.toLowerCase()
+        )
+        if (isInternationalPlatform) {
+          matchedCriteria.push({
+            type: 'internationalBugBounty',
+            label: 'International Bug Bounty',
+            values: [comp.competitionName]
+          })
+          hasMatch = true
+        }
+      }
+
+      if (hasMatch) {
+        competitionItems.push({
+          name: comp.competitionName,
+          matchedCriteria,
+          context: {
+            ranking: comp.ranking,
+            year: comp.year,
+            url: comp.url
+          }
+        })
+      }
+    })
+
+    if (competitionItems.length > 0) {
+      categories.push({
+        type: 'competitions',
+        label: 'Competitions',
+        icon: '🏆',
+        color: 'purple',
+        count: competitionItems.length,
+        items: competitionItems
       })
     }
   }
