@@ -5,6 +5,7 @@ import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
 
 export interface MatchCriterion {
   type: string
@@ -71,14 +72,11 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.workedWithTopDeveloper === true ||
     filters.isTopDeveloper !== null ||
     filters.jobTitle ||
-    (filters.jobTitle && filters.jobTitleWorkedWith === true) ||
-    (filters.jobTitle && filters.jobTitleStartedCareer === true) ||
     filters.yearsOfExperienceMin ||
     filters.yearsOfExperienceMax ||
     (filters.maxJobChangesInLastYears?.maxChanges && filters.maxJobChangesInLastYears?.years) ||
     (filters.minPromotionsInLastYears?.minPromotions && filters.minPromotionsInLastYears?.years) ||
-    filters.continuousEmployment === true ||
-    filters.minPromotionsSameCompany ||
+    filters.hasMutualConnectionWithDPL !== null ||
     filters.joinedProjectFromStart !== null ||
     filters.projectTeamSizeMin ||
     filters.projectTeamSizeMax ||
@@ -109,6 +107,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.certificationNames.length > 0 ||
     filters.certificationIssuingBodies.length > 0 ||
     filters.certificationLevels.length > 0 ||
+    (filters.achievementTypes && filters.achievementTypes.length > 0) ||
+    (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) ||
     filters.competitionPlatforms.length > 0 ||
     filters.internationalBugBountyOnly ||
     filters.personalityTypes.length > 0 ||
@@ -1071,7 +1071,7 @@ export function getCandidateMatchContext(
     }
   }
 
-  // Competition Matches
+  // Achievement Matches (includes Competitions)
   const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
     "HackerOne",
     "Bugcrowd",
@@ -1084,26 +1084,117 @@ export function getCandidateMatchContext(
     "HackenProof",
   ]
 
-  const hasCompetitionFilters = !!(
-    filters.competitionPlatforms.length > 0 ||
+  const hasAchievementFilters = !!(
+    filters.achievementTypes?.length > 0 ||
+    filters.achievementPlatforms?.length > 0 ||
+    filters.competitionPlatforms?.length > 0 ||
     filters.internationalBugBountyOnly
   )
 
-  if (hasCompetitionFilters) {
-    const competitionItems: MatchItem[] = []
+  if (hasAchievementFilters) {
+    const achievementItems: MatchItem[] = []
 
+    // Process achievements (new structure)
+    candidate.achievements?.forEach(achievement => {
+      const matchedCriteria: MatchCriterion[] = []
+      let hasMatch = false
+
+      // Achievement type match
+      if (filters.achievementTypes && filters.achievementTypes.length > 0) {
+        if (filters.achievementTypes.includes(achievement.achievementType)) {
+          matchedCriteria.push({
+            type: 'achievementType',
+            label: 'Achievement Type',
+            values: [achievement.achievementType]
+          })
+          hasMatch = true
+        }
+      }
+
+      // Achievement platform/name match
+      if (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) {
+        if (filters.achievementPlatforms.some(platform => 
+          achievement.name.toLowerCase().includes(platform.toLowerCase())
+        )) {
+          matchedCriteria.push({
+            type: 'achievementPlatform',
+            label: 'Achievement Platform',
+            values: [achievement.name]
+          })
+          hasMatch = true
+        }
+      }
+
+      // Legacy competition platform match (for backward compatibility)
+      if (filters.competitionPlatforms && filters.competitionPlatforms.length > 0) {
+        if (filters.competitionPlatforms.some(platform => 
+          achievement.name.toLowerCase().includes(platform.toLowerCase())
+        )) {
+          matchedCriteria.push({
+            type: 'competitionPlatform',
+            label: 'Competition Platform',
+            values: [achievement.name]
+          })
+          hasMatch = true
+        }
+      }
+
+      // International bug bounty only filter
+      if (filters.internationalBugBountyOnly) {
+        const isInternationalPlatform = INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform =>
+          achievement.name.toLowerCase().includes(platform.toLowerCase())
+        )
+        if (isInternationalPlatform && achievement.achievementType === "Competition") {
+          matchedCriteria.push({
+            type: 'internationalBugBounty',
+            label: 'International Bug Bounty',
+            values: [achievement.name]
+          })
+          hasMatch = true
+        }
+      }
+
+      if (hasMatch) {
+        achievementItems.push({
+          name: achievement.name,
+          matchedCriteria,
+          context: {
+            achievementType: achievement.achievementType,
+            ranking: achievement.ranking,
+            year: achievement.year,
+            url: achievement.url
+          }
+        })
+      }
+    })
+
+    // Process competitions (legacy structure - for backward compatibility)
     candidate.competitions?.forEach(comp => {
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
 
-      // Competition platform match
-      if (filters.competitionPlatforms.length > 0) {
+      // Legacy competition platform match
+      if (filters.competitionPlatforms && filters.competitionPlatforms.length > 0) {
         if (filters.competitionPlatforms.some(platform => 
           platform.toLowerCase() === comp.competitionName.toLowerCase()
         )) {
           matchedCriteria.push({
             type: 'competitionPlatform',
             label: 'Competition Platform',
+            values: [comp.competitionName]
+          })
+          hasMatch = true
+        }
+      }
+
+      // Achievement platform match (check if legacy competition matches new filter)
+      if (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) {
+        if (filters.achievementPlatforms.some(platform => 
+          comp.competitionName.toLowerCase().includes(platform.toLowerCase())
+        )) {
+          matchedCriteria.push({
+            type: 'achievementPlatform',
+            label: 'Achievement Platform',
             values: [comp.competitionName]
           })
           hasMatch = true
@@ -1126,10 +1217,11 @@ export function getCandidateMatchContext(
       }
 
       if (hasMatch) {
-        competitionItems.push({
+        achievementItems.push({
           name: comp.competitionName,
           matchedCriteria,
           context: {
+            achievementType: "Competition",
             ranking: comp.ranking,
             year: comp.year,
             url: comp.url
@@ -1138,14 +1230,14 @@ export function getCandidateMatchContext(
       }
     })
 
-    if (competitionItems.length > 0) {
+    if (achievementItems.length > 0) {
       categories.push({
         type: 'competitions',
-        label: 'Competitions',
+        label: 'Achievements',
         icon: '🏆',
         color: 'purple',
-        count: competitionItems.length,
-        items: competitionItems
+        count: achievementItems.length,
+        items: achievementItems
       })
     }
   }
@@ -1292,8 +1384,8 @@ export function getCandidateMatchContext(
       }
 
       // Job Title match
-      if (filters.jobTitle && filters.jobTitle.trim() && !filters.jobTitleStartedCareer) {
-        // Only check all work experiences if "Started career" is not enabled
+      if (filters.jobTitle && filters.jobTitle.trim()) {
+        // Check all work experiences for job title match
         const filterJobTitle = filters.jobTitle.trim().toLowerCase()
         if (we.jobTitle && typeof we.jobTitle === 'string' && we.jobTitle.trim()) {
           const jobTitleLower = we.jobTitle.trim().toLowerCase()
@@ -1387,43 +1479,6 @@ export function getCandidateMatchContext(
       }
     })
 
-    // Job Title "Started Career" match (candidate-level, checks first job only)
-    if (filters.jobTitle && filters.jobTitle.trim() && filters.jobTitleStartedCareer === true) {
-      if (candidate.workExperiences && candidate.workExperiences.length > 0) {
-        // Sort work experiences by start date (oldest first)
-        const sortedExperiences = [...candidate.workExperiences]
-          .filter(we => we.startDate)
-          .sort((a, b) => {
-            const dateA = new Date(a.startDate!)
-            const dateB = new Date(b.startDate!)
-            return dateA.getTime() - dateB.getTime()
-          })
-        
-        if (sortedExperiences.length > 0) {
-          const firstJobTitle = sortedExperiences[0].jobTitle?.toLowerCase().trim() || ""
-          const filterJobTitle = filters.jobTitle.trim().toLowerCase()
-          
-          if (firstJobTitle && firstJobTitle.includes(filterJobTitle)) {
-            const firstExperience = sortedExperiences[0]
-            workExperienceItems.push({
-              name: `${firstExperience.employerName} - ${firstExperience.jobTitle || 'N/A'}`,
-              matchedCriteria: [{
-                type: 'jobTitleStartedCareer',
-                label: 'Started Career With Job Title',
-                values: [firstExperience.jobTitle || 'N/A']
-              }],
-              context: {
-                employerName: firstExperience.employerName,
-                jobTitle: firstExperience.jobTitle,
-                startDate: firstExperience.startDate,
-                endDate: firstExperience.endDate,
-                isFirstJob: true
-              }
-            })
-          }
-        }
-      }
-    }
 
     // Years of Experience match (candidate-level, not per work experience)
     if (filters.yearsOfExperienceMin || filters.yearsOfExperienceMax) {
@@ -1714,228 +1769,77 @@ export function getCandidateMatchContext(
     }
   }
 
-  // Worked with Job Title Match Context
-  if (filters.jobTitle && filters.jobTitle.trim() && filters.jobTitleWorkedWith === true) {
-    const collaborationItems: MatchItem[] = []
+  // Mutual Connections with DPL Match Context
+  if (filters.hasMutualConnectionWithDPL === true) {
+    const toleranceMonths = filters.mutualConnectionToleranceMonths || 0
+    const connectionType = filters.mutualConnectionType || 'both'
+    const mutualConnections = findMutualConnectionsWithDPL(
+      candidate,
+      sampleCandidates,
+      toleranceMonths
+    )
     
-    // Check if tolerance window should be applied
-    const useTolerance = filters.jobTitleWorkedWithUseTolerance ?? true
-    const toleranceDays = useTolerance 
-      ? (filters.joinedProjectFromStartToleranceDays || 30)
-      : Infinity  // No limit when tolerance is disabled
-    
-    const filterJobTitle = filters.jobTitle.trim().toLowerCase()
-    
-    // Find candidates who have the target job title in their work experiences
-    const candidatesWithJobTitle = sampleCandidates.filter(c => {
-      return c.workExperiences?.some(we => {
-        if (!we.jobTitle) return false
-        const jobTitleLower = we.jobTitle.toLowerCase().trim()
-        return jobTitleLower.includes(filterJobTitle)
-      })
-    })
-    
-    // Find which people with job title worked on the same projects
-    candidatesWithJobTitle.forEach(personWithJobTitle => {
-      if (personWithJobTitle.id === candidate.id) return // Skip if the candidate is themselves
+    if (mutualConnections.length > 0) {
+      const connectionItems: MatchItem[] = []
       
-      // Track shared projects
-      const sharedProjects: Array<{ projectName: string; employerName: string | null; personJobTitle: string }> = []
-      
-      // Check candidate's work experiences
-      candidate.workExperiences?.forEach(candidateWE => {
-        // If employer filter is active, only check projects at matching employers
-        if (filters.employers.length > 0) {
-          const candidateEmployerMatch = filters.employers.some(
-            emp => emp.toLowerCase().trim() === candidateWE.employerName.toLowerCase().trim()
-          )
-          if (!candidateEmployerMatch) return
-          // If tolerance is enabled, require startDate; if disabled, startDate is optional
-          if (useTolerance && !candidateWE.startDate) return
-        } else {
-          // If tolerance is enabled, require startDate; if disabled, startDate is optional
-          if (useTolerance && !candidateWE.startDate) return
+      mutualConnections.forEach(conn => {
+        // Filter by connection type - only process connections that match the filter
+        if (connectionType !== 'both' && conn.connectionType !== connectionType) {
+          return
         }
         
-        candidateWE.projects.forEach(candidateProj => {
-          if (!candidateProj.projectName) return
-          
-          const candidateProjName = candidateProj.projectName.toLowerCase().trim()
-          
-          // Check against person's work experiences
-          personWithJobTitle.workExperiences?.forEach(personWE => {
-            // Check if person has target job title in this work experience
-            if (!personWE.jobTitle) return
-            const personJobTitleLower = personWE.jobTitle.toLowerCase().trim()
-            const personHasTargetJobTitle = personJobTitleLower.includes(filterJobTitle)
-            
-            if (!personHasTargetJobTitle) return
-            
-            // If employer filter is active, only check projects at matching employers
-            if (filters.employers.length > 0) {
-              const personEmployerMatch = filters.employers.some(
-                emp => emp.toLowerCase().trim() === personWE.employerName.toLowerCase().trim()
-              )
-              if (!personEmployerMatch) return
-              // If tolerance is enabled, require startDate; if disabled, startDate is optional
-              if (useTolerance && !personWE.startDate) return
-            } else {
-              // If tolerance is enabled, require startDate; if disabled, startDate is optional
-              if (useTolerance && !personWE.startDate) return
+        const matchedCriteria: MatchCriterion[] = []
+        
+        // Only show education overlaps if filter allows it
+        if (conn.educationOverlaps.length > 0 && 
+            (connectionType === 'education' || connectionType === 'both')) {
+          matchedCriteria.push({
+            type: 'mutualEducation',
+            label: 'Overlapping Education',
+            values: conn.educationOverlaps.map(overlap => 
+              `${overlap.universityLocationName} (${overlap.overlapStart.toLocaleDateString()} - ${overlap.overlapEnd.toLocaleDateString()})`
+            )
+          })
+        }
+        
+        // Only show work overlaps if filter allows it
+        if (conn.workOverlaps.length > 0 && 
+            (connectionType === 'work' || connectionType === 'both')) {
+          matchedCriteria.push({
+            type: 'mutualWork',
+            label: 'Overlapping Work Experience',
+            values: conn.workOverlaps.map(overlap => 
+              `${overlap.employerName} (${overlap.overlapStart.toLocaleDateString()} - ${overlap.overlapEnd.toLocaleDateString()})`
+            )
+          })
+        }
+        
+        // Only add connection item if there are matching criteria to display
+        if (matchedCriteria.length > 0) {
+          connectionItems.push({
+            name: `Mutual Connection: ${conn.dplEmployee.name}`,
+            matchedCriteria,
+            context: {
+              dplEmployeeId: conn.dplEmployee.id,
+              dplEmployeeName: conn.dplEmployee.name,
+              connectionType: conn.connectionType,
+              educationOverlaps: conn.educationOverlaps,
+              workOverlaps: conn.workOverlaps
             }
-            
-            // Check if same project and same employer
-            personWE.projects.forEach(personProj => {
-              if (!personProj.projectName) return
-              
-              const personProjName = personProj.projectName.toLowerCase().trim()
-              
-              if (candidateProjName === personProjName &&
-                  candidateWE.employerName.toLowerCase().trim() === 
-                  personWE.employerName.toLowerCase().trim()) {
-                
-                // If tolerance is disabled, match immediately
-                if (!useTolerance) {
-                  sharedProjects.push({
-                    projectName: candidateProj.projectName,
-                    employerName: candidateWE.employerName,
-                    personJobTitle: personWE.jobTitle
-                  })
-                  return
-                }
-                
-                // If tolerance is enabled, compare both work experience start dates with project start date
-                // Find the project to get its start date
-                const project = sampleProjects.find(p => 
-                  p.projectName.trim().toLowerCase() === candidateProjName
-                )
-                
-                if (project && project.startDate && candidateWE.startDate && personWE.startDate) {
-                  const projectStart = new Date(project.startDate)
-                  const candidateStart = new Date(candidateWE.startDate)
-                  const personStart = new Date(personWE.startDate)
-                  
-                  // Normalize dates to start of day for accurate comparison
-                  projectStart.setHours(0, 0, 0, 0)
-                  candidateStart.setHours(0, 0, 0, 0)
-                  personStart.setHours(0, 0, 0, 0)
-                  
-                  // Calculate absolute difference in days between each person's work start and project start
-                  const candidateDiffTime = Math.abs(candidateStart.getTime() - projectStart.getTime())
-                  const candidateDiffDays = Math.ceil(candidateDiffTime / (1000 * 60 * 60 * 24))
-                  
-                  const personDiffTime = Math.abs(personStart.getTime() - projectStart.getTime())
-                  const personDiffDays = Math.ceil(personDiffTime / (1000 * 60 * 60 * 24))
-                  
-                  // They worked together if both are within tolerance window of project start date
-                  if (candidateDiffDays <= toleranceDays && personDiffDays <= toleranceDays) {
-                    sharedProjects.push({
-                      projectName: candidateProj.projectName,
-                      employerName: candidateWE.employerName,
-                      personJobTitle: personWE.jobTitle
-                    })
-                  }
-                }
-              }
-            })
-          })
-        })
-      })
-      
-      // Check standalone projects only if no employer filter is set
-      if (filters.employers.length === 0) {
-        const candidateStandaloneProjects = new Set<string>()
-        candidate.projects?.forEach(p => {
-          if (p.projectName) {
-            candidateStandaloneProjects.add(p.projectName.toLowerCase().trim())
-          }
-        })
-        
-        personWithJobTitle.projects?.forEach(personProj => {
-          if (!personProj.projectName) return
-          
-          const personProjName = personProj.projectName.toLowerCase().trim()
-          
-          if (candidateStandaloneProjects.has(personProjName)) {
-            sharedProjects.push({
-              projectName: personProj.projectName,
-              employerName: null,
-              personJobTitle: filterJobTitle
-            })
-          }
-        })
-      }
-      
-      if (sharedProjects.length > 0) {
-        // Collect all unique project names, employers, and job titles
-        const allProjectNames = Array.from(new Set(sharedProjects.map(sp => sp.projectName)))
-        const uniqueEmployers = Array.from(new Set(
-          sharedProjects
-            .map(sp => sp.employerName)
-            .filter((emp): emp is string => emp !== null)
-        ))
-        const uniqueJobTitles = Array.from(new Set(sharedProjects.map(sp => sp.personJobTitle)))
-        
-        const matchedCriteria: MatchCriterion[] = [
-          {
-            type: 'sharedProject',
-            label: 'Shared Project',
-            values: allProjectNames
-          },
-          {
-            type: 'jobTitle',
-            label: 'Job Title',
-            values: uniqueJobTitles
-          }
-        ]
-        
-        // Add employer context if any projects have employers
-        if (uniqueEmployers.length > 0) {
-          matchedCriteria.push({
-            type: 'employer',
-            label: 'At Employer',
-            values: uniqueEmployers
           })
         }
-        
-        // Add tolerance window info if applicable
-        if (useTolerance && toleranceDays !== 30) {
-          matchedCriteria.push({
-            type: 'toleranceWindow',
-            label: 'Within Tolerance',
-            values: [`${toleranceDays} days`]
-          })
-        } else if (!useTolerance) {
-          matchedCriteria.push({
-            type: 'toleranceWindow',
-            label: 'Tolerance',
-            values: ['Disabled (any date)']
-          })
-        }
-        
-        collaborationItems.push({
-          name: `Collaborated with ${personWithJobTitle.name} (${uniqueJobTitles.join(', ')})`,
-          matchedCriteria,
-          context: {
-            personId: personWithJobTitle.id,
-            personName: personWithJobTitle.name,
-            employers: uniqueEmployers.length > 0 ? uniqueEmployers : undefined,
-            sharedProjects: allProjectNames,
-            jobTitles: uniqueJobTitles
-          }
+      })
+      
+      if (connectionItems.length > 0) {
+        categories.push({
+          type: 'collaboration',
+          label: 'Mutual Connections with DPL',
+          icon: '🤝',
+          color: 'blue',
+          count: connectionItems.length,
+          items: connectionItems
         })
       }
-    })
-    
-    if (collaborationItems.length > 0) {
-      categories.push({
-        type: 'collaboration',
-        label: 'Job Title Collaboration',
-        icon: '👥',
-        color: 'blue',
-        count: collaborationItems.length,
-        items: collaborationItems
-      })
     }
   }
 

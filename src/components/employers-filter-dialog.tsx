@@ -16,13 +16,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import {
+  RadioGroup,
+  RadioGroupItem,
+} from "@/components/ui/radio-group"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
 import { Filter, CalendarIcon } from "lucide-react"
 import { EmployerStatus, SalaryPolicy, EmployerRanking, EmployerType, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
-import { ProjectStatus, PROJECT_STATUS_LABELS, PublishPlatform } from "@/lib/types/project"
+import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -33,7 +37,7 @@ export interface EmployerFilters {
   foundedYears: string[]
   countries: string[]
   cities: string[]
-  employerTypes: EmployerType[]  // Filter by employer type (Product Based, Client Based)
+  employerTypes: EmployerType[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
   salaryPolicies: SalaryPolicy[]
   sizeMin: string
   sizeMax: string
@@ -53,12 +57,8 @@ export interface EmployerFilters {
   timeSupportZones: string[]
   techStackMinCount: string  // Minimum count of developers with selected tech stacks (used with employerTechStacks)
   rankings: EmployerRanking[]  // Employer ranking filter
-  tags: string[]  // Filter by tags like "DPL Competitive", "Enterprise"
-  // Employees with organizational roles filter
-  employeesWithOrganizationalRole: {
-    organizationName: string  // e.g., "PASHA"
-    roles?: string[]          // Optional: specific roles (e.g., ["CEO", "Board Member"])
-  }
+  tags: string[]  // Filter by tags like "Enterprise", "Startup" (DPL Competitive is now a separate boolean field)
+  isDPLCompetitive: boolean | null  // null = no filter, true = is DPL Competitive, false = is not DPL Competitive
 
   // Project-based filters
   techStacks: string[]
@@ -82,6 +82,10 @@ export interface EmployerFilters {
   layoffDateStart: Date | null  // Start date for layoff date range (null = no filter)
   layoffDateEnd: Date | null    // End date for layoff date range (null = up to today or no filter)
   minLayoffEmployees: string    // Minimum number of employees laid off (e.g., "20") - empty string means no filter
+
+  // Average Job Tenure filters (in years)
+  avgJobTenureMin: string  // Minimum average job tenure (e.g., "2" for 2+ years)
+  avgJobTenureMax: string  // Maximum average job tenure (optional)
 }
 
 interface EmployersFilterDialogProps {
@@ -323,23 +327,6 @@ const extractUniqueTechStacks = (): string[] => {
   return Array.from(techStacks).sort()
 }
 
-// Extract unique roles from candidates' organizational roles
-const extractUniqueRoles = (): string[] => {
-  const roles = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.organizationalRoles?.forEach(orgRole => {
-      if (orgRole.role && orgRole.role.trim()) {
-        roles.add(orgRole.role.trim())
-      }
-    })
-  })
-  return Array.from(roles).sort()
-}
-
-const roleOptions: MultiSelectOption[] = extractUniqueRoles().map(role => ({
-  value: role,
-  label: role
-}))
 
 const extractUniqueVerticalDomains = (): string[] => {
   const domains = new Set<string>()
@@ -526,10 +513,7 @@ const initialFilters: EmployerFilters = {
   rankings: [],
   tags: [],
   techStackMinCount: "",
-  employeesWithOrganizationalRole: {
-    organizationName: "",
-    roles: []
-  },
+  isDPLCompetitive: null,
   // Project-based filters
   techStacks: [],
   projectTechStackMinYears: {
@@ -551,6 +535,9 @@ const initialFilters: EmployerFilters = {
   layoffDateStart: null,
   layoffDateEnd: null,
   minLayoffEmployees: "",
+  // Average Job Tenure filters
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
 }
 
 export function EmployersFilterDialog({
@@ -585,7 +572,7 @@ export function EmployersFilterDialog({
     filters.tags.length +
     (filters.techStackMinCount ? 1 : 0) +
     (filters.minApplicants ? 1 : 0) +
-    (filters.employeesWithOrganizationalRole?.organizationName ? 1 : 0) +
+    (filters.isDPLCompetitive !== null ? 1 : 0) +
     filters.employeeCities.length +
     filters.employeeCountries.length +
     filters.techStacks.length +
@@ -602,13 +589,15 @@ export function EmployersFilterDialog({
     (filters.minDownloadCount ? 1 : 0) +
     (filters.layoffDateStart ? 1 : 0) +
     (filters.layoffDateEnd ? 1 : 0) +
-    (filters.minLayoffEmployees ? 1 : 0)
+    (filters.minLayoffEmployees ? 1 : 0) +
+    (filters.avgJobTenureMin ? 1 : 0) +
+    (filters.avgJobTenureMax ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean | null | Date | { techStacks: string[], minYears: string } | { organizationName: string, roles?: string[] }) => {
+  const handleFilterChange = (field: keyof EmployerFilters, value: string[] | string | boolean | null | Date | { techStacks: string[], minYears: string }) => {
     setTempFilters(prev => {
       const updated = { ...prev, [field]: value }
       return updated
@@ -653,7 +642,7 @@ export function EmployersFilterDialog({
     tempFilters.tags.length > 0 ||
     tempFilters.techStackMinCount ||
     tempFilters.minApplicants ||
-    (tempFilters.employeesWithOrganizationalRole?.organizationName) ||
+    tempFilters.isDPLCompetitive !== null ||
     tempFilters.employeeCities.length > 0 ||
     tempFilters.employeeCountries.length > 0 ||
     tempFilters.techStacks.length > 0 ||
@@ -670,7 +659,9 @@ export function EmployersFilterDialog({
     tempFilters.minDownloadCount ||
     tempFilters.layoffDateStart ||
     tempFilters.layoffDateEnd ||
-    tempFilters.minLayoffEmployees
+    tempFilters.minLayoffEmployees ||
+    tempFilters.avgJobTenureMin ||
+    tempFilters.avgJobTenureMax
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -836,53 +827,6 @@ export function EmployersFilterDialog({
                 )}
               </div>
 
-              {/* Employees with Organizational Role Filter */}
-              <div className="space-y-3 border-t pt-4">
-                <Label className="text-sm font-semibold">Employees with Organizational Role</Label>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="orgRoleOrganization" className="text-xs text-muted-foreground">
-                      Organization Name
-                    </Label>
-                    <Input
-                      id="orgRoleOrganization"
-                      type="text"
-                      placeholder="e.g., PASHA"
-                      value={tempFilters.employeesWithOrganizationalRole?.organizationName || ""}
-                      onChange={(e) => {
-                        handleFilterChange("employeesWithOrganizationalRole", {
-                          organizationName: e.target.value,
-                          roles: tempFilters.employeesWithOrganizationalRole?.roles || []
-                        })
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="orgRoleRoles" className="text-xs text-muted-foreground">
-                      Roles (Optional)
-                    </Label>
-                    <MultiSelect
-                      items={roleOptions}
-                      selected={tempFilters.employeesWithOrganizationalRole?.roles || []}
-                      onChange={(values) => {
-                        handleFilterChange("employeesWithOrganizationalRole", {
-                          organizationName: tempFilters.employeesWithOrganizationalRole?.organizationName || "",
-                          roles: values
-                        })
-                      }}
-                      placeholder="Select roles (optional)..."
-                      searchPlaceholder="Search roles..."
-                      maxDisplay={3}
-                    />
-                  </div>
-                </div>
-                {tempFilters.employeesWithOrganizationalRole?.organizationName && (
-                  <p className="text-xs text-muted-foreground">
-                    Filters employers with employees who have organizational roles at {tempFilters.employeesWithOrganizationalRole.organizationName}
-                    {tempFilters.employeesWithOrganizationalRole.roles && tempFilters.employeesWithOrganizationalRole.roles.length > 0 && ` (roles: ${tempFilters.employeesWithOrganizationalRole.roles.join(", ")})`}.
-                  </p>
-                )}
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
@@ -1079,6 +1023,28 @@ export function EmployersFilterDialog({
                   />
                 </div>
 
+                {/* DPL Competitive Filter */}
+                <div className="space-y-3 mt-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isDPLCompetitive"
+                      checked={tempFilters.isDPLCompetitive === true}
+                      onCheckedChange={(checked) => {
+                        handleFilterChange("isDPLCompetitive", checked ? true : null)
+                      }}
+                    />
+                    <Label htmlFor="isDPLCompetitive" className="text-sm cursor-pointer">
+                      DPL Competitive
+                    </Label>
+                  </div>
+                  {tempFilters.isDPLCompetitive !== null && (
+                    <p className="text-xs text-muted-foreground pl-6">
+                      {tempFilters.isDPLCompetitive 
+                        ? "Showing only DPL Competitive employers"
+                        : "Showing only non-DPL Competitive employers"}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1409,6 +1375,64 @@ export function EmployersFilterDialog({
                     </p>
                   </div>
                 </div>
+
+                {/* Average Job Tenure Filter */}
+                <div className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">
+                      Average Job Tenure
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Filter employers by average job tenure (in years) of their employees. Tenure is calculated from candidate work experience data.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="avgJobTenureMin" className="text-xs text-muted-foreground">
+                          Minimum Average Tenure
+                        </Label>
+                        <Input
+                          id="avgJobTenureMin"
+                          type="number"
+                          placeholder="e.g., 2"
+                          min="0"
+                          step="0.1"
+                          value={tempFilters.avgJobTenureMin}
+                          onChange={(e) => handleFilterChange("avgJobTenureMin", e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="avgJobTenureMax" className="text-xs text-muted-foreground">
+                          Maximum Average Tenure (optional)
+                        </Label>
+                        <Input
+                          id="avgJobTenureMax"
+                          type="number"
+                          placeholder="e.g., 5"
+                          min="0"
+                          step="0.1"
+                          value={tempFilters.avgJobTenureMax}
+                          onChange={(e) => handleFilterChange("avgJobTenureMax", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+
+                    {(tempFilters.avgJobTenureMin || tempFilters.avgJobTenureMax) && (
+                      <p className="text-xs text-muted-foreground">
+                        Filtering employers with average job tenure
+                        {tempFilters.avgJobTenureMin && tempFilters.avgJobTenureMax
+                          ? ` between ${tempFilters.avgJobTenureMin} and ${tempFilters.avgJobTenureMax}`
+                          : tempFilters.avgJobTenureMin
+                          ? ` of at least ${tempFilters.avgJobTenureMin}`
+                          : ` of at most ${tempFilters.avgJobTenureMax}`
+                        } years
+                      </p>
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>

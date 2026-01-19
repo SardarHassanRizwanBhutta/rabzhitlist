@@ -64,6 +64,7 @@ export interface ProjectFormData {
   projectLink: string
   isPublished: boolean
   publishPlatforms: string[]
+  downloadCount: string
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
@@ -102,6 +103,7 @@ const initialFormData: ProjectFormData = {
   projectLink: "",
   isPublished: false,
   publishPlatforms: [],
+  downloadCount: "",
   techStacks: [],
   verticalDomains: [],
   horizontalDomains: [],
@@ -210,6 +212,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
     projectLink: project.projectLink || "",
     isPublished: project.isPublished || false,
     publishPlatforms: project.publishPlatforms ? [...project.publishPlatforms] : [],
+    downloadCount: project.downloadCount ? project.downloadCount.toString() : "",
     // Create new arrays to avoid reference issues
     techStacks: project.techStacks ? [...project.techStacks] : [],
     verticalDomains: project.verticalDomains ? [...project.verticalDomains] : [],
@@ -220,9 +223,9 @@ const projectToFormData = (project: Project): ProjectFormData => {
 
 // All verifiable fields for projects
 const PROJECT_VERIFICATION_FIELDS = [
-  'projectName', 'employerName', 'projectType', 'teamSize', 'status', 
+  'projectName', 'employerName', 'projectType', 'teamSize', 'status',
   'startDate', 'endDate', 'description', 'notes', 'projectLink',
-  'isPublished', 'publishPlatforms',
+  'isPublished', 'publishPlatforms', 'downloadCount',
   'techStacks', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
 ]
 
@@ -424,8 +427,8 @@ export function ProjectCreationDialog({
     [verifiedFields]
   )
 
-  const contentProgress = useMemo(() => 
-    calculateSectionProgress(['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms']),
+  const contentProgress = useMemo(() =>
+    calculateSectionProgress(['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']),
     [verifiedFields]
   )
 
@@ -443,7 +446,7 @@ export function ProjectCreationDialog({
       'dates': ['startDate', 'endDate'],
       'tech-stack': ['techStacks'],
       'domains': ['verticalDomains', 'horizontalDomains', 'technicalAspects'],
-      'content': ['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms']
+      'content': ['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']
     }
     return fieldMap[sectionId] || []
   }
@@ -1350,6 +1353,25 @@ export function ProjectCreationDialog({
                           label="Platforms (optional)"
                           searchPlaceholder="Search platforms..."
                         />
+                      </div>
+
+                      {/* Download Count */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="downloadCount">Download Count</Label>
+                          <VerificationCheckbox fieldName="downloadCount" />
+                        </div>
+                        <Input
+                          id="downloadCount"
+                          type="number"
+                          placeholder="e.g., 100000"
+                          min="0"
+                          value={formData.downloadCount}
+                          onChange={(e) => handleInputChange("downloadCount", e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Total download count (e.g., 100000 for 100K downloads). Only applicable for published apps.
+                        </p>
                       </div>
                     </CardContent>
                   </CollapsibleContent>

@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Filter, CalendarIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { CandidateStatus, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { sampleEmployers } from "@/lib/sample-data/employers"
@@ -38,6 +39,7 @@ export interface CandidateFilters {
   // Dedicated posting title filter
   postingTitle: string
   cities: string[]
+  excludeCities: string[]  // Exclude candidates from major cities (for remote cities filter)
   status: string[]  // Filter by candidate status (active, pending, interviewed, shortlisted, hired, rejected, withdrawn)
   currentSalaryMin: string
   currentSalaryMax: string
@@ -88,12 +90,12 @@ export interface CandidateFilters {
   isTopDeveloper: boolean | null  // null = no filter, true = only top developers
   // Job title filter
   jobTitle: string
-  jobTitleWorkedWith: boolean  // When true, changes filter from "has job title" to "worked with person who has job title"
-  jobTitleWorkedWithUseTolerance: boolean  // Apply tolerance window
-  jobTitleStartedCareer: boolean  // When true, only checks if the first (chronologically oldest) job title matches
   // Years of experience filters
   yearsOfExperienceMin: string
   yearsOfExperienceMax: string
+  // Average job tenure filters (across all employers)
+  avgJobTenureMin: string
+  avgJobTenureMax: string
   // Maximum job changes in last N years filter
   maxJobChangesInLastYears: {
     maxChanges: string  // e.g., "1", "2", "3" - empty string means no filter
@@ -104,13 +106,13 @@ export interface CandidateFilters {
     minPromotions: string  // e.g., "3" - empty string means no filter
     years: string          // e.g., "5" - empty string means no filter
   }
-  // Continuous Employment & Promotions filter
-  continuousEmployment: boolean | null  // null = no filter, true = only continuous employment
-  continuousEmploymentToleranceMonths: number  // Maximum gap tolerance in months (default: 3)
-  minPromotionsSameCompany: string  // Minimum promotions count (e.g., "2")
   // Joined Project From Start filter
   joinedProjectFromStart: boolean | null  // null = no filter, true = joined from start
   joinedProjectFromStartToleranceDays: number  // Tolerance window in days (default: 30)
+  // Mutual Connections with DPL filter
+  hasMutualConnectionWithDPL: boolean | null  // null = no filter, true = has mutual connection
+  mutualConnectionToleranceMonths: number  // Tolerance for date gaps in months (default: 0)
+  mutualConnectionType: 'education' | 'work' | 'both' | null  // Filter by connection type
   // Project team size filters
   projectTeamSizeMin: string
   projectTeamSizeMax: string
@@ -122,9 +124,9 @@ export interface CandidateFilters {
   employerStatus: string[]
   employerCountries: string[]
   employerCities: string[]
-  employerTypes: string[]  // Filter by employer type (Product Based, Client Based)
+  employerTypes: string[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
   // Career Transition filter - Find candidates who moved from one employer type to another
-  careerTransitionFromType: string[]  // Previous employer types (e.g., "Client Based")
+  careerTransitionFromType: string[]  // Previous employer types (e.g., "Services Based")
   careerTransitionToType: string[]  // Current/new employer types (e.g., "Product Based")
   careerTransitionRequireCurrent: boolean  // If true, "to" type must be current/most recent employer
   employerSalaryPolicies: string[]
@@ -150,16 +152,14 @@ export interface CandidateFilters {
   certificationLevels: string[]
   // Personality type filter
   personalityTypes: string[]  // Filter by personality types (e.g., ["ESTJ", "INTJ"])
-  // Organizational roles filter
-  organizationalRoles: {
-    organizationNames: string[]  // e.g., ["PASHA"]
-    roles?: string[]              // Optional: specific roles (e.g., ["CEO", "Board Member"])
-  }
   // Source filter
   source: string[]  // Filter by candidate source (e.g., ["Referral", "DPL Employee"])
-  // Competition-related filters
-  competitionPlatforms: string[]  // Filter by competition platforms (e.g., ["HackerOne", "Kaggle"])
+  // Achievement-related filters (renamed from competition-related)
+  achievementTypes: string[]  // Filter by achievement type (e.g., ["Competition", "Open Source", "Award"])
+  achievementPlatforms: string[]  // Filter by achievement platform/name (e.g., ["HackerOne", "Kaggle", "React"])
   internationalBugBountyOnly: boolean  // When true, only shows candidates with international bug bounty platforms
+  // Legacy filters (kept for backward compatibility)
+  competitionPlatforms: string[]  // DEPRECATED: Use achievementPlatforms instead
 }
 
 interface CandidatesFilterDialogProps {
@@ -426,10 +426,17 @@ const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
   "HackenProof",
 ]
 
-// Extract unique competition platforms from candidates
-const extractUniqueCompetitionPlatforms = () => {
+// Extract unique achievement platforms/names from candidates
+const extractUniqueAchievementPlatforms = () => {
   const platforms = new Set<string>()
   sampleCandidates.forEach(candidate => {
+    // Extract from achievements (new structure)
+    candidate.achievements?.forEach(achievement => {
+      if (achievement.name) {
+        platforms.add(achievement.name)
+      }
+    })
+    // Extract from competitions (legacy structure)
     candidate.competitions?.forEach(competition => {
       if (competition.competitionName) {
         platforms.add(competition.competitionName)
@@ -437,6 +444,11 @@ const extractUniqueCompetitionPlatforms = () => {
     })
   })
   return Array.from(platforms).sort()
+}
+
+// Extract unique competition platforms from candidates (legacy - kept for backward compatibility)
+const extractUniqueCompetitionPlatforms = () => {
+  return extractUniqueAchievementPlatforms()
 }
 
 const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
@@ -611,11 +623,26 @@ const certificationLevelOptions: MultiSelectOption[] = extractUniqueCertificatio
   label: level
 }))
 
-// Competition-related filter options
-const competitionPlatformOptions: MultiSelectOption[] = extractUniqueCompetitionPlatforms().map(platform => ({
+// Achievement-related filter options
+const achievementTypeOptions: MultiSelectOption[] = [
+  { value: "Competition", label: "Competition" },
+  { value: "Open Source", label: "Open Source" },
+  { value: "Award", label: "Award" },
+  { value: "Medal", label: "Medal" },
+  { value: "Publication", label: "Publication" },
+  { value: "Certification", label: "Certification" },
+  { value: "Recognition", label: "Recognition" },
+  { value: "Other", label: "Other" },
+]
+
+const achievementPlatformOptions: MultiSelectOption[] = extractUniqueAchievementPlatforms().map(platform => ({
   value: platform,
   label: platform
 }))
+
+// Competition-related filter options (legacy - kept for backward compatibility)
+// Note: Uses same data as achievementPlatformOptions for backward compatibility
+const competitionPlatformOptions: MultiSelectOption[] = achievementPlatformOptions
 
 // Personality type options (MBTI types)
 const personalityTypeOptions: MultiSelectOption[] = [
@@ -651,42 +678,6 @@ const extractUniqueSources = (): string[] => {
   return Array.from(sources).sort()
 }
 
-// Extract unique organization names from candidates' organizational roles
-const extractUniqueOrganizationNames = (): string[] => {
-  const organizations = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.organizationalRoles?.forEach(orgRole => {
-      if (orgRole.organizationName && orgRole.organizationName.trim()) {
-        organizations.add(orgRole.organizationName.trim())
-      }
-    })
-  })
-  return Array.from(organizations).sort()
-}
-
-// Extract unique roles from candidates' organizational roles
-const extractUniqueRoles = (): string[] => {
-  const roles = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.organizationalRoles?.forEach(orgRole => {
-      if (orgRole.role && orgRole.role.trim()) {
-        roles.add(orgRole.role.trim())
-      }
-    })
-  })
-  return Array.from(roles).sort()
-}
-
-const organizationNameOptions: MultiSelectOption[] = extractUniqueOrganizationNames().map(org => ({
-  value: org,
-  label: org
-}))
-
-const roleOptions: MultiSelectOption[] = extractUniqueRoles().map(role => ({
-  value: role,
-  label: role
-}))
-
 const sourceOptions: MultiSelectOption[] = extractUniqueSources().map(source => ({
   value: source,
   label: source
@@ -697,6 +688,7 @@ const initialFilters: CandidateFilters = {
   basicInfoSearch: "",
   postingTitle: "",
   cities: [],
+  excludeCities: [],
   status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
@@ -746,12 +738,12 @@ const initialFilters: CandidateFilters = {
   isTopDeveloper: null,
   // Job title filter
   jobTitle: "",
-  jobTitleWorkedWith: false,
-  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
-  jobTitleStartedCareer: false,  // Default: check all jobs
   // Years of experience filters
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
+  // Average job tenure filters
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
   // Maximum job changes in last N years filter
   maxJobChangesInLastYears: {
     maxChanges: "",
@@ -762,13 +754,13 @@ const initialFilters: CandidateFilters = {
     minPromotions: "",
     years: ""
   },
-  // Continuous Employment & Promotions filter
-  continuousEmployment: null,
-  continuousEmploymentToleranceMonths: 3,  // Default: 3 months
-  minPromotionsSameCompany: "",
   // Joined Project From Start filter
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
+  // Mutual Connections with DPL filter
+  hasMutualConnectionWithDPL: null,
+  mutualConnectionToleranceMonths: 0,  // Default: 0 = exact overlap required
+  mutualConnectionType: null,  // null = both education and work
   // Project team size filters
   projectTeamSizeMin: "",
   projectTeamSizeMax: "",
@@ -807,15 +799,13 @@ const initialFilters: CandidateFilters = {
   certificationLevels: [],
   // Personality type filter
   personalityTypes: [],
-  // Organizational roles filter
-  organizationalRoles: {
-    organizationNames: [],
-    roles: []
-  },
   source: [],
-  // Competition-related filters
-  competitionPlatforms: [],
+  // Achievement-related filters
+  achievementTypes: [],
+  achievementPlatforms: [],
   internationalBugBountyOnly: false,
+  // Legacy filters (kept for backward compatibility during migration)
+  competitionPlatforms: [],
 }
 
 export function CandidatesFilterDialog({
@@ -839,7 +829,6 @@ export function CandidatesFilterDialog({
     { id: "education", sectionId: "filter-education", label: "Education" },
     { id: "certifications", sectionId: "filter-certifications", label: "Certifications" },
     { id: "competitions", sectionId: "filter-competitions", label: "Competitions" },
-    // { id: "organizational-roles", sectionId: "filter-organizational-roles", label: "Organizational" },
   ]
   
   // Scroll to section function
@@ -895,6 +884,7 @@ export function CandidatesFilterDialog({
         case "basic":
           updated.basicInfoSearch = ""
           updated.cities = []
+          updated.excludeCities = []
           updated.status = []
           updated.personalityTypes = []
           updated.source = []
@@ -923,13 +913,12 @@ export function CandidatesFilterDialog({
             updated.isCurrentlyWorking = null
             updated.workedWithTopDeveloper = null
             updated.workedWithTopDeveloperUseTolerance = true
-            updated.isTopDeveloper = null
-            updated.jobTitle = ""
-            updated.jobTitleWorkedWith = false
-            updated.jobTitleWorkedWithUseTolerance = true
-            updated.jobTitleStartedCareer = false
+          updated.isTopDeveloper = null
+          updated.jobTitle = ""
             updated.yearsOfExperienceMin = ""
             updated.yearsOfExperienceMax = ""
+            updated.avgJobTenureMin = ""
+            updated.avgJobTenureMax = ""
             updated.maxJobChangesInLastYears = {
               maxChanges: "",
               years: ""
@@ -938,9 +927,9 @@ export function CandidatesFilterDialog({
               minPromotions: "",
               years: ""
             }
-            updated.continuousEmployment = null
-            updated.continuousEmploymentToleranceMonths = 3
-            updated.minPromotionsSameCompany = ""
+            updated.hasMutualConnectionWithDPL = null
+            updated.mutualConnectionToleranceMonths = 0
+            updated.mutualConnectionType = null
           break
         case "projects":
           updated.projects = []
@@ -991,11 +980,11 @@ export function CandidatesFilterDialog({
           updated.certificationIssuingBodies = []
           updated.certificationLevels = []
           break
-        case "organizational-roles":
-          updated.organizationalRoles = {
-            organizationNames: [],
-            roles: []
-          }
+        case "competitions":
+          updated.achievementTypes = []
+          updated.achievementPlatforms = []
+          updated.internationalBugBountyOnly = false
+          updated.competitionPlatforms = []
           break
       }
       return updated
@@ -1064,6 +1053,7 @@ export function CandidatesFilterDialog({
         return (
           (tempFilters.basicInfoSearch ? 1 : 0) +
           tempFilters.cities.length +
+          tempFilters.excludeCities.length +
           tempFilters.status.length +
           tempFilters.personalityTypes.length +
           tempFilters.source.length +
@@ -1088,10 +1078,11 @@ export function CandidatesFilterDialog({
           (tempFilters.jobTitle ? 1 : 0) +
           (tempFilters.yearsOfExperienceMin ? 1 : 0) +
           (tempFilters.yearsOfExperienceMax ? 1 : 0) +
+          (tempFilters.avgJobTenureMin ? 1 : 0) +
+          (tempFilters.avgJobTenureMax ? 1 : 0) +
           (tempFilters.maxJobChangesInLastYears?.maxChanges && tempFilters.maxJobChangesInLastYears?.years ? 1 : 0) +
           (tempFilters.minPromotionsInLastYears?.minPromotions && tempFilters.minPromotionsInLastYears?.years ? 1 : 0) +
-          (tempFilters.continuousEmployment === true ? 1 : 0) +
-          (tempFilters.minPromotionsSameCompany ? 1 : 0)
+          (tempFilters.hasMutualConnectionWithDPL !== null ? 1 : 0)
         )
       case "projects":
         return (
@@ -1146,15 +1137,12 @@ export function CandidatesFilterDialog({
           tempFilters.certificationIssuingBodies.length +
           tempFilters.certificationLevels.length
         )
-      case "organizational-roles":
-        return (
-          (tempFilters.organizationalRoles?.organizationNames.length || 0) +
-          (tempFilters.organizationalRoles?.roles?.length || 0)
-        )
       case "competitions":
         return (
-          tempFilters.competitionPlatforms.length +
-          (tempFilters.internationalBugBountyOnly ? 1 : 0)
+          tempFilters.achievementTypes.length +
+          tempFilters.achievementPlatforms.length +
+          (tempFilters.internationalBugBountyOnly ? 1 : 0) +
+          (tempFilters.competitionPlatforms.length > 0 ? tempFilters.competitionPlatforms.length : 0)
         )
       default:
         return 0
@@ -1171,7 +1159,7 @@ export function CandidatesFilterDialog({
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string } | { maxChanges: string, years: string } | { minPromotions: string, years: string } | { organizationNames: string[], roles?: string[] }) => {
+  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string } | { maxChanges: string, years: string } | { minPromotions: string, years: string }) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -1210,10 +1198,10 @@ export function CandidatesFilterDialog({
   const hasAnyTempFilters = 
     tempFilters.basicInfoSearch ||
     tempFilters.cities.length > 0 ||
+    tempFilters.excludeCities.length > 0 ||
     tempFilters.status.length > 0 ||
     tempFilters.personalityTypes.length > 0 ||
     tempFilters.source.length > 0 ||
-    (tempFilters.organizationalRoles && (tempFilters.organizationalRoles.organizationNames.length > 0 || (tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0))) ||
     tempFilters.currentSalaryMin ||
     tempFilters.currentSalaryMax ||
     tempFilters.expectedSalaryMin ||
@@ -1236,13 +1224,13 @@ export function CandidatesFilterDialog({
     tempFilters.isCurrentlyWorking !== null ||
     tempFilters.workedWithTopDeveloper !== null ||
     tempFilters.jobTitle ||
-    (tempFilters.jobTitle && tempFilters.jobTitleWorkedWith === true) ||
     tempFilters.yearsOfExperienceMin ||
     tempFilters.yearsOfExperienceMax ||
+    tempFilters.avgJobTenureMin ||
+    tempFilters.avgJobTenureMax ||
     (tempFilters.maxJobChangesInLastYears?.maxChanges && tempFilters.maxJobChangesInLastYears?.years) ||
     (tempFilters.minPromotionsInLastYears?.minPromotions && tempFilters.minPromotionsInLastYears?.years) ||
-    tempFilters.continuousEmployment === true ||
-    tempFilters.minPromotionsSameCompany ||
+    tempFilters.hasMutualConnectionWithDPL !== null ||
     tempFilters.joinedProjectFromStart !== null ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
@@ -1275,8 +1263,10 @@ export function CandidatesFilterDialog({
     tempFilters.certificationNames.length > 0 ||
     tempFilters.certificationIssuingBodies.length > 0 ||
     tempFilters.certificationLevels.length > 0 ||
-    tempFilters.competitionPlatforms.length > 0 ||
-    tempFilters.internationalBugBountyOnly
+    tempFilters.achievementTypes.length > 0 ||
+    tempFilters.achievementPlatforms.length > 0 ||
+    tempFilters.internationalBugBountyOnly ||
+    tempFilters.competitionPlatforms.length > 0
 
   // Validation for salary inputs
   const validateSalaryInput = (value: string): boolean => {
@@ -1412,6 +1402,18 @@ export function CandidatesFilterDialog({
                   searchPlaceholder="Search cities..."
                   maxDisplay={3}
                 />
+
+                <MultiSelect
+                  items={cityOptions}
+                  selected={tempFilters.excludeCities}
+                  onChange={(values) => handleFilterChange("excludeCities", values)}
+                  placeholder="Exclude major cities..."
+                  searchPlaceholder="Search cities to exclude..."
+                  maxDisplay={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Exclude candidates from major cities to find talent from smaller/remote areas
+                </p>
               </div>
 
               {/* Status Filter */}
@@ -1909,127 +1911,11 @@ export function CandidatesFilterDialog({
                   value={tempFilters.jobTitle}
                   onChange={(e) => {
                     handleFilterChange("jobTitle", e.target.value)
-                    // Reset "Worked with" checkbox when job title is cleared
-                    if (!e.target.value.trim()) {
-                      handleFilterChange("jobTitleWorkedWith", false)
-                    }
                   }}
                 />
-                
-                {/* Dynamically show "Worked with" checkbox when job title is entered */}
-                {tempFilters.jobTitle && tempFilters.jobTitle.trim() && (
-                  <div className="space-y-3 pt-2 pl-2 border-l-2 border-muted">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="jobTitleWorkedWith"
-                        checked={tempFilters.jobTitleWorkedWith === true}
-                        onCheckedChange={(checked) => {
-                          handleFilterChange("jobTitleWorkedWith", checked)
-                          // Ensure "Started career" is unchecked when this is checked
-                          if (checked === true && tempFilters.jobTitleStartedCareer) {
-                            handleFilterChange("jobTitleStartedCareer", false)
-                          }
-                        }}
-                      />
-                      <Label htmlFor="jobTitleWorkedWith" className="text-sm font-medium cursor-pointer">
-                        Worked with {tempFilters.jobTitle.trim()}
-                      </Label>
-                    </div>
-                    
-                    {/* Started Career with Job Title checkbox */}
-                    {!tempFilters.jobTitleWorkedWith && (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="jobTitleStartedCareer"
-                          checked={tempFilters.jobTitleStartedCareer === true}
-                          onCheckedChange={(checked) => 
-                            handleFilterChange("jobTitleStartedCareer", checked === true)
-                          }
-                        />
-                        <Label htmlFor="jobTitleStartedCareer" className="text-sm font-medium cursor-pointer">
-                          Started career with this job title
-                        </Label>
-                      </div>
-                    )}
-                    
-                    {/* Tolerance Window Options - appears when checkbox is checked */}
-                    {tempFilters.jobTitleWorkedWith === true && (
-                      <div className="space-y-3 pl-6">
-                        {/* Checkbox to enable/disable tolerance window */}
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="jobTitleWorkedWithUseTolerance"
-                            checked={tempFilters.jobTitleWorkedWithUseTolerance ?? true}
-                            onCheckedChange={(checked) => 
-                              handleFilterChange("jobTitleWorkedWithUseTolerance", checked)
-                            }
-                          />
-                          <Label htmlFor="jobTitleWorkedWithUseTolerance" className="text-xs text-muted-foreground cursor-pointer">
-                            Apply Tolerance Window
-                          </Label>
-                        </div>
-                        
-                        {/* Tolerance Window Input - only shown when tolerance is enabled */}
-                        {tempFilters.jobTitleWorkedWithUseTolerance && (
-                          <div className="space-y-2 pl-6">
-                            <Label htmlFor="jobTitleWorkedWithToleranceDays" className="text-xs text-muted-foreground">
-                              Tolerance Window (days)
-                            </Label>
-                            <Input
-                              id="jobTitleWorkedWithToleranceDays"
-                              type="number"
-                              placeholder="e.g., 30"
-                              value={tempFilters.joinedProjectFromStartToleranceDays?.toString() || "30"}
-                              onChange={(e) => {
-                                const value = e.target.value
-                                const numValue = value === "" ? 30 : parseInt(value) || 30
-                                handleFilterChange("joinedProjectFromStartToleranceDays", numValue)
-                              }}
-                              min="0"
-                              max="365"
-                              className="w-full"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Maximum days difference between candidate and person with job title work experience start dates (default: 30 days). 
-                              Only matches candidates who started working on the same project within this window.
-                            </p>
-                          </div>
-                        )}
-                        
-                        {!tempFilters.jobTitleWorkedWithUseTolerance && (
-                          <p className="text-xs text-muted-foreground pl-6">
-                            Matching by project name only - no date restriction applied.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    
-                    {tempFilters.jobTitleStartedCareer && (
-                      <p className="text-xs text-muted-foreground pl-6">
-                        Only matches candidates whose first job title contains &quot;{tempFilters.jobTitle.trim()}&quot;.
-                        This filters for candidates who started their careers directly in this role.
-                      </p>
-                    )}
-                    
-                    {!tempFilters.jobTitleStartedCareer && !tempFilters.jobTitleWorkedWith && (
-                      <p className="text-xs text-muted-foreground pl-6">
-                        Filter candidates who have the job title &quot;{tempFilters.jobTitle.trim()}&quot; (partial matching supported).
-                      </p>
-                    )}
-                    
-                    {tempFilters.jobTitleWorkedWith && (
-                      <p className="text-xs text-muted-foreground pl-6">
-                        Find candidates who worked on the same projects as people with job title &quot;{tempFilters.jobTitle.trim()}&quot;. Combine with Employers filter to narrow by company (e.g., DPL).
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                {!tempFilters.jobTitle && (
                   <p className="text-xs text-muted-foreground">
                     Search by job title (partial matching supported)
                   </p>
-                )}
               </div>
 
               {/* Years of Experience Range Filter */}
@@ -2067,6 +1953,44 @@ export function CandidatesFilterDialog({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Filter by total years of experience calculated from work history
+                </p>
+              </div>
+
+              {/* Average Job Tenure Range Filter */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Average Job Tenure (Years)</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="avgJobTenureMin" className="text-xs text-muted-foreground">
+                      Minimum Tenure
+                    </Label>
+                    <Input
+                      id="avgJobTenureMin"
+                      type="number"
+                      placeholder="e.g., 1.5"
+                      value={tempFilters.avgJobTenureMin}
+                      onChange={(e) => handleFilterChange("avgJobTenureMin", e.target.value)}
+                      min="0"
+                      step="0.1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="avgJobTenureMax" className="text-xs text-muted-foreground">
+                      Maximum Tenure
+                    </Label>
+                    <Input
+                      id="avgJobTenureMax"
+                      type="number"
+                      placeholder="e.g., 3.0"
+                      value={tempFilters.avgJobTenureMax}
+                      onChange={(e) => handleFilterChange("avgJobTenureMax", e.target.value)}
+                      min="0"
+                      step="0.1"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Filter by average time spent at each employer. Shows career stability patterns.
                 </p>
               </div>
 
@@ -2179,81 +2103,6 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              {/* Continuous Employment & Promotions Filter */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="continuousEmployment"
-                    checked={tempFilters.continuousEmployment === true}
-                    onCheckedChange={(checked) => 
-                      handleFilterChange("continuousEmployment", checked ? true : null)
-                    }
-                  />
-                  <Label htmlFor="continuousEmployment" className="text-sm font-medium cursor-pointer">
-                    Continuous Employment
-                  </Label>
-                </div>
-                
-                {/* Tolerance Window & Promotions - appears when checkbox is checked */}
-                {tempFilters.continuousEmployment === true && (
-                  <div className="space-y-3 pl-6">
-                    {/* Tolerance Window for Employment Gaps */}
-                    <div className="space-y-2">
-                      <Label htmlFor="continuousEmploymentToleranceMonths" className="text-xs text-muted-foreground">
-                        Maximum Employment Gap (months)
-                      </Label>
-                      <Input
-                        id="continuousEmploymentToleranceMonths"
-                        type="number"
-                        placeholder="e.g., 3"
-                        value={tempFilters.continuousEmploymentToleranceMonths?.toString() || "3"}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          const numValue = value === "" ? 3 : parseInt(value) || 3
-                          handleFilterChange("continuousEmploymentToleranceMonths", numValue)
-                        }}
-                        min="0"
-                        max="12"
-                        step="1"
-                        className="w-full"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Maximum allowed gap between consecutive jobs (default: 3 months). 
-                        Gaps larger than this will be considered employment breaks.
-                      </p>
-                    </div>
-                    
-                    {/* Minimum Promotions Input */}
-                    <div className="space-y-2">
-                      <Label htmlFor="minPromotionsSameCompany" className="text-xs text-muted-foreground">
-                        Minimum Promotions (Same Company)
-                      </Label>
-                      <Input
-                        id="minPromotionsSameCompany"
-                        type="number"
-                        placeholder="e.g., 2"
-                        value={tempFilters.minPromotionsSameCompany || ""}
-                        onChange={(e) => handleFilterChange("minPromotionsSameCompany", e.target.value)}
-                        min="1"
-                        step="1"
-                        className="w-full"
-                      />
-                      {tempFilters.minPromotionsSameCompany && (
-                        <p className="text-xs text-muted-foreground">
-                          Candidates must have at least {tempFilters.minPromotionsSameCompany} promotion{tempFilters.minPromotionsSameCompany !== "1" ? "s" : ""} within the same company.
-                          A promotion is detected when job title changes at the same employer.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                <p className="text-xs text-muted-foreground pl-6">
-                  Filter candidates with no employment breaks greater than the specified gap tolerance. 
-                  Optionally require minimum promotions (job title changes) within the same company.
-                </p>
-              </div>
-
               {/* Joined Project From Start Filter */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center space-x-2">
@@ -2298,6 +2147,81 @@ export function CandidatesFilterDialog({
                 
                 <p className="text-xs text-muted-foreground pl-6">
                   Filter for candidates whose work experience start date matches or is close to project start date
+                </p>
+              </div>
+
+              {/* Mutual Connections with DPL Filter */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="hasMutualConnectionWithDPL"
+                    checked={tempFilters.hasMutualConnectionWithDPL === true}
+                    onCheckedChange={(checked) => 
+                      handleFilterChange("hasMutualConnectionWithDPL", checked ? true : null)
+                    }
+                  />
+                  <Label htmlFor="hasMutualConnectionWithDPL" className="text-sm font-medium cursor-pointer">
+                    Mutual Connection with DPL Employee
+                  </Label>
+                </div>
+                
+                {/* Tolerance and Connection Type - appears when checkbox is checked */}
+                {tempFilters.hasMutualConnectionWithDPL === true && (
+                  <div className="space-y-3 pl-6">
+                    {/* Tolerance Window */}
+                    <div className="space-y-2">
+                      <Label htmlFor="mutualConnectionToleranceMonths" className="text-xs text-muted-foreground">
+                        Date Gap Tolerance (months)
+                      </Label>
+                      <Input
+                        id="mutualConnectionToleranceMonths"
+                        type="number"
+                        placeholder="e.g., 6"
+                        value={tempFilters.mutualConnectionToleranceMonths?.toString() || "0"}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          const numValue = value === "" ? 0 : parseInt(value) || 0
+                          handleFilterChange("mutualConnectionToleranceMonths", numValue)
+                        }}
+                        min="0"
+                        max="24"
+                        step="1"
+                        className="w-full"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Maximum gap in months between education/work periods to still count as overlap (default: 0 = exact overlap required).
+                      </p>
+                    </div>
+                    
+                    {/* Connection Type Filter */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Connection Type</Label>
+                      <RadioGroup
+                        value={tempFilters.mutualConnectionType || 'both'}
+                        onValueChange={(value) => 
+                          handleFilterChange("mutualConnectionType", value === 'both' ? null : value as 'education' | 'work')
+                        }
+                      >
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value="both" id="mutual-both" />
+                          <Label htmlFor="mutual-both" className="text-xs cursor-pointer">Both Education & Work</Label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value="education" id="mutual-education" />
+                          <Label htmlFor="mutual-education" className="text-xs cursor-pointer">Education Only</Label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <RadioGroupItem value="work" id="mutual-work" />
+                          <Label htmlFor="mutual-work" className="text-xs cursor-pointer">Work Experience Only</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
+                )}
+                
+                <p className="text-xs text-muted-foreground pl-6">
+                  Find candidates who have overlapping education or work experience with any DPL employee.
+                  This indicates potential mutual connections (batchmates, classmates, or colleagues).
                 </p>
               </div>
             </section>
@@ -3005,10 +2929,10 @@ export function CandidatesFilterDialog({
               </div>
             </section>
 
-            {/* Competitions Filter Section */}
+            {/* Achievements Filter Section */}
             <section id="filter-competitions" className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground">Competitions</h3>
+                <h3 className="text-sm font-semibold text-muted-foreground">Achievements</h3>
                 {getSectionFilterCount("competitions") > 0 && (
                   <Button
                     variant="ghost"
@@ -3023,12 +2947,22 @@ export function CandidatesFilterDialog({
               </div>
               
               <MultiSelect
-                items={competitionPlatformOptions}
-                selected={tempFilters.competitionPlatforms}
-                onChange={(values) => handleFilterChange("competitionPlatforms", values)}
-                placeholder="Filter by competition platform..."
-                label="Competition Platform"
-                searchPlaceholder="Search platforms..."
+                items={achievementTypeOptions}
+                selected={tempFilters.achievementTypes}
+                onChange={(values) => handleFilterChange("achievementTypes", values)}
+                placeholder="Filter by achievement type..."
+                label="Achievement Type"
+                searchPlaceholder="Search types..."
+                maxDisplay={3}
+              />
+
+              <MultiSelect
+                items={achievementPlatformOptions}
+                selected={tempFilters.achievementPlatforms}
+                onChange={(values) => handleFilterChange("achievementPlatforms", values)}
+                placeholder="Filter by achievement/platform name..."
+                label="Achievement/Platform Name"
+                searchPlaceholder="Search achievements/platforms..."
                 maxDisplay={3}
               />
 
@@ -3043,74 +2977,10 @@ export function CandidatesFilterDialog({
                 </Label>
               </div>
               <p className="text-xs text-muted-foreground">
-                When enabled, only shows candidates with competitions from international bug bounty platforms (HackerOne, Bugcrowd, Synack, etc.)
+                When enabled, only shows candidates with achievements from international bug bounty platforms (HackerOne, Bugcrowd, Synack, etc.)
               </p>
             </section>
 
-            {/* Organizational Roles Filter Section */}
-            <section id="filter-organizational-roles" className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-muted-foreground">Organizational Role</h3>
-                {getSectionFilterCount("organizational-roles") > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => clearSectionFilters("organizational-roles")}
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="h-3 w-3 mr-1" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-              
-              <div className="space-y-3">
-                <MultiSelect
-                  items={organizationNameOptions}
-                  selected={tempFilters.organizationalRoles?.organizationNames || []}
-                  onChange={(values) => {
-                    handleFilterChange("organizationalRoles", {
-                      organizationNames: values,
-                      roles: tempFilters.organizationalRoles?.roles || []
-                    })
-                  }}
-                  placeholder="Filter by organization..."
-                  label="Organization"
-                  searchPlaceholder="Search organizations..."
-                  maxDisplay={3}
-                />
-                <MultiSelect
-                  items={roleOptions}
-                  selected={tempFilters.organizationalRoles?.roles || []}
-                  onChange={(values) => {
-                    handleFilterChange("organizationalRoles", {
-                      organizationNames: tempFilters.organizationalRoles?.organizationNames || [],
-                      roles: values
-                    })
-                  }}
-                  placeholder="Filter by role (optional)..."
-                  label="Role (Optional)"
-                  searchPlaceholder="Search roles..."
-                  maxDisplay={3}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Filter candidates by their organizational roles/affiliations (e.g., CEO, Board Member at PASHA)
-              </p>
-              {(tempFilters.organizationalRoles?.organizationNames.length || 0) > 0 && (
-                <p className="text-xs text-muted-foreground pl-6">
-                  {tempFilters.organizationalRoles.organizationNames.length > 0 && (
-                    <>
-                      Organizations: {tempFilters.organizationalRoles.organizationNames.join(", ")}
-                      {tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0 && " | "}
-                    </>
-                  )}
-                  {tempFilters.organizationalRoles.roles && tempFilters.organizationalRoles.roles.length > 0 && (
-                    <>Roles: {tempFilters.organizationalRoles.roles.join(", ")}</>
-                  )}
-                </p>
-              )}
-            </section>
           </div>
         </div>
 

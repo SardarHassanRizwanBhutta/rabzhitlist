@@ -43,6 +43,7 @@ const defaultFilters: CandidateFilters = {
   basicInfoSearch: "",
   postingTitle: "",
   cities: [],
+  excludeCities: [],
   status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
@@ -80,11 +81,10 @@ const defaultFilters: CandidateFilters = {
   workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
   isTopDeveloper: null,
   jobTitle: "",
-  jobTitleWorkedWith: false,
-  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
-  jobTitleStartedCareer: false,  // Default: check all jobs
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
   maxJobChangesInLastYears: {
     maxChanges: "",
     years: ""
@@ -93,11 +93,11 @@ const defaultFilters: CandidateFilters = {
     minPromotions: "",
     years: ""
   },
-  continuousEmployment: null,
-  continuousEmploymentToleranceMonths: 3,
-  minPromotionsSameCompany: "",
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
+  hasMutualConnectionWithDPL: null,
+  mutualConnectionToleranceMonths: 0,
+  mutualConnectionType: null,
   projectTeamSizeMin: "",
   projectTeamSizeMax: "",
   hasPublishedProject: null,
@@ -127,13 +127,11 @@ const defaultFilters: CandidateFilters = {
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
-  competitionPlatforms: [],
+  achievementTypes: [],
+  achievementPlatforms: [],
   internationalBugBountyOnly: false,
+  competitionPlatforms: [],
   personalityTypes: [],
-  organizationalRoles: {
-    organizationNames: [],
-    roles: []
-  },
   source: [],
 }
 
@@ -243,6 +241,8 @@ const getCriterionColor = (type: string): string => {
     
     // Competitions
     'competitionPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
+    'achievementType': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
+    'achievementPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     'internationalBugBounty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     
     // Candidate Tech Stacks

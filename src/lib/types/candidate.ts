@@ -61,6 +61,27 @@ export interface OrganizationalRole {
   endDate?: Date
 }
 
+export type AchievementType = 
+  | "Competition"
+  | "Open Source"
+  | "Award"
+  | "Medal"
+  | "Publication"
+  | "Certification"
+  | "Recognition"
+  | "Other"
+
+export interface Achievement {
+  id: string
+  name: string  // e.g., "HackerOne", "Gold Medal in Math Olympiad", "React Contributor"
+  achievementType: AchievementType  // Categorizes the achievement
+  ranking?: string  // e.g., "Hall of Fame", "Top 1%", "Gold Medal", "Rank 50"
+  year?: number
+  url?: string
+  description?: string  // Optional description for additional context
+}
+
+// Keep Competition interface for backward compatibility during migration
 export interface Competition {
   id: string
   competitionName: string  // e.g., "HackerOne", "Bugcrowd", "Kaggle", "CVE"
@@ -92,7 +113,8 @@ export interface Candidate {
   isTopDeveloper?: boolean | null // Top developer flag
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
-  competitions?: Competition[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms)
+  achievements?: Achievement[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms, Open Source contributions, Awards, Medals)
+  competitions?: Competition[] // DEPRECATED: Use achievements instead. Kept for backward compatibility during migration
   createdAt: Date
   updatedAt: Date
 }

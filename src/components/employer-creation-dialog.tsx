@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -76,6 +77,8 @@ export interface EmployerFormData {
   foundedYear: string
   techStacks: string[]
   benefits: EmployerBenefit[]
+  isDPLCompetitive: boolean
+  avgJobTenure: string
   locations: EmployerLocationFormData[]
   layoffs: LayoffFormData[]
 }
@@ -127,6 +130,8 @@ const initialFormData: EmployerFormData = {
   foundedYear: "",
   techStacks: [],
   benefits: [],
+  isDPLCompetitive: false,
+  avgJobTenure: "",
   locations: [createEmptyLocation()], // Start with one location
   layoffs: [],
 }
@@ -284,6 +289,8 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     foundedYear: employer.foundedYear?.toString() || "",
     techStacks: getEmployerTechStacks(employer),
     benefits: getEmployerBenefits(employer),
+    isDPLCompetitive: employer.isDPLCompetitive || false,
+    avgJobTenure: employer.avgJobTenure?.toString() || "",
     locations: employer.locations.map(loc => ({
       id: loc.id,
       country: loc.country || "",
@@ -307,7 +314,7 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
 
 // All verifiable fields for employers
 const EMPLOYER_VERIFICATION_FIELDS = [
-  'name', 'status', 'foundedYear', 'websiteUrl', 'linkedinUrl'
+  'name', 'status', 'foundedYear', 'websiteUrl', 'linkedinUrl', 'isDPLCompetitive', 'avgJobTenure'
 ]
 
 // Location fields (dynamic based on number of locations)
@@ -1175,6 +1182,52 @@ export function EmployerCreationDialog({
                           />
                           <VerificationCheckbox fieldName="benefits" />
                         </div>
+
+                        <div className="space-y-2 md:col-span-2">
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              id="isDPLCompetitive"
+                              checked={formData.isDPLCompetitive}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({ ...prev, isDPLCompetitive: checked }))
+                                if (showVerification) {
+                                  setModifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
+                                  setVerifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
+                                }
+                              }}
+                            />
+                            <Label htmlFor="isDPLCompetitive" className="cursor-pointer">
+                              DPL Competitive
+                            </Label>
+                          </div>
+                          <VerificationCheckbox fieldName="isDPLCompetitive" />
+                        </div>
+                      </div>
+
+                      {/* Average Job Tenure */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
+                          <VerificationCheckbox fieldName="avgJobTenure" />
+                        </div>
+                        <Input
+                          id="avgJobTenure"
+                          type="number"
+                          placeholder="e.g., 2.5"
+                          min="0"
+                          step="0.1"
+                          value={formData.avgJobTenure}
+                          onChange={(e) => {
+                            setFormData(prev => ({ ...prev, avgJobTenure: e.target.value }))
+                            if (showVerification) {
+                              setModifiedFields(prev => new Set(prev).add("avgJobTenure"))
+                              setVerifiedFields(prev => new Set(prev).add("avgJobTenure"))
+                            }
+                          }}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Average time employees stay with this employer (calculated from work experience data or manually entered)
+                        </p>
                       </div>
                     </CardContent>
                   </CollapsibleContent>

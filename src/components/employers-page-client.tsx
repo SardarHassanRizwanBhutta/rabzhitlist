@@ -9,7 +9,7 @@ import { EmployersFilterDialog, EmployerFilters } from "@/components/employers-f
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import type { Employer, EmployerLocation } from "@/lib/types/employer"
+import type { Employer } from "@/lib/types/employer"
 
 interface EmployersPageClientProps {
   employers: Employer[]
@@ -38,10 +38,7 @@ const initialFilters: EmployerFilters = {
   rankings: [],
   tags: [],
   techStackMinCount: "",
-  employeesWithOrganizationalRole: {
-    organizationName: "",
-    roles: []
-  },
+  isDPLCompetitive: null,
   employeeCities: [],
   employeeCountries: [],
   // Project-based filters
@@ -65,6 +62,9 @@ const initialFilters: EmployerFilters = {
   layoffDateStart: null,
   layoffDateEnd: null,
   minLayoffEmployees: "",
+  // Average Job Tenure filters
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
 }
 
 export function EmployersPageClient({ employers }: EmployersPageClientProps) {

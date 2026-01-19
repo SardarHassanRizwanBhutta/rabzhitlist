@@ -94,6 +94,7 @@ const defaultFilters: CandidateFilters = {
   basicInfoSearch: "",
   postingTitle: "",
   cities: [],
+  excludeCities: [],
   status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
@@ -129,11 +130,10 @@ const defaultFilters: CandidateFilters = {
   workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
   isTopDeveloper: null,
   jobTitle: "",
-  jobTitleWorkedWith: false,
-  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
-  jobTitleStartedCareer: false,  // Default: check all jobs
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
   maxJobChangesInLastYears: {
     maxChanges: "",
     years: ""
@@ -142,11 +142,11 @@ const defaultFilters: CandidateFilters = {
     minPromotions: "",
     years: ""
   },
-  continuousEmployment: null,
-  continuousEmploymentToleranceMonths: 3,
-  minPromotionsSameCompany: "",
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
+  hasMutualConnectionWithDPL: null,
+  mutualConnectionToleranceMonths: 0,
+  mutualConnectionType: null,
   projectTeamSizeMin: "",
   projectTeamSizeMax: "",
   hasPublishedProject: null,
@@ -179,10 +179,8 @@ const defaultFilters: CandidateFilters = {
   competitionPlatforms: [],
   internationalBugBountyOnly: false,
   personalityTypes: [],
-  organizationalRoles: {
-    organizationNames: [],
-    roles: []
-  },
+  achievementTypes: [],
+  achievementPlatforms: [],
   source: [],
   startDateStart: null,
   startDateEnd: null,

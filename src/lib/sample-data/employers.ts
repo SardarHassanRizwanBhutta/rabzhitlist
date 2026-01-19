@@ -9,7 +9,7 @@ export const sampleEmployers: Employer[] = [
     status: "Active",
     foundedYear: 2003,
     ranking: "DPL Favourite",
-    employerType: "Client Based",
+    employerType: "Services Based",
     locations: [
       {
         id: "loc-emp-001-001",
@@ -67,7 +67,8 @@ export const sampleEmployers: Employer[] = [
     ],
     createdAt: new Date("2023-02-10"),
     updatedAt: new Date("2023-06-15"),
-    tags: ["DPL Competitive", "Enterprise"],
+    isDPLCompetitive: true,
+    tags: ["Enterprise"],
   },
   {
     id: "emp-003",

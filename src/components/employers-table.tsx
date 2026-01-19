@@ -88,6 +88,7 @@ import {
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { EmployerBenefit } from "@/lib/types/benefits"
+import type { WorkExperience } from "@/lib/types/candidate"
 import type { EmployerFilters } from "./employers-filter-dialog"
 
 interface EmployersTableProps {
@@ -357,6 +358,39 @@ const getApplicantCount = (employer: Employer): number => {
   return uniqueCandidates.size
 }
 
+// Calculate average job tenure for an employer based on candidate work experience data
+const getAverageJobTenure = (employer: Employer, unit: "years" | "months" = "years"): number => {
+  const tenures: number[] = []
+
+  sampleCandidates.forEach(candidate => {
+    candidate.workExperiences?.forEach(we => {
+      if (matchesEmployerName(we.employerName, employer.name)) {
+        if (we.startDate && we.endDate) {
+          // Calculate tenure in specified unit
+          const tenureMs = we.endDate.getTime() - we.startDate.getTime()
+          const tenureValue = unit === "years"
+            ? tenureMs / (1000 * 60 * 60 * 24 * 365.25)  // Convert to years
+            : tenureMs / (1000 * 60 * 60 * 24 * 30.44)   // Convert to months
+          tenures.push(tenureValue)
+        } else if (we.startDate && !we.endDate) {
+          // Current job - calculate from start to now
+          const tenureMs = Date.now() - we.startDate.getTime()
+          const tenureValue = unit === "years"
+            ? tenureMs / (1000 * 60 * 60 * 24 * 365.25)
+            : tenureMs / (1000 * 60 * 60 * 24 * 30.44)
+          tenures.push(tenureValue)
+        }
+      }
+    })
+  })
+
+  if (tenures.length === 0) return 0
+
+  // Calculate average
+  const sum = tenures.reduce((acc, tenure) => acc + tenure, 0)
+  return sum / tenures.length
+}
+
 // Count unique developers with specific tech stacks for an employer
 // Optionally filters by shift type if provided
 const getDeveloperCountForTechStack = (
@@ -394,6 +428,30 @@ const getDeveloperCountForTechStack = (
   })
   
   return matchingCandidates.size
+}
+
+/**
+ * Check if a work experience represents a developer role
+ * Developers are identified by:
+ * 1. Job title containing keywords: "Developer", "Engineer", "Programmer", "Coder", etc.
+ * 2. OR having tech stacks in their work experience
+ */
+function isDeveloperWorkExperience(we: WorkExperience): boolean {
+  // Check job title for developer keywords
+  const developerKeywords = [
+    "developer", "engineer", "programmer", "coder", 
+    "architect", "dev", "sde", "swe", "software"
+  ]
+  
+  const jobTitle = we.jobTitle?.toLowerCase() || ""
+  const hasDeveloperTitle = developerKeywords.some(keyword => 
+    jobTitle.includes(keyword)
+  )
+  
+  // Check if has tech stacks (developers typically have tech stacks)
+  const hasTechStacks = we.techStacks && we.techStacks.length > 0
+  
+  return hasDeveloperTitle || hasTechStacks
 }
 
 
@@ -537,6 +595,14 @@ export function EmployersTable({
         )
         
         if (!hasMatchingTag) {
+          return false
+        }
+      }
+
+      // DPL Competitive filter
+      if (filters.isDPLCompetitive !== null) {
+        const employerIsDPLCompetitive = employer.isDPLCompetitive || false
+        if (filters.isDPLCompetitive !== employerIsDPLCompetitive) {
           return false
         }
       }
@@ -733,40 +799,6 @@ export function EmployersTable({
         if (!hasEmployeeFromCountry) return false
       }
 
-      // Employees with Organizational Role filter
-      if (filters.employeesWithOrganizationalRole?.organizationName) {
-        const organizationName = filters.employeesWithOrganizationalRole.organizationName.trim()
-        const filterRoles = filters.employeesWithOrganizationalRole.roles || []
-        
-        // Check if any candidate works at this employer AND has the specified organizational role
-        const hasMatchingEmployee = sampleCandidates.some(candidate => {
-          // Check if candidate works/has worked at this employer
-          const hasWorkExperienceAtEmployer = candidate.workExperiences?.some(we =>
-            matchesEmployerName(we.employerName, employer.name)
-          )
-          
-          if (!hasWorkExperienceAtEmployer) return false
-          
-          // Check if candidate has matching organizational role
-          return candidate.organizationalRoles?.some(orgRole => {
-            const orgMatches = orgRole.organizationName.toLowerCase().trim() === organizationName.toLowerCase().trim()
-            
-            // If roles filter is specified, also check role match
-            if (filterRoles.length > 0) {
-              const roleMatches = filterRoles.some(filterRole =>
-                orgRole.role.toLowerCase().trim() === filterRole.toLowerCase().trim()
-              )
-              return orgMatches && roleMatches
-            }
-            
-            return orgMatches
-          })
-        })
-        
-        if (!hasMatchingEmployee) {
-          return false
-        }
-      }
 
       // Benefits filter
       if (filters.benefits.length > 0) {
@@ -1007,6 +1039,7 @@ export function EmployersTable({
         }
       }
       
+      
       // Technology stack filter
       if (filters.techStacks.length > 0) {
         const hasMatchingTechStack = employerProjects.some(project =>
@@ -1149,6 +1182,25 @@ export function EmployersTable({
         }
       }
 
+      // Average Job Tenure filter (in years)
+      if (filters.avgJobTenureMin || filters.avgJobTenureMax) {
+        const avgTenure = getAverageJobTenure(employer, "years")
+
+        if (filters.avgJobTenureMin) {
+          const minTenure = parseFloat(filters.avgJobTenureMin)
+          if (!isNaN(minTenure) && avgTenure < minTenure) {
+            return false
+          }
+        }
+
+        if (filters.avgJobTenureMax) {
+          const maxTenure = parseFloat(filters.avgJobTenureMax)
+          if (!isNaN(maxTenure) && avgTenure > maxTenure) {
+            return false
+          }
+        }
+      }
+
       return true
     })
   }, [employers, filters])
@@ -1169,6 +1221,10 @@ export function EmployersTable({
         // Handle applicants count sorting
         aValue = getApplicantCount(a)
         bValue = getApplicantCount(b)
+      } else if (sortKey === 'avgJobTenure') {
+        // Handle average tenure sorting
+        aValue = getAverageJobTenure(a, "years")
+        bValue = getAverageJobTenure(b, "years")
       } else {
         aValue = a[sortKey as keyof Employer] as string | number | Date
         bValue = b[sortKey as keyof Employer] as string | number | Date
@@ -1345,6 +1401,9 @@ export function EmployersTable({
               <TableHead className="w-[100px]">
                 <SortButton column="applicants">Applicants</SortButton>
               </TableHead>
+              <TableHead className="w-[90px]">
+                <SortButton column="avgJobTenure">Avg Tenure</SortButton>
+              </TableHead>
               <TableHead className="w-[100px]">Offices</TableHead>
               <TableHead className="w-[180px]">Tech Stacks</TableHead>
               <TableHead className="w-[200px]">Benefits</TableHead>
@@ -1420,6 +1479,17 @@ export function EmployersTable({
                         <UsersIcon className="h-3 w-3" />
                         {getApplicantCount(employer)}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="text-sm font-medium"
+                        title={`Average job tenure: ${getAverageJobTenure(employer, "years").toFixed(1)} years`}
+                      >
+                        {(() => {
+                          const tenure = getAverageJobTenure(employer, "years")
+                          return tenure > 0 ? `${tenure.toFixed(1)}y` : '—'
+                        })()}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
