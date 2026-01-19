@@ -49,7 +49,14 @@ import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
-import { Candidate, Competition } from "@/lib/types/candidate"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Candidate, Competition, Achievement, AchievementType } from "@/lib/types/candidate"
 import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from "@/components/project-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
@@ -126,14 +133,6 @@ export interface CandidateEducation {
   isCheetah: boolean
 }
 
-export interface OrganizationalRoleFormData {
-  id: string
-  organizationName: string
-  role: string
-  startDate: Date | undefined
-  endDate: Date | undefined
-}
-
 export interface CandidateFormData {
   // Basic Information
   name: string
@@ -166,9 +165,9 @@ export interface CandidateFormData {
   isTopDeveloper: boolean
   // Personality Type
   personalityType: string
-  // Organizational Roles - dynamic array
-  organizationalRoles: OrganizationalRoleFormData[]
-  // Competitions - dynamic array
+  // Achievements - dynamic array (renamed from competitions)
+  achievements: Achievement[]
+  // Competitions - DEPRECATED: Use achievements instead. Kept for backward compatibility
   competitions: Competition[]
 }
 
@@ -591,8 +590,8 @@ const initialFormData: CandidateFormData = {
   techStacks: [],
   isTopDeveloper: false,
   personalityType: "",
-  organizationalRoles: [],
-  competitions: [],
+    achievements: [],
+    competitions: [],
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -660,12 +659,22 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
     techStacks: candidate.techStacks || [],
     isTopDeveloper: candidate.isTopDeveloper ?? false,
     personalityType: candidate.personalityType || "",
-    organizationalRoles: candidate.organizationalRoles?.map(orgRole => ({
-      id: orgRole.id,
-      organizationName: orgRole.organizationName || "",
-      role: orgRole.role || "",
-      startDate: orgRole.startDate,
-      endDate: orgRole.endDate,
+    achievements: candidate.achievements?.map(ach => ({
+      id: ach.id,
+      name: ach.name || "",
+      achievementType: ach.achievementType || "Competition",
+      ranking: ach.ranking || "",
+      year: ach.year,
+      url: ach.url || "",
+      description: ach.description || "",
+    })) || candidate.competitions?.map(comp => ({
+      id: comp.id,
+      name: comp.competitionName || "",
+      achievementType: "Competition" as AchievementType,
+      ranking: comp.ranking || "",
+      year: comp.year,
+      url: comp.url || "",
+      description: "",
     })) || [],
     competitions: candidate.competitions?.map(comp => ({
       id: comp.id,
@@ -723,8 +732,7 @@ export function CandidateCreationDialog({
     { id: "projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
-    { id: "competitions", sectionId: "competitions", label: "Competitions", shortLabel: "Comp" },
-    { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
+    { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
   ], [])
 
   const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
@@ -733,7 +741,6 @@ export function CandidateCreationDialog({
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
-  const [organizationalRolesOpen, setOrganizationalRolesOpen] = useState(true)
   
   // Employer creation state
   const [employerOptions, setEmployerOptions] = useState<ComboboxOption[]>(baseEmployerOptions)
@@ -773,17 +780,17 @@ export function CandidateCreationDialog({
   const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
   
   const [errors, setErrors] = useState<{
-    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'organizationalRoles' | 'competitions'>, string>>
+    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, string>>
     workExperiences?: { 
       [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
       }
     }
     projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
+    achievements?: { [index: number]: Partial<Record<keyof Achievement, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
     competitions?: { [index: number]: Partial<Record<keyof Competition, string>> }
-    organizationalRoles?: { [index: number]: Partial<Record<keyof OrganizationalRoleFormData, string>> }
     techStacks?: string
   }>({})
   
@@ -844,23 +851,15 @@ export function CandidateCreationDialog({
     total += 1 // techStacks
     if (verifiedFields.has('techStacks')) verified++
     
-    // Competitions
-    formData.competitions.forEach((_, idx) => {
-      const competitionFields = ['competitionName', 'ranking', 'year', 'url']
-      competitionFields.forEach(f => {
+    // Achievements
+    formData.achievements.forEach((_, idx) => {
+      const achievementFields = ['name', 'achievementType', 'ranking', 'year', 'url', 'description']
+      achievementFields.forEach(f => {
         total++
-        if (verifiedFields.has(`competitions.${idx}.${f}`)) verified++
+        if (verifiedFields.has(`achievements.${idx}.${f}`)) verified++
       })
     })
     
-    // Organizational Roles
-    formData.organizationalRoles.forEach((_, idx) => {
-      const orgRoleFields = ['organizationName', 'role', 'startDate', 'endDate']
-      orgRoleFields.forEach(f => {
-        total++
-        if (verifiedFields.has(`organizationalRoles.${idx}.${f}`)) verified++
-      })
-    })
     
     return { 
       total, 
@@ -995,16 +994,16 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.certifications])
 
-  const competitionsProgress = useMemo(() => {
+  const achievementsProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     let total = 0
     let verified = 0
     
-    formData.competitions.forEach((_, idx) => {
-      const competitionFields = ['competitionName', 'ranking', 'year', 'url']
-      competitionFields.forEach(f => {
+    formData.achievements.forEach((_, idx) => {
+      const achievementFields = ['name', 'achievementType', 'ranking', 'year', 'url', 'description']
+      achievementFields.forEach(f => {
         total++
-        if (verifiedFields.has(`competitions.${idx}.${f}`)) verified++
+        if (verifiedFields.has(`achievements.${idx}.${f}`)) verified++
       })
     })
     
@@ -1013,27 +1012,7 @@ export function CandidateCreationDialog({
       verified,
       total
     }
-  }, [showVerification, verifiedFields, formData.competitions])
-
-  const organizationalRolesProgress = useMemo(() => {
-    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
-    let total = 0
-    let verified = 0
-    
-    formData.organizationalRoles.forEach((_, idx) => {
-      const orgRoleFields = ['organizationName', 'role', 'startDate', 'endDate']
-      orgRoleFields.forEach(f => {
-        total++
-        if (verifiedFields.has(`organizationalRoles.${idx}.${f}`)) verified++
-      })
-    })
-    
-    return { 
-      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
-      verified,
-      total
-    }
-  }, [showVerification, verifiedFields, formData.organizationalRoles])
+  }, [showVerification, verifiedFields, formData.achievements])
 
   const techStacksProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
@@ -1062,7 +1041,7 @@ export function CandidateCreationDialog({
       case 'certifications':
         return certificationsProgress
       case 'competitions':
-        return competitionsProgress
+        return achievementsProgress
       default:
         return { percentage: 0, verified: 0, total: 0 }
     }
@@ -1171,7 +1150,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, competitionsOpen, organizationalRolesOpen, scrollToElement])
+  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, competitionsOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1322,12 +1301,14 @@ export function CandidateCreationDialog({
         break
       
       case 'competitions':
-        formData.competitions.forEach((_, idx) => {
+        formData.achievements.forEach((_, idx) => {
           fields.push(
-            `competitions.${idx}.competitionName`,
-            `competitions.${idx}.ranking`,
-            `competitions.${idx}.year`,
-            `competitions.${idx}.url`
+            `achievements.${idx}.name`,
+            `achievements.${idx}.achievementType`,
+            `achievements.${idx}.ranking`,
+            `achievements.${idx}.year`,
+            `achievements.${idx}.url`,
+            `achievements.${idx}.description`
           )
         })
         break
@@ -1419,7 +1400,7 @@ export function CandidateCreationDialog({
     return 'Save & Verify'
   }
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'organizationalRoles' | 'competitions'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'achievements' | 'competitions'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     markFieldModified(field)
     // Clear error when user starts typing
@@ -1855,34 +1836,36 @@ export function CandidateCreationDialog({
     }
   }
 
-  const createEmptyCompetition = (): Competition => ({
-    id: `comp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    competitionName: "",
+  const createEmptyAchievement = (): Achievement => ({
+    id: `ach-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name: "",
+    achievementType: "Competition",
     ranking: "",
     year: undefined,
     url: "",
+    description: "",
   })
 
-  const handleCompetitionChange = (
+  const handleAchievementChange = (
     index: number,
-    field: keyof Competition,
-    value: string | number | undefined
+    field: keyof Achievement,
+    value: string | number | AchievementType | undefined
   ) => {
     setFormData(prev => ({
       ...prev,
-      competitions: prev.competitions.map((comp, i) =>
-        i === index ? { ...comp, [field]: value } : comp
+      achievements: prev.achievements.map((ach, i) =>
+        i === index ? { ...ach, [field]: value } : ach
       )
     }))
     
     // Clear error when user starts typing
-    if (errors.competitions?.[index]?.[field]) {
+    if (errors.achievements?.[index]?.[field]) {
       setErrors(prev => ({
         ...prev,
-        competitions: {
-          ...prev.competitions,
+        achievements: {
+          ...prev.achievements,
           [index]: {
-            ...prev.competitions?.[index],
+            ...prev.achievements?.[index],
             [field]: undefined
           }
         }
@@ -1890,26 +1873,26 @@ export function CandidateCreationDialog({
     }
   }
 
-  const addCompetition = () => {
+  const addAchievement = () => {
     setFormData(prev => ({
       ...prev,
-      competitions: [...prev.competitions, createEmptyCompetition()]
+      achievements: [...prev.achievements, createEmptyAchievement()]
     }))
   }
 
-  const removeCompetition = (index: number) => {
+  const removeAchievement = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      competitions: prev.competitions.filter((_, i) => i !== index)
+      achievements: prev.achievements.filter((_, i) => i !== index)
     }))
     
-    // Clear errors for removed competition
-    if (errors.competitions?.[index]) {
-      const newCompetitionErrors = { ...errors.competitions }
-      delete newCompetitionErrors[index]
+    // Clear errors for removed achievement
+    if (errors.achievements?.[index]) {
+      const newAchievementErrors = { ...errors.achievements }
+      delete newAchievementErrors[index]
       setErrors(prev => ({
         ...prev,
-        competitions: newCompetitionErrors
+        achievements: newAchievementErrors
       }))
     }
   }
@@ -2159,21 +2142,27 @@ export function CandidateCreationDialog({
       }
     })
 
-    // Organizational Roles validation (only validate if organizational roles exist)
-    const organizationalRoleErrors: { [index: number]: Partial<Record<keyof OrganizationalRoleFormData, string>> } = {}
-    formData.organizationalRoles.forEach((orgRole, index) => {
-      const orgRoleErrors: Partial<Record<keyof OrganizationalRoleFormData, string>> = {}
+    // Achievements validation
+    const achievementErrors: { [index: number]: Partial<Record<keyof Achievement, string>> } = {}
+    formData.achievements.forEach((achievement, index) => {
+      const achErrors: Partial<Record<keyof Achievement, string>> = {}
       
       // Only validate if at least one field is filled (user started entering data)
-      const hasAnyData = orgRole.organizationName || orgRole.role || orgRole.startDate || orgRole.endDate
+      const hasAnyData = achievement.name || achievement.achievementType || achievement.ranking || 
+                        achievement.year || achievement.url || achievement.description
       
       if (hasAnyData) {
-        if (!orgRole.organizationName) orgRoleErrors.organizationName = "Organization name is required"
-        if (!orgRole.role) orgRoleErrors.role = "Role is required"
+        if (!achievement.name.trim()) achErrors.name = "Name is required"
+        if (!achievement.achievementType) achErrors.achievementType = "Achievement type is required"
       }
       
-      if (Object.keys(orgRoleErrors).length > 0) {
-        organizationalRoleErrors[index] = orgRoleErrors
+      // URL validation
+      if (achievement.url && !achievement.url.startsWith('http')) {
+        achErrors.url = "URL must start with http:// or https://"
+      }
+      
+      if (Object.keys(achErrors).length > 0) {
+        achievementErrors[index] = achErrors
       }
     })
 
@@ -2183,11 +2172,11 @@ export function CandidateCreationDialog({
       projects: Object.keys(projectErrors).length > 0 ? projectErrors : undefined,
       certifications: Object.keys(certificationErrors).length > 0 ? certificationErrors : undefined,
       educations: Object.keys(educationErrors).length > 0 ? educationErrors : undefined,
-      organizationalRoles: Object.keys(organizationalRoleErrors).length > 0 ? organizationalRoleErrors : undefined,
+      achievements: Object.keys(achievementErrors).length > 0 ? achievementErrors : undefined,
     }
 
     setErrors(newErrors)
-    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations && !newErrors.organizationalRoles
+    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations && !newErrors.achievements
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2244,7 +2233,6 @@ export function CandidateCreationDialog({
       setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
-      setOrganizationalRolesOpen(true)
     } else if (mode === "create" && open) {
       setFormData(initialFormData)
       initialFormDataRef.current = initialFormData
@@ -2257,7 +2245,6 @@ export function CandidateCreationDialog({
       setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
-      setOrganizationalRolesOpen(true)
     }
   }, [mode, candidateData, open])
 
@@ -2278,7 +2265,6 @@ export function CandidateCreationDialog({
     setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
-    setOrganizationalRolesOpen(false)
   }
 
   // Verification checkbox component
@@ -3763,16 +3749,16 @@ export function CandidateCreationDialog({
                 >
                   <div className="flex items-center gap-2">
                     <Award className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                    <span className="text-lg font-medium">Competitions</span>
-                    {formData.competitions.length > 0 && (
+                    <span className="text-lg font-medium">Achievements</span>
+                    {formData.achievements.length > 0 && (
                       <Badge variant="secondary" className="ml-2">
-                        {formData.competitions.length}
+                        {formData.achievements.length}
                       </Badge>
                     )}
                     <SectionProgressBadge 
-                      percentage={competitionsProgress.percentage}
-                      verified={competitionsProgress.verified}
-                      total={competitionsProgress.total}
+                      percentage={achievementsProgress.percentage}
+                      verified={achievementsProgress.verified}
+                      total={achievementsProgress.total}
                     />
                   </div>
                   <ChevronDown
@@ -3805,30 +3791,30 @@ export function CandidateCreationDialog({
             <CollapsibleContent className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  Add competitions and achievements (e.g., Kaggle, Bug Bounty platforms)
+                  Add achievements
                 </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={addCompetition}
+                  onClick={addAchievement}
                   className="flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
-                  Add Competition
+                  Add Achievement
                 </Button>
               </div>
 
-              {formData.competitions.map((competition, index) => (
-                <Card key={competition.id} className="relative">
+              {formData.achievements.map((achievement, index) => (
+                <Card key={achievement.id} className="relative">
                   <CardHeader className="pb-4">
                     <CardTitle className="flex items-center justify-between text-base">
-                      <span>Competition {index + 1}</span>
+                      <span>Achievement {index + 1}</span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeCompetition(index)}
+                        onClick={() => removeAchievement(index)}
                         className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -3836,21 +3822,44 @@ export function CandidateCreationDialog({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor={`competitionName-${index}`}>Competition Name *</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                        <Label htmlFor={`name-${index}`}>Name *</Label>
                         <Input
-                          id={`competitionName-${index}`}
+                          id={`name-${index}`}
                           type="text"
-                          placeholder="e.g., HackerOne, Kaggle, Bugcrowd..."
-                          value={competition.competitionName}
-                          onChange={(e) => handleCompetitionChange(index, "competitionName", e.target.value)}
-                          className={errors.competitions?.[index]?.competitionName ? "border-red-500" : ""}
+                          placeholder="e.g., HackerOne, Gold Medal in Math Olympiad, React Contributor..."
+                          value={achievement.name}
+                          onChange={(e) => handleAchievementChange(index, "name", e.target.value)}
+                          className={errors.achievements?.[index]?.name ? "border-red-500" : ""}
                         />
-                        {errors.competitions?.[index]?.competitionName && (
-                          <p className="text-sm text-red-500">{errors.competitions[index].competitionName}</p>
+                        {errors.achievements?.[index]?.name && (
+                          <p className="text-sm text-red-500">{errors.achievements[index].name}</p>
                         )}
-                        <VerificationCheckbox fieldPath={`competitions.${index}.competitionName`} />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.name`} />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor={`achievementType-${index}`}>Achievement Type *</Label>
+                        <Select
+                          value={achievement.achievementType}
+                          onValueChange={(value) => handleAchievementChange(index, "achievementType", value as AchievementType)}
+                        >
+                          <SelectTrigger id={`achievementType-${index}`}>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Competition">Competition</SelectItem>
+                            <SelectItem value="Open Source">Open Source</SelectItem>
+                            <SelectItem value="Award">Award</SelectItem>
+                            <SelectItem value="Medal">Medal</SelectItem>
+                            <SelectItem value="Publication">Publication</SelectItem>
+                            <SelectItem value="Certification">Certification</SelectItem>
+                            <SelectItem value="Recognition">Recognition</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <VerificationCheckbox fieldPath={`achievements.${index}.achievementType`} />
                       </div>
 
                       <div className="space-y-2">
@@ -3859,10 +3868,10 @@ export function CandidateCreationDialog({
                           id={`ranking-${index}`}
                           type="text"
                           placeholder="e.g., Top 1%, Hall of Fame, Gold Medal..."
-                          value={competition.ranking || ""}
-                          onChange={(e) => handleCompetitionChange(index, "ranking", e.target.value)}
+                          value={achievement.ranking || ""}
+                          onChange={(e) => handleAchievementChange(index, "ranking", e.target.value)}
                         />
-                        <VerificationCheckbox fieldPath={`competitions.${index}.ranking`} />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.ranking`} />
                       </div>
 
                       <div className="space-y-2">
@@ -3871,12 +3880,12 @@ export function CandidateCreationDialog({
                           id={`year-${index}`}
                           type="number"
                           placeholder="e.g., 2023"
-                          value={competition.year || ""}
-                          onChange={(e) => handleCompetitionChange(index, "year", e.target.value ? parseInt(e.target.value) : undefined)}
+                          value={achievement.year || ""}
+                          onChange={(e) => handleAchievementChange(index, "year", e.target.value ? parseInt(e.target.value) : undefined)}
                           min="1900"
                           max={new Date().getFullYear()}
                         />
-                        <VerificationCheckbox fieldPath={`competitions.${index}.year`} />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.year`} />
                       </div>
 
                       <div className="space-y-2 md:col-span-2">
@@ -3885,33 +3894,45 @@ export function CandidateCreationDialog({
                           id={`url-${index}`}
                           type="url"
                           placeholder="https://..."
-                          value={competition.url || ""}
-                          onChange={(e) => handleCompetitionChange(index, "url", e.target.value)}
-                          className={errors.competitions?.[index]?.url ? "border-red-500" : ""}
+                          value={achievement.url || ""}
+                          onChange={(e) => handleAchievementChange(index, "url", e.target.value)}
+                          className={errors.achievements?.[index]?.url ? "border-red-500" : ""}
                         />
-                        {errors.competitions?.[index]?.url && (
-                          <p className="text-sm text-red-500">{errors.competitions[index].url}</p>
+                        {errors.achievements?.[index]?.url && (
+                          <p className="text-sm text-red-500">{errors.achievements[index].url}</p>
                         )}
-                        <VerificationCheckbox fieldPath={`competitions.${index}.url`} />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.url`} />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor={`description-${index}`}>Description</Label>
+                        <Textarea
+                          id={`description-${index}`}
+                          placeholder="Additional context or details about this achievement..."
+                          value={achievement.description || ""}
+                          onChange={(e) => handleAchievementChange(index, "description", e.target.value)}
+                          rows={3}
+                        />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.description`} />
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
 
-              {formData.competitions.length === 0 && (
+              {formData.achievements.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center">
                   <Award className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No competitions added yet</p>
+                  <p className="text-sm text-muted-foreground mb-2">No achievements added yet</p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={addCompetition}
+                    onClick={addAchievement}
                     className="cursor-pointer"
                   >
                     <Plus className="mr-2 h-4 w-4" />
-                    Add Your First Competition
+                    Add Your First Achievement
                   </Button>
                 </div>
               )}
@@ -3919,255 +3940,6 @@ export function CandidateCreationDialog({
           </Collapsible>
           </div>
 
-          {/* Organizational Roles Section */}
-          <div id="organizational-roles">
-            <Collapsible open={organizationalRolesOpen} onOpenChange={setOrganizationalRolesOpen}>
-            <div className="flex items-center gap-2">
-              <CollapsibleTrigger asChild className="flex-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    <span className="text-lg font-medium">Organizational Roles</span>
-                    {formData.organizationalRoles.length > 0 && (
-                      <Badge variant="secondary" className="ml-2">
-                        {formData.organizationalRoles.length}
-                      </Badge>
-                    )}
-                    <SectionProgressBadge 
-                      percentage={organizationalRolesProgress.percentage}
-                      verified={organizationalRolesProgress.verified}
-                      total={organizationalRolesProgress.total}
-                    />
-                  </div>
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform duration-200 ${
-                      organizationalRolesOpen ? "transform rotate-180" : ""
-                    }`}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              {showVerification && (
-                <div 
-                  className="flex items-center gap-2 px-2" 
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Checkbox
-                    id="verify-all-organizational-roles"
-                    checked={isSectionFullyVerified('organizationalRoles')}
-                    onCheckedChange={(checked) => handleVerifyAllSection('organizationalRoles', !!checked)}
-                    aria-label="Verify all fields in Organizational Roles section"
-                  />
-                  <Label 
-                    htmlFor="verify-all-organizational-roles"
-                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
-                  >
-                    Verify All
-                  </Label>
-                </div>
-              )}
-            </div>
-            <CollapsibleContent className="space-y-4 mt-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Add organizational roles and affiliations (e.g., CEO, Board Member at PASHA)
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const newOrgRole: OrganizationalRoleFormData = {
-                      id: crypto.randomUUID(),
-                      organizationName: "",
-                      role: "",
-                      startDate: undefined,
-                      endDate: undefined
-                    }
-                    setFormData(prev => ({
-                      ...prev,
-                      organizationalRoles: [...prev.organizationalRoles, newOrgRole]
-                    }))
-                  }}
-                  className="flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Organizational Role
-                </Button>
-              </div>
-
-              {formData.organizationalRoles.map((orgRole, index) => (
-                <Card key={orgRole.id} className="relative">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center justify-between text-base">
-                      <span>Organizational Role {index + 1}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            organizationalRoles: prev.organizationalRoles.filter((_, i) => i !== index)
-                          }))
-                        }}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`orgRole-orgName-${index}`}>Organization Name *</Label>
-                        <Input
-                          id={`orgRole-orgName-${index}`}
-                          type="text"
-                          placeholder="e.g., PASHA"
-                          value={orgRole.organizationName}
-                          onChange={(e) => {
-                            setFormData(prev => ({
-                              ...prev,
-                              organizationalRoles: prev.organizationalRoles.map((or, i) => 
-                                i === index ? { ...or, organizationName: e.target.value } : or
-                              )
-                            }))
-                          }}
-                          className={errors.organizationalRoles?.[index]?.organizationName ? "border-red-500" : ""}
-                        />
-                        {errors.organizationalRoles?.[index]?.organizationName && (
-                          <p className="text-sm text-red-500">{errors.organizationalRoles[index].organizationName}</p>
-                        )}
-                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.organizationName`} />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`orgRole-role-${index}`}>Role *</Label>
-                        <Input
-                          id={`orgRole-role-${index}`}
-                          type="text"
-                          placeholder="e.g., CEO, Board Member"
-                          value={orgRole.role}
-                          onChange={(e) => {
-                            setFormData(prev => ({
-                              ...prev,
-                              organizationalRoles: prev.organizationalRoles.map((or, i) => 
-                                i === index ? { ...or, role: e.target.value } : or
-                              )
-                            }))
-                          }}
-                          className={errors.organizationalRoles?.[index]?.role ? "border-red-500" : ""}
-                        />
-                        {errors.organizationalRoles?.[index]?.role && (
-                          <p className="text-sm text-red-500">{errors.organizationalRoles[index].role}</p>
-                        )}
-                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.role`} />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`orgRole-startDate-${index}`}>Start Date</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              id={`orgRole-startDate-${index}`}
-                              className="w-full justify-between font-normal"
-                            >
-                              {orgRole.startDate ? orgRole.startDate.toLocaleDateString() : "Select start date"}
-                              <CalendarIcon />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={orgRole.startDate}
-                              captionLayout="dropdown"
-                              onSelect={(date) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  organizationalRoles: prev.organizationalRoles.map((or, i) => 
-                                    i === index ? { ...or, startDate: date } : or
-                                  )
-                                }))
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.startDate`} />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor={`orgRole-endDate-${index}`}>End Date</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              id={`orgRole-endDate-${index}`}
-                              className="w-full justify-between font-normal"
-                            >
-                              {orgRole.endDate ? orgRole.endDate.toLocaleDateString() : "Select end date"}
-                              <CalendarIcon />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={orgRole.endDate}
-                              captionLayout="dropdown"
-                              onSelect={(date) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  organizationalRoles: prev.organizationalRoles.map((or, i) => 
-                                    i === index ? { ...or, endDate: date } : or
-                                  )
-                                }))
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <VerificationCheckbox fieldPath={`organizationalRoles.${index}.endDate`} />
-                      </div>
-
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {formData.organizationalRoles.length === 0 && (
-                <div className="rounded-lg border border-dashed p-6 text-center">
-                  <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No organizational roles added yet</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newOrgRole: OrganizationalRoleFormData = {
-                        id: crypto.randomUUID(),
-                        organizationName: "",
-                        role: "",
-                        startDate: undefined,
-                        endDate: undefined
-                      }
-                      setFormData(prev => ({
-                        ...prev,
-                        organizationalRoles: [...prev.organizationalRoles, newOrgRole]
-                      }))
-                    }}
-                    className="cursor-pointer"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Your First Organizational Role
-                  </Button>
-                </div>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
-          </div>
           </form>
         </div>
 

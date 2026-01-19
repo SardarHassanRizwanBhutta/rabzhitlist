@@ -59,7 +59,9 @@ export interface Employer {
   locations: EmployerLocation[]
   techStacks?: string[]
   benefits?: EmployerBenefit[]
-  tags?: string[]  // e.g., ["DPL Competitive", "Enterprise", "Startup"]
+  isDPLCompetitive?: boolean  // Separate field for DPL Competitive status
+  avgJobTenure?: number  // Manually set average job tenure in years (calculated from work experience data)
+  tags?: string[]  // e.g., ["Enterprise", "Startup"] (DPL Competitive is now a separate field)
   layoffs?: Layoff[]  // One-to-many relationship with Layoffs
   createdAt: Date
   updatedAt: Date
@@ -88,13 +90,19 @@ export type EmployerRanking =
   | "DPL Favourite"
 
 export type EmployerType =
+  | "Services Based"
   | "Product Based"
-  | "Client Based"
+  | "SAAS"
+  | "Startup"
+  | "Integrator"
   | "Resource Augmentation"
 
 export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
+  "Services Based": "Services Based",
   "Product Based": "Product Based",
-  "Client Based": "Client Based",
+  "SAAS": "SAAS",
+  "Startup": "Startup",
+  "Integrator": "Integrator",
   "Resource Augmentation": "Resource Augmentation",
 }
 

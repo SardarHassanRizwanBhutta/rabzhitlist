@@ -32,7 +32,7 @@ export interface ProjectFilters {
   employers: string[]
   employerCities: string[]  // Filter by employer's city
   employerCountries: string[]  // Filter by employer's country
-  employerTypes: string[]  // Filter by employer type (Product Based, Client Based)
+  employerTypes: string[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
   clientLocations: string[]  // Filter by client's location (e.g., "San Francisco", "Silicon Valley", "United States")
   verticalDomains: string[]
   horizontalDomains: string[]

@@ -32,7 +32,7 @@ import {
   ChevronsUpDown
 } from "lucide-react"
 
-import { Candidate, OrganizationalRole, Competition, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState } from "@/components/candidate-creation-dialog"
@@ -85,6 +85,13 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { EmployerBenefit } from "@/lib/types/benefits"
 
 // Option interfaces and data for comboboxes
@@ -2111,6 +2118,65 @@ const getJobTitle = (candidate: Candidate): string => {
   return candidate.workExperiences?.[0]?.jobTitle || "N/A"
 }
 
+// Helper function to calculate candidate's average tenure across all employers
+const calculateCandidateAverageTenure = (candidate: Candidate): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  const today = new Date()
+  const employerTenures: number[] = []
+
+  // Group work experiences by employer to calculate tenure per employer
+  const employerMap = new Map<string, { startDate: Date | null, endDate: Date | null }>()
+
+  candidate.workExperiences.forEach(we => {
+    const employerName = we.employerName.toLowerCase().trim()
+    const startDate = we.startDate ? new Date(we.startDate) : null
+    const endDate = we.endDate ? new Date(we.endDate) : null
+
+    if (!employerMap.has(employerName)) {
+      employerMap.set(employerName, { startDate: null, endDate: null })
+    }
+
+    const existing = employerMap.get(employerName)!
+
+    // Update start date (earliest)
+    if (startDate && (!existing.startDate || startDate < existing.startDate)) {
+      existing.startDate = startDate
+    }
+
+    // Update end date (latest)
+    if (endDate && (!existing.endDate || endDate > existing.endDate)) {
+      existing.endDate = endDate
+    } else if (!endDate && !existing.endDate) {
+      // Current job
+      existing.endDate = today
+    }
+  })
+
+  // Calculate tenure for each employer
+  employerMap.forEach(({ startDate, endDate }) => {
+    if (startDate && endDate) {
+      // Calculate tenure in years
+      const tenureMs = endDate.getTime() - startDate.getTime()
+      const tenureYears = tenureMs / (1000 * 60 * 60 * 24 * 365.25)
+
+      if (tenureYears > 0) {
+        employerTenures.push(tenureYears)
+      }
+    }
+  })
+
+  // Calculate average across all employers
+  if (employerTenures.length === 0) {
+    return 0
+  }
+
+  const totalTenure = employerTenures.reduce((sum, tenure) => sum + tenure, 0)
+  return Math.round((totalTenure / employerTenures.length) * 10) / 10 // Round to 1 decimal place
+}
+
 // Helper function to calculate total years of experience from work experiences
 const calculateYearsOfExperience = (candidate: Candidate): number => {
   if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
@@ -2151,7 +2217,7 @@ export function CandidateDetailsModal({
   onOpenChange 
 }: CandidateDetailsModalProps) {
   const router = useRouter()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "organizational-roles", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
@@ -2191,8 +2257,7 @@ export function CandidateDetailsModal({
     { id: "independent-projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
-    { id: "competitions", sectionId: "competitions", label: "Competitions", shortLabel: "Comp" },
-    { id: "organizational-roles", sectionId: "organizational-roles", label: "Organizational Roles", shortLabel: "Org Roles" },
+    { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
   ]
 
   const projectsByName = useMemo(() => {
@@ -2332,7 +2397,7 @@ export function CandidateDetailsModal({
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   
   // Handle inline field save with verification
-  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean | OrganizationalRole[], shouldVerify: boolean) => {
+  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
     
     try {
@@ -2700,37 +2765,34 @@ export function CandidateDetailsModal({
     return calculateSectionProgress(fields)
   }, [verifications, candidate])
 
-  const competitionsProgress = useMemo(() => {
-    if (!candidate?.competitions || candidate.competitions.length === 0) {
+  const achievementsProgress = useMemo(() => {
+    const achievements = candidate?.achievements || candidate?.competitions?.map(comp => ({
+      id: comp.id,
+      name: comp.competitionName,
+      achievementType: "Competition" as const,
+      ranking: comp.ranking,
+      year: comp.year,
+      url: comp.url,
+      description: "",
+    })) || []
+    
+    if (achievements.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     
     const fields: string[] = []
-    candidate.competitions.forEach((comp, idx) => {
-      fields.push(`competitions[${idx}].competitionName`)
-      fields.push(`competitions[${idx}].ranking`)
-      fields.push(`competitions[${idx}].year`)
-      fields.push(`competitions[${idx}].url`)
+    achievements.forEach((ach, idx) => {
+      fields.push(`achievements[${idx}].name`)
+      fields.push(`achievements[${idx}].achievementType`)
+      fields.push(`achievements[${idx}].ranking`)
+      fields.push(`achievements[${idx}].year`)
+      fields.push(`achievements[${idx}].url`)
+      fields.push(`achievements[${idx}].description`)
     })
     
     return calculateSectionProgress(fields)
   }, [verifications, candidate])
 
-  const organizationalRolesProgress = useMemo(() => {
-    if (!candidate?.organizationalRoles || candidate.organizationalRoles.length === 0) {
-      return { percentage: 0, verified: 0, total: 0 }
-    }
-    
-    const fields: string[] = []
-    candidate.organizationalRoles.forEach((orgRole, idx) => {
-      fields.push(`organizationalRoles[${idx}].organizationName`)
-      fields.push(`organizationalRoles[${idx}].role`)
-      fields.push(`organizationalRoles[${idx}].startDate`)
-      fields.push(`organizationalRoles[${idx}].endDate`)
-    })
-    
-    return calculateSectionProgress(fields)
-  }, [verifications, candidate])
 
   // Helper function to get progress for a section by sectionId
   const getSectionProgress = (sectionId: string) => {
@@ -2748,9 +2810,7 @@ export function CandidateDetailsModal({
       case 'certifications':
         return certificationsProgress
       case 'competitions':
-        return competitionsProgress
-      case 'organizational-roles':
-        return organizationalRolesProgress
+        return achievementsProgress
       default:
         return { percentage: 0, verified: 0, total: 0 }
     }
@@ -2929,7 +2989,16 @@ export function CandidateDetailsModal({
   const independentProjects = candidate.projects || []
   const educations = candidate.educations || []
   const certifications = candidate.certifications || []
-  const competitions = candidate.competitions || []
+  // Use achievements if available, otherwise fall back to competitions (legacy)
+  const achievements = candidate?.achievements || candidate?.competitions?.map(comp => ({
+    id: comp.id,
+    name: comp.competitionName,
+    achievementType: "Competition" as const,
+    ranking: comp.ranking,
+    year: comp.year,
+    url: comp.url,
+    description: "",
+  })) || []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -3278,11 +3347,16 @@ export function CandidateDetailsModal({
                       <Briefcase className="size-5" />
                       Work Experience
                       {workExperiences.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          {workExperiences.length}
-                        </Badge>
+                        <>
+                          <Badge variant="secondary" className="ml-2">
+                            {workExperiences.length}
+                          </Badge>
+                          <Badge variant="secondary" className="ml-1">
+                            Avg {calculateCandidateAverageTenure(candidate).toFixed(1)}y tenure
+                          </Badge>
+                        </>
                       )}
-                      <SectionProgressBadge 
+                      <SectionProgressBadge
                         percentage={workExperienceProgress.percentage}
                         verified={workExperienceProgress.verified}
                         total={workExperienceProgress.total}
@@ -4118,16 +4192,16 @@ export function CandidateDetailsModal({
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <Award className="size-5" />
-                      Competitions
-                      {competitions.length > 0 && (
+                      Achievements
+                      {achievements.length > 0 && (
                         <Badge variant="secondary" className="ml-2">
-                          {competitions.length}
+                          {achievements.length}
                         </Badge>
                       )}
                       <SectionProgressBadge 
-                        percentage={competitionsProgress.percentage}
-                        verified={competitionsProgress.verified}
-                        total={competitionsProgress.total}
+                        percentage={achievementsProgress.percentage}
+                        verified={achievementsProgress.verified}
+                        total={achievementsProgress.total}
                       />
                     </CardTitle>
                     {expandedSections.has("competitions") ? (
@@ -4140,65 +4214,88 @@ export function CandidateDetailsModal({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-6">
-                  {competitions.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No competitions recorded</p>
+                  {achievements.length === 0 ? (
+                    <p className="text-base text-muted-foreground text-center py-6">No achievements recorded</p>
                   ) : (
-                    competitions.map((comp, idx) => (
-                      <div key={comp.id}>
+                    achievements.map((ach, idx) => (
+                      <div key={ach.id}>
                         {idx > 0 && <Separator className="my-6" />}
                         <div className="space-y-3">
-                          {/* Competition Name */}
+                          {/* Achievement Type and Name */}
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <InlineEditableField
-                                label="Competition Name"
-                                value={comp.competitionName}
-                                fieldName={`competitions[${idx}].competitionName`}
-                                fieldType="text"
-                                onSave={handleFieldSave}
-                                verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].competitionName`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <InlineEditableField
+                                  label="Achievement Type"
+                                  value={ach.achievementType}
+                                  fieldName={`achievements[${idx}].achievementType`}
+                                  fieldType="text"
+                                  onSave={handleFieldSave}
+                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].achievementType`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableField
+                                  label="Name"
+                                  value={ach.name}
+                                  fieldName={`achievements[${idx}].name`}
+                                  fieldType="text"
+                                  onSave={handleFieldSave}
+                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].name`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                              </div>
                               {/* Ranking and Year */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                {comp.ranking && (
+                                {ach.ranking && (
                                   <InlineEditableField
                                     label="Ranking"
-                                    value={comp.ranking}
-                                    fieldName={`competitions[${idx}].ranking`}
+                                    value={ach.ranking}
+                                    fieldName={`achievements[${idx}].ranking`}
                                     fieldType="text"
                                     onSave={handleFieldSave}
-                                    verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].ranking`} />}
+                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].ranking`} />}
                                     getFieldVerification={getFieldVerification}
                                   />
                                 )}
-                                {comp.year && (
+                                {ach.year && (
                                   <InlineEditableField
                                     label="Year"
-                                    value={comp.year.toString()}
-                                    fieldName={`competitions[${idx}].year`}
+                                    value={ach.year.toString()}
+                                    fieldName={`achievements[${idx}].year`}
                                     fieldType="number"
                                     onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
                                       const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
                                       await handleFieldSave(fieldName, yearValue, shouldVerify)
                                     }}
-                                    verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].year`} />}
+                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].year`} />}
                                     getFieldVerification={getFieldVerification}
                                   />
                                 )}
                               </div>
                             </div>
                           </div>
-                          {/* Competition URL */}
-                          {comp.url && (
+                          {/* Achievement URL */}
+                          {ach.url && (
                             <InlineEditableField 
                               label="URL" 
-                              value={comp.url} 
-                              fieldName={`competitions[${idx}].url`}
+                              value={ach.url} 
+                              fieldName={`achievements[${idx}].url`}
                               fieldType="url"
                               validation={validateURL}
                               onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`competitions[${idx}].url`} />}
+                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
+                              getFieldVerification={getFieldVerification}
+                            />
+                          )}
+                          {/* Description */}
+                          {ach.description && (
+                            <InlineEditableField 
+                              label="Description" 
+                              value={ach.description} 
+                              fieldName={`achievements[${idx}].description`}
+                              fieldType="text"
+                              onSave={handleFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
                               getFieldVerification={getFieldVerification}
                             />
                           )}
@@ -4212,102 +4309,6 @@ export function CandidateDetailsModal({
           </Collapsible>
           </section>
 
-          {/* Organizational Roles */}
-          <section id="organizational-roles">
-            <Collapsible 
-              open={expandedSections.has("organizational-roles")} 
-              onOpenChange={() => toggleSection("organizational-roles")}
-            >
-              <Card>
-              <CollapsibleTrigger className="w-full">
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="size-5" />
-                      Organizational Roles
-                      {candidate.organizationalRoles && candidate.organizationalRoles.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          {candidate.organizationalRoles.length}
-                        </Badge>
-                      )}
-                      <SectionProgressBadge 
-                        percentage={organizationalRolesProgress.percentage}
-                        verified={organizationalRolesProgress.verified}
-                        total={organizationalRolesProgress.total}
-                      />
-                    </CardTitle>
-                    {expandedSections.has("organizational-roles") ? (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-6">
-                  {candidate.organizationalRoles && candidate.organizationalRoles.length > 0 && (
-                    candidate.organizationalRoles.map((orgRole, idx) => (
-                      <div key={orgRole.id}>
-                        {idx > 0 && <Separator className="my-6" />}
-                        <div className="space-y-3">
-                          {/* Organization Name */}
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <InlineEditableField
-                                label="Organization Name"
-                                value={orgRole.organizationName}
-                                fieldName={`organizationalRoles[${idx}].organizationName`}
-                                fieldType="text"
-                                onSave={handleFieldSave}
-                                verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].organizationName`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                              {/* Role */}
-                              <InlineEditableField
-                                label="Role"
-                                value={orgRole.role}
-                                fieldName={`organizationalRoles[${idx}].role`}
-                                fieldType="text"
-                                onSave={handleFieldSave}
-                                verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].role`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                              {/* Dates */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                <InlineEditableDate
-                                  label="Start Date"
-                                  value={orgRole.startDate}
-                                  fieldName={`organizationalRoles[${idx}].startDate`}
-                                  onSave={handleFieldSave}
-                                  formatDisplay={(date) => date ? formatDate(date) : 'N/A'}
-                                  verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].startDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                                <InlineEditableDate
-                                  label="End Date"
-                                  value={orgRole.endDate}
-                                  fieldName={`organizationalRoles[${idx}].endDate`}
-                                  onSave={handleFieldSave}
-                                  formatDisplay={(date) => date ? formatDate(date) : 'Present'}
-                                  verificationIndicator={<VerificationIndicator fieldName={`organizationalRoles[${idx}].endDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {(!candidate.organizationalRoles || candidate.organizationalRoles.length === 0) && (
-                    <p className="text-base text-muted-foreground text-center py-6">No organizational roles recorded.</p>
-                  )}
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-          </section>
         </div>
       </DialogContent>
       

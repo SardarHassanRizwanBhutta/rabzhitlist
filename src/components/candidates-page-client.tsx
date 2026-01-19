@@ -12,6 +12,7 @@ import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidate
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import { hasActiveFilters, getCandidateMatchContext } from "@/lib/utils/candidate-matches"
+import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
 import type { Candidate, WorkExperience } from "@/lib/types/candidate"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
@@ -168,158 +169,6 @@ const countJobChangesInLastYears = (
 }
 
 /**
- * Calculate gap between two dates in months
- */
-const calculateGapInMonths = (date1: Date, date2: Date): number => {
-  const d1 = new Date(date1)
-  const d2 = new Date(date2)
-  
-  // Normalize to start of day
-  d1.setHours(0, 0, 0, 0)
-  d2.setHours(0, 0, 0, 0)
-  
-  // If dates overlap or are same day, gap is 0
-  if (d2 <= d1) {
-    return 0
-  }
-  
-  const yearsDiff = d2.getFullYear() - d1.getFullYear()
-  const monthsDiff = d2.getMonth() - d1.getMonth()
-  const daysDiff = d2.getDate() - d1.getDate()
-  
-  // Calculate total months (approximate)
-  let totalMonths = yearsDiff * 12 + monthsDiff
-  
-  // Add fractional month based on days
-  if (daysDiff > 0) {
-    totalMonths += daysDiff / 30 // Approximate month = 30 days
-  }
-  
-  return totalMonths
-}
-
-/**
- * Check if candidate has continuous employment (no gaps exceeding tolerance)
- */
-const hasContinuousEmployment = (
-  candidate: Candidate,
-  toleranceMonths: number
-): boolean => {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return false
-  }
-
-  if (candidate.workExperiences.length === 1) {
-    return true // Single job = continuous
-  }
-
-  // Sort work experiences by start date (oldest first)
-  const sortedExperiences = [...candidate.workExperiences]
-    .filter(we => we.startDate) // Only include experiences with start dates
-    .sort((a, b) => {
-      const dateA = new Date(a.startDate!)
-      const dateB = new Date(b.startDate!)
-      return dateA.getTime() - dateB.getTime()
-    })
-
-  if (sortedExperiences.length < 2) {
-    return true
-  }
-
-  // Check for gaps between consecutive jobs
-  for (let i = 0; i < sortedExperiences.length - 1; i++) {
-    const currentJob = sortedExperiences[i]
-    const nextJob = sortedExperiences[i + 1]
-
-    // If current job has no end date (ongoing), use start date as reference
-    // For ongoing jobs, we check if next job started after current job started
-    // If next job started before current job, it's overlapping (which is fine for continuous)
-    if (!currentJob.endDate) {
-      const currentStart = new Date(currentJob.startDate!)
-      const nextStart = new Date(nextJob.startDate!)
-      
-      // If next job started before or on current job's start date, it's overlapping (continuous)
-      if (nextStart <= currentStart) {
-        continue // Overlapping = continuous
-      }
-      
-      // If next job started after current job started, calculate gap from current start
-      // This handles the case where current job is ongoing but next job already started
-      const gapMonths = calculateGapInMonths(currentJob.startDate!, nextJob.startDate!)
-      if (gapMonths > toleranceMonths) {
-        return false
-      }
-      continue
-    }
-
-    const endDate = new Date(currentJob.endDate)
-    const nextStartDate = new Date(nextJob.startDate!)
-
-    // Calculate gap in months between end of current job and start of next job
-    const gapMonths = calculateGapInMonths(endDate, nextStartDate)
-
-    // If gap exceeds tolerance, employment is not continuous
-    if (gapMonths > toleranceMonths) {
-      return false
-    }
-  }
-
-  return true
-}
-
-/**
- * Count promotions (job title changes) within the same company
- */
-const countPromotionsSameCompany = (candidate: Candidate): number => {
-  if (!candidate.workExperiences || candidate.workExperiences.length < 2) {
-    return 0
-  }
-
-  // Group work experiences by employer
-  const experiencesByEmployer = new Map<string, WorkExperience[]>()
-  
-  candidate.workExperiences.forEach(we => {
-    if (!we.employerName || !we.startDate) return
-    
-    const employerName = we.employerName.toLowerCase().trim()
-    if (!experiencesByEmployer.has(employerName)) {
-      experiencesByEmployer.set(employerName, [])
-    }
-    experiencesByEmployer.get(employerName)!.push(we)
-  })
-
-  let totalPromotions = 0
-
-  // For each employer, count promotions
-  experiencesByEmployer.forEach((experiences, employerName) => {
-    if (experiences.length < 2) return // Need at least 2 roles for a promotion
-
-    // Sort by start date (oldest first)
-    const sorted = [...experiences].sort((a, b) => {
-      const dateA = new Date(a.startDate!)
-      const dateB = new Date(b.startDate!)
-      return dateA.getTime() - dateB.getTime()
-    })
-
-    // Count job title changes (promotions)
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const current = sorted[i]
-      const next = sorted[i + 1]
-
-      // Check if job title changed (normalize for comparison)
-      const currentTitle = current.jobTitle?.toLowerCase().trim() || ""
-      const nextTitle = next.jobTitle?.toLowerCase().trim() || ""
-
-      if (currentTitle !== nextTitle && currentTitle && nextTitle) {
-        totalPromotions++
-      }
-    }
-  })
-
-  return totalPromotions
-}
-
-/**
  * Count promotions (job title changes) in the last N years
  * Counts promotions across all companies, checking if the promotion occurred within the time window
  */
@@ -412,6 +261,65 @@ const calculateYearsOfExperience = (candidate: Candidate): number => {
   return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
 }
 
+// Helper function to calculate candidate's average tenure across all employers
+const calculateCandidateAverageTenure = (candidate: Candidate): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  const today = new Date()
+  const employerTenures: number[] = []
+
+  // Group work experiences by employer to calculate tenure per employer
+  const employerMap = new Map<string, { startDate: Date | null, endDate: Date | null }>()
+
+  candidate.workExperiences.forEach(we => {
+    const employerName = we.employerName.toLowerCase().trim()
+    const startDate = we.startDate ? new Date(we.startDate) : null
+    const endDate = we.endDate ? new Date(we.endDate) : null
+
+    if (!employerMap.has(employerName)) {
+      employerMap.set(employerName, { startDate: null, endDate: null })
+    }
+
+    const existing = employerMap.get(employerName)!
+
+    // Update start date (earliest)
+    if (startDate && (!existing.startDate || startDate < existing.startDate)) {
+      existing.startDate = startDate
+    }
+
+    // Update end date (latest)
+    if (endDate && (!existing.endDate || endDate > existing.endDate)) {
+      existing.endDate = endDate
+    } else if (!endDate && !existing.endDate) {
+      // Current job
+      existing.endDate = today
+    }
+  })
+
+  // Calculate tenure for each employer
+  employerMap.forEach(({ startDate, endDate }) => {
+    if (startDate && endDate) {
+      // Calculate tenure in years
+      const tenureMs = endDate.getTime() - startDate.getTime()
+      const tenureYears = tenureMs / (1000 * 60 * 60 * 24 * 365.25)
+
+      if (tenureYears > 0) {
+        employerTenures.push(tenureYears)
+      }
+    }
+  })
+
+  // Calculate average across all employers
+  if (employerTenures.length === 0) {
+    return 0
+  }
+
+  const totalTenure = employerTenures.reduce((sum, tenure) => sum + tenure, 0)
+  return Math.round((totalTenure / employerTenures.length) * 10) / 10 // Round to 1 decimal place
+}
+
 interface CandidatesPageClientProps {
   candidates: Candidate[]
 }
@@ -421,6 +329,7 @@ const initialFilters: CandidateFilters = {
   basicInfoSearch: "",
   postingTitle: "",
   cities: [],
+  excludeCities: [],
   status: [],
   currentSalaryMin: "",
   currentSalaryMax: "",
@@ -470,12 +379,12 @@ const initialFilters: CandidateFilters = {
   isTopDeveloper: null,
   // Job title filter
   jobTitle: "",
-  jobTitleWorkedWith: false,
-  jobTitleWorkedWithUseTolerance: true,  // Default: apply tolerance
-  jobTitleStartedCareer: false,  // Default: check all jobs
   // Years of experience filters
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
+  // Average job tenure filters
+  avgJobTenureMin: "",
+  avgJobTenureMax: "",
   maxJobChangesInLastYears: {
     maxChanges: "",
     years: ""
@@ -484,13 +393,13 @@ const initialFilters: CandidateFilters = {
     minPromotions: "",
     years: ""
   },
-  // Continuous Employment & Promotions filter
-  continuousEmployment: null,
-  continuousEmploymentToleranceMonths: 3,  // Default: 3 months
-  minPromotionsSameCompany: "",
   // Joined Project From Start filter
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
+  // Mutual Connections with DPL filter
+  hasMutualConnectionWithDPL: null,
+  mutualConnectionToleranceMonths: 0,
+  mutualConnectionType: null,
   // Project team size filters
   projectTeamSizeMin: "",
   projectTeamSizeMax: "",
@@ -527,15 +436,12 @@ const initialFilters: CandidateFilters = {
   certificationNames: [],
   certificationIssuingBodies: [],
   certificationLevels: [],
-  competitionPlatforms: [],
+  achievementTypes: [],
+  achievementPlatforms: [],
   internationalBugBountyOnly: false,
+  competitionPlatforms: [],
   // Personality type filter
   personalityTypes: [],
-  // Organizational roles filter
-  organizationalRoles: {
-    organizationNames: [],
-    roles: []
-  },
   source: [],
 }
 
@@ -674,8 +580,13 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         }
       }
 
-      // City filter
+      // City filter (inclusion)
       if (appliedFilters.cities.length > 0 && !appliedFilters.cities.includes(candidate.city)) {
+        return false
+      }
+
+      // Exclude cities filter (exclusion for remote cities)
+      if (appliedFilters.excludeCities.length > 0 && appliedFilters.excludeCities.includes(candidate.city)) {
         return false
       }
 
@@ -695,30 +606,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
           return false
         }
       }
-
-      // Organizational Roles filter
-      if (appliedFilters.organizationalRoles?.organizationNames.length > 0) {
-        const hasMatchingRole = candidate.organizationalRoles?.some(orgRole => {
-          const orgMatches = appliedFilters.organizationalRoles.organizationNames.some(filterOrg =>
-            orgRole.organizationName.toLowerCase().trim() === filterOrg.toLowerCase().trim()
-          )
-          
-          // If roles filter is specified, also check role match
-          if (appliedFilters.organizationalRoles.roles && appliedFilters.organizationalRoles.roles.length > 0) {
-            const roleMatches = appliedFilters.organizationalRoles.roles.some(filterRole =>
-              orgRole.role.toLowerCase().trim() === filterRole.toLowerCase().trim()
-            )
-            return orgMatches && roleMatches
-          }
-          
-          return orgMatches
-        })
-        
-        if (!hasMatchingRole) {
-          return false
-        }
-      }
-
+      
       // Current salary range filter
       if (appliedFilters.currentSalaryMin || appliedFilters.currentSalaryMax) {
         // If any salary filter is set, exclude candidates with null salary
@@ -1198,180 +1086,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       if (appliedFilters.jobTitle && appliedFilters.jobTitle.trim()) {
         const filterJobTitle = appliedFilters.jobTitle.trim().toLowerCase()
         
-        // Check if "Worked with" mode is enabled
-        if (appliedFilters.jobTitleWorkedWith === true) {
-          // MODE: Find candidates who WORKED WITH people who have this job title
-          
-          // Check if tolerance window should be applied
-          const useTolerance = appliedFilters.jobTitleWorkedWithUseTolerance ?? true
-          const toleranceDays = useTolerance 
-            ? (appliedFilters.joinedProjectFromStartToleranceDays || 30)
-            : Infinity  // No limit when tolerance is disabled
-          
-          // Get employer filter if set (from existing employers filter)
-          const employerFilters = appliedFilters.employers.map(e => e.toLowerCase().trim())
-          
-          // Find candidates who have the target job title in their work experiences
-          const candidatesWithJobTitle = sampleCandidates.filter(c => {
-            return c.workExperiences?.some(we => {
-              if (!we.jobTitle) return false
-              const jobTitleLower = we.jobTitle.toLowerCase().trim()
-              return jobTitleLower.includes(filterJobTitle)
-            })
-          })
-          
-          // Skip candidates who themselves have the target job title (we want collaborators, not the leads themselves)
-          const candidateHasTargetJobTitle = candidate.workExperiences?.some(we => {
-            if (!we.jobTitle) return false
-            const jobTitleLower = we.jobTitle.toLowerCase().trim()
-            return jobTitleLower.includes(filterJobTitle)
-          })
-          
-          if (candidateHasTargetJobTitle) {
-            return false  // Exclude candidates who themselves have the target job title
-          }
-          
-          // Check if candidate worked with any person who has the target job title on the same project
-          let hasWorkedWithJobTitle = false
-          
-          candidate.workExperiences?.forEach(candidateWE => {
-            // If employer filter is set, only check projects at those employers
-            const candidateEmployerMatch = employerFilters.length === 0 || 
-              employerFilters.includes(candidateWE.employerName.toLowerCase().trim())
-            
-            if (!candidateEmployerMatch) return
-            
-            // If tolerance is enabled, require startDate; if disabled, startDate is optional
-            if (useTolerance && !candidateWE.startDate) return
-            
-            // Check each project the candidate worked on
-            candidateWE.projects.forEach(candidateProj => {
-              if (!candidateProj.projectName) return
-              
-              const candidateProjName = candidateProj.projectName.toLowerCase().trim()
-              
-              // Check against each candidate who has the target job title
-              candidatesWithJobTitle.forEach(personWithJobTitle => {
-                personWithJobTitle.workExperiences?.forEach(personWE => {
-                  // Check if person has target job title in this work experience
-                  if (!personWE.jobTitle) return
-                  const personJobTitleLower = personWE.jobTitle.toLowerCase().trim()
-                  const personHasTargetJobTitle = personJobTitleLower.includes(filterJobTitle)
-                  
-                  if (!personHasTargetJobTitle) return
-                  
-                  // Check if same employer (if employer filter is set)
-                  const personEmployerMatch = employerFilters.length === 0 || 
-                    employerFilters.includes(personWE.employerName.toLowerCase().trim())
-                  
-                  if (!personEmployerMatch) return
-                  
-                  // If tolerance is enabled, require startDate; if disabled, startDate is optional
-                  if (useTolerance && !personWE.startDate) return
-                  
-                  // Check if they worked on the same project
-                  personWE.projects.forEach(personProj => {
-                    if (!personProj.projectName) return
-                    
-                    const personProjName = personProj.projectName.toLowerCase().trim()
-                    
-                    // Same project name and same employer
-                    if (candidateProjName === personProjName &&
-                        candidateWE.employerName.toLowerCase().trim() === 
-                        personWE.employerName.toLowerCase().trim()) {
-                      
-                      // If tolerance is disabled, match immediately
-                      if (!useTolerance) {
-                        hasWorkedWithJobTitle = true
-                        return
-                      }
-                      
-                      // If tolerance is enabled, compare both work experience start dates with project start date
-                      // Find the project to get its start date
-                      const project = sampleProjects.find(p => 
-                        p.projectName.trim().toLowerCase() === candidateProjName
-                      )
-                      
-                      if (project && project.startDate && candidateWE.startDate && personWE.startDate) {
-                        const projectStart = new Date(project.startDate)
-                        const candidateStart = new Date(candidateWE.startDate)
-                        const personStart = new Date(personWE.startDate)
-                        
-                        // Normalize dates to start of day for accurate comparison
-                        projectStart.setHours(0, 0, 0, 0)
-                        candidateStart.setHours(0, 0, 0, 0)
-                        personStart.setHours(0, 0, 0, 0)
-                        
-                        // Calculate absolute difference in days between each person's work start and project start
-                        const candidateDiffTime = Math.abs(candidateStart.getTime() - projectStart.getTime())
-                        const candidateDiffDays = Math.ceil(candidateDiffTime / (1000 * 60 * 60 * 24))
-                        
-                        const personDiffTime = Math.abs(personStart.getTime() - projectStart.getTime())
-                        const personDiffDays = Math.ceil(personDiffTime / (1000 * 60 * 60 * 24))
-                        
-                        // They worked together if both are within tolerance window of project start date
-                        if (candidateDiffDays <= toleranceDays && personDiffDays <= toleranceDays) {
-                          hasWorkedWithJobTitle = true
-                        }
-                      }
-                    }
-                  })
-                })
-              })
-            })
-          })
-          
-          // Check standalone projects only if no employer filter is set
-          if (employerFilters.length === 0 && !hasWorkedWithJobTitle) {
-            candidate.projects?.forEach(candidateProj => {
-              if (!candidateProj.projectName) return
-              
-              const candidateProjName = candidateProj.projectName.toLowerCase().trim()
-              
-              candidatesWithJobTitle.forEach(personWithJobTitle => {
-                personWithJobTitle.projects?.forEach(personProj => {
-                  if (!personProj.projectName) return
-                  
-                  const personProjName = personProj.projectName.toLowerCase().trim()
-                  
-                  if (candidateProjName === personProjName) {
-                    hasWorkedWithJobTitle = true
-                  }
-                })
-              })
-            })
-          }
-          
-          if (!hasWorkedWithJobTitle) return false
-          
-        } else {
-          // MODE: Find candidates who HAVE this job title
-          if (appliedFilters.jobTitleStartedCareer) {
-            // NEW: Check only the first (chronologically oldest) job title
-            if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-              return false
-            }
-            
-            // Sort work experiences by start date (oldest first)
-            const sortedExperiences = [...candidate.workExperiences]
-              .filter(we => we.startDate) // Only include experiences with start dates
-              .sort((a, b) => {
-                const dateA = new Date(a.startDate!)
-                const dateB = new Date(b.startDate!)
-                return dateA.getTime() - dateB.getTime()
-              })
-            
-            if (sortedExperiences.length === 0) {
-              return false
-            }
-            
-            // Get the first job title
-            const firstJobTitle = sortedExperiences[0].jobTitle?.toLowerCase().trim() || ""
-            
-            if (!firstJobTitle || !firstJobTitle.includes(filterJobTitle)) {
-              return false
-            }
-          } else {
+        // Check all job titles
             // Existing behavior: Check all job titles
         const workExperienceJobTitles: string[] = []
         candidate.workExperiences?.forEach(we => {
@@ -1392,8 +1107,6 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         
         if (!hasMatchingJobTitle) {
           return false
-            }
-          }
         }
       }
 
@@ -1415,6 +1128,26 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
           const filterMax = parseFloat(appliedFilters.yearsOfExperienceMax)
           if (!isNaN(filterMax) && candidateYearsOfExperience > filterMax) {
             return false // Candidate's experience is above filter maximum
+          }
+        }
+      }
+
+      // Average Job Tenure filter
+      if (appliedFilters.avgJobTenureMin || appliedFilters.avgJobTenureMax) {
+        // Calculate candidate's average tenure across all employers
+        const candidateAvgTenure = calculateCandidateAverageTenure(candidate)
+
+        if (appliedFilters.avgJobTenureMin) {
+          const filterMin = parseFloat(appliedFilters.avgJobTenureMin)
+          if (!isNaN(filterMin) && candidateAvgTenure < filterMin) {
+            return false // Candidate's average tenure is below filter minimum
+          }
+        }
+
+        if (appliedFilters.avgJobTenureMax) {
+          const filterMax = parseFloat(appliedFilters.avgJobTenureMax)
+          if (!isNaN(filterMax) && candidateAvgTenure > filterMax) {
+            return false // Candidate's average tenure is above filter maximum
           }
         }
       }
@@ -1459,22 +1192,28 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         }
       }
 
-      // Continuous Employment filter
-      if (appliedFilters.continuousEmployment === true) {
-        const toleranceMonths = appliedFilters.continuousEmploymentToleranceMonths || 3
+      // Mutual Connection with DPL filter
+      if (appliedFilters.hasMutualConnectionWithDPL === true) {
+        const toleranceMonths = appliedFilters.mutualConnectionToleranceMonths || 0
+        const connectionType = appliedFilters.mutualConnectionType || 'both'
         
-        if (!hasContinuousEmployment(candidate, toleranceMonths)) {
-          return false
+        const mutualConnections = findMutualConnectionsWithDPL(
+          candidate,
+          sampleCandidates, // All candidates to check against
+          toleranceMonths
+        )
+        
+        if (mutualConnections.length === 0) {
+          return false // No mutual connections found
         }
         
-        // If minimum promotions is also required
-        if (appliedFilters.minPromotionsSameCompany) {
-          const minPromotions = parseInt(appliedFilters.minPromotionsSameCompany)
-          if (!isNaN(minPromotions) && minPromotions > 0) {
-            const promotionCount = countPromotionsSameCompany(candidate)
-            if (promotionCount < minPromotions) {
-              return false
-            }
+        // Filter by connection type if specified
+        if (connectionType !== 'both') {
+          const hasMatchingType = mutualConnections.some(conn => 
+            conn.connectionType === connectionType
+          )
+          if (!hasMatchingType) {
+            return false
           }
         }
       }
@@ -1742,7 +1481,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         const minCount = parseInt(appliedFilters.minProjectDownloadCount)
         if (!isNaN(minCount) && minCount > 0) {
           // ENHANCEMENT: If jobTitle is also provided, check AND logic
-          if (appliedFilters.jobTitle && appliedFilters.jobTitle.trim() && !appliedFilters.jobTitleWorkedWith) {
+          if (appliedFilters.jobTitle && appliedFilters.jobTitle.trim()) {
             const filterJobTitle = appliedFilters.jobTitle.trim().toLowerCase()
             
             // Find work experiences with matching job title
@@ -2173,24 +1912,86 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       ]
 
       // Competition Platforms filter
+      // Achievement filters (new structure)
+      if (appliedFilters.achievementTypes.length > 0 || appliedFilters.achievementPlatforms.length > 0) {
+        const candidateAchievements = candidate.achievements || candidate.competitions?.map(comp => ({
+          id: comp.id,
+          name: comp.competitionName,
+          achievementType: "Competition" as const,
+          ranking: comp.ranking,
+          year: comp.year,
+          url: comp.url,
+          description: "",
+        })) || []
+        
+        let hasMatch = false
+        
+        // Check achievement type filter
+        if (appliedFilters.achievementTypes.length > 0) {
+          hasMatch = candidateAchievements.some(ach => 
+            appliedFilters.achievementTypes.includes(ach.achievementType)
+          )
+        }
+        
+        // Check achievement platform/name filter
+        if (!hasMatch && appliedFilters.achievementPlatforms.length > 0) {
+          hasMatch = candidateAchievements.some(ach => 
+            appliedFilters.achievementPlatforms.some(platform =>
+              ach.name.toLowerCase().includes(platform.toLowerCase())
+            )
+          )
+        }
+        
+        if (!hasMatch) return false
+      }
+      
+      // Legacy competition platform filter (for backward compatibility)
       if (appliedFilters.competitionPlatforms.length > 0) {
         const candidateCompetitions = candidate.competitions || []
-        const hasMatchingPlatform = appliedFilters.competitionPlatforms.some(filterPlatform => 
-          candidateCompetitions.some(comp => 
+        const candidateAchievements = candidate.achievements || []
+        const hasMatchingPlatform = appliedFilters.competitionPlatforms.some(filterPlatform => {
+          // Check in competitions (legacy)
+          const matchInCompetitions = candidateCompetitions.some(comp => 
             comp.competitionName.toLowerCase() === filterPlatform.toLowerCase()
           )
-        )
+          // Check in achievements (new structure)
+          const matchInAchievements = candidateAchievements.some(ach => 
+            ach.name.toLowerCase().includes(filterPlatform.toLowerCase())
+          )
+          return matchInCompetitions || matchInAchievements
+        })
         if (!hasMatchingPlatform) return false
       }
 
       // International Bug Bounty Only filter
       if (appliedFilters.internationalBugBountyOnly) {
+        const candidateAchievements = candidate.achievements || candidate.competitions?.map(comp => ({
+          id: comp.id,
+          name: comp.competitionName,
+          achievementType: "Competition" as const,
+          ranking: comp.ranking,
+          year: comp.year,
+          url: comp.url,
+          description: "",
+        })) || []
         const candidateCompetitions = candidate.competitions || []
-        const hasInternationalPlatform = candidateCompetitions.some(comp => 
+        
+        // Check in achievements (new structure)
+        const hasInternationalInAchievements = candidateAchievements.some(ach => 
+          ach.achievementType === "Competition" &&
+          INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform => 
+            ach.name.toLowerCase().includes(platform.toLowerCase())
+          )
+        )
+        
+        // Check in competitions (legacy structure)
+        const hasInternationalInCompetitions = candidateCompetitions.some(comp => 
           INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform => 
             comp.competitionName.toLowerCase() === platform.toLowerCase()
           )
         )
+        
+        const hasInternationalPlatform = hasInternationalInAchievements || hasInternationalInCompetitions
         if (!hasInternationalPlatform) return false
       }
 
@@ -2215,9 +2016,14 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         if (!hasMatchingCountry) return false
       }
 
-      // Global City filter
+      // Global City filter (inclusion)
       if (globalFilters.cities.length > 0) {
         if (!globalFilters.cities.includes(candidate.city)) return false
+      }
+
+      // Global Exclude Cities filter (exclusion for remote cities)
+      if (globalFilters.excludeCities.length > 0) {
+        if (globalFilters.excludeCities.includes(candidate.city)) return false
       }
 
       // Global Tech Stacks filter - Check work experience tech stacks and project tech stacks

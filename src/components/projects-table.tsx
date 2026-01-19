@@ -2263,15 +2263,21 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
   // Handle field save
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | string[] | boolean | null | undefined, verify: boolean = false) => {
     try {
+      // Convert downloadCount from string to number if needed
+      let processedValue = newValue
+      if (fieldName === 'downloadCount' && typeof newValue === 'string') {
+        processedValue = newValue.trim() === '' ? undefined : parseInt(newValue)
+      }
+
       // Optimistic update
       setLocalProject(prev => ({
         ...prev,
-        [fieldName]: newValue
+        [fieldName]: processedValue
       }))
-      
+
       // TODO: API call to save field
-      // await updateProjectField(project.id, fieldName, newValue, verify)
-      
+      // await updateProjectField(project.id, fieldName, processedValue, verify)
+
       toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
     } catch (error) {
       // Revert on error
@@ -2486,6 +2492,25 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                 value={localProject.isPublished || false}
                 fieldName="isPublished"
                 onSave={handleFieldSave}
+                getFieldVerification={getFieldVerification}
+              />
+
+              {/* Download Count */}
+              <InlineEditField
+                label="Download Count"
+                value={localProject.downloadCount ? localProject.downloadCount.toString() : ""}
+                fieldName="downloadCount"
+                fieldType="number"
+                validation={(value) => {
+                  if (!value.trim()) return null // Optional field
+                  const num = parseInt(value)
+                  if (isNaN(num) || num < 0) {
+                    return "Download count must be a positive number"
+                  }
+                  return null
+                }}
+                onSave={handleFieldSave}
+                placeholder="e.g., 100000"
                 getFieldVerification={getFieldVerification}
               />
             </div>

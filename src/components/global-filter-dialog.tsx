@@ -209,6 +209,7 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
     setTempFilters({
       countries: [],
       cities: [],
+      excludeCities: [],
       techStacks: [],
       verticalDomains: [],
       horizontalDomains: [],
@@ -225,9 +226,10 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
     setOpen(false)
   }
 
-  const hasAnyTempFilters = 
+  const hasAnyTempFilters =
     tempFilters.countries.length > 0 ||
     tempFilters.cities.length > 0 ||
+    tempFilters.excludeCities.length > 0 ||
     tempFilters.techStacks.length > 0 ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
@@ -290,6 +292,16 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
                   placeholder="Filter by city..."
                   label="Cities"
                   searchPlaceholder="Search cities..."
+                  maxDisplay={3}
+                />
+
+                <MultiSelect
+                  items={cityOptions}
+                  selected={tempFilters.excludeCities}
+                  onChange={(values) => handleFilterChange("excludeCities", values)}
+                  placeholder="Exclude major cities..."
+                  label="Exclude Cities"
+                  searchPlaceholder="Search cities to exclude..."
                   maxDisplay={3}
                 />
               </div>
