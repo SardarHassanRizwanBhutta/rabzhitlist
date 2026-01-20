@@ -106,68 +106,6 @@ const calculateWorkModeYears = (candidate: Candidate, workMode: string): number 
  * - A work experience ended within the time period, AND
  * - There's a subsequent work experience that started after that end date
  */
-const countJobChangesInLastYears = (
-  candidate: Candidate, 
-  years: number
-): number => {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0 // No work experiences = no job changes
-  }
-
-  if (candidate.workExperiences.length === 1) {
-    return 0 // Only one job = no job changes
-  }
-
-  const today = new Date()
-  const cutoffDate = new Date(today)
-  cutoffDate.setFullYear(cutoffDate.getFullYear() - years)
-  // Normalize to start of day for accurate date comparison
-  cutoffDate.setHours(0, 0, 0, 0)
-  today.setHours(0, 0, 0, 0) // Also normalize today for consistency
-
-  // Sort work experiences by start date (oldest first)
-  const sortedExperiences = [...candidate.workExperiences]
-    .filter(we => we.startDate) // Only include experiences with start dates
-    .sort((a, b) => {
-      const dateA = new Date(a.startDate!)
-      const dateB = new Date(b.startDate!)
-      return dateA.getTime() - dateB.getTime()
-    })
-
-  if (sortedExperiences.length < 2) {
-    return 0
-  }
-
-  let jobChanges = 0
-
-  // Check each work experience (except the last one)
-  for (let i = 0; i < sortedExperiences.length - 1; i++) {
-    const currentJob = sortedExperiences[i]
-    const nextJob = sortedExperiences[i + 1]
-
-    // Only count if current job ended (has endDate)
-    if (currentJob.endDate) {
-      const endDate = new Date(currentJob.endDate)
-      endDate.setHours(0, 0, 0, 0) // Normalize to start of day
-      
-      // Check if this job ended within the last N years
-      if (endDate >= cutoffDate) {
-        // Check if next job started after this job ended (indicating a transition)
-        const nextStartDate = new Date(nextJob.startDate!)
-        nextStartDate.setHours(0, 0, 0, 0) // Normalize to start of day
-        
-        // If next job started on or after current job ended, it's a job change
-        // (Same day transitions count as a job change)
-        if (nextStartDate >= endDate) {
-          jobChanges++
-        }
-      }
-    }
-  }
-
-  return jobChanges
-}
-
 /**
  * Count promotions (job title changes) in the last N years
  * Counts promotions across all companies, checking if the promotion occurred within the time window
@@ -385,14 +323,6 @@ const initialFilters: CandidateFilters = {
   // Average job tenure filters
   avgJobTenureMin: "",
   avgJobTenureMax: "",
-  maxJobChangesInLastYears: {
-    maxChanges: "",
-    years: ""
-  },
-  minPromotionsInLastYears: {
-    minPromotions: "",
-    years: ""
-  },
   // Joined Project From Start filter
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
@@ -448,75 +378,6 @@ const initialFilters: CandidateFilters = {
 // Debug function - Remove after testing
 // Usage: window.debugJobChanges("3", 3) or window.testAllJobChanges(3)
 if (typeof window !== 'undefined') {
-  (window as unknown as { debugJobChanges?: (candidateId: string, years: number) => number | undefined }).debugJobChanges = (candidateId: string, years: number = 3) => {
-    const candidate = sampleCandidates.find(c => c.id === candidateId)
-    if (!candidate) {
-      console.log(`Candidate ${candidateId} not found`)
-      return undefined
-    }
-
-    const today = new Date()
-    const cutoffDate = new Date(today)
-    cutoffDate.setFullYear(cutoffDate.getFullYear() - years)
-    cutoffDate.setHours(0, 0, 0, 0)
-
-    console.log(`\n=== ${candidate.name} (ID: ${candidateId}) ===`)
-    console.log(`Today: ${today.toISOString().split('T')[0]}`)
-    console.log(`Cutoff (${years} years ago): ${cutoffDate.toISOString().split('T')[0]}`)
-    console.log(`\nWork Experiences (sorted by start date):`)
-
-    const sorted = [...(candidate.workExperiences || [])]
-      .filter(we => we.startDate)
-      .sort((a, b) => new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime())
-
-    let jobChanges = 0
-    sorted.forEach((we, idx) => {
-      const start = we.startDate ? new Date(we.startDate).toISOString().split('T')[0] : 'N/A'
-      const end = we.endDate ? new Date(we.endDate).toISOString().split('T')[0] : 'Ongoing'
-      const endDate = we.endDate ? new Date(we.endDate) : null
-      if (endDate) endDate.setHours(0, 0, 0, 0)
-      const isWithinPeriod = endDate ? endDate >= cutoffDate : false
-      
-      console.log(`  ${idx + 1}. ${we.employerName}: ${start} → ${end} ${isWithinPeriod && endDate ? '✅ (ended in period)' : endDate ? '❌ (ended before period)' : ''}`)
-      
-      if (idx < sorted.length - 1 && we.endDate) {
-        const nextWe = sorted[idx + 1]
-        const nextStart = nextWe.startDate ? new Date(nextWe.startDate) : null
-        if (nextStart) nextStart.setHours(0, 0, 0, 0)
-        if (endDate && nextStart && endDate >= cutoffDate && nextStart > endDate) {
-          jobChanges++
-          console.log(`     ⚡ Job change #${jobChanges}: ${we.employerName} ended → ${nextWe.employerName} started`)
-        } else if (endDate && nextStart && endDate >= cutoffDate) {
-          console.log(`     ⚠️  No change: Next job started ${nextStart <= endDate ? 'on/before' : 'after'} end date`)
-        }
-      }
-    })
-
-    const calculatedChanges = countJobChangesInLastYears(candidate, years)
-    console.log(`\n📊 Calculated Job Changes (last ${years} years): ${calculatedChanges}`)
-    console.log(`✅ Passes filter (≤1)? ${calculatedChanges <= 1 ? 'YES' : 'NO'}`)
-    return calculatedChanges
-  }
-
-  (window as unknown as { testAllJobChanges?: (years: number) => void }).testAllJobChanges = (years: number = 3) => {
-    console.log(`\n=== Testing All Candidates (Last ${years} Years) ===`)
-    const results = sampleCandidates.map(c => {
-      const changes = countJobChangesInLastYears(c, years)
-      return { name: c.name, id: c.id, changes, passes: changes <= 1 }
-    })
-    
-    console.log(`\n✅ Candidates that PASS (≤1 change):`)
-    results.filter(r => r.passes).forEach(r => {
-      console.log(`  - ${r.name} (ID: ${r.id}): ${r.changes} change(s)`)
-    })
-    
-    console.log(`\n❌ Candidates that FAIL (>1 change):`)
-    results.filter(r => !r.passes).forEach(r => {
-      console.log(`  - ${r.name} (ID: ${r.id}): ${r.changes} change(s)`)
-    })
-    
-    return results
-  }
 }
 
 export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) {
@@ -1152,45 +1013,6 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
         }
       }
 
-      // Maximum Job Changes in Last N Years filter
-      const jobChangesFilter = appliedFilters.maxJobChangesInLastYears
-      if (jobChangesFilter && 
-          jobChangesFilter.maxChanges && 
-          jobChangesFilter.maxChanges.trim() !== "" &&
-          jobChangesFilter.years && 
-          jobChangesFilter.years.trim() !== "") {
-        
-        const maxChanges = parseInt(jobChangesFilter.maxChanges)
-        const years = parseInt(jobChangesFilter.years)
-        
-        if (!isNaN(maxChanges) && !isNaN(years) && maxChanges >= 0 && years > 0) {
-          const jobChanges = countJobChangesInLastYears(candidate, years)
-          
-          if (jobChanges > maxChanges) {
-            return false // Candidate changed jobs more than allowed
-          }
-        }
-      }
-
-      // Promotions in Last N Years filter (independent, works across all companies)
-      const promotionsFilter = appliedFilters.minPromotionsInLastYears
-      if (promotionsFilter && 
-          promotionsFilter.minPromotions && 
-          promotionsFilter.minPromotions.trim() !== "" &&
-          promotionsFilter.years && 
-          promotionsFilter.years.trim() !== "") {
-        
-        const minPromotions = parseInt(promotionsFilter.minPromotions)
-        const years = parseInt(promotionsFilter.years)
-        
-        if (!isNaN(minPromotions) && !isNaN(years) && minPromotions > 0 && years > 0) {
-          const promotionCount = countPromotionsInLastYears(candidate, years)
-          
-          if (promotionCount < minPromotions) {
-            return false // Candidate has fewer promotions than required
-          }
-        }
-      }
 
       // Mutual Connection with DPL filter
       if (appliedFilters.hasMutualConnectionWithDPL === true) {

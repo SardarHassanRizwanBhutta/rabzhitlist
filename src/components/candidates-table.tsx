@@ -49,7 +49,7 @@ interface CandidatesTableProps {
 }
 
 type SortDirection = "asc" | "desc" | null
-type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status" | "yearsOfExperience"
+type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status" | "yearsOfExperience" | "avgTenure"
 
 // Helper function to get job title from first work experience
 const getJobTitle = (candidate: Candidate): string => {
@@ -88,6 +88,65 @@ const calculateYearsOfExperience = (candidate: Candidate): number => {
   // Convert to years (with 1 decimal place precision)
   const totalYears = totalMonths / 12
   return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
+}
+
+// Helper function to calculate average job tenure across all employers
+const calculateCandidateAverageTenure = (candidate: Candidate): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  const today = new Date()
+  const employerTenures: number[] = []
+
+  // Group work experiences by employer to calculate tenure per employer
+  const employerMap = new Map<string, { startDate: Date | null, endDate: Date | null }>()
+
+  candidate.workExperiences.forEach(we => {
+    const employerName = we.employerName.toLowerCase().trim()
+    const startDate = we.startDate ? new Date(we.startDate) : null
+    const endDate = we.endDate ? new Date(we.endDate) : null
+
+    if (!employerMap.has(employerName)) {
+      employerMap.set(employerName, { startDate: null, endDate: null })
+    }
+
+    const existing = employerMap.get(employerName)!
+
+    // Update start date (earliest)
+    if (startDate && (!existing.startDate || startDate < existing.startDate)) {
+      existing.startDate = startDate
+    }
+
+    // Update end date (latest)
+    if (endDate && (!existing.endDate || endDate > existing.endDate)) {
+      existing.endDate = endDate
+    } else if (!endDate && !existing.endDate) {
+      // Current job
+      existing.endDate = today
+    }
+  })
+
+  // Calculate tenure for each employer
+  employerMap.forEach(({ startDate, endDate }) => {
+    if (startDate && endDate) {
+      // Calculate tenure in years
+      const tenureMs = endDate.getTime() - startDate.getTime()
+      const tenureYears = tenureMs / (1000 * 60 * 60 * 24 * 365.25)
+
+      if (tenureYears > 0) {
+        employerTenures.push(tenureYears)
+      }
+    }
+  })
+
+  // Calculate average across all employers
+  if (employerTenures.length === 0) {
+    return 0
+  }
+
+  const totalTenure = employerTenures.reduce((sum, tenure) => sum + tenure, 0)
+  return Math.round((totalTenure / employerTenures.length) * 10) / 10 // Round to 1 decimal place
 }
 
 const defaultFilters: CandidateFilters = {
@@ -134,14 +193,6 @@ const defaultFilters: CandidateFilters = {
   yearsOfExperienceMax: "",
   avgJobTenureMin: "",
   avgJobTenureMax: "",
-  maxJobChangesInLastYears: {
-    maxChanges: "",
-    years: ""
-  },
-  minPromotionsInLastYears: {
-    minPromotions: "",
-    years: ""
-  },
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
   hasMutualConnectionWithDPL: null,
@@ -198,6 +249,7 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
   const [expandedCategories, setExpandedCategories] = React.useState<Map<string, Set<string>>>(new Map())
 
   const activeFilters = hasActiveFilters(filters)
+  const hasAvgTenureFilter = !!(filters?.avgJobTenureMin || filters?.avgJobTenureMax)
 
   const handleEdit = (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -269,13 +321,16 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
       let aValue: string | number | null
       let bValue: string | number | null
 
-      // Handle jobTitle and yearsOfExperience separately since they're not direct properties
+      // Handle jobTitle, yearsOfExperience, and avgTenure separately since they're not direct properties
       if (sortColumn === "jobTitle") {
         aValue = getJobTitle(a)
         bValue = getJobTitle(b)
       } else if (sortColumn === "yearsOfExperience") {
         aValue = calculateYearsOfExperience(a)
         bValue = calculateYearsOfExperience(b)
+      } else if (sortColumn === "avgTenure") {
+        aValue = calculateCandidateAverageTenure(a)
+        bValue = calculateCandidateAverageTenure(b)
       } else {
         // TypeScript type narrowing for other sort columns
         const sortKey = sortColumn as "name" | "expectedSalary" | "city" | "status"
@@ -419,6 +474,13 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                 Years of Experience
               </SortableHeader>
               
+              {/* Avg Tenure - Only visible when filter is active */}
+              {hasAvgTenureFilter && (
+                <SortableHeader column="avgTenure" className="hidden md:table-cell">
+                  Avg Tenure
+                </SortableHeader>
+              )}
+              
               {/* Expected Salary - Always visible */}
               <SortableHeader column="expectedSalary">
                 Expected Salary
@@ -454,7 +516,7 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
             {sortedCandidates.length === 0 ? (
               <TableRow>
                 <TableCell 
-                  colSpan={activeFilters ? 7 : 6} 
+                  colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} 
                   className="h-32 text-center text-muted-foreground"
                 >
                   No candidates found.
@@ -513,6 +575,23 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                       </div>
                     </div>
                   </TableCell>
+                  
+                  {/* Avg Tenure - Only visible when filter is active */}
+                  {hasAvgTenureFilter && (
+                    <TableCell 
+                      className="hidden md:table-cell"
+                      onClick={() => setSelectedCandidate(candidate)}
+                    >
+                      <div className="max-w-[120px]">
+                        <div className="truncate">
+                          {(() => {
+                            const avgTenure = calculateCandidateAverageTenure(candidate)
+                            return avgTenure > 0 ? `${avgTenure.toFixed(1)}y` : 'N/A'
+                          })()}
+                        </div>
+                      </div>
+                    </TableCell>
+                  )}
                   
                   {/* Expected Salary */}
                   <TableCell 
@@ -641,7 +720,7 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                 {/* Expandable Match Details Row */}
                 {activeFilters && isExpanded && matchContext && matchContext.totalMatches > 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeFilters ? 7 : 6} className="p-0">
+                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} className="p-0">
                       <div className="bg-gray-50 dark:bg-gray-950/50 border-t border-border">
                         <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                           {matchContext.categories.map((category) => {

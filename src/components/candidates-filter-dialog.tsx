@@ -96,16 +96,6 @@ export interface CandidateFilters {
   // Average job tenure filters (across all employers)
   avgJobTenureMin: string
   avgJobTenureMax: string
-  // Maximum job changes in last N years filter
-  maxJobChangesInLastYears: {
-    maxChanges: string  // e.g., "1", "2", "3" - empty string means no filter
-    years: string       // e.g., "3", "5" - empty string means no filter
-  }
-  // Promotions in last N years filter (independent, works across all companies)
-  minPromotionsInLastYears: {
-    minPromotions: string  // e.g., "3" - empty string means no filter
-    years: string          // e.g., "5" - empty string means no filter
-  }
   // Joined Project From Start filter
   joinedProjectFromStart: boolean | null  // null = no filter, true = joined from start
   joinedProjectFromStartToleranceDays: number  // Tolerance window in days (default: 30)
@@ -744,16 +734,6 @@ const initialFilters: CandidateFilters = {
   // Average job tenure filters
   avgJobTenureMin: "",
   avgJobTenureMax: "",
-  // Maximum job changes in last N years filter
-  maxJobChangesInLastYears: {
-    maxChanges: "",
-    years: ""
-  },
-  // Promotions in last N years filter
-  minPromotionsInLastYears: {
-    minPromotions: "",
-    years: ""
-  },
   // Joined Project From Start filter
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
@@ -828,7 +808,7 @@ export function CandidatesFilterDialog({
     { id: "employers", sectionId: "filter-employers", label: "Employers" },
     { id: "education", sectionId: "filter-education", label: "Education" },
     { id: "certifications", sectionId: "filter-certifications", label: "Certifications" },
-    { id: "competitions", sectionId: "filter-competitions", label: "Competitions" },
+    { id: "competitions", sectionId: "filter-competitions", label: "Achievements" },
   ]
   
   // Scroll to section function
@@ -919,14 +899,6 @@ export function CandidatesFilterDialog({
             updated.yearsOfExperienceMax = ""
             updated.avgJobTenureMin = ""
             updated.avgJobTenureMax = ""
-            updated.maxJobChangesInLastYears = {
-              maxChanges: "",
-              years: ""
-            }
-            updated.minPromotionsInLastYears = {
-              minPromotions: "",
-              years: ""
-            }
             updated.hasMutualConnectionWithDPL = null
             updated.mutualConnectionToleranceMonths = 0
             updated.mutualConnectionType = null
@@ -1080,8 +1052,6 @@ export function CandidatesFilterDialog({
           (tempFilters.yearsOfExperienceMax ? 1 : 0) +
           (tempFilters.avgJobTenureMin ? 1 : 0) +
           (tempFilters.avgJobTenureMax ? 1 : 0) +
-          (tempFilters.maxJobChangesInLastYears?.maxChanges && tempFilters.maxJobChangesInLastYears?.years ? 1 : 0) +
-          (tempFilters.minPromotionsInLastYears?.minPromotions && tempFilters.minPromotionsInLastYears?.years ? 1 : 0) +
           (tempFilters.hasMutualConnectionWithDPL !== null ? 1 : 0)
         )
       case "projects":
@@ -1228,8 +1198,6 @@ export function CandidatesFilterDialog({
     tempFilters.yearsOfExperienceMax ||
     tempFilters.avgJobTenureMin ||
     tempFilters.avgJobTenureMax ||
-    (tempFilters.maxJobChangesInLastYears?.maxChanges && tempFilters.maxJobChangesInLastYears?.years) ||
-    (tempFilters.minPromotionsInLastYears?.minPromotions && tempFilters.minPromotionsInLastYears?.years) ||
     tempFilters.hasMutualConnectionWithDPL !== null ||
     tempFilters.joinedProjectFromStart !== null ||
     tempFilters.verticalDomains.length > 0 ||
@@ -1992,115 +1960,6 @@ export function CandidatesFilterDialog({
                 <p className="text-xs text-muted-foreground">
                   Filter by average time spent at each employer. Shows career stability patterns.
                 </p>
-              </div>
-
-              {/* Maximum Job Changes in Last N Years Filter */}
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Job Stability</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Column 1: Maximum Job Changes */}
-                  <div className="space-y-1">
-                    <Label htmlFor="maxJobChanges" className="text-xs text-muted-foreground">
-                      Maximum Job Changes
-                    </Label>
-                    <Input
-                      id="maxJobChanges"
-                      type="number"
-                      placeholder="e.g., 1"
-                      value={tempFilters.maxJobChangesInLastYears?.maxChanges || ""}
-                      onChange={(e) => {
-                        handleFilterChange("maxJobChangesInLastYears", {
-                          maxChanges: e.target.value,
-                          years: tempFilters.maxJobChangesInLastYears?.years || ""
-                        })
-                      }}
-                      min="0"
-                      step="1"
-                    />
-                  </div>
-                  
-                  {/* Column 2: Years */}
-                  <div className="space-y-1">
-                    <Label htmlFor="jobChangesYears" className="text-xs text-muted-foreground">
-                      In Last (Years)
-                    </Label>
-                    <Input
-                      id="jobChangesYears"
-                      type="number"
-                      placeholder="e.g., 3"
-                      value={tempFilters.maxJobChangesInLastYears?.years || ""}
-                      onChange={(e) => {
-                        handleFilterChange("maxJobChangesInLastYears", {
-                          maxChanges: tempFilters.maxJobChangesInLastYears?.maxChanges || "",
-                          years: e.target.value
-                        })
-                      }}
-                      min="1"
-                      step="1"
-                      disabled={!tempFilters.maxJobChangesInLastYears?.maxChanges}
-                    />
-                  </div>
-                </div>
-                
-                {tempFilters.maxJobChangesInLastYears?.maxChanges && tempFilters.maxJobChangesInLastYears?.years && (
-                  <p className="text-xs text-muted-foreground">
-                    Candidates who changed jobs no more than {tempFilters.maxJobChangesInLastYears.maxChanges} time{tempFilters.maxJobChangesInLastYears.maxChanges !== "1" ? "s" : ""} in the last {tempFilters.maxJobChangesInLastYears.years} year{tempFilters.maxJobChangesInLastYears.years !== "1" ? "s" : ""}.
-                  </p>
-                )}
-              </div>
-
-              {/* Promotions in Last N Years Filter */}
-              <div className="space-y-3 pt-2">
-                <Label className="text-sm font-medium">Promotions in Last N Years</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="minPromotionsInLastYears" className="text-xs text-muted-foreground">
-                      Minimum Promotions
-                    </Label>
-                    <Input
-                      id="minPromotionsInLastYears"
-                      type="number"
-                      placeholder="e.g., 3"
-                      value={tempFilters.minPromotionsInLastYears?.minPromotions || ""}
-                      onChange={(e) => {
-                        handleFilterChange("minPromotionsInLastYears", {
-                          minPromotions: e.target.value,
-                          years: tempFilters.minPromotionsInLastYears?.years || ""
-                        })
-                      }}
-                      min="1"
-                      step="1"
-                      className="w-full"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="promotionsInLastYears" className="text-xs text-muted-foreground">
-                      In Last (Years)
-                    </Label>
-                    <Input
-                      id="promotionsInLastYears"
-                      type="number"
-                      placeholder="e.g., 5"
-                      value={tempFilters.minPromotionsInLastYears?.years || ""}
-                      onChange={(e) => {
-                        handleFilterChange("minPromotionsInLastYears", {
-                          minPromotions: tempFilters.minPromotionsInLastYears?.minPromotions || "",
-                          years: e.target.value
-                        })
-                      }}
-                      min="1"
-                      step="1"
-                      className="w-full"
-                      disabled={!tempFilters.minPromotionsInLastYears?.minPromotions || tempFilters.minPromotionsInLastYears.minPromotions === ""}
-                    />
-                  </div>
-                </div>
-                {(tempFilters.minPromotionsInLastYears?.minPromotions && tempFilters.minPromotionsInLastYears?.years) && (
-                  <p className="text-xs text-muted-foreground">
-                    Candidates must have at least {tempFilters.minPromotionsInLastYears.minPromotions} promotion{tempFilters.minPromotionsInLastYears.minPromotions !== "1" ? "s" : ""} in the last {tempFilters.minPromotionsInLastYears.years} year{tempFilters.minPromotionsInLastYears.years !== "1" ? "s" : ""}.
-                    A promotion is detected when job title changes (can be across different companies).
-                  </p>
-                )}
               </div>
 
               {/* Joined Project From Start Filter */}

@@ -74,8 +74,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.jobTitle ||
     filters.yearsOfExperienceMin ||
     filters.yearsOfExperienceMax ||
-    (filters.maxJobChangesInLastYears?.maxChanges && filters.maxJobChangesInLastYears?.years) ||
-    (filters.minPromotionsInLastYears?.minPromotions && filters.minPromotionsInLastYears?.years) ||
     filters.hasMutualConnectionWithDPL !== null ||
     filters.joinedProjectFromStart !== null ||
     filters.projectTeamSizeMin ||
@@ -1529,31 +1527,6 @@ export function getCandidateMatchContext(
       }
     }
 
-    // Promotions in Last N Years match (candidate-level)
-    if (filters.minPromotionsInLastYears?.minPromotions && filters.minPromotionsInLastYears?.years) {
-      const minPromotions = parseInt(filters.minPromotionsInLastYears.minPromotions)
-      const years = parseInt(filters.minPromotionsInLastYears.years)
-      
-      if (!isNaN(minPromotions) && !isNaN(years) && minPromotions > 0 && years > 0) {
-        const promotionCount = countPromotionsInLastYears(candidate, years)
-        
-        if (promotionCount >= minPromotions) {
-          workExperienceItems.push({
-            name: 'Promotions',
-            matchedCriteria: [{
-              type: 'promotionsInLastYears',
-              label: 'Promotions in Last N Years',
-              values: [`${promotionCount} promotion${promotionCount !== 1 ? 's' : ''} in last ${years} year${years !== 1 ? 's' : ''} (min: ${minPromotions})`]
-            }],
-            context: {
-              promotionCount,
-              years,
-              minPromotions
-            }
-          })
-        }
-      }
-    }
 
     if (workExperienceItems.length > 0) {
       categories.push({

@@ -2177,6 +2177,36 @@ const calculateCandidateAverageTenure = (candidate: Candidate): number => {
   return Math.round((totalTenure / employerTenures.length) * 10) / 10 // Round to 1 decimal place
 }
 
+// Helper function to calculate promotions for a specific employer
+const calculateEmployerPromotions = (candidate: Candidate, employerName: string): number => {
+  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
+    return 0
+  }
+
+  // Filter work experiences for this specific employer (case-insensitive)
+  const employerExperiences = candidate.workExperiences
+    .filter(we => we.employerName.toLowerCase().trim() === employerName.toLowerCase().trim())
+    .filter(we => we.startDate) // Must have start date
+    .sort((a, b) => new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime())
+
+  if (employerExperiences.length < 2) {
+    return 0 // Need at least 2 experiences to have a promotion
+  }
+
+  // Count unique job titles - each change represents a promotion
+  const uniqueTitles = new Set<string>()
+
+  employerExperiences.forEach((experience) => {
+    if (experience.jobTitle) {
+      const titleKey = experience.jobTitle.toLowerCase().trim()
+      uniqueTitles.add(titleKey)
+    }
+  })
+
+  // Number of promotions = number of unique titles - 1
+  return uniqueTitles.size - 1
+}
+
 // Helper function to calculate total years of experience from work experiences
 const calculateYearsOfExperience = (candidate: Candidate): number => {
   if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
@@ -3351,7 +3381,10 @@ export function CandidateDetailsModal({
                           <Badge variant="secondary" className="ml-2">
                             {workExperiences.length}
                           </Badge>
-                          <Badge variant="secondary" className="ml-1">
+                          <Badge
+                            variant="outline"
+                            className="ml-1 h-5 px-1.5 text-xs font-medium border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                          >
                             Avg {calculateCandidateAverageTenure(candidate).toFixed(1)}y tenure
                           </Badge>
                         </>
@@ -3403,13 +3436,23 @@ export function CandidateDetailsModal({
                                       setCreateEmployerDialogOpen(true)
                                     }}
                                     renderDisplay={(displayValue, value) => (
-                                      <button
-                                        onClick={() => handleEmployerClick(experience.employerName)}
-                                        className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer leading-tight"
-                                        title={`View ${displayValue} details`}
-                                      >
-                                        {displayValue}
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => handleEmployerClick(experience.employerName)}
+                                          className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer leading-tight"
+                                          title={`View ${displayValue} details`}
+                                        >
+                                          {displayValue}
+                                        </button>
+                                        {(() => {
+                                          const promotions = calculateEmployerPromotions(candidate, experience.employerName)
+                                          return promotions > 0 ? (
+                                            <Badge variant="secondary" className="shrink-0">
+                                              {promotions} promotion{promotions !== 1 ? 's' : ''}
+                                            </Badge>
+                                          ) : null
+                                        })()}
+                                      </div>
                                     )}
                                   />
                                 </div>

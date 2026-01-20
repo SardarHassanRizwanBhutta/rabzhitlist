@@ -85,14 +85,6 @@ const defaultFilters: CandidateFilters = {
   yearsOfExperienceMax: "",
   avgJobTenureMin: "",
   avgJobTenureMax: "",
-  maxJobChangesInLastYears: {
-    maxChanges: "",
-    years: ""
-  },
-  minPromotionsInLastYears: {
-    minPromotions: "",
-    years: ""
-  },
   joinedProjectFromStart: null,
   joinedProjectFromStartToleranceDays: 30,
   hasMutualConnectionWithDPL: null,

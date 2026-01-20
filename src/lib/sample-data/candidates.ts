@@ -3219,6 +3219,20 @@ export const sampleCandidates: Candidate[] = [
         timeSupportZones: ["PAK", "US"],
         benefits: []
       },
+      {
+        id: "we-23-2",
+        employerName: "DPL",
+        jobTitle: "GTO (QA Automation)",
+        projects: [],
+        startDate: new Date("2023-01-01"),
+        endDate: new Date("2023-06-30"),
+        techStacks: ["Selenium", "Java", "TestNG", "JUnit", "REST", "API", "Postman", "Jira"],
+        domains: ["Workflow Automation", "Business Intelligence & Analytics"],
+        shiftType: "Morning",
+        workMode: "Hybrid",
+        timeSupportZones: ["PAK"],
+        benefits: []
+      },
     ],
     projects: [],
     certifications: [],
