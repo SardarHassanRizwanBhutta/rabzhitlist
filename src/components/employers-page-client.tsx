@@ -249,9 +249,6 @@ export function EmployersPageClient({ employers }: EmployersPageClientProps) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">All Employers</h2>
-          <p className="text-muted-foreground">
-            Manage company database and office locations
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <EmployersFilterDialog 

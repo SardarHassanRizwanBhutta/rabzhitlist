@@ -553,9 +553,6 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">All Projects</h2>
-          <p className="text-muted-foreground">
-            Manage project portfolio and development initiatives
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <ProjectsFilterDialog 

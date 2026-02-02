@@ -2166,7 +2166,7 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
     if (universityFilter) return `Graduates from ${universityFilter.name}`
     if (certificationFilter) return `Professionals certified in ${certificationFilter.name}`
     if (employerFilter) return `Candidates who have worked at ${employerFilter.name}`
-    return "Manage candidate profiles and recruitment pipeline"
+    return ""
   }
 
   // Auto-switch to cards when filters are active

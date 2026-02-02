@@ -162,10 +162,7 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Universities</h2>
-          <p className="text-muted-foreground">
-            Manage university database and institutional information
-          </p>
+          <h2 className="text-3xl font-bold tracking-tight">All Universities</h2>
         </div>
         <div className="flex items-center gap-2">
           <UniversitiesFilterDialog 
