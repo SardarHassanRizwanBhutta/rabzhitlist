@@ -123,10 +123,7 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Certifications</h2>
-          <p className="text-muted-foreground">
-            Manage professional certifications and achievements
-          </p>
+          <h2 className="text-3xl font-bold tracking-tight">All Certifications</h2>
         </div>
         <div className="flex items-center gap-2">
           <CertificationsFilterDialog
