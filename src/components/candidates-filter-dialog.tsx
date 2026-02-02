@@ -23,13 +23,13 @@ import { cn } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { CandidateStatus, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { PROJECT_STATUS_LABELS, ProjectStatus } from "@/lib/types/project"
-import { EmployerStatus, SalaryPolicy, EmployerRanking, EmployerType, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
+import { EmployerStatus, SalaryPolicy, EmployerRanking, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
 import { UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
 
 // Filter interfaces
@@ -150,6 +150,12 @@ export interface CandidateFilters {
   internationalBugBountyOnly: boolean  // When true, only shows candidates with international bug bounty platforms
   // Legacy filters (kept for backward compatibility)
   competitionPlatforms: string[]  // DEPRECATED: Use achievementPlatforms instead
+  // Verification percentage filters
+  verificationPercentageMin: string  // Minimum verification percentage (0-100)
+  verificationPercentageMax: string  // Maximum verification percentage (0-100)
+  // Data Progress filters
+  dataProgressMin: string  // Minimum data completion percentage (0-100)
+  dataProgressMax: string  // Maximum data completion percentage (0-100)
 }
 
 interface CandidatesFilterDialogProps {
@@ -786,6 +792,12 @@ const initialFilters: CandidateFilters = {
   internationalBugBountyOnly: false,
   // Legacy filters (kept for backward compatibility during migration)
   competitionPlatforms: [],
+  // Verification percentage filters
+  verificationPercentageMin: "",
+  verificationPercentageMax: "",
+  // Data Progress filters
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function CandidatesFilterDialog({
@@ -873,6 +885,10 @@ export function CandidatesFilterDialog({
           updated.expectedSalaryMin = ""
           updated.expectedSalaryMax = ""
           updated.postingTitle = ""
+          updated.verificationPercentageMin = ""
+          updated.verificationPercentageMax = ""
+          updated.dataProgressMin = ""
+          updated.dataProgressMax = ""
           break
         case "experience":
           updated.candidateTechStacks = []
@@ -1033,7 +1049,11 @@ export function CandidatesFilterDialog({
           (tempFilters.currentSalaryMax ? 1 : 0) +
           (tempFilters.expectedSalaryMin ? 1 : 0) +
           (tempFilters.expectedSalaryMax ? 1 : 0) +
-          (tempFilters.postingTitle ? 1 : 0)
+          (tempFilters.postingTitle ? 1 : 0) +
+          (tempFilters.verificationPercentageMin ? 1 : 0) +
+          (tempFilters.verificationPercentageMax ? 1 : 0) +
+          (tempFilters.dataProgressMin ? 1 : 0) +
+          (tempFilters.dataProgressMax ? 1 : 0)
         )
       case "experience":
         return (
@@ -1177,6 +1197,10 @@ export function CandidatesFilterDialog({
     tempFilters.expectedSalaryMin ||
     tempFilters.expectedSalaryMax ||
     tempFilters.postingTitle ||
+    tempFilters.verificationPercentageMin ||
+    tempFilters.verificationPercentageMax ||
+    tempFilters.dataProgressMin ||
+    tempFilters.dataProgressMax ||
     tempFilters.employers.length > 0 ||
     tempFilters.projects.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
@@ -1397,6 +1421,108 @@ export function CandidatesFilterDialog({
                 />
                 <p className="text-xs text-muted-foreground">
                   Filter candidates by their application status
+                </p>
+              </div>
+
+              {/* Verification Percentage Filter */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Verification Percentage</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="verificationPercentageMin" className="text-xs text-muted-foreground">
+                      Minimum (%)
+                    </Label>
+                    <Input
+                      id="verificationPercentageMin"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                      value={tempFilters.verificationPercentageMin}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Only allow numbers 0-100
+                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                          handleFilterChange("verificationPercentageMin", value)
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="verificationPercentageMax" className="text-xs text-muted-foreground">
+                      Maximum (%)
+                    </Label>
+                    <Input
+                      id="verificationPercentageMax"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="100"
+                      value={tempFilters.verificationPercentageMax}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Only allow numbers 0-100
+                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                          handleFilterChange("verificationPercentageMax", value)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Filter candidates by their verification percentage (0-100%)
+                </p>
+              </div>
+
+              {/* Data Progress Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Data Progress</Label>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="dataProgressMin" className="text-xs text-muted-foreground">
+                      Minimum (%)
+                    </Label>
+                    <Input
+                      id="dataProgressMin"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="0"
+                      value={tempFilters.dataProgressMin}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Only allow numbers 0-100
+                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                          handleFilterChange("dataProgressMin", value)
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dataProgressMax" className="text-xs text-muted-foreground">
+                      Maximum (%)
+                    </Label>
+                    <Input
+                      id="dataProgressMax"
+                      type="number"
+                      min="0"
+                      max="100"
+                      placeholder="100"
+                      value={tempFilters.dataProgressMax}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Only allow numbers 0-100
+                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                          handleFilterChange("dataProgressMax", value)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Filter candidates by their data completion percentage (0-100%)
                 </p>
               </div>
 

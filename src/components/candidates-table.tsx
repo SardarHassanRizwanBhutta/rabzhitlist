@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2, Target, Check, FolderOpen, Building2, GraduationCap, Award, Info } from "lucide-react"
+import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2, Target, Check, FileText, FolderOpen, Building2, GraduationCap, Award, Info } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -42,6 +42,10 @@ import {
   getCandidateMatchContext, 
   hasActiveFilters,
 } from "@/lib/utils/candidate-matches"
+
+import { calculateDataCompletion } from "@/lib/utils/data-completion"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 interface CandidatesTableProps {
   candidates: Candidate[]
@@ -235,6 +239,10 @@ const defaultFilters: CandidateFilters = {
   source: [],
   startDateStart: null,
   startDateEnd: null,
+  verificationPercentageMin: "",
+  verificationPercentageMax: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function CandidatesTable({ candidates, filters = defaultFilters }: CandidatesTableProps) {
@@ -332,7 +340,6 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
         aValue = calculateCandidateAverageTenure(a)
         bValue = calculateCandidateAverageTenure(b)
       } else {
-        // TypeScript type narrowing for other sort columns
         const sortKey = sortColumn as "name" | "expectedSalary" | "city" | "status"
         aValue = a[sortKey]
         bValue = b[sortKey]
@@ -453,6 +460,77 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
     return colorMap[color] || colorMap.gray
   }
 
+  // Data Progress Badge Component
+const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
+  const summary = React.useMemo(() => 
+    calculateDataCompletion(candidate), 
+    [candidate]
+  )
+  
+  const percentage = summary.completionPercentage
+  
+  // Color based on percentage
+  const getProgressColor = () => {
+    if (percentage === 100) return 'text-green-600 dark:text-green-400'
+    if (percentage >= 70) return 'text-yellow-600 dark:text-yellow-400'
+    return 'text-red-500 dark:text-red-400'
+  }
+  
+  const getBgColor = () => {
+    if (percentage === 100) return 'bg-green-100 dark:bg-green-950/30'
+    if (percentage >= 70) return 'bg-yellow-100 dark:bg-yellow-950/30'
+    return 'bg-red-100 dark:bg-red-950/30'
+  }
+  
+  const getBorderColor = () => {
+    if (percentage === 100) return 'border-green-200 dark:border-green-800'
+    if (percentage >= 70) return 'border-yellow-200 dark:border-yellow-800'
+    return 'border-red-200 dark:border-red-800'
+  }
+  
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={200}>
+        <TooltipTrigger asChild>
+          <div 
+            className={cn(
+              "inline-flex items-center justify-center",
+              "h-7 min-w-[44px] px-2 rounded-full",
+              "text-xs font-semibold border",
+              "cursor-default transition-colors",
+              getBgColor(),
+              getBorderColor(),
+              getProgressColor()
+            )}
+          >
+            {percentage}%
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          <div className="space-y-2 text-xs">
+            <p className="font-semibold text-sm text-background">
+              Data Progress
+            </p>
+            <p className="text-background/70">
+              Filled: <span className="text-background font-medium">{summary.filledFields}/{summary.totalFields} fields</span>
+            </p>
+            <div className="space-y-1 pt-1 border-t border-background/20">
+              {summary.sectionBreakdown.map((section) => (
+                <div key={section.section} className="flex items-center justify-between">
+                  <span className="text-background/70">{section.label}:</span>
+                  <span className="text-background font-medium">
+                    {section.filled}/{section.total} ({section.percentage}%)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
   return (
     <>
       <div className="rounded-md border">
@@ -495,6 +573,14 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
               <SortableHeader column="city" className="hidden md:table-cell">
                 City
               </SortableHeader>
+
+              {/* Data Progress - Hidden on mobile */}
+              <TableHead className="hidden lg:table-cell w-[80px]">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-4 w-4" />
+                  Data Progress
+                </div>
+              </TableHead>
               
               {/* Match Summary - Only visible when filters are active */}
               {activeFilters && (
@@ -516,7 +602,7 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
             {sortedCandidates.length === 0 ? (
               <TableRow>
                 <TableCell 
-                  colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} 
+                  colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} 
                   className="h-32 text-center text-muted-foreground"
                 >
                   No candidates found.
@@ -617,6 +703,14 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     {candidate.city}
+                  </TableCell>
+
+                  {/* Data Progress - Hidden on mobile */}
+                  <TableCell 
+                    className="hidden lg:table-cell"
+                    onClick={() => setSelectedCandidate(candidate)}
+                  >
+                    <DataProgressBadge candidate={candidate} />
                   </TableCell>
                   
                   {/* Match Summary */}
@@ -720,7 +814,7 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
                 {/* Expandable Match Details Row */}
                 {activeFilters && isExpanded && matchContext && matchContext.totalMatches > 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} className="p-0">
+                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} className="p-0">
                       <div className="bg-gray-50 dark:bg-gray-950/50 border-t border-border">
                         <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                           {matchContext.categories.map((category) => {

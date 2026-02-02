@@ -840,10 +840,10 @@ export function EmployersTable({
           if (!hasExactMatch) return false
         } else {
           // Non-strict mode: check if employer has candidates working in any of the selected shift types
-          const hasMatchingShiftType = filters.shiftTypes.some(filterShiftType =>
-            employerShiftTypes.includes(filterShiftType)
-          )
-          if (!hasMatchingShiftType) return false
+        const hasMatchingShiftType = filters.shiftTypes.some(filterShiftType =>
+          employerShiftTypes.includes(filterShiftType)
+        )
+        if (!hasMatchingShiftType) return false
         }
       }
 
@@ -869,10 +869,10 @@ export function EmployersTable({
           if (!hasExactMatch) return false
         } else {
           // Non-strict mode: check if employer has candidates working in any of the selected work modes
-          const hasMatchingWorkMode = filters.workModes.some(filterWorkMode =>
-            employerWorkModes.includes(filterWorkMode.trim())
-          )
-          if (!hasMatchingWorkMode) return false
+        const hasMatchingWorkMode = filters.workModes.some(filterWorkMode =>
+          employerWorkModes.includes(filterWorkMode.trim())
+        )
+        if (!hasMatchingWorkMode) return false
         }
       }
 

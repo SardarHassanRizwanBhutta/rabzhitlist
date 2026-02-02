@@ -19,6 +19,8 @@ import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { calculateVerificationSummary } from "@/lib/sample-data/verification"
+import { calculateDataCompletion } from "@/lib/utils/data-completion"
 
 // Helper function to calculate years of experience with a specific technology
 const calculateTechStackYears = (candidate: Candidate, techStack: string): number => {
@@ -373,6 +375,12 @@ const initialFilters: CandidateFilters = {
   // Personality type filter
   personalityTypes: [],
   source: [],
+  // Verification percentage filters
+  verificationPercentageMin: "",
+  verificationPercentageMax: "",
+  // Data Progress filters
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 // Debug function - Remove after testing
@@ -465,6 +473,44 @@ export function CandidatesPageClient({ candidates }: CandidatesPageClientProps) 
       if (appliedFilters.personalityTypes.length > 0) {
         if (!candidate.personalityType || !appliedFilters.personalityTypes.includes(candidate.personalityType)) {
           return false
+        }
+      }
+
+      // Verification percentage filter
+      if (appliedFilters.verificationPercentageMin || appliedFilters.verificationPercentageMax) {
+        const summary = calculateVerificationSummary(candidate.id)
+        const percentage = summary.verificationPercentage
+        
+        if (appliedFilters.verificationPercentageMin) {
+          const minPercentage = parseFloat(appliedFilters.verificationPercentageMin)
+          if (!isNaN(minPercentage) && percentage < minPercentage) {
+            return false
+          }
+        }
+        if (appliedFilters.verificationPercentageMax) {
+          const maxPercentage = parseFloat(appliedFilters.verificationPercentageMax)
+          if (!isNaN(maxPercentage) && percentage > maxPercentage) {
+            return false
+          }
+        }
+      }
+
+      // Data Progress filter
+      if (appliedFilters.dataProgressMin || appliedFilters.dataProgressMax) {
+        const summary = calculateDataCompletion(candidate)
+        const percentage = summary.completionPercentage
+        
+        if (appliedFilters.dataProgressMin) {
+          const minPercentage = parseFloat(appliedFilters.dataProgressMin)
+          if (!isNaN(minPercentage) && percentage < minPercentage) {
+            return false
+          }
+        }
+        if (appliedFilters.dataProgressMax) {
+          const maxPercentage = parseFloat(appliedFilters.dataProgressMax)
+          if (!isNaN(maxPercentage) && percentage > maxPercentage) {
+            return false
+          }
         }
       }
       
