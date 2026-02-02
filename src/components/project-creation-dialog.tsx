@@ -223,7 +223,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
 
 // All verifiable fields for projects
 const PROJECT_VERIFICATION_FIELDS = [
-  'projectName', 'employerName', 'projectType', 'teamSize', 'status',
+  'projectName', 'employerName', 'projectType', 'teamSize', 'status', 
   'startDate', 'endDate', 'description', 'notes', 'projectLink',
   'isPublished', 'publishPlatforms', 'downloadCount',
   'techStacks', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
@@ -427,7 +427,7 @@ export function ProjectCreationDialog({
     [verifiedFields]
   )
 
-  const contentProgress = useMemo(() =>
+  const contentProgress = useMemo(() => 
     calculateSectionProgress(['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']),
     [verifiedFields]
   )

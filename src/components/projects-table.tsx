@@ -2274,10 +2274,10 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
         ...prev,
         [fieldName]: processedValue
       }))
-
+      
       // TODO: API call to save field
       // await updateProjectField(project.id, fieldName, processedValue, verify)
-
+      
       toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
     } catch (error) {
       // Revert on error

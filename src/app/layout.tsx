@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { NavigationSidebar } from "@/components/navigation-sidebar";
 import { GlobalFilterProvider } from "@/contexts/global-filter-context";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -31,9 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <GlobalFilterProvider>
-          <NavigationSidebar>
-        {children}
-          </NavigationSidebar>
+          {children}
         </GlobalFilterProvider>
         <Toaster />
       </body>

@@ -125,6 +125,10 @@ const defaultFilters: CandidateFilters = {
   competitionPlatforms: [],
   personalityTypes: [],
   source: [],
+  verificationPercentageMin: "",
+  verificationPercentageMax: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 interface CandidatesCardsViewProps {

@@ -29,7 +29,8 @@ import {
   X,
   Loader2,
   CalendarIcon,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Headphones
 } from "lucide-react"
 
 import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -47,6 +48,7 @@ import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
+import { ColdCallerDialog } from "@/components/cold-caller"
 import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -2426,6 +2428,9 @@ export function CandidateDetailsModal({
   // State for Edit dialog (now includes verification by default)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   
+  // State for Cold Caller dialog
+  const [coldCallerDialogOpen, setColdCallerDialogOpen] = useState(false)
+  
   // Handle inline field save with verification
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
@@ -3059,6 +3064,17 @@ export function CandidateDetailsModal({
               >
                 <ShieldCheck className="size-4" />
                 Edit & Verify
+              </Button>
+              
+              {/* Cold Caller Mode Button */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setColdCallerDialogOpen(true)}
+                className="gap-1.5"
+              >
+                <Headphones className="size-4" />
+                Cold Caller Mode
               </Button>
               
               {candidate.email && (
@@ -4363,6 +4379,25 @@ export function CandidateDetailsModal({
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSubmit={handleEditSubmit}
+        />
+      )}
+
+      {/* Cold Caller Dialog */}
+      {candidate && (
+        <ColdCallerDialog
+          open={coldCallerDialogOpen}
+          onOpenChange={setColdCallerDialogOpen}
+          candidate={candidate}
+          onSaveField={async (fieldPath, value, verified) => {
+            // Handle field save - this will update the candidate data
+            // In a real implementation, this would call an API
+            console.log('Saving field:', fieldPath, value, 'verified:', verified)
+            await handleFieldSave(
+              fieldPath, 
+              value as string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, 
+              verified ?? false
+            )
+          }}
         />
       )}
 

@@ -922,16 +922,16 @@ export function EmployersFilterDialog({
                   />
 
                   <div className="space-y-2">
-                    <MultiSelect
-                      items={shiftTypeOptions}
-                      selected={tempFilters.shiftTypes}
-                      onChange={(values) => handleFilterChange("shiftTypes", values)}
-                      placeholder="Filter by shift type..."
-                      label="Shift Type"
-                      searchPlaceholder="Search shift types..."
-                      maxDisplay={3}
-                    />
-                    
+                  <MultiSelect
+                    items={shiftTypeOptions}
+                    selected={tempFilters.shiftTypes}
+                    onChange={(values) => handleFilterChange("shiftTypes", values)}
+                    placeholder="Filter by shift type..."
+                    label="Shift Type"
+                    searchPlaceholder="Search shift types..."
+                    maxDisplay={3}
+                  />
+
                     {tempFilters.shiftTypes.length > 0 && (
                       <div className="flex items-center space-x-2">
                         <Checkbox
@@ -958,15 +958,15 @@ export function EmployersFilterDialog({
                   </div>
 
                   <div className="space-y-2">
-                    <MultiSelect
-                      items={workModeOptions}
-                      selected={tempFilters.workModes}
-                      onChange={(values) => handleFilterChange("workModes", values)}
-                      placeholder="Filter by work mode..."
-                      label="Work Mode"
-                      searchPlaceholder="Search work modes..."
-                      maxDisplay={3}
-                    />
+                  <MultiSelect
+                    items={workModeOptions}
+                    selected={tempFilters.workModes}
+                    onChange={(values) => handleFilterChange("workModes", values)}
+                    placeholder="Filter by work mode..."
+                    label="Work Mode"
+                    searchPlaceholder="Search work modes..."
+                    maxDisplay={3}
+                  />
                     
                     {tempFilters.workModes.length > 0 && (
                       <div className="flex items-center space-x-2">
@@ -1222,8 +1222,8 @@ export function EmployersFilterDialog({
                     <Label htmlFor="hasPublishedProject" className="text-sm cursor-pointer">
                       Published App
                     </Label>
-                  </div>
-                </div>
+              </div>
+            </div>
 
                 {/* Publish Platforms Filter */}
                 <div className="space-y-2 mt-4">

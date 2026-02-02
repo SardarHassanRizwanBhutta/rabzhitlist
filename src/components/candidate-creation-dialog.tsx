@@ -2,6 +2,9 @@
 
 import * as React from "react"
 import { useState, useRef, useMemo, useCallback, useEffect } from "react"
+// import { Field, FieldDescription, FieldLabel } from "@/components/ui/form"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+
 import {
   Dialog,
   DialogContent,
@@ -718,6 +721,10 @@ export function CandidateCreationDialog({
     }
     return initialFormData
   })
+
+  // Resume file state
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sticky navigation tabs state
   const [activeTab, setActiveTab] = useState<string>("basic-info")
@@ -2227,6 +2234,10 @@ export function CandidateCreationDialog({
       setErrors({})
       setVerifiedFields(new Set())
       setModifiedFields(new Set())
+      setResumeFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
       // Expand all sections for optimal UX in edit/verify mode
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
@@ -2239,6 +2250,10 @@ export function CandidateCreationDialog({
       setErrors({})
       setVerifiedFields(new Set())
       setModifiedFields(new Set())
+      setResumeFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
       // Expand all sections by default for better UX
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
@@ -2260,6 +2275,10 @@ export function CandidateCreationDialog({
     setErrors({})
     setVerifiedFields(new Set())
     setModifiedFields(new Set())
+    setResumeFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
     setWorkExperienceOpen(false)
     setTechStacksOpen(false)
     setProjectsOpen(false)
@@ -2511,8 +2530,7 @@ export function CandidateCreationDialog({
                 {errors.basic?.contactNumber && <p className="text-sm text-red-500">{errors.basic.contactNumber}</p>}
                 <VerificationCheckbox fieldPath="contactNumber" />
               </div>
-
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="email">Email Address *</Label>
                 <Input
                   id="email"
@@ -2554,7 +2572,7 @@ export function CandidateCreationDialog({
                 <VerificationCheckbox fieldPath="githubUrl" />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="source">Source</Label>
                 <Input
                   id="source"
@@ -2568,27 +2586,7 @@ export function CandidateCreationDialog({
                 <VerificationCheckbox fieldPath="source" />
               </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isTopDeveloper"
-                    checked={formData.isTopDeveloper}
-                    onCheckedChange={(checked) => {
-                      setFormData(prev => ({ ...prev, isTopDeveloper: !!checked }))
-                      if (showVerification) {
-                        setModifiedFields(prev => new Set(prev).add("isTopDeveloper"))
-                        setVerifiedFields(prev => new Set(prev).add("isTopDeveloper"))
-                      }
-                    }}
-                  />
-                  <Label htmlFor="isTopDeveloper" className="text-sm font-normal cursor-pointer">
-                    Top Developer
-                  </Label>
-                </div>
-                <VerificationCheckbox fieldPath="isTopDeveloper" />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="personalityType">Personality Type</Label>
                 <ReusableCombobox
                   options={personalityTypeOptions}
@@ -2608,6 +2606,92 @@ export function CandidateCreationDialog({
                   <p className="text-sm text-red-500">{errors.basic.personalityType}</p>
                 )}
                 <VerificationCheckbox fieldPath="personalityType" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isTopDeveloper"
+                    checked={formData.isTopDeveloper}
+                    onCheckedChange={(checked) => {
+                      setFormData(prev => ({ ...prev, isTopDeveloper: !!checked }))
+                      if (showVerification) {
+                        setModifiedFields(prev => new Set(prev).add("isTopDeveloper"))
+                        setVerifiedFields(prev => new Set(prev).add("isTopDeveloper"))
+                      }
+                    }}
+                  />
+                  <Label htmlFor="isTopDeveloper" className="text-sm font-normal cursor-pointer">
+                    Top Developer
+                  </Label>
+                </div>
+                <VerificationCheckbox fieldPath="isTopDeveloper" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="resume">Upload Resume</Label>
+                {!resumeFile ? (
+                  <div className="space-y-2">
+                    <Input 
+                      id="resume" 
+                      type="file" 
+                      ref={fileInputRef}
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          setResumeFile(file)
+                          if (showVerification) {
+                            setModifiedFields(prev => new Set(prev).add("resume"))
+                            setVerifiedFields(prev => new Set(prev).add("resume"))
+                          }
+                        }
+                      }}
+                      className="cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Accepted formats: PDF, DOC, DOCX
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                      <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium truncate" title={resumeFile.name}>
+                        {resumeFile.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        ({(resumeFile.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setResumeFile(null)
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = ""
+                        }
+                        if (showVerification) {
+                          setModifiedFields(prev => {
+                            const newSet = new Set(prev)
+                            newSet.delete("resume")
+                            return newSet
+                          })
+                          setVerifiedFields(prev => {
+                            const newSet = new Set(prev)
+                            newSet.delete("resume")
+                            return newSet
+                          })
+                        }
+                      }}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                      title="Remove file"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                <VerificationCheckbox fieldPath="resume" />
               </div>
               </div>
             </CardContent>
