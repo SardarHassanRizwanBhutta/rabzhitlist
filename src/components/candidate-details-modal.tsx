@@ -3351,7 +3351,7 @@ export function CandidateDetailsModal({
                       label="Years of Experience" 
                       value={(() => {
                         // Use manual value if exists, otherwise calculate from work experiences
-                        const manualValue = (candidate as any).yearsOfExperience
+                        const manualValue = (candidate as Candidate & { yearsOfExperience?: number | null }).yearsOfExperience
                         if (manualValue !== null && manualValue !== undefined) {
                           return manualValue
                         }

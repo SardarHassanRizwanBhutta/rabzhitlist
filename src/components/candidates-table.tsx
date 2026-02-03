@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2, Target, Check, FileText, FolderOpen, Building2, GraduationCap, Award, Info } from "lucide-react"
+import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2, Target, Check, FolderOpen, Building2, GraduationCap, Award, Info } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
