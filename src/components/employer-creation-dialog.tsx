@@ -1169,7 +1169,6 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="benefits">Benefits</Label>
                           <BenefitsSelector
                             benefits={formData.benefits}
                             onChange={(benefits) => {
@@ -1206,10 +1205,7 @@ export function EmployerCreationDialog({
 
                       {/* Average Job Tenure */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
-                          <VerificationCheckbox fieldName="avgJobTenure" />
-                        </div>
+                        <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
                         <Input
                           id="avgJobTenure"
                           type="number"
@@ -1228,6 +1224,7 @@ export function EmployerCreationDialog({
                         <p className="text-xs text-muted-foreground">
                           Average time employees stay with this employer (calculated from work experience data or manually entered)
                         </p>
+                        <VerificationCheckbox fieldName="avgJobTenure" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1305,27 +1302,25 @@ export function EmployerCreationDialog({
                       Add Location
                     </Button>
                   </div>
-                  <Card>
+
+              {formData.locations.map((location, index) => (
+                <Card key={location.id} className="relative">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>Office Location {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeLocation(index)}
+                        disabled={formData.locations.length <= 1}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="space-y-4">
-                      {formData.locations.map((location, index) => (
-                        <Card key={location.id} className="relative">
-                          <CardHeader className="pb-4">
-                            <CardTitle className="flex items-center justify-between text-base">
-                              <span>Office Location {index + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeLocation(index)}
-                                disabled={formData.locations.length <= 1}
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-0">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor={`country-${index}`}>Country *</Label>
@@ -1433,30 +1428,25 @@ export function EmployerCreationDialog({
                               </div>
                               
                               <div className="space-y-2">
-                                <div className="flex items-center justify-between pt-6">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`isHeadquarters-${index}`}
-                                      checked={location.isHeadquarters}
-                                      onCheckedChange={(checked) => handleLocationChange(index, "isHeadquarters", !!checked)}
-                                    />
-                                    <Label htmlFor={`isHeadquarters-${index}`} className="text-sm font-normal">
-                                      Headquarters
-                                    </Label>
-                                  </div>
-                                  <VerificationCheckbox fieldName={`locations[${index}].isHeadquarters`} inline={true} />
+                                <div className="flex items-center space-x-2 pt-6">
+                                  <Switch
+                                    id={`isHeadquarters-${index}`}
+                                    checked={location.isHeadquarters}
+                                    onCheckedChange={(checked) => handleLocationChange(index, "isHeadquarters", !!checked)}
+                                  />
+                                  <Label htmlFor={`isHeadquarters-${index}`} className="text-sm font-normal">
+                                    Headquarters
+                                  </Label>
                                 </div>
                                 {errors.locations?.[index]?.isHeadquarters && (
                                   <p className="text-sm text-red-500">{errors.locations[index].isHeadquarters}</p>
                                 )}
+                                <VerificationCheckbox fieldName={`locations[${index}].isHeadquarters`} />
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
                   </CardContent>
                 </Card>
+              ))}
                 </CollapsibleContent>
               </Collapsible>
 

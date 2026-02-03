@@ -576,10 +576,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
 
               {/* Data Progress - Hidden on mobile */}
               <TableHead className="hidden lg:table-cell w-[80px]">
-                <div className="flex items-center gap-1.5">
-                  <FileText className="h-4 w-4" />
-                  Data Progress
-                </div>
+                Data Progress
               </TableHead>
               
               {/* Match Summary - Only visible when filters are active */}

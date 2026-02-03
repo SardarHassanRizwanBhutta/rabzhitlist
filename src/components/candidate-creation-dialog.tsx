@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 // import { Combobox, ComboboxOption } from "@/components/ui/combobox"
@@ -2609,7 +2610,7 @@ export function CandidateCreationDialog({
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
-                  <Checkbox
+                  <Switch
                     id="isTopDeveloper"
                     checked={formData.isTopDeveloper}
                     onCheckedChange={(checked) => {
@@ -3049,7 +3050,7 @@ export function CandidateCreationDialog({
                               </div>
 
                               <div className="space-y-2">
-                                <Label htmlFor={`contributionNotes-${index}-${projectIndex}`}>Contribution Notes</Label>
+                                <Label htmlFor={`contributionNotes-${index}-${projectIndex}`}>Contribution</Label>
                                 <Textarea
                                   id={`contributionNotes-${index}-${projectIndex}`}
                                   placeholder="Describe your key contributions, achievements, and responsibilities in this project..."
@@ -3306,7 +3307,7 @@ export function CandidateCreationDialog({
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor={`standalone-contributionNotes-${index}`}>Contribution Notes</Label>
+                      <Label htmlFor={`standalone-contributionNotes-${index}`}>Contribution</Label>
                       <Textarea
                         id={`standalone-contributionNotes-${index}`}
                         placeholder="Describe your key contributions, achievements, and responsibilities in this project..."
@@ -3558,31 +3559,6 @@ export function CandidateCreationDialog({
                         <VerificationCheckbox fieldPath={`educations.${index}.endMonth`} />
                       </div>
 
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`isTopper-${index}`}
-                            checked={education.isTopper}
-                            onCheckedChange={(checked) => handleEducationChange(index, "isTopper", !!checked)}
-                          />
-                          <Label htmlFor={`isTopper-${index}`} className="text-sm font-normal">
-                            Topper
-                          </Label>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`isCheetah-${index}`}
-                            checked={education.isCheetah}
-                            onCheckedChange={(checked) => handleEducationChange(index, "isCheetah", !!checked)}
-                          />
-                          <Label htmlFor={`isCheetah-${index}`} className="text-sm font-normal">
-                            Cheetah
-                          </Label>
-                        </div>
-                      </div>
                       <div className="space-y-2 md:col-span-1">
                         <Label htmlFor={`grades-${index}`}>Grades</Label>
                         <Input
@@ -3593,6 +3569,35 @@ export function CandidateCreationDialog({
                           onChange={(e) => handleEducationChange(index, "grades", e.target.value)}
                         />
                         <VerificationCheckbox fieldPath={`educations.${index}.grades`} />
+                      </div>
+
+                      {/* Topper and Cheetah in separate row with two columns */}
+                      <div className="space-y-2 md:col-span-1">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id={`isTopper-${index}`}
+                            checked={education.isTopper}
+                            onCheckedChange={(checked) => handleEducationChange(index, "isTopper", !!checked)}
+                          />
+                          <Label htmlFor={`isTopper-${index}`} className="text-sm font-normal">
+                            Topper
+                          </Label>
+                        </div>
+                        <VerificationCheckbox fieldPath={`educations.${index}.isTopper`} />
+                      </div>
+
+                      <div className="space-y-2 md:col-span-1">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id={`isCheetah-${index}`}
+                            checked={education.isCheetah}
+                            onCheckedChange={(checked) => handleEducationChange(index, "isCheetah", !!checked)}
+                          />
+                          <Label htmlFor={`isCheetah-${index}`} className="text-sm font-normal">
+                            Cheetah
+                          </Label>
+                        </div>
+                        <VerificationCheckbox fieldPath={`educations.${index}.isCheetah`} />
                       </div>
                     </div>
                   </CardContent>

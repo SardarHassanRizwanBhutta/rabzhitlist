@@ -27,6 +27,7 @@ import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -284,7 +285,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -480,7 +481,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -528,6 +529,207 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
             >
               {description || label}
             </Label>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Inline Editable Switch Component
+interface InlineEditableSwitchProps {
+  label: string
+  value: boolean
+  fieldName: string
+  onSave: (fieldName: string, newValue: boolean, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  className?: string
+  description?: string
+}
+
+const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
+  label,
+  value,
+  fieldName,
+  onSave,
+  getFieldVerification,
+  className,
+  description
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  
+  const verificationStatus = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verificationStatus === 'verified'
+  
+  React.useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+  
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value)
+    setWillVerify(isCurrentlyVerified)
+  }
+  
+  const handleSave = async () => {
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const valueChanged = editValue !== value
+    
+    if (!valueChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } catch (err) {
+      setEditValue(value)
+      setWillVerify(isCurrentlyVerified)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  // Verification indicator component
+  const VerificationIndicator = ({ 
+    fieldName: fName
+  }: { 
+    fieldName: string
+  }) => {
+    const verification = getFieldVerification?.(fName)
+    const status = verification || 'unverified'
+    
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge 
+          status={status}
+          size="sm"
+        />
+      </div>
+    )
+  }
+  
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fieldName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-3">
+              {/* Switch */}
+              <div className="flex items-center gap-2 pl-1">
+                <Switch
+                  id={`switch-${fieldName}`}
+                  checked={editValue}
+                  onCheckedChange={(checked) => setEditValue(checked)}
+                  disabled={isSaving}
+                />
+                <Label 
+                  htmlFor={`switch-${fieldName}`}
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  {label}
+                </Label>
+              </div>
+              
+              {description && (
+                <p className="text-xs text-muted-foreground pl-6 -mt-1">{description}</p>
+              )}
+              
+              {/* Mark as verified checkbox */}
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                  )}
+                >
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
+                </Label>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={value}
+              disabled
+              className="opacity-50"
+            />
+            <span className={cn(
+              "text-sm",
+              value ? "font-medium" : "text-muted-foreground"
+            )}>
+              {value ? 'Yes' : 'No'}
+            </span>
           </div>
         </div>
       )}
@@ -849,7 +1051,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                               </div>
                               
                               <div className="sm:col-span-2">
-                                <InlineEditableCheckbox
+                                <InlineEditableSwitch
                                   label="Main Campus"
                                   value={location.isMainCampus}
                                   fieldName={`locations[${idx}].isMainCampus`}
@@ -857,7 +1059,6 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                                     await handleLocationFieldSave(location.id, 'isMainCampus', newValue, verify)
                                   }}
                                   getFieldVerification={getFieldVerification}
-                                  description="This is the main campus"
                                 />
                               </div>
                             </div>
@@ -948,5 +1149,3 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
     </Dialog>
   )
 }
-
-

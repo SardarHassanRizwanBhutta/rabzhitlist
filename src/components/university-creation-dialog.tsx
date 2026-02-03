@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -862,27 +863,25 @@ export function UniversityCreationDialog({
                       Add Campus
                     </Button>
                   </div>
-                  <Card>
+
+              {formData.locations.map((location, index) => (
+                <Card key={location.id} className="relative">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center justify-between text-base">
+                      <span>Campus Location {index + 1}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeLocation(index)}
+                        disabled={formData.locations.length <= 1}
+                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="space-y-4">
-                      {formData.locations.map((location, index) => (
-                        <Card key={location.id} className="relative">
-                          <CardHeader className="pb-4">
-                            <CardTitle className="flex items-center justify-between text-base">
-                              <span>Campus Location {index + 1}</span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeLocation(index)}
-                                disabled={formData.locations.length <= 1}
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="pt-0">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor={`city-${index}`}>City *</Label>
@@ -901,17 +900,15 @@ export function UniversityCreationDialog({
                               </div>
 
                               <div className="space-y-2">
-                                <div className="pt-6">
-                                  <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                      id={`isMainCampus-${index}`}
-                                      checked={location.isMainCampus}
-                                      onCheckedChange={(checked) => handleLocationChange(index, "isMainCampus", !!checked)}
-                                    />
-                                    <Label htmlFor={`isMainCampus-${index}`} className="text-sm font-normal">
-                                      Main Campus
-                                    </Label>
-                                  </div>
+                                <div className="flex items-center space-x-2 pt-6">
+                                  <Switch
+                                    id={`isMainCampus-${index}`}
+                                    checked={location.isMainCampus}
+                                    onCheckedChange={(checked) => handleLocationChange(index, "isMainCampus", !!checked)}
+                                  />
+                                  <Label htmlFor={`isMainCampus-${index}`} className="text-sm font-normal">
+                                    Main Campus
+                                  </Label>
                                 </div>
                                 {errors.locations?.[index]?.isMainCampus && (
                                   <p className="text-sm text-red-500">{errors.locations[index].isMainCampus}</p>
@@ -935,12 +932,9 @@ export function UniversityCreationDialog({
                                 <VerificationCheckbox fieldName={`locations[${index}].address`} />
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
                   </CardContent>
-                  </Card>
+                </Card>
+              ))}
                 </CollapsibleContent>
               </Collapsible>
 

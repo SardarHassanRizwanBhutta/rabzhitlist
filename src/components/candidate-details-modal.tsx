@@ -55,6 +55,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -353,7 +354,7 @@ const DomainBadges = ({
 
 
 
-// InlineEditableTextarea component for long text fields (like contribution notes)
+// InlineEditableTextarea component for long text fields (like contribution)
 interface InlineEditableTextareaProps {
   label?: string
   value: string | null | undefined
@@ -510,7 +511,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           {error && (
@@ -550,7 +551,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
           onClick={handleEdit}
           className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           type="button"
-          title="Edit contribution notes"
+          title="Edit contribution"
         >
           <Pencil className="w-3.5 h-3.5" />
         </Button>
@@ -867,7 +868,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           {error && (
@@ -1078,7 +1079,7 @@ const InlineEditableDate: React.FC<InlineEditableDateProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           {error && (
@@ -1263,7 +1264,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           
@@ -1504,7 +1505,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           
@@ -1687,6 +1688,15 @@ const validateSalary = (salary: string): string | null => {
   return null
 }
 
+const validateYearsOfExperience = (years: string): string | null => {
+  if (!years || years.trim() === '') return null // Optional field
+  const num = Number(years)
+  if (isNaN(num)) return 'Must be a valid number'
+  if (num < 0) return 'Years cannot be negative'
+  if (num > 100) return 'Years seems too high'
+  return null
+}
+
 const validateName = (name: string): string | null => {
   if (!name || name.trim() === '') return 'Name is required'
   if (name.trim().length < 2) return 'Name must be at least 2 characters'
@@ -1860,7 +1870,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
                   willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                 )}
               >
-                {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                {willVerify ? '✓ Verified' : 'Mark as verified'}
               </Label>
             </div>
             {error && (
@@ -2011,21 +2021,40 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
         <div className="space-y-2">
           <div className="flex items-start gap-2">
             <div className="flex-1 space-y-3">
-              {/* Checkbox */}
+              {/* Checkbox or Switch */}
               <div className="flex items-center gap-2 pl-1">
-                <Checkbox
-                  id={`checkbox-${fieldName}`}
-                  checked={editValue}
-                  onCheckedChange={(checked) => setEditValue(checked as boolean)}
-                  disabled={isSaving}
-                  className="h-4 w-4"
-                />
-                <Label 
-                  htmlFor={`checkbox-${fieldName}`}
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  {label}
-                </Label>
+                {label === "Top Developer" || label === "Topper" || label === "Cheetah" ? (
+                  <>
+                    <Switch
+                      id={`switch-${fieldName}`}
+                      checked={editValue}
+                      onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                      disabled={isSaving}
+                    />
+                    <Label 
+                      htmlFor={`switch-${fieldName}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {label}
+                    </Label>
+                  </>
+                ) : (
+                  <>
+                    <Checkbox
+                      id={`checkbox-${fieldName}`}
+                      checked={editValue}
+                      onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                      disabled={isSaving}
+                      className="h-4 w-4"
+                    />
+                    <Label 
+                      htmlFor={`checkbox-${fieldName}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {label}
+                    </Label>
+                  </>
+                )}
               </div>
               
               {description && (
@@ -2048,7 +2077,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -2084,26 +2113,29 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
       ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Checkbox
-              checked={value}
-              disabled
-              className="h-4 w-4 opacity-50"
-            />
+            {label === "Top Developer" || label === "Topper" || label === "Cheetah" ? (
+              <Switch
+                checked={value}
+                disabled
+                className="opacity-50"
+              />
+            ) : (
+              <Checkbox
+                checked={value}
+                disabled
+                className="h-4 w-4 opacity-50"
+              />
+            )}
             <span className={cn(
               "text-sm",
               value ? "font-medium" : "text-muted-foreground"
             )}>
               {value ? 'Yes' : 'No'}
             </span>
-            {value && (
+            {value && label !== "Top Developer" && label !== "Topper" && label !== "Cheetah" && (
               <Badge 
                 variant="default" 
-                className={cn(
-                  "text-xs",
-                  label === "Topper" && "bg-yellow-500 hover:bg-yellow-600",
-                  label === "Cheetah" && "bg-orange-500 hover:bg-orange-600",
-                  label === "Top Developer" && "bg-blue-500 hover:bg-blue-600"
-                )}
+                className="text-xs"
               >
                 {label}
               </Badge>
@@ -3315,13 +3347,28 @@ export function CandidateDetailsModal({
                         )
                       }}
                     />
-                    <DisplayField 
+                    <InlineEditableField 
                       label="Years of Experience" 
                       value={(() => {
-                        const years = calculateYearsOfExperience(candidate)
-                        return years > 0 ? `${years} ${years === 1 ? 'year' : 'years'}` : 'N/A'
+                        // Use manual value if exists, otherwise calculate from work experiences
+                        const manualValue = (candidate as any).yearsOfExperience
+                        if (manualValue !== null && manualValue !== undefined) {
+                          return manualValue
+                        }
+                        return calculateYearsOfExperience(candidate)
                       })()} 
-                      fieldName="yearsOfExperience" 
+                      fieldName="yearsOfExperience"
+                      fieldType="number"
+                      validation={validateYearsOfExperience}
+                      onSave={handleFieldSave}
+                      formatDisplay={(val) => {
+                        if (val === null || val === undefined || val === '') return 'N/A'
+                        const years = Number(val)
+                        if (isNaN(years) || years <= 0) return 'N/A'
+                        return `${years} ${years === 1 ? 'year' : 'years'}`
+                      }}
+                      verificationIndicator={<VerificationIndicator fieldName="yearsOfExperience" />}
+                      getFieldVerification={getFieldVerification}
                     />
           </div>
 
@@ -3989,7 +4036,7 @@ export function CandidateDetailsModal({
                                   )}
                                 />
                               </div>
-                              {/* Degree and Major */}
+                              {/* Degree, Major, and Grades - Same size and spacing */}
                               <div className="space-y-2">
                                 <InlineEditableCombobox
                                   label="Degree Name"
@@ -4039,6 +4086,17 @@ export function CandidateDetailsModal({
                                     }}
                                   />
                                 )}
+                                {education.grades && (
+                                  <InlineEditableField 
+                                    label="Grades" 
+                                    value={education.grades} 
+                                    fieldName={`educations[${idx}].grades`}
+                                    fieldType="text"
+                                    onSave={handleFieldSave}
+                                    verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].grades`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                )}
                               </div>
                             </div>
                             {/* Dates */}
@@ -4066,20 +4124,8 @@ export function CandidateDetailsModal({
                             </div>
                           </div>
 
-                          {/* Grades and Achievements */}
-                          <div className="flex flex-wrap items-center gap-3 text-sm">
-                            {education.grades && (
-                              <InlineEditableField 
-                                label="Grades" 
-                                value={education.grades} 
-                                fieldName={`educations[${idx}].grades`}
-                                fieldType="text"
-                                onSave={handleFieldSave}
-                                verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].grades`} />}
-                                getFieldVerification={getFieldVerification}
-                                className="flex-1"
-                              />
-                            )}
+                          {/* Topper and Cheetah in separate row with two columns */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <InlineEditableCheckbox
                               label="Topper"
                               value={education.isTopper === true}
