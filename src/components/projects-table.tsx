@@ -88,6 +88,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -977,7 +978,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -1217,7 +1218,7 @@ const InlineEditDateField: React.FC<InlineEditDateFieldProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -1707,7 +1708,7 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -1900,22 +1901,39 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
         <div className="space-y-2">
           <div className="flex items-start gap-2">
             <div className="flex-1 space-y-3">
-              {/* Checkbox */}
-              <div className="flex items-center gap-2 pl-1">
-                <Checkbox
-                  id={`checkbox-${fieldName}`}
-                  checked={editValue}
-                  onCheckedChange={(checked) => setEditValue(checked as boolean)}
-                  disabled={isSaving}
-                  className="h-4 w-4"
-                />
-                <Label 
-                  htmlFor={`checkbox-${fieldName}`}
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  Published App
-                </Label>
-              </div>
+              {/* Switch for Published App, Checkbox for others */}
+              {label === "Published" || label === "Published App" ? (
+                <div className="flex items-center gap-2 pl-1">
+                  <Switch
+                    id={`switch-${fieldName}`}
+                    checked={editValue}
+                    onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                    disabled={isSaving}
+                  />
+                  <Label 
+                    htmlFor={`switch-${fieldName}`}
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    {label}
+                  </Label>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 pl-1">
+                  <Checkbox
+                    id={`checkbox-${fieldName}`}
+                    checked={editValue}
+                    onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                    disabled={isSaving}
+                    className="h-4 w-4"
+                  />
+                  <Label 
+                    htmlFor={`checkbox-${fieldName}`}
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    {label}
+                  </Label>
+                </div>
+              )}
               
               {description && (
                 <p className="text-xs text-muted-foreground pl-6 -mt-1">{description}</p>
@@ -1937,7 +1955,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -1973,17 +1991,35 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
       ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Checkbox
-              checked={value}
-              disabled
-              className="h-4 w-4 opacity-50"
-            />
-            <span className={cn(
-              "text-sm",
-              value ? "font-medium" : "text-muted-foreground"
-            )}>
-              {value ? 'Yes' : 'No'}
-            </span>
+            {label === "Published" || label === "Published App" ? (
+              <>
+                <Switch
+                  checked={value}
+                  disabled
+                  className="opacity-50"
+                />
+                <span className={cn(
+                  "text-sm",
+                  value ? "font-medium" : "text-muted-foreground"
+                )}>
+                  {value ? 'Yes' : 'No'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Checkbox
+                  checked={value}
+                  disabled
+                  className="h-4 w-4 opacity-50"
+                />
+                <span className={cn(
+                  "text-sm",
+                  value ? "font-medium" : "text-muted-foreground"
+                )}>
+                  {value ? 'Yes' : 'No'}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2170,7 +2206,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>

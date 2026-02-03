@@ -424,7 +424,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -641,7 +641,7 @@ const InlineEditableMultiSelectWithCount: React.FC<InlineEditableMultiSelectWith
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           
@@ -913,7 +913,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
                 willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
               )}
             >
-              {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+              {willVerify ? '✓ Verified' : 'Mark as verified'}
             </Label>
           </div>
           
@@ -1182,7 +1182,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -1386,7 +1386,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
                     willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
                   )}
                 >
-                  {willVerify ? '✓ Mark as verified' : 'Mark as verified'}
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
             </div>
@@ -2260,7 +2260,7 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                               
                               {/* Headquarters Checkbox - Full Width */}
                               <div className="sm:col-span-2">
-                                <InlineEditableCheckbox
+                                <InlineEditableSwitch
                                   label="Headquarters"
                                   value={location.isHeadquarters}
                                   fieldName={`locations[${idx}].isHeadquarters`}

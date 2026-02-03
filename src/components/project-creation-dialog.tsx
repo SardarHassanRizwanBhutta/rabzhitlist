@@ -28,6 +28,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import { Progress } from "@/components/ui/progress"
 import {
   Command,
@@ -496,7 +497,7 @@ export function ProjectCreationDialog({
     const isModified = modifiedFields.has(fieldName)
     
     return (
-      <div className="flex items-center gap-1.5 ml-2">
+      <div className="flex items-center gap-2 mt-1">
         <Checkbox
           id={`verify-${fieldName}`}
           checked={isChecked}
@@ -505,9 +506,9 @@ export function ProjectCreationDialog({
         />
         <Label 
           htmlFor={`verify-${fieldName}`} 
-          className={`text-xs cursor-pointer ${isChecked ? 'text-green-600' : 'text-muted-foreground'}`}
+          className={`text-xs cursor-pointer ${isChecked ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
         >
-          {label || (isModified ? 'Verified (modified)' : 'Verified')}
+          {isChecked ? '✓ Verified' : label || 'Mark as verified'}
         </Label>
       </div>
     )
@@ -730,10 +731,7 @@ export function ProjectCreationDialog({
                     <CardContent className="pt-0 space-y-4">
                       {/* Project Name */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="projectName">Project Name *</Label>
-                          <VerificationCheckbox fieldName="projectName" />
-                        </div>
+                        <Label htmlFor="projectName">Project Name *</Label>
                         <Input
                           id="projectName"
                           type="text"
@@ -743,14 +741,12 @@ export function ProjectCreationDialog({
                           className={errors.projectName ? "border-red-500" : ""}
                         />
                         {errors.projectName && <p className="text-sm text-red-500">{errors.projectName}</p>}
+                        <VerificationCheckbox fieldName="projectName" />
                       </div>
 
                       {/* Employer - Add this */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="employerName">Employer</Label>
-                          <VerificationCheckbox fieldName="employerName" />
-                        </div>
+                        <Label htmlFor="employerName">Employer</Label>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button
@@ -803,14 +799,12 @@ export function ProjectCreationDialog({
                           </PopoverContent>
                         </Popover>
                         {errors.employerName && <p className="text-sm text-red-500">{errors.employerName}</p>}
+                        <VerificationCheckbox fieldName="employerName" />
                       </div>
 
                       {/* Project Type */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="projectType">Project Type</Label>
-                          <VerificationCheckbox fieldName="projectType" />
-                        </div>
+                        <Label htmlFor="projectType">Project Type</Label>
                         <Popover>
                           <PopoverTrigger asChild>
                             <Button
@@ -851,15 +845,13 @@ export function ProjectCreationDialog({
                           </PopoverContent>
                         </Popover>
                         {errors.projectType && <p className="text-sm text-red-500">{errors.projectType}</p>}
+                        <VerificationCheckbox fieldName="projectType" />
                       </div>
 
                       {/* Team Size & Status */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="teamSize">Team Size *</Label>
-                            <VerificationCheckbox fieldName="teamSize" />
-                          </div>
+                          <Label htmlFor="teamSize">Team Size *</Label>
                           <Input
                             id="teamSize"
                             type="text"
@@ -872,13 +864,11 @@ export function ProjectCreationDialog({
                           <p className="text-xs text-muted-foreground">
                             Enter single number (e.g., &quot;12&quot;) or range (e.g., &quot;10-15&quot;)
                           </p>
+                          <VerificationCheckbox fieldName="teamSize" />
                         </div>
 
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="status">Status *</Label>
-                            <VerificationCheckbox fieldName="status" />
-                          </div>
+                          <Label htmlFor="status">Status *</Label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -919,6 +909,7 @@ export function ProjectCreationDialog({
                             </PopoverContent>
                           </Popover>
                           {errors.status && <p className="text-sm text-red-500">{errors.status}</p>}
+                          <VerificationCheckbox fieldName="status" />
                         </div>
                       </div>
                     </CardContent>
@@ -978,10 +969,7 @@ export function ProjectCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="startDate">Start Date</Label>
-                            <VerificationCheckbox fieldName="startDate" />
-                          </div>
+                          <Label htmlFor="startDate">Start Date</Label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -1004,13 +992,11 @@ export function ProjectCreationDialog({
                               />
                             </PopoverContent>
                           </Popover>
+                          <VerificationCheckbox fieldName="startDate" />
                         </div>
 
                         <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="endDate">End Date</Label>
-                            <VerificationCheckbox fieldName="endDate" />
-                          </div>
+                          <Label htmlFor="endDate">End Date</Label>
                           <Popover>
                             <PopoverTrigger asChild>
                               <Button
@@ -1034,6 +1020,7 @@ export function ProjectCreationDialog({
                             </PopoverContent>
                           </Popover>
                           {errors.endDate && <p className="text-sm text-red-500">{errors.endDate}</p>}
+                          <VerificationCheckbox fieldName="endDate" />
                         </div>
                       </div>
                     </CardContent>
@@ -1092,10 +1079,7 @@ export function ProjectCreationDialog({
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Technologies</Label>
-                          <VerificationCheckbox fieldName="techStacks" />
-                        </div>
+                        <Label>Technologies</Label>
                         <MultiSelect
                           items={techStackOptions}
                           selected={formData.techStacks}
@@ -1106,6 +1090,7 @@ export function ProjectCreationDialog({
                           creatable={true}
                           createLabel="Add Technology"
                         />
+                        <VerificationCheckbox fieldName="techStacks" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1163,10 +1148,7 @@ export function ProjectCreationDialog({
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Vertical Domains</Label>
-                          <VerificationCheckbox fieldName="verticalDomains" />
-                        </div>
+                        <Label>Vertical Domains</Label>
                         <MultiSelect
                           items={verticalDomainOptions}
                           selected={formData.verticalDomains}
@@ -1177,13 +1159,11 @@ export function ProjectCreationDialog({
                           creatable={true}
                           createLabel="Add Vertical Domain"
                         />
+                        <VerificationCheckbox fieldName="verticalDomains" />
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Horizontal Domains</Label>
-                          <VerificationCheckbox fieldName="horizontalDomains" />
-                        </div>
+                        <Label>Horizontal Domains</Label>
                         <MultiSelect
                           items={horizontalDomainOptions}
                           selected={formData.horizontalDomains}
@@ -1194,13 +1174,11 @@ export function ProjectCreationDialog({
                           creatable={true}
                           createLabel="Add Horizontal Domain"
                         />
+                        <VerificationCheckbox fieldName="horizontalDomains" />
                       </div>
 
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label>Technical Aspects</Label>
-                          <VerificationCheckbox fieldName="technicalAspects" />
-                        </div>
+                        <Label>Technical Aspects</Label>
                         <MultiSelect
                           items={technicalAspectOptions}
                           selected={formData.technicalAspects}
@@ -1211,6 +1189,7 @@ export function ProjectCreationDialog({
                           creatable={true}
                           createLabel="Add Technical Aspect"
                         />
+                        <VerificationCheckbox fieldName="technicalAspects" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1269,10 +1248,7 @@ export function ProjectCreationDialog({
                     <CardContent className="pt-0 space-y-4">
                       {/* Description */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="description">Description *</Label>
-                          <VerificationCheckbox fieldName="description" />
-                        </div>
+                        <Label htmlFor="description">Description *</Label>
                         <Textarea
                           id="description"
                           placeholder="Provide a detailed description of the project, its goals, and key features..."
@@ -1281,14 +1257,12 @@ export function ProjectCreationDialog({
                           className={`min-h-[120px] ${errors.description ? "border-red-500" : ""}`}
                         />
                         {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
+                        <VerificationCheckbox fieldName="description" />
                       </div>
 
                       {/* Notes */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="notes">Notes</Label>
-                          <VerificationCheckbox fieldName="notes" />
-                        </div>
+                        <Label htmlFor="notes">Notes</Label>
                         <Input
                           id="notes"
                           type="text"
@@ -1299,14 +1273,12 @@ export function ProjectCreationDialog({
                         <p className="text-xs text-muted-foreground">
                           Brief additional information or special requirements
                         </p>
+                        <VerificationCheckbox fieldName="notes" />
                       </div>
 
                       {/* Project Link */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="projectLink">Project Link</Label>
-                          <VerificationCheckbox fieldName="projectLink" />
-                        </div>
+                        <Label htmlFor="projectLink">Project Link</Label>
                         <Input
                           id="projectLink"
                           type="url"
@@ -1319,48 +1291,42 @@ export function ProjectCreationDialog({
                         <p className="text-xs text-muted-foreground">
                           Optional link to project demo, repository, or documentation
                         </p>
+                        <VerificationCheckbox fieldName="projectLink" />
                       </div>
 
                       {/* Published Status */}
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              id="isPublished"
-                              checked={formData.isPublished}
-                              onCheckedChange={(checked) => {
-                                handleInputChange("isPublished", checked === true)
-                              }}
-                            />
-                            <Label htmlFor="isPublished" className="cursor-pointer">
-                              Published App
-                            </Label>
-                          </div>
-                          <VerificationCheckbox fieldName="isPublished" />
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="isPublished"
+                            checked={formData.isPublished}
+                            onCheckedChange={(checked) => {
+                              handleInputChange("isPublished", checked === true)
+                            }}
+                          />
+                          <Label htmlFor="isPublished" className="cursor-pointer">
+                            Published App
+                          </Label>
                         </div>
+                        <VerificationCheckbox fieldName="isPublished" />
                       </div>
 
                       {/* Publish Platforms */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <VerificationCheckbox fieldName="publishPlatforms" />
-                        </div>
+                        <Label>Platforms (optional)</Label>
                         <MultiSelect
                           items={publishPlatformOptions}
                           selected={formData.publishPlatforms}
                           onChange={(values) => handleInputChange("publishPlatforms", values)}
                           placeholder="Select platforms"
-                          label="Platforms (optional)"
                           searchPlaceholder="Search platforms..."
                         />
+                        <VerificationCheckbox fieldName="publishPlatforms" />
                       </div>
 
                       {/* Download Count */}
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor="downloadCount">Download Count</Label>
-                          <VerificationCheckbox fieldName="downloadCount" />
-                        </div>
+                        <Label htmlFor="downloadCount">Download Count</Label>
                         <Input
                           id="downloadCount"
                           type="number"
@@ -1372,6 +1338,7 @@ export function ProjectCreationDialog({
                         <p className="text-xs text-muted-foreground">
                           Total download count (e.g., 100000 for 100K downloads). Only applicable for published apps.
                         </p>
+                        <VerificationCheckbox fieldName="downloadCount" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
