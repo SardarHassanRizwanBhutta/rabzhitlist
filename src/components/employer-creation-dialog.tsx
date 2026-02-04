@@ -334,7 +334,7 @@ export function EmployerCreationDialog({
   children,
   mode = "create",
   employerData,
-  showVerification = false,
+  showVerification = true,
   onSubmit,
   onOpenChange,
   open: controlledOpen,
@@ -974,7 +974,7 @@ export function EmployerCreationDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
-        {mode === "create" && !showVerification && controlledOpen === undefined && (
+        {mode === "create" && controlledOpen === undefined && (
           <DialogTrigger asChild>
             {children || (
               <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">
