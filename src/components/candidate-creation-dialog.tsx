@@ -699,8 +699,8 @@ export function CandidateCreationDialog({
   onOpenChange,
   open: controlledOpen,
 }: CandidateCreationDialogProps) {
-  // Always show verification in edit mode, allow override via prop for create mode
-  const showVerification = mode === "edit" ? true : (showVerificationProp ?? false)
+  // Always show verification by default (both create and edit modes), allow override via prop
+  const showVerification = showVerificationProp ?? true
   const [internalOpen, setInternalOpen] = useState(false)
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   
