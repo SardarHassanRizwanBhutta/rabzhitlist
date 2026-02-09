@@ -48,7 +48,6 @@ import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"  // Add this import
 import { 
   getVerificationsForProject,
-  sampleVerificationUsers 
 } from "@/lib/sample-data/verification"
 
 // Form data interface

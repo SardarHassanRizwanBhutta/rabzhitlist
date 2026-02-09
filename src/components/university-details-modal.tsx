@@ -18,6 +18,7 @@ import {
   MapPin,
   ShieldCheck,
   BuildingIcon,
+  Trash2,
 } from "lucide-react"
 
 import { University, UniversityRanking, UNIVERSITY_RANKING_COLORS, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
@@ -35,6 +36,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
@@ -751,6 +762,13 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   // Collapsible sections state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "statistics"]))
   
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [locationToDelete, setLocationToDelete] = useState<{
+    locationId: string
+    locationName: string
+  } | null>(null)
+  
   // Update local university when prop changes
   React.useEffect(() => {
     setLocalUniversity(university)
@@ -819,6 +837,57 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
       toast.error('Failed to save field')
       throw error
     }
+  }
+
+  // Handle location deletion - show confirmation dialog
+  const handleDeleteLocation = (locationId: string) => {
+    const location = localUniversity.locations.find(loc => loc.id === locationId)
+    if (!location) return
+    
+    // Create a descriptive name for the location
+    const locationName = location.city || 'Location'
+    
+    setLocationToDelete({
+      locationId,
+      locationName
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!locationToDelete) return
+    
+    try {
+      // Optimistic update
+      const updatedLocations = localUniversity.locations.filter(
+        loc => loc.id !== locationToDelete.locationId
+      )
+      setLocalUniversity(prev => ({
+        ...prev,
+        locations: updatedLocations
+      }))
+      
+      // TODO: API call to delete location
+      // await deleteLocation(localUniversity.id, locationToDelete.locationId)
+      
+      toast.success(`Location "${locationToDelete.locationName}" deleted successfully`)
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setLocationToDelete(null)
+    } catch (error) {
+      toast.error('Failed to delete location. Please try again.')
+      console.error('Error deleting location:', error)
+      setDeleteDialogOpen(false)
+      setLocationToDelete(null)
+    }
+  }
+
+  // Handle delete cancellation
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setLocationToDelete(null)
   }
   
   return (
@@ -1020,6 +1089,16 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                                   </div>
                                 </div>
                               </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteLocation(location.id)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                                title="Delete location"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
 
                             {/* Location Details Grid */}
@@ -1146,6 +1225,35 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {locationToDelete ? (
+                <>
+                  This will permanently delete the location <strong>{locationToDelete.locationName}</strong>. This action cannot be undone.
+                </>
+              ) : (
+                'This action cannot be undone.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

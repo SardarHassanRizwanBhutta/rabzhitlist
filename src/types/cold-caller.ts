@@ -2,7 +2,7 @@
 
 import type { Candidate } from '@/lib/types/candidate'
 
-export type FieldType = 'text' | 'number' | 'select' | 'date' | 'multiselect' | 'benefits' | 'boolean' | 'textarea'
+export type FieldType = 'text' | 'number' | 'select' | 'date' | 'multiselect' | 'benefits' | 'boolean' | 'textarea' | 'combobox'
 
 export type FieldSection = 
   | 'basic' 
@@ -11,6 +11,7 @@ export type FieldSection =
   | 'certifications' 
   | 'achievements' 
   | 'techStacks'
+  | 'projects'
 
 // Field status for tracking progress during cold call
 export type FieldStatus = 'pending' | 'answered' | 'skipped' | 'askLater'
@@ -25,9 +26,10 @@ export interface EmptyField {
   fieldType: FieldType
   section: FieldSection
   context?: string            // Additional context (e.g., employer name)
-  options?: { value: string; label: string }[]  // For select/multiselect
+  options?: { value: string; label: string }[]  // For select/multiselect/combobox
   currentValue: unknown
   parentIndex?: number        // Index for array fields (work experience, education, etc.)
+  onCreateEntity?: 'project' | 'employer' | 'university' | 'certification'  // Which entity to create for combobox fields
 }
 
 // Extended field state with status tracking
@@ -83,6 +85,7 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   certifications: 'Certifications',
   achievements: 'Achievements',
   techStacks: 'Tech Stacks',
+  projects: 'Independent Projects',
 }
 
 // Section icons mapping
@@ -93,6 +96,7 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   certifications: 'Award',
   achievements: 'Trophy',
   techStacks: 'Code',
+  projects: 'FolderOpen',
 }
 
 // Status labels and colors
@@ -102,4 +106,3 @@ export const FIELD_STATUS_CONFIG: Record<FieldStatus, { label: string; color: st
   skipped: { label: 'Skipped', color: 'text-gray-500', icon: 'SkipForward' },
   askLater: { label: 'Ask Later', color: 'text-amber-600', icon: 'Clock' },
 }
-

@@ -8,7 +8,10 @@ import {
   MessageSquare,
   Star,
   Copy,
-  Target
+  Target,
+  CalendarIcon,
+  ChevronsUpDown,
+  Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +29,16 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import { VerificationBadge } from "@/components/ui/verification-badge"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { EmptyField, FieldStatus, GeneratedQuestion } from "@/types/cold-caller"
@@ -113,6 +126,7 @@ interface QuestionFieldCardProps {
   onVerificationToggle?: (fieldPath: string, verified: boolean) => void
   isCompact?: boolean  // For focus mode
   showPriority?: boolean
+  onCreateEntity?: (field: EmptyField, searchValue: string) => void
 }
 
 export function QuestionFieldCard({
@@ -127,16 +141,21 @@ export function QuestionFieldCard({
   onVerificationToggle,
   isCompact = false,
   showPriority = true,
+  onCreateEntity,
 }: QuestionFieldCardProps) {
   const [localValue, setLocalValue] = useState<unknown>(() => {
     if (value !== null && value !== undefined) return value
     if (field.fieldType === 'multiselect' || field.fieldType === 'benefits') return []
     if (field.fieldType === 'boolean') return null
+    if (field.fieldType === 'date') return null
     return ''
   })
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [willVerify, setWillVerify] = useState(isVerified)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [comboboxOpen, setComboboxOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState("")
 
   // Update local value when prop changes
   useEffect(() => {
@@ -150,6 +169,13 @@ export function QuestionFieldCard({
     setWillVerify(isVerified)
   }, [isVerified])
 
+  // Reset search value when combobox closes
+  useEffect(() => {
+    if (!comboboxOpen) {
+      setSearchValue("")
+    }
+  }, [comboboxOpen])
+
   const handleChange = (newValue: unknown) => {
     setLocalValue(newValue)
     onValueChange(field.fieldPath, newValue)
@@ -161,6 +187,7 @@ export function QuestionFieldCard({
         if (newValue === null || newValue === undefined) return false
         if (typeof newValue === 'string' && newValue.trim() === '') return false
         if (Array.isArray(newValue) && newValue.length === 0) return false
+        if (field.fieldType === 'date' && !(newValue instanceof Date)) return false
         return true
       }
       if (hasValue()) {
@@ -174,6 +201,7 @@ export function QuestionFieldCard({
       if (localValue === null || localValue === undefined) return true
       if (typeof localValue === 'string' && localValue.trim() === '') return true
       if (Array.isArray(localValue) && localValue.length === 0) return true
+      if (field.fieldType === 'date' && !(localValue instanceof Date)) return true
       return false
     }
     
@@ -352,6 +380,140 @@ export function QuestionFieldCard({
               onChange={(benefits) => handleChange(benefits)}
               disabled={status === 'answered'}
             />
+          </div>
+        )
+
+      case 'date':
+        const dateValue = localValue instanceof Date ? localValue : null
+        return (
+          <div className="flex-1">
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between font-normal"
+                  disabled={status === 'answered'}
+                >
+                  {dateValue 
+                    ? dateValue.toLocaleDateString()
+                    : `Select ${field.fieldLabel.toLowerCase()}...`}
+                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateValue || undefined}
+                  onSelect={(date) => {
+                    handleChange(date || null)
+                    setDatePickerOpen(false)
+                  }}
+                  captionLayout="dropdown"
+                  disabled={status === 'answered'}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )
+
+      case 'combobox':
+        const comboboxOptions = field.options || []
+        const selectedOption = comboboxOptions.find(opt => opt.value === (localValue as string))
+        
+        // Filter options based on search
+        const filteredOptions = (() => {
+          if (!searchValue.trim()) return comboboxOptions
+          const searchLower = searchValue.toLowerCase()
+          return comboboxOptions.filter(opt => 
+            opt.label.toLowerCase().includes(searchLower) ||
+            opt.value.toLowerCase().includes(searchLower)
+          )
+        })()
+        
+        // Check if search value exists
+        const searchValueExists = (() => {
+          if (!searchValue.trim()) return false
+          const searchLower = searchValue.trim().toLowerCase()
+          return comboboxOptions.some(opt => 
+            opt.value.toLowerCase() === searchLower ||
+            opt.label.toLowerCase() === searchLower
+          ) || (localValue as string)?.toLowerCase() === searchLower
+        })()
+        
+        const shouldShowCreate = field.onCreateEntity && 
+          searchValue.trim().length >= 2 && 
+          !searchValueExists && 
+          filteredOptions.length === 0
+
+        return (
+          <div className="flex-1">
+            <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between font-normal"
+                  disabled={status === 'answered'}
+                >
+                  {selectedOption ? selectedOption.label : `Select ${field.fieldLabel.toLowerCase()}...`}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandInput 
+                    placeholder={`Search ${field.fieldLabel.toLowerCase()}...`}
+                    value={searchValue}
+                    onValueChange={setSearchValue}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {shouldShowCreate ? (
+                        <div className="p-2">
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => {
+                              if (onCreateEntity) {
+                                onCreateEntity(field, searchValue.trim())
+                              }
+                              setSearchValue("")
+                              setComboboxOpen(false)
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create &quot;{searchValue.trim()}&quot;
+                          </Button>
+                        </div>
+                      ) : (
+                        "No results found."
+                      )}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {filteredOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={() => {
+                            handleChange(option.value)
+                            setSearchValue("")
+                            setComboboxOpen(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              localValue === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         )
 

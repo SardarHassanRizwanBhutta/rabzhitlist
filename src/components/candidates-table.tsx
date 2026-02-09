@@ -529,7 +529,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
       </Tooltip>
     </TooltipProvider>
   )
-}
+  }
 
   return (
     <>
