@@ -27,9 +27,9 @@ export interface DataCompletionSummary {
 export function calculateDataCompletion(candidate: Candidate): DataCompletionSummary {
   const emptyFields = getEmptyFields(candidate)
   const totalFields = getTotalTrackableFields(candidate)
-  const filledFields = totalFields - emptyFields.length
+  const filledFields = Math.max(0, totalFields - emptyFields.length)
   const completionPercentage = totalFields > 0 
-    ? Math.round((filledFields / totalFields) * 100) 
+    ? Math.max(0, Math.min(100, Math.round((filledFields / totalFields) * 100)))
     : 100
 
   // Group empty fields by section
@@ -42,80 +42,86 @@ export function calculateDataCompletion(candidate: Candidate): DataCompletionSum
   // Calculate section breakdown
   const sectionBreakdown: DataCompletionSummary['sectionBreakdown'] = []
   
-  // Basic Information fields (8 fields: postingTitle, cnic, currentSalary, expectedSalary, githubUrl, linkedinUrl, personalityType, resume)
-  const basicTotal = 8
+  // Basic Information fields (7 fields: postingTitle, cnic, currentSalary, expectedSalary, githubUrl, linkedinUrl, personalityType)
+  const basicTotal = 7
   const basicEmpty = sectionEmptyMap.get('basic') || 0
+  const basicFilled = Math.max(0, basicTotal - basicEmpty)
   sectionBreakdown.push({
     section: 'basic',
     label: SECTION_LABELS.basic,
     total: basicTotal,
-    filled: basicTotal - basicEmpty,
+    filled: basicFilled,
     empty: basicEmpty,
-    percentage: basicTotal > 0 ? Math.round(((basicTotal - basicEmpty) / basicTotal) * 100) : 100
+    percentage: basicTotal > 0 ? Math.max(0, Math.min(100, Math.round((basicFilled / basicTotal) * 100))) : 100
   })
 
   // Work Experience fields
-  // 6 fields per work experience: shiftType, workMode, timeSupportZones, techStacks, domains, benefits
-  const weTotal = (candidate.workExperiences?.length || 0) * 6
+  // 8 fields per work experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, domains, benefits
+  const weTotal = (candidate.workExperiences?.length || 0) * 8
   // Plus contribution notes for each project
   const weProjectsTotal = candidate.workExperiences?.reduce((sum, we) => sum + (we.projects?.length || 0), 0) || 0
   const weTotalWithProjects = weTotal + weProjectsTotal
   const weEmpty = sectionEmptyMap.get('workExperience') || 0
+  const weFilled = Math.max(0, weTotalWithProjects - weEmpty)
   sectionBreakdown.push({
     section: 'workExperience',
     label: SECTION_LABELS.workExperience,
     total: weTotalWithProjects,
-    filled: weTotalWithProjects - weEmpty,
+    filled: weFilled,
     empty: weEmpty,
-    percentage: weTotalWithProjects > 0 ? Math.round(((weTotalWithProjects - weEmpty) / weTotalWithProjects) * 100) : 100
+    percentage: weTotalWithProjects > 0 ? Math.max(0, Math.min(100, Math.round((weFilled / weTotalWithProjects) * 100))) : 100
   })
 
   // Education fields (3 fields per education: grades, isTopper, isCheetah)
   const eduTotal = (candidate.educations?.length || 0) * 3
   const eduEmpty = sectionEmptyMap.get('education') || 0
+  const eduFilled = Math.max(0, eduTotal - eduEmpty)
   sectionBreakdown.push({
     section: 'education',
     label: SECTION_LABELS.education,
     total: eduTotal,
-    filled: eduTotal - eduEmpty,
+    filled: eduFilled,
     empty: eduEmpty,
-    percentage: eduTotal > 0 ? Math.round(((eduTotal - eduEmpty) / eduTotal) * 100) : 100
+    percentage: eduTotal > 0 ? Math.max(0, Math.min(100, Math.round((eduFilled / eduTotal) * 100))) : 100
   })
 
   // Certifications fields (1 field per certification: certificationUrl)
   const certTotal = candidate.certifications?.length || 0
   const certEmpty = sectionEmptyMap.get('certifications') || 0
+  const certFilled = Math.max(0, certTotal - certEmpty)
   sectionBreakdown.push({
     section: 'certifications',
     label: SECTION_LABELS.certifications,
     total: certTotal,
-    filled: certTotal - certEmpty,
+    filled: certFilled,
     empty: certEmpty,
-    percentage: certTotal > 0 ? Math.round(((certTotal - certEmpty) / certTotal) * 100) : 100
+    percentage: certTotal > 0 ? Math.max(0, Math.min(100, Math.round((certFilled / certTotal) * 100))) : 100
   })
 
   // Achievements fields (4 fields per achievement: ranking, year, url, description)
   const achievementTotal = (candidate.achievements?.length || 0) * 4
   const achievementEmpty = sectionEmptyMap.get('achievements') || 0
+  const achievementFilled = Math.max(0, achievementTotal - achievementEmpty)
   sectionBreakdown.push({
     section: 'achievements',
     label: SECTION_LABELS.achievements,
     total: achievementTotal,
-    filled: achievementTotal - achievementEmpty,
+    filled: achievementFilled,
     empty: achievementEmpty,
-    percentage: achievementTotal > 0 ? Math.round(((achievementTotal - achievementEmpty) / achievementTotal) * 100) : 100
+    percentage: achievementTotal > 0 ? Math.max(0, Math.min(100, Math.round((achievementFilled / achievementTotal) * 100))) : 100
   })
 
   // Tech Stacks (1 field: standalone techStacks array)
   const techTotal = 1
   const techEmpty = sectionEmptyMap.get('techStacks') || 0
+  const techFilled = Math.max(0, techTotal - techEmpty)
   sectionBreakdown.push({
     section: 'techStacks',
     label: SECTION_LABELS.techStacks,
     total: techTotal,
-    filled: techTotal - techEmpty,
+    filled: techFilled,
     empty: techEmpty,
-    percentage: techTotal > 0 ? Math.round(((techTotal - techEmpty) / techTotal) * 100) : 100
+    percentage: techTotal > 0 ? Math.max(0, Math.min(100, Math.round((techFilled / techTotal) * 100))) : 100
   })
 
   return {

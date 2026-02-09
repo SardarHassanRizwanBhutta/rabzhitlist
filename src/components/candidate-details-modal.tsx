@@ -30,7 +30,8 @@ import {
   Loader2,
   CalendarIcon,
   ChevronsUpDown,
-  Headphones
+  Headphones,
+  Trash2
 } from "lucide-react"
 
 import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -63,6 +64,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -2313,6 +2324,15 @@ export function CandidateDetailsModal({
   const [pendingCertificationName, setPendingCertificationName] = useState<string>("")
   const [pendingCertificationFieldName, setPendingCertificationFieldName] = useState<string | null>(null)
   
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<{ 
+    type: 'independent' | 'workExperience' | 'education' | 'certification' | 'workExperienceEntry' | 'achievement'
+    index: number
+    workExperienceIndex?: number
+    itemName: string 
+  } | null>(null)
+  
   // Define sections for navigation
   const sections = [
     { id: "basic", sectionId: "basic-info", label: "Basic Information", shortLabel: "Basic" },
@@ -2500,6 +2520,170 @@ export function CandidateDetailsModal({
   // Wrapper for benefits field save
   const handleBenefitsFieldSave = async (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => {
     await handleFieldSave(fieldName, newValue, shouldVerify)
+  }
+
+  // Handle independent project deletion - show confirmation dialog
+  const handleDeleteProject = (projectIndex: number) => {
+    if (!candidate) return
+    
+    const project = candidate.projects?.[projectIndex]
+    if (!project) return
+    
+    // Set project to delete and open confirmation dialog
+    setItemToDelete({
+      type: 'independent',
+      index: projectIndex,
+      itemName: project.projectName || 'Unnamed Project'
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle work experience project deletion - show confirmation dialog
+  const handleDeleteWorkExperienceProject = (workExperienceIndex: number, projectIndex: number) => {
+    if (!candidate) return
+    
+    const workExperience = candidate.workExperiences?.[workExperienceIndex]
+    const project = workExperience?.projects?.[projectIndex]
+    if (!project) return
+    
+    // Set project to delete and open confirmation dialog
+    setItemToDelete({
+      type: 'workExperience',
+      index: projectIndex,
+      workExperienceIndex,
+      itemName: project.projectName || 'Unnamed Project'
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle education entry deletion - show confirmation dialog
+  const handleDeleteEducation = (educationIndex: number) => {
+    if (!candidate) return
+    
+    const education = candidate.educations?.[educationIndex]
+    if (!education) return
+    
+    // Create a descriptive name for the education entry
+    const educationName = education.universityLocationName 
+      ? `${education.universityLocationName}${education.degreeName ? ` - ${education.degreeName}` : ''}`
+      : education.degreeName || 'Education entry'
+    
+    setItemToDelete({
+      type: 'education',
+      index: educationIndex,
+      itemName: educationName
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle certification deletion - show confirmation dialog
+  const handleDeleteCertification = (certificationIndex: number) => {
+    if (!candidate) return
+    
+    const certification = candidate.certifications?.[certificationIndex]
+    if (!certification) return
+    
+    setItemToDelete({
+      type: 'certification',
+      index: certificationIndex,
+      itemName: certification.certificationName || 'Certification'
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle work experience entry deletion - show confirmation dialog
+  const handleDeleteWorkExperience = (workExperienceIndex: number) => {
+    if (!candidate) return
+    
+    const workExperience = candidate.workExperiences?.[workExperienceIndex]
+    if (!workExperience) return
+    
+    // Create a descriptive name for the work experience entry
+    const experienceName = workExperience.employerName 
+      ? `${workExperience.employerName}${workExperience.jobTitle ? ` - ${workExperience.jobTitle}` : ''}`
+      : workExperience.jobTitle || 'Work experience entry'
+    
+    setItemToDelete({
+      type: 'workExperienceEntry',
+      index: workExperienceIndex,
+      itemName: experienceName
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle achievement deletion - show confirmation dialog
+  const handleDeleteAchievement = (achievementIndex: number) => {
+    if (!candidate) return
+    
+    const achievements = candidate.achievements || candidate.competitions?.map(comp => ({
+      id: comp.id,
+      name: comp.competitionName,
+      achievementType: 'Competition',
+      ranking: comp.ranking,
+      year: comp.year,
+      url: comp.url,
+      description: undefined
+    }))
+    const achievement = achievements?.[achievementIndex]
+    if (!achievement) return
+    
+    setItemToDelete({
+      type: 'achievement',
+      index: achievementIndex,
+      itemName: achievement.name || 'Achievement'
+    })
+    setDeleteDialogOpen(true)
+  }
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!candidate || !itemToDelete) return
+    
+    try {
+      if (itemToDelete.type === 'independent') {
+        // In real app, this would call API to delete the independent project
+        // await deleteCandidateProject(candidate.id, candidate.projects[itemToDelete.index].id)
+        toast.success(`Project "${itemToDelete.itemName}" deleted successfully`)
+      } else if (itemToDelete.type === 'workExperience' && itemToDelete.workExperienceIndex !== undefined) {
+        // In real app, this would call API to delete the work experience project
+        // await deleteWorkExperienceProject(candidate.id, itemToDelete.workExperienceIndex, itemToDelete.index)
+        toast.success(`Project "${itemToDelete.itemName}" deleted successfully`)
+      } else if (itemToDelete.type === 'education') {
+        // In real app, this would call API to delete the education entry
+        // await deleteEducation(candidate.id, candidate.educations[itemToDelete.index].id)
+        toast.success(`Education entry "${itemToDelete.itemName}" deleted successfully`)
+      } else if (itemToDelete.type === 'certification') {
+        // In real app, this would call API to delete the certification
+        // await deleteCertification(candidate.id, candidate.certifications[itemToDelete.index].id)
+        toast.success(`Certification "${itemToDelete.itemName}" deleted successfully`)
+      } else if (itemToDelete.type === 'workExperienceEntry') {
+        // In real app, this would call API to delete the work experience entry
+        // await deleteWorkExperience(candidate.id, candidate.workExperiences[itemToDelete.index].id)
+        toast.success(`Work experience "${itemToDelete.itemName}" deleted successfully`)
+      } else if (itemToDelete.type === 'achievement') {
+        // In real app, this would call API to delete the achievement
+        // await deleteAchievement(candidate.id, candidate.achievements[itemToDelete.index].id)
+        toast.success(`Achievement "${itemToDelete.itemName}" deleted successfully`)
+      }
+      
+      // Note: In real implementation, you'd update local state or refetch candidate data
+      // This would remove the item from the appropriate array
+      
+      // Close dialog and reset state
+      setDeleteDialogOpen(false)
+      setItemToDelete(null)
+    } catch (error) {
+      toast.error('Failed to delete item. Please try again.')
+      console.error('Error deleting item:', error)
+      setDeleteDialogOpen(false)
+      setItemToDelete(null)
+    }
+  }
+
+  // Handle delete cancellation
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false)
+    setItemToDelete(null)
   }
 
   // Handle employer creation
@@ -3532,25 +3716,37 @@ export function CandidateDetailsModal({
                                 />
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <InlineEditableDate
-                                label="Start Date"
-                                value={experience.startDate}
-                                fieldName={`workExperiences[${idx}].startDate`}
-                                onSave={handleFieldSave}
-                                formatDisplay={formatDate}
-                                verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].startDate`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                              <InlineEditableDate
-                                label="End Date"
-                                value={experience.endDate}
-                                fieldName={`workExperiences[${idx}].endDate`}
-                                onSave={handleFieldSave}
-                                formatDisplay={formatDate}
-                                verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].endDate`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
+                            <div className="flex flex-col items-end gap-3">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteWorkExperience(idx)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                                title="Delete work experience"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <InlineEditableDate
+                                  label="Start Date"
+                                  value={experience.startDate}
+                                  fieldName={`workExperiences[${idx}].startDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
+                                  verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].startDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="End Date"
+                                  value={experience.endDate}
+                                  fieldName={`workExperiences[${idx}].endDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
+                                  verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].endDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -3684,53 +3880,67 @@ export function CandidateDetailsModal({
                               <div className="space-y-3">
                                 {experience.projects.map((project, projIdx) => (
                                   <div key={project.id} className="border rounded-md p-4 bg-muted/30">
-                                    <div className="flex items-center gap-2 mb-2">
-                                      <InlineEditableCombobox
-                                        label=""
-                                        value={project.projectName || ""}
-                                        fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`}
-                                        options={projectOptions}
-                                        onSave={handleFieldSave}
-                                        placeholder="Select project..."
-                                        searchPlaceholder="Search projects..."
-                                        verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`} />}
-                                        getFieldVerification={getFieldVerification}
-                                        creatable={true}
-                                        createLabel="Add New Project"
-                                        onCreateDialog={(searchValue) => {
-                                          setPendingProjectName(searchValue)
-                                          setPendingProjectFieldName(`workExperiences[${idx}].projects[${projIdx}].projectName`)
-                                          setCreateProjectDialogOpen(true)
-                                        }}
-                                        renderDisplay={(displayValue, value) => (
-                                          <button
-                                            onClick={() => handleProjectClick(project.projectName)}
-                                            className="text-base font-medium hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                            title={`View ${displayValue || "Unnamed Project"} details`}
-                                          >
-                                            {displayValue || "Unnamed Project"}
-                                          </button>
+                                    <div className="flex items-start justify-between gap-4">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <InlineEditableCombobox
+                                            label=""
+                                            value={project.projectName || ""}
+                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`}
+                                            options={projectOptions}
+                                            onSave={handleFieldSave}
+                                            placeholder="Select project..."
+                                            searchPlaceholder="Search projects..."
+                                            verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`} />}
+                                            getFieldVerification={getFieldVerification}
+                                            creatable={true}
+                                            createLabel="Add New Project"
+                                            onCreateDialog={(searchValue) => {
+                                              setPendingProjectName(searchValue)
+                                              setPendingProjectFieldName(`workExperiences[${idx}].projects[${projIdx}].projectName`)
+                                              setCreateProjectDialogOpen(true)
+                                            }}
+                                            renderDisplay={(displayValue, value) => (
+                                              <button
+                                                onClick={() => handleProjectClick(project.projectName)}
+                                                className="text-base font-medium hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+                                                title={`View ${displayValue || "Unnamed Project"} details`}
+                                              >
+                                                {displayValue || "Unnamed Project"}
+                                              </button>
+                                            )}
+                                          />
+                                        </div>
+                                        {project.projectName && (
+                                          <DomainBadges
+                                            projectName={project.projectName}
+                                            {...getProjectDetails(project.projectName)}
+                                          />
                                         )}
-                                      />
+                                        {project.contributionNotes && (
+                                          <InlineEditableTextarea
+                                            value={project.contributionNotes}
+                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
+                                            onSave={handleFieldSave}
+                                            maxLength={100}
+                                            verificationIndicator={
+                                              <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
+                                            }
+                                            getFieldVerification={getFieldVerification}
+                                          />
+                                        )}
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDeleteWorkExperienceProject(idx, projIdx)}
+                                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                                        title="Delete project"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
                                     </div>
-                                    {project.projectName && (
-                                      <DomainBadges
-                                        projectName={project.projectName}
-                                        {...getProjectDetails(project.projectName)}
-                                      />
-                                    )}
-                                    {project.contributionNotes && (
-                                      <InlineEditableTextarea
-                                        value={project.contributionNotes}
-                                        fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
-                                        onSave={handleFieldSave}
-                                        maxLength={100}
-                                        verificationIndicator={
-                                          <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
-                                        }
-                                        getFieldVerification={getFieldVerification}
-                                      />
-                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -3938,9 +4148,19 @@ export function CandidateDetailsModal({
                                   getFieldVerification={getFieldVerification}
                                 />
                               )}
-              </div>
-            </div>
-          </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteProject(idx)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                              title="Delete project"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ))
                   )}
@@ -4099,28 +4319,39 @@ export function CandidateDetailsModal({
                                 )}
                               </div>
                             </div>
-                            {/* Dates */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <InlineEditableDate
-                                label="Start Month"
-                                value={education.startMonth}
-                                fieldName={`educations[${idx}].startMonth`}
-                                onSave={handleFieldSave}
-                                formatDisplay={formatMonth}
-                                mode="month"
-                                verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].startMonth`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                              <InlineEditableDate
-                                label="End Month"
-                                value={education.endMonth}
-                                fieldName={`educations[${idx}].endMonth`}
-                                onSave={handleFieldSave}
-                                formatDisplay={formatMonth}
-                                mode="month"
-                                verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].endMonth`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
+                            <div className="flex flex-col items-end gap-3">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteEducation(idx)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                                title="Delete education entry"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <InlineEditableDate
+                                  label="Start Month"
+                                  value={education.startMonth}
+                                  fieldName={`educations[${idx}].startMonth`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatMonth}
+                                  mode="month"
+                                  verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].startMonth`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="End Month"
+                                  value={education.endMonth}
+                                  fieldName={`educations[${idx}].endMonth`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatMonth}
+                                  mode="month"
+                                  verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].endMonth`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -4261,6 +4492,16 @@ export function CandidateDetailsModal({
                                 )}
                               </div>
                             </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteCertification(idx)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                              title="Delete certification"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                           {/* Certificate Link */}
                           {cert.certificationUrl && (
@@ -4378,6 +4619,16 @@ export function CandidateDetailsModal({
                                 )}
                               </div>
                             </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAchievement(idx)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                              title="Delete achievement"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                           {/* Achievement URL */}
                           {ach.url && (
@@ -4522,6 +4773,42 @@ export function CandidateDetailsModal({
         }}
         initialName={pendingCertificationName}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {itemToDelete ? (
+                <>
+                  This will permanently delete{' '}
+                  {itemToDelete.type === 'independent' && 'the independent project'}
+                  {itemToDelete.type === 'workExperience' && 'the work experience project'}
+                  {itemToDelete.type === 'education' && 'the education entry'}
+                  {itemToDelete.type === 'certification' && 'the certification'}
+                  {itemToDelete.type === 'workExperienceEntry' && 'the work experience entry'}
+                  {itemToDelete.type === 'achievement' && 'the achievement'}{' '}
+                  <strong>{itemToDelete.itemName}</strong>. This action cannot be undone.
+                </>
+              ) : (
+                'This action cannot be undone.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }
