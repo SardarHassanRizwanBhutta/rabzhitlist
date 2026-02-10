@@ -362,6 +362,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     })
   } else {
     // Existing educations - check for empty fields within them
+    let hasEmptyFields = false
     candidate.educations.forEach((edu, index) => {
       const context = `${edu.universityLocationName} - ${edu.degreeName}`
       
@@ -380,6 +381,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       eduFields.forEach(field => {
         const value = (edu as unknown as Record<string, unknown>)[field.path]
         if (isEmpty(value)) {
+          hasEmptyFields = true
           emptyFields.push({
             fieldPath: `educations[${index}].${field.path}`,
             apiFieldName: field.apiName,
@@ -394,6 +396,69 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         }
       })
     })
+    
+    // If no empty fields found in existing entries, create placeholder for a new entry
+    if (!hasEmptyFields) {
+      const newIndex = candidate.educations.length
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].universityLocationName`,
+        apiFieldName: `education_${newIndex}_universityLocationName`,
+        fieldLabel: 'University Location',
+        fieldType: 'combobox',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+        options: getUniversityOptions(),
+        onCreateEntity: 'university',
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].degreeName`,
+        apiFieldName: `education_${newIndex}_degreeName`,
+        fieldLabel: 'Degree Name',
+        fieldType: 'text',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].majorName`,
+        apiFieldName: `education_${newIndex}_majorName`,
+        fieldLabel: 'Major Name',
+        fieldType: 'text',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].grades`,
+        apiFieldName: `education_${newIndex}_grades`,
+        fieldLabel: 'Grades',
+        fieldType: 'text',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].isTopper`,
+        apiFieldName: `education_${newIndex}_isTopper`,
+        fieldLabel: 'Topper',
+        fieldType: 'boolean',
+        section: 'education',
+        currentValue: null,
+        options: BOOLEAN_OPTIONS,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].isCheetah`,
+        apiFieldName: `education_${newIndex}_isCheetah`,
+        fieldLabel: 'Cheetah',
+        fieldType: 'boolean',
+        section: 'education',
+        currentValue: null,
+        options: BOOLEAN_OPTIONS,
+        parentIndex: newIndex,
+      })
+    }
   }
 
   // Certification Fields
@@ -572,10 +637,12 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     })
   } else {
     // Existing projects - check for empty fields within them
+    let hasEmptyFields = false
     candidate.projects.forEach((project, index) => {
       const context = project.projectName || 'Unnamed Project'
       
       if (isEmpty(project.projectName)) {
+        hasEmptyFields = true
         emptyFields.push({
           fieldPath: `projects[${index}].projectName`,
           apiFieldName: `project_${index}_projectName`,
@@ -591,6 +658,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       }
       
       if (isEmpty(project.contributionNotes)) {
+        hasEmptyFields = true
         emptyFields.push({
           fieldPath: `projects[${index}].contributionNotes`,
           apiFieldName: `project_${index}_contributionNotes`,
@@ -603,6 +671,31 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         })
       }
     })
+    
+    // If no empty fields found in existing entries, create placeholder for a new entry
+    if (!hasEmptyFields) {
+      const newIndex = candidate.projects.length
+      emptyFields.push({
+        fieldPath: `projects[${newIndex}].projectName`,
+        apiFieldName: `project_${newIndex}_projectName`,
+        fieldLabel: 'Project Name',
+        fieldType: 'combobox',
+        section: 'projects',
+        currentValue: null,
+        parentIndex: newIndex,
+        options: getProjectOptions(),
+        onCreateEntity: 'project',
+      })
+      emptyFields.push({
+        fieldPath: `projects[${newIndex}].contributionNotes`,
+        apiFieldName: `project_${newIndex}_contributionNotes`,
+        fieldLabel: 'Contribution Notes',
+        fieldType: 'textarea',
+        section: 'projects',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+    }
   }
 
   // Standalone Tech Stacks
