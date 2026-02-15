@@ -18,6 +18,9 @@ import {
   ChevronRight,
   FolderOpen,
   Plus,
+  MessageSquare,
+  MessageCircle,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -41,9 +44,10 @@ import type {
   GeneratedQuestion, 
   FieldSection, 
   FieldStatus,
-  FieldState
+  FieldState,
+  InteractionMode
 } from "@/types/cold-caller"
-import { SECTION_LABELS } from "@/types/cold-caller"
+import { SECTION_LABELS, MODE_CONFIG } from "@/types/cold-caller"
 import { 
   getEmptyFields, 
   groupEmptyFieldsBySection, 
@@ -74,6 +78,15 @@ interface ColdCallerDialogProps {
   onOpenChange: (open: boolean) => void
   candidate: Candidate
   onSaveField: (fieldPath: string, value: unknown, verified?: boolean) => Promise<void>
+  mode?: InteractionMode
+}
+
+// Mode icon mapping
+const MODE_ICONS: Record<InteractionMode, React.ElementType> = {
+  coldCaller: Phone,
+  interviewer: MessageSquare,
+  l1: MessageCircle,
+  l2: Users,
 }
 
 export function ColdCallerDialog({
@@ -81,6 +94,7 @@ export function ColdCallerDialog({
   onOpenChange,
   candidate,
   onSaveField,
+  mode = 'coldCaller',
 }: ColdCallerDialogProps) {
   // Field states
   const [fieldStates, setFieldStates] = useState<Map<string, FieldState>>(new Map())
@@ -392,6 +406,10 @@ export function ColdCallerDialog({
     }
   }, [])
 
+  // Get mode configuration
+  const modeConfig = MODE_CONFIG[mode]
+  const ModeIcon = MODE_ICONS[mode]
+
   // Generate questions
   const handleGenerateQuestions = useCallback(async () => {
     setIsLoadingQuestions(true)
@@ -430,7 +448,7 @@ export function ColdCallerDialog({
     } finally {
       setIsLoadingQuestions(false)
     }
-  }, [candidate, emptyFields])
+  }, [candidate, emptyFields, mode])
 
   // Check if all fields are complete
   const allFieldsComplete = emptyFields.length === 0
@@ -811,17 +829,17 @@ export function ColdCallerDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="!max-w-[95vw] lg:!max-w-5xl h-[95vh] overflow-hidden !flex !flex-col p-0">
-        {/* Header */}
+      // In cold-caller-dialog.tsx, line 832
+      <DialogContent className="!max-w-[95vw] lg:!max-w-6xl xl:!max-w-7xl h-[95vh] overflow-hidden !flex !flex-col p-0">        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Phone className="h-6 w-6 text-primary" />
+              <div className={cn("h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center", modeConfig.color)}>
+                <ModeIcon className="h-6 w-6 text-primary" />
               </div>
               <div>
                 <DialogTitle className="text-xl font-semibold mb-1">
-                  Cold Caller Mode
+                  {modeConfig.label} Mode
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground">
                   {candidate.name} • {candidate.mobileNo || 'No phone'}
