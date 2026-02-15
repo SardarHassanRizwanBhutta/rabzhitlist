@@ -31,7 +31,9 @@ import {
   CalendarIcon,
   ChevronsUpDown,
   Headphones,
-  Trash2
+  Trash2,
+  MessageSquare,
+  MessageCircle
 } from "lucide-react"
 
 import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -50,6 +52,8 @@ import { ProjectCreationDialog, ProjectFormData } from "@/components/project-cre
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
 import { ColdCallerDialog } from "@/components/cold-caller"
+import type { InteractionMode } from "@/types/cold-caller"
+import { MODE_CONFIG } from "@/types/cold-caller"
 import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -2480,8 +2484,24 @@ export function CandidateDetailsModal({
   // State for Edit dialog (now includes verification by default)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   
-  // State for Cold Caller dialog
-  const [coldCallerDialogOpen, setColdCallerDialogOpen] = useState(false)
+  // State for Interaction Mode dialog
+  const [interactionMode, setInteractionMode] = useState<InteractionMode | null>(null)
+  const [interactionDialogOpen, setInteractionDialogOpen] = useState(false)
+  
+  // Create icon mapping for modes
+  const MODE_ICONS: Record<InteractionMode, React.ElementType> = {
+    coldCaller: Phone,
+    interviewer: MessageSquare,
+    l1: MessageCircle,
+    l2: Users,
+  }
+  
+  // Persist mode selection to localStorage when a mode is selected
+  useEffect(() => {
+    if (interactionMode && typeof window !== 'undefined') {
+      localStorage.setItem('lastInteractionMode', interactionMode)
+    }
+  }, [interactionMode])
   
   // Handle inline field save with verification
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
@@ -3282,16 +3302,51 @@ export function CandidateDetailsModal({
                 Edit & Verify
               </Button>
               
-              {/* Cold Caller Mode Button */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setColdCallerDialogOpen(true)}
-                className="gap-1.5"
+              {/* Interaction Mode Selector */}
+              <Select 
+                value={interactionMode || undefined} 
+                onValueChange={(value) => {
+                  const selectedMode = value as InteractionMode
+                  setInteractionMode(selectedMode)
+                  setInteractionDialogOpen(true)
+                }}
               >
-                <Headphones className="size-4" />
-                Cold Caller Mode
-              </Button>
+                <SelectTrigger 
+                  size="sm" 
+                  className="w-[180px] h-8 px-3 gap-1.5 text-sm font-medium border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 [&_svg:not([class*='text-'])]:text-foreground data-[placeholder]:text-foreground"
+                >
+                  <SelectValue placeholder="Select a Mode">
+                    {interactionMode ? (() => {
+                      const config = MODE_CONFIG[interactionMode]
+                      const Icon = MODE_ICONS[interactionMode]
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <Icon className="size-4" />
+                          <span>{config.label}</span>
+                        </div>
+                      )
+                    })() : null}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(MODE_CONFIG).map(([key, config]) => {
+                    const Icon = MODE_ICONS[key as InteractionMode]
+                    return (
+                      <SelectItem key={key} value={key}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4" />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{config.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {config.description}
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
               
               {candidate.email && (
               <Button variant="outline" size="sm" asChild>
@@ -4679,12 +4734,13 @@ export function CandidateDetailsModal({
         />
       )}
 
-      {/* Cold Caller Dialog */}
-      {candidate && (
+      {/* Interaction Mode Dialog */}
+      {candidate && interactionMode && (
         <ColdCallerDialog
-          open={coldCallerDialogOpen}
-          onOpenChange={setColdCallerDialogOpen}
+          open={interactionDialogOpen}
+          onOpenChange={setInteractionDialogOpen}
           candidate={candidate}
+          mode={interactionMode}
           onSaveField={async (fieldPath, value, verified) => {
             // Handle field save - this will update the candidate data
             // In a real implementation, this would call an API

@@ -10,13 +10,14 @@ import type { GenerateQuestionsRequest, GenerateQuestionsResponse } from '@/type
 export async function generateQuestions(
   candidateId: string,
   missingFields: string[],
-  candidateData: Candidate
+  candidateData: Candidate,
+  mode?: string
 ): Promise<GenerateQuestionsResponse> {
   const requestBody: GenerateQuestionsRequest = {
     candidate_id: candidateId,
     missing_fields: missingFields,
     candidate_data: candidateData,
-    conversation_context: 'cold_call'
+    conversation_context: mode || 'cold_call'
   }
 
   // Use local Next.js API route to proxy the request (avoids CORS)
