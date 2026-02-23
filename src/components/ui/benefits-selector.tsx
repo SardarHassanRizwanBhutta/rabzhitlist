@@ -186,7 +186,7 @@ export function BenefitsSelector({
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-2", className)}>
       <Label className="text-sm font-medium">Benefits</Label>
       
       {/* Benefit Selector Dropdown */}

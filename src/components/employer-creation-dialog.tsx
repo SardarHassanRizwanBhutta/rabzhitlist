@@ -1149,6 +1149,27 @@ export function EmployerCreationDialog({
                           <VerificationCheckbox fieldName="linkedinUrl" />
                         </div>
 
+                        <div className="space-y-2">
+                          <Label htmlFor="isDPLCompetitive">DPL Competitive</Label>
+                          <div className="flex items-center space-x-2 pt-2">
+                            <Switch
+                              id="isDPLCompetitive"
+                              checked={formData.isDPLCompetitive}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({ ...prev, isDPLCompetitive: checked }))
+                                if (showVerification) {
+                                  setModifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
+                                  setVerifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
+                                }
+                              }}
+                            />
+                            <Label htmlFor="isDPLCompetitive" className="cursor-pointer font-normal">
+                              {formData.isDPLCompetitive ? "Yes" : "No"}
+                            </Label>
+                          </div>
+                          <VerificationCheckbox fieldName="isDPLCompetitive" />
+                        </div>
+
                         <div className="space-y-2 md:col-span-2">
                           <Label htmlFor="techStacks">Tech Stacks</Label>
                           <MultiSelect
@@ -1169,62 +1190,42 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2 md:col-span-2">
-                          <BenefitsSelector
-                            benefits={formData.benefits}
-                            onChange={(benefits) => {
-                              setFormData(prev => ({ ...prev, benefits }))
+                          <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
+                          <Input
+                            id="avgJobTenure"
+                            type="number"
+                            placeholder="e.g., 2.5"
+                            min="0"
+                            step="0.1"
+                            value={formData.avgJobTenure}
+                            onChange={(e) => {
+                              setFormData(prev => ({ ...prev, avgJobTenure: e.target.value }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("benefits"))
-                                setVerifiedFields(prev => new Set(prev).add("benefits"))
+                                setModifiedFields(prev => new Set(prev).add("avgJobTenure"))
+                                setVerifiedFields(prev => new Set(prev).add("avgJobTenure"))
                               }
                             }}
                           />
-                          <VerificationCheckbox fieldName="benefits" />
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
-                          <div className="flex items-center space-x-2">
-                            <Switch
-                              id="isDPLCompetitive"
-                              checked={formData.isDPLCompetitive}
-                              onCheckedChange={(checked) => {
-                                setFormData(prev => ({ ...prev, isDPLCompetitive: checked }))
-                                if (showVerification) {
-                                  setModifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
-                                  setVerifiedFields(prev => new Set(prev).add("isDPLCompetitive"))
-                                }
-                              }}
-                            />
-                            <Label htmlFor="isDPLCompetitive" className="cursor-pointer">
-                              DPL Competitive
-                            </Label>
-                          </div>
-                          <VerificationCheckbox fieldName="isDPLCompetitive" />
+                          <p className="text-xs text-muted-foreground">
+                            Average time employees stay with this employer (calculated from work experience data or manually entered)
+                          </p>
+                          <VerificationCheckbox fieldName="avgJobTenure" />
                         </div>
                       </div>
 
-                      {/* Average Job Tenure */}
+                      {/* Benefits */}
                       <div className="space-y-2">
-                        <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
-                        <Input
-                          id="avgJobTenure"
-                          type="number"
-                          placeholder="e.g., 2.5"
-                          min="0"
-                          step="0.1"
-                          value={formData.avgJobTenure}
-                          onChange={(e) => {
-                            setFormData(prev => ({ ...prev, avgJobTenure: e.target.value }))
+                        <BenefitsSelector
+                          benefits={formData.benefits}
+                          onChange={(benefits) => {
+                            setFormData(prev => ({ ...prev, benefits }))
                             if (showVerification) {
-                              setModifiedFields(prev => new Set(prev).add("avgJobTenure"))
-                              setVerifiedFields(prev => new Set(prev).add("avgJobTenure"))
+                              setModifiedFields(prev => new Set(prev).add("benefits"))
+                              setVerifiedFields(prev => new Set(prev).add("benefits"))
                             }
                           }}
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Average time employees stay with this employer (calculated from work experience data or manually entered)
-                        </p>
-                        <VerificationCheckbox fieldName="avgJobTenure" />
+                        <VerificationCheckbox fieldName="benefits" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1521,135 +1522,130 @@ export function EmployerCreationDialog({
                       Add Layoff
                     </Button>
                   </div>
+
                   {formData.layoffs.length === 0 ? (
                     <p className="text-base text-muted-foreground text-center py-6">No layoffs recorded</p>
                   ) : (
-                    <Card>
-                      <CardContent className="pt-0">
-                        <div className="space-y-4">
-                          {formData.layoffs.map((layoff, index) => (
-                            <Card key={layoff.id} className="relative">
-                              <CardHeader className="pb-4">
-                                <CardTitle className="flex items-center justify-between text-base">
-                                  <span>Layoff {index + 1}</span>
+                    formData.layoffs.map((layoff, index) => (
+                      <Card key={layoff.id} className="relative">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="flex items-center justify-between text-base">
+                            <span>Layoff {index + 1}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeLayoff(index)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`layoffDate-${index}`}>Layoff Date *</Label>
+                              <Popover>
+                                <PopoverTrigger asChild>
                                   <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeLayoff(index)}
-                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                                    variant="outline"
+                                    className={cn(
+                                      "w-full justify-start text-left font-normal",
+                                      !layoff.layoffDate && "text-muted-foreground",
+                                      errors.layoffs?.[index]?.layoffDate && "border-red-500"
+                                    )}
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
+                                    {layoff.layoffDate ? format(layoff.layoffDate, "PPP") : "Pick a date"}
                                   </Button>
-                                </CardTitle>
-                              </CardHeader>
-                              <CardContent className="pt-0">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`layoffDate-${index}`}>Layoff Date *</Label>
-                                    <Popover>
-                                      <PopoverTrigger asChild>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          className={cn(
-                                            "w-full justify-start text-left font-normal",
-                                            !layoff.layoffDate && "text-muted-foreground",
-                                            errors.layoffs?.[index]?.layoffDate && "border-red-500"
-                                          )}
-                                        >
-                                          <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
-                                          {layoff.layoffDate ? format(layoff.layoffDate, "PPP") : "Pick a date"}
-                                        </Button>
-                                      </PopoverTrigger>
-                                      <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                          mode="single"
-                                          selected={layoff.layoffDate}
-                                          onSelect={(date) => handleLayoffChange(index, "layoffDate", date)}
-                                          disabled={(date) => date > new Date()}
-                                          captionLayout="dropdown"
-                                          initialFocus
-                                        />
-                                      </PopoverContent>
-                                    </Popover>
-                                    {errors.layoffs?.[index]?.layoffDate && (
-                                      <p className="text-sm text-red-500">{errors.layoffs[index].layoffDate}</p>
-                                    )}
-                                    <VerificationCheckbox fieldName={`layoffs[${index}].layoffDate`} />
-                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={layoff.layoffDate}
+                                    onSelect={(date) => handleLayoffChange(index, "layoffDate", date)}
+                                    disabled={(date) => date > new Date()}
+                                    captionLayout="dropdown"
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              {errors.layoffs?.[index]?.layoffDate && (
+                                <p className="text-sm text-red-500">{errors.layoffs[index].layoffDate}</p>
+                              )}
+                              <VerificationCheckbox fieldName={`layoffs[${index}].layoffDate`} />
+                            </div>
 
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`numberOfEmployeesLaidOff-${index}`}>Number of Employees Laid Off *</Label>
-                                    <Input
-                                      id={`numberOfEmployeesLaidOff-${index}`}
-                                      type="number"
-                                      min="1"
-                                      value={layoff.numberOfEmployeesLaidOff}
-                                      onChange={(e) => handleLayoffChange(index, "numberOfEmployeesLaidOff", e.target.value)}
-                                      placeholder="e.g., 50"
-                                      className={errors.layoffs?.[index]?.numberOfEmployeesLaidOff ? "border-red-500" : ""}
-                                    />
-                                    {errors.layoffs?.[index]?.numberOfEmployeesLaidOff && (
-                                      <p className="text-sm text-red-500">{errors.layoffs[index].numberOfEmployeesLaidOff}</p>
-                                    )}
-                                    <VerificationCheckbox fieldName={`layoffs[${index}].numberOfEmployeesLaidOff`} />
-                                  </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`numberOfEmployeesLaidOff-${index}`}>Number of Employees Laid Off *</Label>
+                              <Input
+                                id={`numberOfEmployeesLaidOff-${index}`}
+                                type="number"
+                                min="1"
+                                value={layoff.numberOfEmployeesLaidOff}
+                                onChange={(e) => handleLayoffChange(index, "numberOfEmployeesLaidOff", e.target.value)}
+                                placeholder="e.g., 50"
+                                className={errors.layoffs?.[index]?.numberOfEmployeesLaidOff ? "border-red-500" : ""}
+                              />
+                              {errors.layoffs?.[index]?.numberOfEmployeesLaidOff && (
+                                <p className="text-sm text-red-500">{errors.layoffs[index].numberOfEmployeesLaidOff}</p>
+                              )}
+                              <VerificationCheckbox fieldName={`layoffs[${index}].numberOfEmployeesLaidOff`} />
+                            </div>
 
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`reason-${index}`}>Reason *</Label>
-                                    <Select 
-                                      value={layoff.reason} 
-                                      onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReason)}
-                                    >
-                                      <SelectTrigger className={errors.layoffs?.[index]?.reason ? "border-red-500" : ""}>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {Object.entries(LAYOFF_REASON_LABELS).map(([value, label]) => (
-                                          <SelectItem key={value} value={value}>
-                                            {label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    {layoff.reason === "Other" && (
-                                      <div className="mt-2">
-                                        <Input
-                                          placeholder="Specify reason"
-                                          value={layoff.reasonOther}
-                                          onChange={(e) => handleLayoffChange(index, "reasonOther", e.target.value)}
-                                          className={errors.layoffs?.[index]?.reasonOther ? "border-red-500" : ""}
-                                        />
-                                        {errors.layoffs?.[index]?.reasonOther && (
-                                          <p className="text-sm text-red-500 mt-1">{errors.layoffs[index].reasonOther}</p>
-                                        )}
-                                      </div>
-                                    )}
-                                    <VerificationCheckbox fieldName={`layoffs[${index}].reason`} />
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`source-${index}`}>Source *</Label>
-                                    <Input
-                                      id={`source-${index}`}
-                                      value={layoff.source}
-                                      onChange={(e) => handleLayoffChange(index, "source", e.target.value)}
-                                      placeholder="e.g., Company announcement, News article"
-                                      className={errors.layoffs?.[index]?.source ? "border-red-500" : ""}
-                                    />
-                                    {errors.layoffs?.[index]?.source && (
-                                      <p className="text-sm text-red-500">{errors.layoffs[index].source}</p>
-                                    )}
-                                    <VerificationCheckbox fieldName={`layoffs[${index}].source`} />
-                                  </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`reason-${index}`}>Reason *</Label>
+                              <Select 
+                                value={layoff.reason} 
+                                onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReason)}
+                              >
+                                <SelectTrigger className={errors.layoffs?.[index]?.reason ? "border-red-500" : ""}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.entries(LAYOFF_REASON_LABELS).map(([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {layoff.reason === "Other" && (
+                                <div className="mt-2">
+                                  <Input
+                                    placeholder="Specify reason"
+                                    value={layoff.reasonOther}
+                                    onChange={(e) => handleLayoffChange(index, "reasonOther", e.target.value)}
+                                    className={errors.layoffs?.[index]?.reasonOther ? "border-red-500" : ""}
+                                  />
+                                  {errors.layoffs?.[index]?.reasonOther && (
+                                    <p className="text-sm text-red-500 mt-1">{errors.layoffs[index].reasonOther}</p>
+                                  )}
                                 </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
+                              )}
+                              <VerificationCheckbox fieldName={`layoffs[${index}].reason`} />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`source-${index}`}>Source *</Label>
+                              <Input
+                                id={`source-${index}`}
+                                value={layoff.source}
+                                onChange={(e) => handleLayoffChange(index, "source", e.target.value)}
+                                placeholder="e.g., Company announcement, News article"
+                                className={errors.layoffs?.[index]?.source ? "border-red-500" : ""}
+                              />
+                              {errors.layoffs?.[index]?.source && (
+                                <p className="text-sm text-red-500">{errors.layoffs[index].source}</p>
+                              )}
+                              <VerificationCheckbox fieldName={`layoffs[${index}].source`} />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
                   )}
                 </CollapsibleContent>
               </Collapsible>
