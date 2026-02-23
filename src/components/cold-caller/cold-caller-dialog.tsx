@@ -829,7 +829,6 @@ export function ColdCallerDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      // In cold-caller-dialog.tsx, line 832
       <DialogContent className="!max-w-[95vw] lg:!max-w-6xl xl:!max-w-7xl h-[95vh] overflow-hidden !flex !flex-col p-0">        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-start justify-between">
