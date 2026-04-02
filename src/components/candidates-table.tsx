@@ -1,7 +1,26 @@
 "use client"
 
 import * as React from "react"
-import { MoreHorizontal, Eye, Edit, ChevronUp, ChevronDown, User, Trash2, Target, Check, FolderOpen, Building2, GraduationCap, Award, Info } from "lucide-react"
+import {
+  MoreHorizontal,
+  Eye,
+  Edit,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  User,
+  Trash2,
+  Target,
+  Check,
+  FolderOpen,
+  Building2,
+  GraduationCap,
+  Award,
+  Info,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -15,6 +34,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,7 +62,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
-import { CandidateCreationDialog, CandidateFormData } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
 import { 
   getCandidateMatchContext, 
@@ -46,10 +72,37 @@ import {
 import { calculateDataCompletion } from "@/lib/utils/data-completion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import type { EmployerBenefit } from "@/lib/types/benefits"
+import {
+  deleteCandidate,
+  fetchCandidateById,
+  updateCandidate,
+  candidateFormDataToUpdateDto,
+} from "@/lib/services/candidates-api"
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
 interface CandidatesTableProps {
   candidates: Candidate[]
   filters?: CandidateFilters
+  candidateLookups?: CandidateLookups
+  lookupsLoading?: boolean
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
+  /** Persist new tech stack via API; updates parent lookup list. */
+  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
+  onCreateDegree?: (name: string) => Promise<void>
+  onCreateMajor?: (name: string) => Promise<void>
+  /** Called after create/update/delete so the list can refetch from the server. */
+  onCandidatesListChanged?: () => void
 }
 
 type SortDirection = "asc" | "desc" | null
@@ -62,6 +115,12 @@ const getJobTitle = (candidate: Candidate): string => {
 
 // Helper function to calculate total years of experience from work experiences
 const calculateYearsOfExperience = (candidate: Candidate): number => {
+  if (
+    candidate.totalExperienceYears != null &&
+    Number.isFinite(candidate.totalExperienceYears)
+  ) {
+    return candidate.totalExperienceYears
+  }
   if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
     return 0
   }
@@ -218,10 +277,6 @@ const defaultFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
-  universities: [],
-  universityCountries: [],
-  universityRankings: [],
-  universityCities: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,
@@ -245,7 +300,26 @@ const defaultFilters: CandidateFilters = {
   dataProgressMax: "",
 }
 
-export function CandidatesTable({ candidates, filters = defaultFilters }: CandidatesTableProps) {
+export function CandidatesTable({
+  candidates,
+  filters = defaultFilters,
+  candidateLookups,
+  lookupsLoading,
+  totalCount,
+  pageNumber,
+  pageSize,
+  totalPages,
+  hasPrevious,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
+  onCreateTechStack,
+  onCreateTimeSupportZone,
+  onCreateBenefit,
+  onCreateDegree,
+  onCreateMajor,
+  onCandidatesListChanged,
+}: CandidatesTableProps) {
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [sortColumn, setSortColumn] = React.useState<SortableColumn | null>(null)
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null)
@@ -255,22 +329,48 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
   const [candidateToEdit, setCandidateToEdit] = React.useState<Candidate | null>(null)
   const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set())
   const [expandedCategories, setExpandedCategories] = React.useState<Map<string, Set<string>>>(new Map())
+  const [editFetchLoading, setEditFetchLoading] = React.useState(false)
+  const [deleteInProgress, setDeleteInProgress] = React.useState(false)
 
   const activeFilters = hasActiveFilters(filters)
   const hasAvgTenureFilter = !!(filters?.avgJobTenureMin || filters?.avgJobTenureMax)
 
-  const handleEdit = (candidate: Candidate, e: React.MouseEvent) => {
+  const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation()
-    setCandidateToEdit(candidate)
-    setEditDialogOpen(true)
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    setEditFetchLoading(true)
+    try {
+      const full = await fetchCandidateById(id)
+      setCandidateToEdit(full)
+      setEditDialogOpen(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load candidate.")
+    } finally {
+      setEditFetchLoading(false)
+    }
   }
 
   const handleUpdateCandidate = async (formData: CandidateFormData) => {
-    // TODO: Implement actual update API call
-    console.log("Update candidate:", candidateToEdit?.id, formData)
-    // For now, just close the dialog
-    setEditDialogOpen(false)
-    setCandidateToEdit(null)
+    if (!candidateToEdit) return
+    const id = Number(candidateToEdit.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    try {
+      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
+      toast.success("Candidate updated successfully.")
+      onCandidatesListChanged?.()
+      setEditDialogOpen(false)
+      setCandidateToEdit(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
+      throw err
+    }
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
@@ -279,17 +379,24 @@ export function CandidatesTable({ candidates, filters = defaultFilters }: Candid
     setDeleteDialogOpen(true)
   }
 
-  const handleDeleteConfirm = () => {
-    if (candidateToDelete) {
-      // TODO: Implement actual delete API call
-      console.log("Delete candidate:", candidateToDelete)
-      
-      // Show success toast
-      toast.success(`Candidate ${candidateToDelete.name} has been deleted successfully.`)
-      
-      // Close dialog and reset state
+  const handleDeleteConfirm = async () => {
+    if (!candidateToDelete || deleteInProgress) return
+    const id = Number(candidateToDelete.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    setDeleteInProgress(true)
+    try {
+      await deleteCandidate(id)
+      toast.success(`Candidate ${candidateToDelete.name} has been deleted.`)
+      onCandidatesListChanged?.()
       setDeleteDialogOpen(false)
       setCandidateToDelete(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete candidate.")
+    } finally {
+      setDeleteInProgress(false)
     }
   }
 
@@ -784,9 +891,10 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="cursor-pointer"
+                            disabled={editFetchLoading}
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleEdit(candidate, e)
+                              void handleEdit(candidate, e)
                             }}
                           >
                             <Edit className="mr-2 h-4 w-4" />
@@ -917,6 +1025,78 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
         </Table>
       </div>
 
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center space-x-2">
+          <p className="text-sm font-medium">Rows per page</p>
+          <Select
+            value={pageSize.toString()}
+            onValueChange={(value) => onPageSizeChange(parseInt(value))}
+          >
+            <SelectTrigger className="h-8 w-[70px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent side="top">
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center space-x-6 lg:space-x-8">
+          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+            Page {pageNumber} of {totalPages || 1}
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => onPageChange(1)}
+              disabled={!hasPrevious}
+            >
+              <span className="sr-only">Go to first page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => onPageChange(pageNumber - 1)}
+              disabled={!hasPrevious}
+            >
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => onPageChange(pageNumber + 1)}
+              disabled={!hasNext}
+            >
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => onPageChange(totalPages)}
+              disabled={!hasNext}
+            >
+              <span className="sr-only">Go to last page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Info */}
+      <div className="text-xs text-muted-foreground">
+        Showing {totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1} to{" "}
+        {Math.min(pageNumber * pageSize, totalCount)} of {totalCount} candidates
+      </div>
+
       <CandidateDetailsModal
         candidate={selectedCandidate}
         open={!!selectedCandidate}
@@ -957,6 +1137,16 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdateCandidate}
+        lookups={candidateLookups}
+        onCreateTechStack={onCreateTechStack}
+        onCreateTimeSupportZone={onCreateTimeSupportZone}
+        onCreateBenefit={onCreateBenefit}
+        onCreateDegree={onCreateDegree}
+        onCreateMajor={onCreateMajor}
+        techStacksLoading={lookupsLoading}
+        timeSupportZonesLoading={lookupsLoading}
+        benefitsLoading={lookupsLoading}
+        degreesMajorsLoading={lookupsLoading}
       />
     </>
   )

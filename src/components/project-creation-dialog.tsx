@@ -38,24 +38,38 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Loader2, Plus, Check, ChevronsUpDown, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react"
+import { Loader2, Plus, Check, ChevronsUpDown, ShieldCheck, ChevronDown, ChevronRight, X } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
-import { Project, ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
+import { Project, ProjectStatus, ProjectType, PROJECT_STATUS_LABELS, PROJECT_TYPES } from "@/lib/types/project"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
+import type { LookupItem } from "@/lib/services/lookups-api"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { sampleEmployers } from "@/lib/sample-data/employers"  // Add this import
+import { searchEmployers, fetchEmployerById, createEmployer, buildCreateEmployerDto } from "@/lib/services/employers-api"
+import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
   getVerificationsForProject,
 } from "@/lib/sample-data/verification"
 
+/** Selected employer for project (server-driven combobox; submit sends only employerId). */
+export type SelectedEmployer = { id: number; name: string } | null
+
 // Form data interface
 export interface ProjectFormData {
   projectName: string
-  employerName: string  // Add this
+  selectedEmployer: SelectedEmployer
   projectType: string
-  teamSize: string
+  minTeamSize: string
+  maxTeamSize: string
   startDate: Date | undefined
   endDate: Date | undefined
   status: ProjectStatus | ""
@@ -66,6 +80,7 @@ export interface ProjectFormData {
   publishPlatforms: string[]
   downloadCount: string
   techStacks: string[]
+  clientLocations: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
@@ -79,6 +94,14 @@ export interface ProjectVerificationState {
 
 type DialogMode = "create" | "edit"
 
+export interface ProjectLookups {
+  techStacks: LookupItem[]
+  verticalDomains: LookupItem[]
+  horizontalDomains: LookupItem[]
+  technicalAspects: LookupItem[]
+  clientLocations: LookupItem[]
+}
+
 interface ProjectCreationDialogProps {
   children?: React.ReactNode
   mode?: DialogMode
@@ -88,13 +111,21 @@ interface ProjectCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string
+  /** When provided, Technologies, Domains, and Client Location dropdowns use these; "+ Add" calls the create handlers. */
+  lookups?: ProjectLookups
+  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateVerticalDomain?: (name: string) => Promise<void>
+  onCreateHorizontalDomain?: (name: string) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }
 
 const initialFormData: ProjectFormData = {
   projectName: "",
-  employerName: "",  // Add this
+  selectedEmployer: null,
   projectType: "",
-  teamSize: "",
+  minTeamSize: "",
+  maxTeamSize: "",
   startDate: undefined,
   endDate: undefined,
   status: "",
@@ -105,6 +136,7 @@ const initialFormData: ProjectFormData = {
   publishPlatforms: [],
   downloadCount: "",
   techStacks: [],
+  clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
   technicalAspects: [],
@@ -132,6 +164,17 @@ const extractUniqueTechStacks = (): string[] => {
   return Array.from(techStacks).sort()
 }
 
+// Extract unique client locations from projects (for MultiSelect options)
+const extractUniqueClientLocations = (): string[] => {
+  const locations = new Set<string>()
+  sampleProjects.forEach(project => {
+    if (project.clientLocation) {
+      locations.add(project.clientLocation)
+    }
+  })
+  return Array.from(locations).sort()
+}
+
 const extractUniqueVerticalDomains = (): string[] => {
   const domains = new Set<string>()
   sampleProjects.forEach(project => {
@@ -156,54 +199,40 @@ const extractUniqueTechnicalAspects = (): string[] => {
   return Array.from(aspects).sort()
 }
 
-const extractUniqueProjectTypes = (): string[] => {
-  const types = new Set<string>()
-  sampleProjects.forEach(project => {
-    types.add(project.projectType)
-  })
-  return Array.from(types).sort()
-}
-
-// Project type options
-const projectTypeOptions: MultiSelectOption[] = extractUniqueProjectTypes().map(type => ({
+// Type options: fixed list matching backend project_type_enum (employer, academic, personal, freelance, open_source)
+const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   value: type,
-  label: type
+  label: type,
 }))
 
-// Employer options - Add this
-const employerOptions: MultiSelectOption[] = sampleEmployers.map(employer => ({
-  value: employer.name,  // Use employer name as value to match Project.employerName
-  label: employer.name
-}))
 
-// Multi-select options extracted from actual project data
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
-  value: tech,
-  label: tech
-}))
 
-const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
-}))
-
-const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
-  value: aspect,
-  label: aspect
-}))
+// Parse project.teamSize ("5" or "10-20") into min/max for form
+function parseTeamSizeToForm(teamSize: string | null): { min: string; max: string } {
+  if (!teamSize?.trim()) return { min: "", max: "" }
+  const t = teamSize.trim()
+  const rangeMatch = t.match(/^(\d+)-(\d+)$/)
+  if (rangeMatch) {
+    return { min: rangeMatch[1], max: rangeMatch[2] }
+  }
+  const num = parseInt(t, 10)
+  if (!isNaN(num)) return { min: String(num), max: String(num) }
+  return { min: "", max: "" }
+}
 
 // Helper function to convert Project to ProjectFormData
 const projectToFormData = (project: Project): ProjectFormData => {
+  const { min: minTeamSize, max: maxTeamSize } = parseTeamSizeToForm(project.teamSize ?? "")
+  const selectedEmployer: SelectedEmployer =
+    project.employerId != null && project.employerName
+      ? { id: project.employerId, name: project.employerName }
+      : null
   return {
     projectName: project.projectName || "",
-    employerName: project.employerName || "",  // Add this
+    selectedEmployer,
     projectType: project.projectType || "",
-    teamSize: project.teamSize || "",
+    minTeamSize,
+    maxTeamSize,
     startDate: project.startDate ? new Date(project.startDate) : undefined,
     endDate: project.endDate ? new Date(project.endDate) : undefined,
     status: project.status || "",
@@ -213,8 +242,8 @@ const projectToFormData = (project: Project): ProjectFormData => {
     isPublished: project.isPublished || false,
     publishPlatforms: project.publishPlatforms ? [...project.publishPlatforms] : [],
     downloadCount: project.downloadCount ? project.downloadCount.toString() : "",
-    // Create new arrays to avoid reference issues
     techStacks: project.techStacks ? [...project.techStacks] : [],
+    clientLocations: project.clientLocations?.length ? [...project.clientLocations] : (project.clientLocation ? [project.clientLocation] : []),
     verticalDomains: project.verticalDomains ? [...project.verticalDomains] : [],
     horizontalDomains: project.horizontalDomains ? [...project.horizontalDomains] : [],
     technicalAspects: project.technicalAspects ? [...project.technicalAspects] : [],
@@ -223,10 +252,10 @@ const projectToFormData = (project: Project): ProjectFormData => {
 
 // All verifiable fields for projects
 const PROJECT_VERIFICATION_FIELDS = [
-  'projectName', 'employerName', 'projectType', 'teamSize', 'status', 
+  'projectName', 'selectedEmployer', 'projectType', 'minTeamSize', 'maxTeamSize', 'status',
   'startDate', 'endDate', 'description', 'notes', 'projectLink',
   'isPublished', 'publishPlatforms', 'downloadCount',
-  'techStacks', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
+  'techStacks', 'clientLocations', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
 ]
 
 export function ProjectCreationDialog({
@@ -238,8 +267,35 @@ export function ProjectCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  lookups,
+  onCreateTechStack,
+  onCreateVerticalDomain,
+  onCreateHorizontalDomain,
+  onCreateTechnicalAspect,
+  onCreateClientLocation,
 }: ProjectCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+
+  const techStackOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueTechStacks().map((t) => ({ value: t, label: t })),
+    [lookups?.techStacks]
+  )
+  const verticalDomainOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.verticalDomains?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueVerticalDomains().map((d) => ({ value: d, label: d })),
+    [lookups?.verticalDomains]
+  )
+  const horizontalDomainOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.horizontalDomains?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueHorizontalDomains().map((d) => ({ value: d, label: d })),
+    [lookups?.horizontalDomains]
+  )
+  const technicalAspectOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.technicalAspects?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a })),
+    [lookups?.technicalAspects]
+  )
+  const clientLocationOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.clientLocations?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc })),
+    [lookups?.clientLocations]
+  )
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<Record<keyof ProjectFormData, string>>>({})
@@ -319,6 +375,86 @@ export function ProjectCreationDialog({
     }
   }, [open, mode, projectData, showVerification])
 
+  // Employer combobox: server-driven search (no prefetch)
+  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
+  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
+  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
+  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
+  const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
+  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const employerAbortRef = useRef<AbortController | null>(null)
+
+  // Edit mode: preload employer by ID when dialog opens (no search call)
+  useEffect(() => {
+    if (!open || mode !== "edit" || !projectData?.employerId) return
+    const id = projectData.employerId
+    fetchEmployerById(id)
+      .then((emp) => {
+        setFormData((prev) => ({ ...prev, selectedEmployer: emp }))
+      })
+      .catch(() => {
+        // Keep form as-is if fetch fails
+      })
+  }, [open, mode, projectData?.employerId])
+
+  // Debounced employer search: min 2 chars, 300ms debounce, abort stale
+  useEffect(() => {
+    if (employerDebounceRef.current) {
+      clearTimeout(employerDebounceRef.current)
+      employerDebounceRef.current = null
+    }
+    if (employerSearchQuery.trim().length < 2) {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+        employerAbortRef.current = null
+      }
+      setEmployerSearchResults([])
+      setEmployerSearchLoading(false)
+      return
+    }
+    employerDebounceRef.current = setTimeout(() => {
+      employerDebounceRef.current = null
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+      const controller = new AbortController()
+      employerAbortRef.current = controller
+      setEmployerSearchLoading(true)
+      const query = employerSearchQuery.trim()
+      searchEmployers(query, 10, controller.signal)
+        .then((list) => {
+          if (employerAbortRef.current !== controller) return
+          setEmployerSearchResults(list)
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return
+          setEmployerSearchResults([])
+        })
+        .finally(() => {
+          if (employerAbortRef.current === controller) {
+            setEmployerSearchLoading(false)
+          }
+        })
+    }, 300)
+    return () => {
+      if (employerDebounceRef.current) {
+        clearTimeout(employerDebounceRef.current)
+      }
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [employerSearchQuery])
+
+  // Abort in-flight employer search on unmount
+  useEffect(() => {
+    return () => {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [])
+
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!showVerification) return false
@@ -334,7 +470,7 @@ export function ProjectCreationDialog({
     setOpen(newOpen)
   }
 
-  const handleInputChange = (field: keyof ProjectFormData, value: string | Date | undefined | string[] | boolean) => {
+  const handleInputChange = (field: keyof ProjectFormData, value: string | Date | undefined | string[] | boolean | SelectedEmployer) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     
     // Track modifications and auto-verify in verification mode
@@ -408,7 +544,7 @@ export function ProjectCreationDialog({
 
   // Section progress calculations
   const basicInfoProgress = useMemo(() => 
-    calculateSectionProgress(['projectName', 'employerName', 'projectType', 'teamSize', 'status']),
+    calculateSectionProgress(['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'minTeamSize', 'maxTeamSize', 'status']),
     [verifiedFields]
   )
 
@@ -442,7 +578,7 @@ export function ProjectCreationDialog({
   // Helper to get field names for a section
   const getSectionFieldNames = (sectionId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      'basic-info': ['projectName', 'employerName', 'projectType', 'teamSize', 'status'],
+      'basic-info': ['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'minTeamSize', 'maxTeamSize', 'status'],
       'dates': ['startDate', 'endDate'],
       'tech-stack': ['techStacks'],
       'domains': ['verticalDomains', 'horizontalDomains', 'technicalAspects'],
@@ -533,13 +669,19 @@ export function ProjectCreationDialog({
       newErrors.projectName = "Project name is required"
     }
 
-    if (!formData.teamSize.trim()) {
-      newErrors.teamSize = "Team size is required"
+    const minTeamSizeNum = formData.minTeamSize.trim() ? parseInt(formData.minTeamSize, 10) : null
+    const maxTeamSizeNum = formData.maxTeamSize.trim() ? parseInt(formData.maxTeamSize, 10) : null
+    if (minTeamSizeNum === null && maxTeamSizeNum === null) {
+      newErrors.minTeamSize = "Minimum or maximum team size is required"
     } else {
-      // Validate team size format (single number or range)
-      const teamSizePattern = /^\d+(-\d+)?$/
-      if (!teamSizePattern.test(formData.teamSize.trim())) {
-        newErrors.teamSize = "Team size must be a number (e.g., '5') or range (e.g., '5-10')"
+      if (formData.minTeamSize.trim() && (isNaN(minTeamSizeNum!) || minTeamSizeNum! < 0)) {
+        newErrors.minTeamSize = "Must be 0 or greater"
+      }
+      if (formData.maxTeamSize.trim() && (isNaN(maxTeamSizeNum!) || maxTeamSizeNum! < 0)) {
+        newErrors.maxTeamSize = "Must be 0 or greater"
+      }
+      if (minTeamSizeNum !== null && maxTeamSizeNum !== null && minTeamSizeNum > maxTeamSizeNum) {
+        newErrors.maxTeamSize = "Maximum team size must be greater than or equal to minimum"
       }
     }
 
@@ -728,9 +870,9 @@ export function ProjectCreationDialog({
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
-                      {/* Project Name */}
+                      {/* Name */}
                       <div className="space-y-2">
-                        <Label htmlFor="projectName">Project Name *</Label>
+                        <Label htmlFor="projectName">Name *</Label>
                         <Input
                           id="projectName"
                           type="text"
@@ -743,172 +885,227 @@ export function ProjectCreationDialog({
                         <VerificationCheckbox fieldName="projectName" />
                       </div>
 
-                      {/* Employer - Add this */}
-                      <div className="space-y-2">
-                        <Label htmlFor="employerName">Employer</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={`w-full justify-between ${errors.employerName ? "border-red-500" : ""}`}
-                            >
-                              {formData.employerName
-                                ? employerOptions.find((option) => option.value === formData.employerName)?.label
-                                : "Select employer"}
-                              <ChevronsUpDown className="opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                              <CommandInput placeholder="Search employer..." className="h-9" />
-                              <CommandList>
-                                <CommandEmpty>No employer found.</CommandEmpty>
-                                <CommandGroup>
-                                  <CommandItem
-                                    value=""
-                                    onSelect={() => {
-                                      handleInputChange("employerName", "")
-                                    }}
-                                    className="cursor-pointer"
-                                  >
-                                    <Check
-                                      className={`ml-auto ${formData.employerName === "" ? "opacity-100" : "opacity-0"}`}
-                                    />
-                                    Not Linked
-                                  </CommandItem>
-                                  {employerOptions.map((employer) => (
-                                    <CommandItem
-                                      key={employer.value}
-                                      value={employer.value}
-                                      onSelect={(currentValue) => {
-                                        handleInputChange("employerName", currentValue)
-                                      }}
-                                      className="cursor-pointer"
-                                    >
-                                      {employer.label}
-                                      <Check
-                                        className={`ml-auto ${formData.employerName === employer.value ? "opacity-100" : "opacity-0"}`}
-                                      />
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                        {errors.employerName && <p className="text-sm text-red-500">{errors.employerName}</p>}
-                        <VerificationCheckbox fieldName="employerName" />
-                      </div>
-
-                      {/* Project Type */}
-                      <div className="space-y-2">
-                        <Label htmlFor="projectType">Project Type</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={`w-full justify-between ${errors.projectType ? "border-red-500" : ""}`}
-                            >
-                              {formData.projectType
-                                ? projectTypeOptions.find((option) => option.value === formData.projectType)?.label
-                                : "Select project type"}
-                              <ChevronsUpDown className="opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                            <Command>
-                              <CommandInput placeholder="Search type..." className="h-9" />
-                              <CommandList>
-                                <CommandEmpty>No type found.</CommandEmpty>
-                                <CommandGroup>
-                                  {projectTypeOptions.map((type) => (
-                                    <CommandItem
-                                      key={type.value}
-                                      value={type.value}
-                                      onSelect={(currentValue) => {
-                                        handleInputChange("projectType", currentValue)
-                                      }}
-                                      className="cursor-pointer"
-                                    >
-                                      {type.label}
-                                      <Check
-                                        className={`ml-auto ${formData.projectType === type.value ? "opacity-100" : "opacity-0"}`}
-                                      />
-                                    </CommandItem>
-                                  ))}
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                        {errors.projectType && <p className="text-sm text-red-500">{errors.projectType}</p>}
-                        <VerificationCheckbox fieldName="projectType" />
-                      </div>
-
-                      {/* Team Size & Status */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Employer & Client Location — same row on large screens */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="teamSize">Team Size *</Label>
-                          <Input
-                            id="teamSize"
-                            type="text"
-                            placeholder="12 or 10-15"
-                            value={formData.teamSize}
-                            onChange={(e) => handleInputChange("teamSize", e.target.value)}
-                            className={errors.teamSize ? "border-red-500" : ""}
+                          <Label htmlFor="employer-combobox">Employer</Label>
+                          {formData.selectedEmployer ? (
+                            <div
+                              className={`flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9 ${errors.selectedEmployer ? "border-red-500" : ""}`}
+                            >
+                              <span className="flex-1 truncate">{formData.selectedEmployer.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 shrink-0"
+                                onClick={() => {
+                                  handleInputChange("selectedEmployer", null)
+                                  setEmployerSearchQuery("")
+                                  setEmployerSearchResults([])
+                                }}
+                                aria-label="Clear employer"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Popover
+                              open={employerComboboxOpen}
+                              onOpenChange={(open) => {
+                                setEmployerComboboxOpen(open)
+                                if (!open) {
+                                  setEmployerSearchQuery("")
+                                  setEmployerSearchResults([])
+                                }
+                              }}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className={`w-full justify-between font-normal ${errors.selectedEmployer ? "border-red-500" : ""}`}
+                                >
+                                  <span className={employerSearchQuery ? "text-foreground" : "text-muted-foreground"}>
+                                    {employerSearchQuery || "Search employers..."}
+                                  </span>
+                                  <ChevronsUpDown className="opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                <Command shouldFilter={false}>
+                                  <CommandInput
+                                    placeholder="Search employers..."
+                                    value={employerSearchQuery}
+                                    onValueChange={setEmployerSearchQuery}
+                                    className="h-9"
+                                  />
+                                  <CommandList>
+                                    {employerSearchLoading && (
+                                      <div className="py-6 text-center text-sm text-muted-foreground">
+                                        Searching...
+                                      </div>
+                                    )}
+                                    {!employerSearchLoading && employerSearchQuery.trim().length < 2 && (
+                                      <div className="py-6 text-center text-sm text-muted-foreground">
+                                        Type to search
+                                      </div>
+                                    )}
+                                    {!employerSearchLoading &&
+                                      employerSearchQuery.trim().length >= 2 &&
+                                      employerSearchResults.length === 0 && (
+                                        <CommandGroup>
+                                          <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                                            No employers found
+                                          </div>
+                                          <CommandItem
+                                            value="__add_new_employer__"
+                                            onSelect={() => {
+                                              setEmployerComboboxOpen(false)
+                                              setAddEmployerDialogOpen(true)
+                                            }}
+                                            className="cursor-pointer font-medium text-primary"
+                                          >
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Add New Employer
+                                          </CommandItem>
+                                        </CommandGroup>
+                                      )}
+                                    {!employerSearchLoading && employerSearchResults.length > 0 && (
+                                      <CommandGroup>
+                                        {employerSearchResults.map((emp) => (
+                                          <CommandItem
+                                            key={emp.id}
+                                            value={String(emp.id)}
+                                            onSelect={() => {
+                                              handleInputChange("selectedEmployer", { id: emp.id, name: emp.name })
+                                              setEmployerComboboxOpen(false)
+                                              setEmployerSearchQuery("")
+                                              setEmployerSearchResults([])
+                                            }}
+                                            className="cursor-pointer"
+                                          >
+                                            {emp.name}
+                                            <Check className="ml-auto opacity-100" />
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    )}
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                          {errors.selectedEmployer && (
+                            <p className="text-sm text-red-500">{errors.selectedEmployer}</p>
+                          )}
+                          <VerificationCheckbox fieldName="selectedEmployer" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Client Location</Label>
+                          <MultiSelect
+                            items={clientLocationOptions}
+                            selected={formData.clientLocations}
+                            onChange={(values) => handleInputChange("clientLocations", values)}
+                            placeholder="Select client locations..."
+                            searchPlaceholder="Search locations..."
+                            maxDisplay={3}
+                            creatable={true}
+                            createLabel="Add Client Location"
+                            onCreateNew={onCreateClientLocation ? (name) => onCreateClientLocation(name) : undefined}
                           />
-                          {errors.teamSize && <p className="text-sm text-red-500">{errors.teamSize}</p>}
-                          <p className="text-xs text-muted-foreground">
-                            Enter single number (e.g., &quot;12&quot;) or range (e.g., &quot;10-15&quot;)
-                          </p>
-                          <VerificationCheckbox fieldName="teamSize" />
+                          <VerificationCheckbox fieldName="clientLocations" />
+                        </div>
+                      </div>
+
+                      {/* Type & Status — same row on large screens */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="projectType">Type</Label>
+                          <Select
+                            value={formData.projectType || ""}
+                            onValueChange={(value) => handleInputChange("projectType", value)}
+                          >
+                            <SelectTrigger
+                              id="projectType"
+                              className={`w-full ${errors.projectType ? "border-red-500" : ""}`}
+                            >
+                              <SelectValue placeholder="Select project type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {projectTypeOptions.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  {type.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.projectType && <p className="text-sm text-red-500">{errors.projectType}</p>}
+                          <VerificationCheckbox fieldName="projectType" />
                         </div>
 
                         <div className="space-y-2">
                           <Label htmlFor="status">Status *</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={`w-full justify-between ${errors.status ? "border-red-500" : ""}`}
-                              >
-                                {formData.status
-                                  ? statusOptions.find((option) => option.value === formData.status)?.label
-                                  : "Select project status"}
-                                <ChevronsUpDown className="opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                              <Command>
-                                <CommandInput placeholder="Search status..." className="h-9" />
-                                <CommandList>
-                                  <CommandEmpty>No status found.</CommandEmpty>
-                                  <CommandGroup>
-                                    {statusOptions.map((status) => (
-                                      <CommandItem
-                                        key={status.value}
-                                        value={status.value}
-                                        onSelect={(currentValue) => {
-                                          handleInputChange("status", currentValue as ProjectStatus)
-                                        }}
-                                        className="cursor-pointer"
-                                      >
-                                        {status.label}
-                                        <Check
-                                          className={`ml-auto ${formData.status === status.value ? "opacity-100" : "opacity-0"}`}
-                                        />
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
+                          <Select
+                            value={formData.status || ""}
+                            onValueChange={(value) => handleInputChange("status", value as ProjectStatus)}
+                          >
+                            <SelectTrigger
+                              id="status"
+                              className={`w-full ${errors.status ? "border-red-500" : ""}`}
+                            >
+                              <SelectValue placeholder="Select project status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((status) => (
+                                <SelectItem key={status.value} value={status.value}>
+                                  {status.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           {errors.status && <p className="text-sm text-red-500">{errors.status}</p>}
                           <VerificationCheckbox fieldName="status" />
+                        </div>
+                      </div>
+
+                      {/* Team Size — own row */}
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Team Size *</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label htmlFor="minTeamSize" className="text-xs text-muted-foreground">
+                              Minimum
+                            </Label>
+                            <Input
+                              id="minTeamSize"
+                              type="number"
+                              placeholder="e.g., 5"
+                              min={0}
+                              value={formData.minTeamSize}
+                              onChange={(e) => handleInputChange("minTeamSize", e.target.value)}
+                              className={errors.minTeamSize ? "border-red-500" : ""}
+                            />
+                            {errors.minTeamSize && <p className="text-xs text-red-500">{errors.minTeamSize}</p>}
+                            <VerificationCheckbox fieldName="minTeamSize" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="maxTeamSize" className="text-xs text-muted-foreground">
+                              Maximum
+                            </Label>
+                            <Input
+                              id="maxTeamSize"
+                              type="number"
+                              placeholder="e.g., 30"
+                              min={0}
+                              value={formData.maxTeamSize}
+                              onChange={(e) => handleInputChange("maxTeamSize", e.target.value)}
+                              className={errors.maxTeamSize ? "border-red-500" : ""}
+                            />
+                            {errors.maxTeamSize && <p className="text-xs text-red-500">{errors.maxTeamSize}</p>}
+                            <VerificationCheckbox fieldName="maxTeamSize" />
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -1088,6 +1285,7 @@ export function ProjectCreationDialog({
                           maxDisplay={4}
                           creatable={true}
                           createLabel="Add Technology"
+                          onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="techStacks" />
                       </div>
@@ -1157,6 +1355,7 @@ export function ProjectCreationDialog({
                           maxDisplay={4}
                           creatable={true}
                           createLabel="Add Vertical Domain"
+                          onCreateNew={onCreateVerticalDomain ? (name) => onCreateVerticalDomain(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="verticalDomains" />
                       </div>
@@ -1172,6 +1371,7 @@ export function ProjectCreationDialog({
                           maxDisplay={4}
                           creatable={true}
                           createLabel="Add Horizontal Domain"
+                          onCreateNew={onCreateHorizontalDomain ? (name) => onCreateHorizontalDomain(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="horizontalDomains" />
                       </div>
@@ -1187,6 +1387,7 @@ export function ProjectCreationDialog({
                           maxDisplay={4}
                           creatable={true}
                           createLabel="Add Technical Aspect"
+                          onCreateNew={onCreateTechnicalAspect ? (name) => onCreateTechnicalAspect(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="technicalAspects" />
                       </div>
@@ -1269,15 +1470,12 @@ export function ProjectCreationDialog({
                           value={formData.notes}
                           onChange={(e) => handleInputChange("notes", e.target.value)}
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Brief additional information or special requirements
-                        </p>
                         <VerificationCheckbox fieldName="notes" />
                       </div>
 
-                      {/* Project Link */}
+                      {/* Link */}
                       <div className="space-y-2">
-                        <Label htmlFor="projectLink">Project Link</Label>
+                        <Label htmlFor="projectLink">Link</Label>
                         <Input
                           id="projectLink"
                           type="url"
@@ -1287,9 +1485,6 @@ export function ProjectCreationDialog({
                           className={errors.projectLink ? "border-red-500" : ""}
                         />
                         {errors.projectLink && <p className="text-sm text-red-500">{errors.projectLink}</p>}
-                        <p className="text-xs text-muted-foreground">
-                          Optional link to project demo, repository, or documentation
-                        </p>
                         <VerificationCheckbox fieldName="projectLink" />
                       </div>
 
@@ -1310,34 +1505,32 @@ export function ProjectCreationDialog({
                         <VerificationCheckbox fieldName="isPublished" />
                       </div>
 
-                      {/* Publish Platforms */}
-                      <div className="space-y-2">
-                        <Label>Platforms (optional)</Label>
-                        <MultiSelect
-                          items={publishPlatformOptions}
-                          selected={formData.publishPlatforms}
-                          onChange={(values) => handleInputChange("publishPlatforms", values)}
-                          placeholder="Select platforms"
-                          searchPlaceholder="Search platforms..."
-                        />
-                        <VerificationCheckbox fieldName="publishPlatforms" />
-                      </div>
+                      {/* Platforms & Download Count — same row on large screens */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Platforms</Label>
+                          <MultiSelect
+                            items={publishPlatformOptions}
+                            selected={formData.publishPlatforms}
+                            onChange={(values) => handleInputChange("publishPlatforms", values)}
+                            placeholder="Select platforms"
+                            searchPlaceholder="Search platforms..."
+                          />
+                          <VerificationCheckbox fieldName="publishPlatforms" />
+                        </div>
 
-                      {/* Download Count */}
-                      <div className="space-y-2">
-                        <Label htmlFor="downloadCount">Download Count</Label>
-                        <Input
-                          id="downloadCount"
-                          type="number"
-                          placeholder="e.g., 100000"
-                          min="0"
-                          value={formData.downloadCount}
-                          onChange={(e) => handleInputChange("downloadCount", e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Total download count (e.g., 100000 for 100K downloads). Only applicable for published apps.
-                        </p>
-                        <VerificationCheckbox fieldName="downloadCount" />
+                        <div className="space-y-2">
+                          <Label htmlFor="downloadCount">Download Count</Label>
+                          <Input
+                            id="downloadCount"
+                            type="number"
+                            placeholder="e.g., 100000"
+                            min="0"
+                            value={formData.downloadCount}
+                            onChange={(e) => handleInputChange("downloadCount", e.target.value)}
+                          />
+                          <VerificationCheckbox fieldName="downloadCount" />
+                        </div>
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1369,6 +1562,29 @@ export function ProjectCreationDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EmployerCreationDialog
+        mode="create"
+        open={addEmployerDialogOpen}
+        onOpenChange={setAddEmployerDialogOpen}
+        initialName={employerSearchQuery}
+        onSubmit={async (formData) => {
+          const dto = buildCreateEmployerDto(formData, {
+            techStacksLookup: lookups?.techStacks ?? [],
+            tagsLookup: [],
+            timeSupportZonesLookup: [],
+          })
+          const created = await createEmployer(dto)
+          return created ? { id: created.id, name: created.name } : undefined
+        }}
+        onSuccess={(employer) => {
+          handleInputChange("selectedEmployer", employer)
+          setAddEmployerDialogOpen(false)
+          setEmployerSearchQuery("")
+          setEmployerSearchResults([])
+          setEmployerComboboxOpen(false)
+        }}
+      />
 
       {/* Unsaved Changes Warning Dialog */}
       <AlertDialog open={showUnsavedWarning} onOpenChange={setShowUnsavedWarning}>

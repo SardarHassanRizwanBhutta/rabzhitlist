@@ -4,8 +4,6 @@ import type { Candidate } from '@/lib/types/candidate'
 import type { EmptyField, FieldSection, FieldType } from '@/types/cold-caller'
 import { sampleProjects } from '@/lib/sample-data/projects'
 import { sampleEmployers } from '@/lib/sample-data/employers'
-import { sampleUniversities } from '@/lib/sample-data/universities'
-import { sampleCertifications } from '@/lib/sample-data/certifications'
 
 // Shift type options
 export const SHIFT_TYPE_OPTIONS = [
@@ -54,19 +52,12 @@ export function getEmployerOptions(): { value: string; label: string }[] {
 }
 
 export function getUniversityOptions(): { value: string; label: string }[] {
-  return sampleUniversities.flatMap(university =>
-    university.locations.map(location => ({
-      label: `${university.name} - ${location.city}`,
-      value: `${university.name} - ${location.city}`,
-    }))
-  )
+  return []
 }
 
+// TODO: Populate from API
 export function getCertificationOptions(): { value: string; label: string }[] {
-  return sampleCertifications.map(cert => ({
-    label: cert.certificationName,
-    value: cert.certificationName,
-  }))
+  return []
 }
 
 /**

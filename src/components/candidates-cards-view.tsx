@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, Target, FolderOpen, Building2, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone } from "lucide-react"
+import { User, Target, FolderOpen, Building2, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -28,8 +28,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
-import { CandidateCreationDialog, CandidateFormData } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
+import type { EmployerBenefit } from "@/lib/types/benefits"
 import { 
   getCandidateMatchContext, 
   hasActiveFilters,
@@ -38,6 +39,12 @@ import {
   type MatchCategory,
   type MatchItem,
 } from "@/lib/utils/candidate-matches"
+import {
+  deleteCandidate,
+  fetchCandidateById,
+  updateCandidate,
+  candidateFormDataToUpdateDto,
+} from "@/lib/services/candidates-api"
 
 const defaultFilters: CandidateFilters = {
   basicInfoSearch: "",
@@ -106,10 +113,10 @@ const defaultFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
-  universities: [],
-  universityCountries: [],
-  universityRankings: [],
-  universityCities: [],
+  // universities: [],
+  // universityCountries: [],
+  // universityRankings: [],
+  // universityCities: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,
@@ -134,8 +141,15 @@ const defaultFilters: CandidateFilters = {
 interface CandidatesCardsViewProps {
   candidates: Candidate[]
   filters?: CandidateFilters
-  onEdit?: (candidate: Candidate) => void
-  onDelete?: (candidate: Candidate) => void
+  candidateLookups?: CandidateLookups
+  lookupsLoading?: boolean
+  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
+  onCreateDegree?: (name: string) => Promise<void>
+  onCreateMajor?: (name: string) => Promise<void>
+  /** Called after update/delete so the list can refetch from the server. */
+  onCandidatesListChanged?: () => void
 }
 
 // Helper function to get job title from first work experience
@@ -301,12 +315,25 @@ const FilterLegend = ({ criteria }: { criteria: MatchCriterion[] }) => {
   )
 }
 
-export function CandidatesCardsView({ candidates, filters = defaultFilters, onEdit, onDelete }: CandidatesCardsViewProps) {
+export function CandidatesCardsView({
+  candidates,
+  filters = defaultFilters,
+  candidateLookups,
+  lookupsLoading,
+  onCreateTechStack,
+  onCreateTimeSupportZone,
+  onCreateBenefit,
+  onCreateDegree,
+  onCreateMajor,
+  onCandidatesListChanged,
+}: CandidatesCardsViewProps) {
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [candidateToDelete, setCandidateToDelete] = React.useState<Candidate | null>(null)
   const [editDialogOpen, setEditDialogOpen] = React.useState(false)
   const [candidateToEdit, setCandidateToEdit] = React.useState<Candidate | null>(null)
+  const [editFetchLoading, setEditFetchLoading] = React.useState(false)
+  const [deleteInProgress, setDeleteInProgress] = React.useState(false)
 
   const activeFilters = hasActiveFilters(filters)
 
@@ -332,17 +359,42 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
     return Array.from(criterionMap.values())
   }, [candidates, filters, activeFilters])
 
-  const handleEdit = (candidate: Candidate, e: React.MouseEvent) => {
+  const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation()
-    setCandidateToEdit(candidate)
-    setEditDialogOpen(true)
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    setEditFetchLoading(true)
+    try {
+      const full = await fetchCandidateById(id)
+      setCandidateToEdit(full)
+      setEditDialogOpen(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load candidate.")
+    } finally {
+      setEditFetchLoading(false)
+    }
   }
 
   const handleUpdateCandidate = async (formData: CandidateFormData) => {
-    // TODO: Implement actual update API call
-    console.log("Update candidate:", candidateToEdit?.id, formData)
-    setEditDialogOpen(false)
-    setCandidateToEdit(null)
+    if (!candidateToEdit) return
+    const id = Number(candidateToEdit.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    try {
+      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
+      toast.success("Candidate updated successfully.")
+      onCandidatesListChanged?.()
+      setEditDialogOpen(false)
+      setCandidateToEdit(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
+      throw err
+    }
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
@@ -351,13 +403,24 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
     setDeleteDialogOpen(true)
   }
 
-  const handleDeleteConfirm = () => {
-    if (candidateToDelete) {
-      // TODO: Implement actual delete API call
-      console.log("Delete candidate:", candidateToDelete)
-      toast.success(`Candidate ${candidateToDelete.name} has been deleted successfully.`)
+  const handleDeleteConfirm = async () => {
+    if (!candidateToDelete || deleteInProgress) return
+    const id = Number(candidateToDelete.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    setDeleteInProgress(true)
+    try {
+      await deleteCandidate(id)
+      toast.success(`Candidate ${candidateToDelete.name} has been removed.`)
+      onCandidatesListChanged?.()
       setDeleteDialogOpen(false)
       setCandidateToDelete(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete candidate.")
+    } finally {
+      setDeleteInProgress(false)
     }
   }
 
@@ -434,7 +497,11 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
                               View Details
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={(e) => handleEdit(candidate, e)}
+                              disabled={editFetchLoading}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                void handleEdit(candidate, e)
+                              }}
                             >
                               <Edit className="mr-2 h-4 w-4" />
                               Edit
@@ -626,18 +693,26 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{candidateToDelete?.name}</strong>. This action cannot be undone.
+              This will remove <strong>{candidateToDelete?.name}</strong> from the candidate list (soft delete on the server).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer">
+            <AlertDialogCancel onClick={handleDeleteCancel} className="cursor-pointer" disabled={deleteInProgress}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteConfirm}
+              onClick={() => void handleDeleteConfirm()}
+              disabled={deleteInProgress}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer transition-transform duration-200 hover:scale-105"
             >
-              Delete
+              {deleteInProgress ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin inline" />
+                  Deleting…
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -650,6 +725,16 @@ export function CandidatesCardsView({ candidates, filters = defaultFilters, onEd
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdateCandidate}
+        lookups={candidateLookups}
+        onCreateTechStack={onCreateTechStack}
+        onCreateTimeSupportZone={onCreateTimeSupportZone}
+        onCreateBenefit={onCreateBenefit}
+        onCreateDegree={onCreateDegree}
+        onCreateMajor={onCreateMajor}
+        techStacksLoading={lookupsLoading}
+        timeSupportZonesLoading={lookupsLoading}
+        benefitsLoading={lookupsLoading}
+        degreesMajorsLoading={lookupsLoading}
       />
     </>
   )

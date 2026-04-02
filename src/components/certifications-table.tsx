@@ -6,7 +6,6 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   MoreHorizontalIcon,
-  SearchIcon,
   PlusIcon,
   EditIcon,
   TrashIcon,
@@ -18,7 +17,6 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -56,21 +54,26 @@ import {
 
 import {
   Certification,
-  CERTIFICATION_LEVEL_COLORS,
-  CERTIFICATION_LEVEL_LABELS,
 } from "@/lib/types/certification"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
+import Link from "next/link"
 
 interface CertificationsTableProps {
   certifications: Certification[]
   isLoading?: boolean
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
   onAdd?: () => void
   onEdit?: (certification: Certification) => void
-  onDelete?: (certification: Certification) => void
+  onDelete?: (certification: Certification) => void | Promise<void>
 }
 
-type SortKey = keyof Certification
+type SortKey = keyof Certification | "issuerName"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -78,64 +81,44 @@ const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 export function CertificationsTable({
   certifications,
   isLoading = false,
+  totalCount,
+  pageNumber,
+  pageSize,
+  totalPages,
+  hasPrevious,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
   onAdd,
   onEdit,
   onDelete,
 }: CertificationsTableProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [sortKey, setSortKey] = useState<SortKey>("certificationName")
+  const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [certificationToDelete, setCertificationToDelete] = useState<Certification | null>(null)
-  const router = useRouter()
-  // Filtering
-  const filteredCertifications = useMemo(() => {
-    if (!searchQuery) return certifications
-
-    return certifications.filter(
-      (cert) =>
-        cert.certificationName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (cert.issuingBody !== null && cert.issuingBody.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        cert.certificationLevel.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        cert.id.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  }, [certifications, searchQuery])
-
-  const handleViewCandidates = (certification: Certification) => {
-    // Navigate to projects page with employer filter
-    const params = new URLSearchParams({
-      certificationFilter: certification.certificationName,
-      certificationId: certification.id 
-    })
-    router.push(`/candidates?${params.toString()}`)
+  const getSortValue = (cert: Certification, key: SortKey): string | number => {
+    if (key === "issuerName") return cert.issuer?.name ?? ""
+    const val = cert[key as keyof Certification]
+    if (val === null || val === undefined) return ""
+    if (typeof val === "object") return ""
+    return val as string | number
   }
 
-  // Sorting
   const sortedCertifications = useMemo(() => {
-    return [...filteredCertifications].sort((a, b) => {
-      const aValue = a[sortKey]
-      const bValue = b[sortKey]
+    return [...certifications].sort((a, b) => {
+      const aValue = getSortValue(a, sortKey)
+      const bValue = getSortValue(b, sortKey)
 
       if (aValue === bValue) return 0
 
-      let comparison = 0
-      if (aValue instanceof Date && bValue instanceof Date) {
-        comparison = aValue.getTime() - bValue.getTime()
-      } else {
-        comparison = String(aValue).localeCompare(String(bValue))
-      }
+      const comparison = typeof aValue === "number" && typeof bValue === "number"
+        ? aValue - bValue
+        : String(aValue).localeCompare(String(bValue))
 
       return sortDirection === "asc" ? comparison : -comparison
     })
-  }, [filteredCertifications, sortKey, sortDirection])
-
-  // Pagination
-  const totalPages = Math.ceil(sortedCertifications.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedCertifications = sortedCertifications.slice(startIndex, endIndex)
+  }, [certifications, sortKey, sortDirection])
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -146,29 +129,21 @@ export function CertificationsTable({
     }
   }
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
-  }
-
-  const handleItemsPerPageChange = (value: string) => {
-    setItemsPerPage(parseInt(value))
-    setCurrentPage(1)
-  }
+  const startIndex = totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1
+  const endIndex = Math.min(pageNumber * pageSize, totalCount)
 
   const handleDeleteClick = (certification: Certification) => {
     setCertificationToDelete(certification)
     setDeleteDialogOpen(true)
   }
 
-  const handleDeleteConfirm = () => {
-    if (certificationToDelete) {
-      // Call onDelete if provided, otherwise just show toast
-      onDelete?.(certificationToDelete)
-      
-      // Show success toast
-      toast.success(`Certification "${certificationToDelete.certificationName}" has been deleted successfully.`)
-      
-      // Close dialog and reset state
+  const handleDeleteConfirm = async () => {
+    if (!certificationToDelete) return
+    try {
+      await onDelete?.(certificationToDelete)
+      setDeleteDialogOpen(false)
+      setCertificationToDelete(null)
+    } catch {
       setDeleteDialogOpen(false)
       setCertificationToDelete(null)
     }
@@ -209,41 +184,12 @@ export function CertificationsTable({
     )
   }
 
-  if (certifications.length === 0) {
+  if (certifications.length === 0 && !isLoading) {
     return (
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="relative">
-            <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search certifications..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-[300px]"
-            />
-          </div>
-          {onAdd && (
-            <Button onClick={onAdd}>
-              <PlusIcon className="mr-2 h-4 w-4" />
-              Add Certification
-            </Button>
-          )}
-        </div>
         <div className="rounded-md border">
           <div className="flex items-center justify-center h-[400px] text-center">
-            <div className="space-y-2">
-              <p className="text-lg font-semibold">No certifications found</p>
-              <p className="text-muted-foreground">Get started by adding your first certification.</p>
-              {onAdd && (
-                <Button 
-                  onClick={onAdd} 
-                  className="mt-4 transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
-                >
-                  <PlusIcon className="mr-2 h-4 w-4" />
-                  Create Certification
-                </Button>
-              )}
-            </div>
+            <p className="text-lg font-semibold text-muted-foreground">No certifications found</p>
           </div>
         </div>
       </div>
@@ -252,87 +198,54 @@ export function CertificationsTable({
 
   return (
     <div className="space-y-4">
-      {/* Header with Search and Add Button */}
-      <div className="flex items-center justify-between">
-        <div className="relative">
-          <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search certifications..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="pl-8 w-[300px]"
-          />
-        </div>
-        {onAdd && (
-          <Button 
-            onClick={onAdd}
-            className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
-          >
-            <PlusIcon className="mr-2 h-4 w-4" />
-            Create Certification
-          </Button>
-        )}
-      </div>
-
       {/* Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[120px]">
-                <SortButton column="id">ID</SortButton>
+              <TableHead className="w-[60px]">No.</TableHead>
+              <TableHead>
+                <SortButton column="name">Name</SortButton>
               </TableHead>
               <TableHead>
-                <SortButton column="certificationName">Name</SortButton>
-              </TableHead>
-              <TableHead>
-                <SortButton column="issuingBody">Issuing Body</SortButton>
-              </TableHead>
-              <TableHead className="w-[120px]">
-                <SortButton column="certificationLevel">Level</SortButton>
+                <SortButton column="issuerName">Issuing Body</SortButton>
               </TableHead>
               <TableHead className="w-[60px]" title="View Candidates">Candidates</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedCertifications.map((certification) => (
+            {sortedCertifications.map((certification, index) => (
               <TableRow key={certification.id}>
-                <TableCell className="font-mono text-xs">
-                  {certification.id.split('-')[1]}
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {(pageNumber - 1) * pageSize + index + 1}
                 </TableCell>
                 <TableCell className="font-medium">
-                  {certification.certificationName}
+                  {certification.name}
                 </TableCell>
                 <TableCell>
-                  {certification.issuingBody ? (
-                    certification.issuingBody
+                  {certification.issuer ? (
+                    certification.issuer.name
                   ) : (
                     <span className="text-muted-foreground text-sm">N/A</span>
                   )}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="secondary"
-                    className={CERTIFICATION_LEVEL_COLORS[certification.certificationLevel]}
-                  >
-                    {CERTIFICATION_LEVEL_LABELS[certification.certificationLevel]}
-                  </Badge>
                 </TableCell>
                 <TableCell>
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 dark:hover:text-blue-400 cursor-pointer"
-                    onClick={() => handleViewCandidates(certification)}
-                    title={`View candidates for ${certification.certificationName}`}
+                    asChild
                   >
-                    <UsersIcon className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+                    <Link
+                      href={`/candidates?certificationId=${certification.id}&certificationName=${encodeURIComponent(certification.name)}`}
+                      title={`View candidates for ${certification.name}`}
+                      aria-label={`View candidates with this certification: ${certification.name}`}
+                    >
+                      <UsersIcon className="h-4 w-4" aria-hidden />
+                    </Link>
+                  </Button>
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -378,16 +291,16 @@ export function CertificationsTable({
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select
-            value={itemsPerPage.toString()}
-            onValueChange={handleItemsPerPageChange}
+            value={pageSize.toString()}
+            onValueChange={(value) => onPageSizeChange(parseInt(value))}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
-              {ITEMS_PER_PAGE_OPTIONS.map((pageSize) => (
-                <SelectItem key={pageSize} value={pageSize.toString()}>
-                  {pageSize}
+              {ITEMS_PER_PAGE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -396,14 +309,14 @@ export function CertificationsTable({
 
         <div className="flex items-center space-x-6 lg:space-x-8">
           <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            Page {currentPage} of {totalPages || 1}
+            Page {pageNumber} of {totalPages || 1}
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to first page</span>
               <ChevronsLeftIcon className="h-4 w-4" />
@@ -411,8 +324,8 @@ export function CertificationsTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(pageNumber - 1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to previous page</span>
               <ChevronLeftIcon className="h-4 w-4" />
@@ -420,8 +333,8 @@ export function CertificationsTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(pageNumber + 1)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to next page</span>
               <ChevronRightIcon className="h-4 w-4" />
@@ -429,8 +342,8 @@ export function CertificationsTable({
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(totalPages)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to last page</span>
               <ChevronsRightIcon className="h-4 w-4" />
@@ -441,9 +354,7 @@ export function CertificationsTable({
 
       {/* Results Info */}
       <div className="text-xs text-muted-foreground">
-        Showing {startIndex + 1} to {Math.min(endIndex, sortedCertifications.length)} of{" "}
-        {sortedCertifications.length} entries
-        {searchQuery && ` (filtered from ${certifications.length} total entries)`}
+        Showing {totalCount === 0 ? 0 : startIndex} to {endIndex} of {totalCount} certifications
       </div>
 
       {/* Delete Confirmation Dialog */}
@@ -452,7 +363,7 @@ export function CertificationsTable({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{certificationToDelete?.certificationName}</strong>. This action cannot be undone.
+              This will permanently delete <strong>{certificationToDelete?.name}</strong>. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

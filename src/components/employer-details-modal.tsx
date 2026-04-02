@@ -25,6 +25,8 @@ import {
 } from "lucide-react"
 
 import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_COLORS, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS, TechStackWithCount, Layoff, LayoffReason, LAYOFF_REASON_LABELS } from "@/lib/types/employer"
+import type { Project } from "@/lib/types/project"
+import type { Candidate } from "@/lib/types/candidate"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -67,15 +69,12 @@ import { cn } from "@/lib/utils"
 // Add to existing imports
 import { useRouter } from "next/navigation"
 import { FolderIcon, UsersIcon } from "lucide-react"
-import { sampleProjects } from "@/lib/sample-data/projects"
-import { sampleCandidates } from "@/lib/sample-data/candidates"
-
 import { Users } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { EmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
-import { formatBenefitAmount } from "@/lib/sample-data/benefits"
+import { formatBenefitAmount } from "@/lib/utils/benefits"
 import {
   Select,
   SelectContent,
@@ -1458,94 +1457,15 @@ export interface EmployerDetailsModalProps {
   onEdit?: (employer: Employer) => void
 }
 
-// Extract unique tech stacks from candidates and projects
-const extractUniqueTechStacks = (): MultiSelectOption[] => {
-  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
-  
-  // From candidates' work experiences
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      we.techStacks.forEach(tech => {
-        const lowerTech = tech.toLowerCase().trim()
-        if (lowerTech && !techStacksMap.has(lowerTech)) {
-          techStacksMap.set(lowerTech, tech.trim())
-        }
-      })
-    })
-    // Also include standalone tech stacks from candidate level
-    candidate.techStacks?.forEach(tech => {
-      const lowerTech = tech.toLowerCase().trim()
-      if (lowerTech && !techStacksMap.has(lowerTech)) {
-        techStacksMap.set(lowerTech, tech.trim())
-      }
-    })
-  })
-  
-  // From projects
-  sampleProjects.forEach(project => {
-    project.techStacks.forEach(tech => {
-      const lowerTech = tech.toLowerCase().trim()
-      if (lowerTech && !techStacksMap.has(lowerTech)) {
-        techStacksMap.set(lowerTech, tech.trim())
-      }
-    })
-  })
-  
-  return Array.from(techStacksMap.values()).sort().map(tech => ({
-    label: tech,
-    value: tech
-  }))
-}
+// Tech stack options will be loaded from API when integrating.
+const extractUniqueTechStacks = (): MultiSelectOption[] => []
 
-// Get tech stacks with counts for an employer (from employer data or candidates)
+// Use only employer's own tech stacks (no candidate-derived data).
 const getEmployerTechStacksWithCount = (employer: Employer): TechStackWithCount[] => {
-  // Extract from candidates' work experiences with counts
-  const techStackCounts = new Map<string, number>()
-  const explicitTechStacks = new Set<string>()
-  
-  // If employer has explicit tech stacks, mark them (they'll have count = 0)
   if (employer.techStacks && employer.techStacks.length > 0) {
-    employer.techStacks.forEach(tech => {
-      const normalized = tech.trim()
-      explicitTechStacks.add(normalized)
-      techStackCounts.set(normalized, 0) // Manual entry, count = 0
-    })
+    return employer.techStacks.map(tech => ({ tech, count: 0 }))
   }
-  
-  // Extract from candidates' work experiences with counts
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (exact match after normalization)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      // Use exact match for precision, but also handle common variations
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch) {
-        we.techStacks.forEach(tech => {
-          const normalizedTech = tech.trim()
-          if (normalizedTech) {
-            // Only increment count if not already explicitly set (explicit ones stay at 0)
-            if (!explicitTechStacks.has(normalizedTech)) {
-              techStackCounts.set(
-                normalizedTech,
-                (techStackCounts.get(normalizedTech) || 0) + 1
-              )
-            }
-          }
-        })
-      }
-    })
-  })
-  
-  // Convert to array and sort by count (descending), then alphabetically
-  return Array.from(techStackCounts.entries())
-    .map(([tech, count]) => ({ tech, count }))
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count // Higher count first
-      return a.tech.localeCompare(b.tech) // Alphabetical as tiebreaker
-    })
+  return []
 }
 
 // Backward-compatible function that returns just tech stack strings
@@ -1554,84 +1474,13 @@ const getEmployerTechStacks = (employer: Employer): string[] => {
   return getEmployerTechStacksWithCount(employer).map(item => item.tech)
 }
 
-// Get benefits for an employer (from employer data or candidates)
+// Use only employer's own benefits (no candidate-derived data).
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
-  const benefitsMap = new Map<string, EmployerBenefit>()
-  
-  // First, use benefits from employer if they exist
-  if (employer.benefits && employer.benefits.length > 0) {
-    employer.benefits.forEach(benefit => {
-      const key = benefit.name.toLowerCase().trim()
-      benefitsMap.set(key, { ...benefit })
-    })
-  }
-  
-  // Also extract from candidates' work experiences
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (exact match after normalization)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      // Use exact match for precision, but also handle common variations
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch) {
-        we.benefits.forEach(benefit => {
-          // Use benefit name as key to deduplicate
-          const key = benefit.name.toLowerCase().trim()
-          // Only add if not already present (employer's explicit benefits take precedence)
-          if (!benefitsMap.has(key)) {
-            benefitsMap.set(key, { ...benefit })
-          }
-        })
-      }
-    })
-  })
-  return Array.from(benefitsMap.values())
+  return employer.benefits && employer.benefits.length > 0 ? [...employer.benefits] : []
 }
 
-// Get shift types for an employer (from candidates' work experiences)
-const getEmployerShiftTypes = (employer: Employer): string[] => {
-  const shiftTypesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (case-insensitive)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch && we.shiftType && we.shiftType.trim()) {
-        shiftTypesSet.add(we.shiftType.trim())
-      }
-    })
-  })
-  
-  return Array.from(shiftTypesSet).sort()
-}
-
-// Get work modes for an employer (from candidates' work experiences)
-const getEmployerWorkModes = (employer: Employer): string[] => {
-  const workModesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (case-insensitive)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch && we.workMode && we.workMode.trim()) {
-        workModesSet.add(we.workMode.trim())
-      }
-    })
-  })
-  
-  return Array.from(workModesSet).sort()
-}
+const getEmployerShiftTypes = (_employer: Employer): string[] => []
+const getEmployerWorkModes = (_employer: Employer): string[] => []
 
 export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: EmployerDetailsModalProps) {
   const router = useRouter()
@@ -1689,23 +1538,9 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
     locationName: string
   } | null>(null)
 
-  // Get projects for this employer
-  const employerProjects = React.useMemo(() => {
-    return sampleProjects.filter(project => 
-      project.employerName?.toLowerCase() === employer.name.toLowerCase()
-    )
-  }, [employer.name])
-
-  // Get candidates for this employer
-    const employerCandidates = React.useMemo(() => {
-      return sampleCandidates.filter(candidate => {
-        // Check work experiences
-        const hasWorkExperience = candidate.workExperiences?.some(we => 
-          we.employerName?.toLowerCase() === employer.name.toLowerCase()
-        )
-        return hasWorkExperience
-      })
-    }, [employer.name])
+  // Projects/candidates will be loaded from API when integrating.
+  const employerProjects = React.useMemo((): Project[] => [], [employer.name])
+  const employerCandidates = React.useMemo((): Candidate[] => [], [employer.name])
 
   // Update local employer when prop changes
   React.useEffect(() => {

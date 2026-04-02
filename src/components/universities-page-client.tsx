@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { UniversitiesTable } from "@/components/universities-table"
@@ -9,25 +9,142 @@ import { UniversitiesFilterDialog, UniversityFilters } from "@/components/univer
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { University } from "@/lib/types/university"
-import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
+import type { Country } from "@/lib/types/country"
+import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import {
+  fetchUniversitiesFiltered,
+  fetchUniversityById,
+  createUniversity,
+  createUniversityLocation,
+  updateUniversityLocation,
+  updateUniversity,
+  deleteUniversity,
+  deleteUniversityLocation,
+} from "@/lib/services/universities-api"
+import type { UniversityListItem } from "@/lib/services/universities-api"
+import { LABEL_TO_RANKING, RANKING_TO_LABEL } from "@/lib/types/university"
+import type { Ranking } from "@/lib/types/university"
 
-interface UniversitiesPageClientProps {
-  universities: University[]
+const RANKING_API_TO_NUMBER: Record<string, Ranking> = {
+  standard: 0,
+  top: 1,
+  dpl_favourite: 2,
 }
 
+/** True when the location row was added in the form (id is UUID). False when it came from the server (id is numeric). */
+function isNewLocationFormRow(id: string): boolean {
+  const n = parseInt(id, 10)
+  return Number.isNaN(n) || String(n) !== id
+}
+
+const RANKING_LABEL_TO_API: Record<string, "standard" | "top" | "dpl_favourite"> = {
+  Standard: "standard",
+  Top: "top",
+  "DPL Favourite": "dpl_favourite",
+}
+
+function mapListItemToUniversity(item: UniversityListItem): University {
+  return {
+    id: item.id,
+    name: item.name,
+    websiteUrl: null,
+    linkedInUrl: null,
+    country: item.country,
+    ranking: RANKING_API_TO_NUMBER[item.ranking] ?? null,
+    locations: item.cities.map((city, index) => ({
+      id: 0,
+      universityId: item.id,
+      city,
+      address: null,
+      isMainCampus: index === 0,
+      createdAt: "",
+    })),
+    createdAt: "",
+    updatedAt: "",
+  }
+}
+import { toast } from "sonner"
+
 const initialFilters: UniversityFilters = {
+  name: "",
   countries: [],
   rankings: [],
-  cities: [],
+  city: "",
   minJobSuccessRatio: "",
 }
 
-export function UniversitiesPageClient({ universities }: UniversitiesPageClientProps) {
+export function UniversitiesPageClient() {
   const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<UniversityFilters>(initialFilters)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [universityToEdit, setUniversityToEdit] = useState<University | null>(null)
+
+  const [universities, setUniversities] = useState<University[]>([])
+  const [universitiesLoading, setUniversitiesLoading] = useState(true)
+  const [countries, setCountries] = useState<Country[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(true)
+
+  const loadUniversities = useCallback(async () => {
+    try {
+      setUniversitiesLoading(true)
+      const countryIds = filters.countries.length && countries.length
+        ? filters.countries
+            .map((name) => countries.find((c) => c.name === name)?.id)
+            .filter((id): id is number => id != null)
+        : undefined
+      const rankingParam =
+        filters.rankings.length > 0 && filters.rankings[0] in RANKING_LABEL_TO_API
+          ? RANKING_LABEL_TO_API[filters.rankings[0]]
+          : undefined
+      const res = await fetchUniversitiesFiltered({
+        name: filters.name.trim() || undefined,
+        city: filters.city.trim() || undefined,
+        countryIds,
+        ranking: rankingParam,
+        pageNumber: 1,
+        pageSize: 100,
+      })
+      setUniversities(res.items.map(mapListItemToUniversity))
+    } catch (error) {
+      console.error("Failed to fetch universities:", error)
+      toast.error("Failed to load universities.")
+    } finally {
+      setUniversitiesLoading(false)
+    }
+  }, [filters, countries])
+
+  useEffect(() => {
+    loadUniversities()
+  }, [loadUniversities])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadCountries() {
+      try {
+        const data = await fetchCountries()
+        if (!cancelled) setCountries(data)
+      } catch (error) {
+        console.error("Failed to fetch countries:", error)
+        if (!cancelled) toast.error("Failed to load countries.")
+      } finally {
+        if (!cancelled) setCountriesLoading(false)
+      }
+    }
+    loadCountries()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
+    try {
+      const newCountry = await createCountry(name)
+      setCountries((prev) => [...prev.filter((c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase()), newCountry])
+      return newCountry
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add country.")
+      return null
+    }
+  }, [])
 
   // Check for URL filters
   useEffect(() => {
@@ -40,28 +157,107 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     }
   }, [searchParams])
 
-  const handleUniversitySubmit = async (data: UniversityFormData, verificationState?: UniversityVerificationState) => {
-    // Here you would typically send the data to your API
-    if (verificationState) {
-      console.log("University data with verification:", data, verificationState)
-    } else {
-      console.log("New university data:", data)
+  const handleUniversitySubmit = async (
+    data: UniversityFormData,
+    _verificationState?: UniversityVerificationState
+  ) => {
+    try {
+      if (universityToEdit) {
+        await updateUniversity(universityToEdit.id, {
+          name: data.name.trim(),
+          countryId: data.countryId!,
+          websiteUrl: data.websiteUrl?.trim() || null,
+          linkedInUrl: data.linkedinUrl?.trim() || null,
+          ranking:
+            data.ranking && data.ranking in LABEL_TO_RANKING
+              ? LABEL_TO_RANKING[data.ranking as keyof typeof LABEL_TO_RANKING]
+              : null,
+        })
+        const locations = data.locations ?? []
+        const existingLocationIdsInForm = new Set(
+          locations.filter((loc) => !isNewLocationFormRow(loc.id)).map((loc) => Number(loc.id))
+        )
+        for (const loc of locations) {
+          if (!isNewLocationFormRow(loc.id)) {
+            await updateUniversityLocation(universityToEdit.id, Number(loc.id), {
+              city: loc.city.trim(),
+              address: loc.address?.trim() || null,
+              isMainCampus: loc.isMainCampus ?? false,
+            })
+          }
+        }
+        for (const existingLoc of universityToEdit.locations ?? []) {
+          if (!existingLocationIdsInForm.has(existingLoc.id)) {
+            await deleteUniversityLocation(universityToEdit.id, existingLoc.id)
+          }
+        }
+        const newLocations = locations.filter(
+          (loc) => isNewLocationFormRow(loc.id) && loc.city?.trim()
+        )
+        for (const loc of newLocations) {
+          await createUniversityLocation(universityToEdit.id, {
+            city: loc.city.trim(),
+            address: loc.address?.trim() || null,
+            isMainCampus: loc.isMainCampus ?? false,
+          })
+        }
+        toast.success(`University "${data.name}" updated successfully.`)
+        setEditDialogOpen(false)
+        setUniversityToEdit(null)
+      } else {
+        if (data.countryId == null) {
+          toast.error("Country is required.")
+          return
+        }
+        const locationsWithCity = data.locations.filter((loc) =>
+          loc.city?.trim()
+        )
+        if (locationsWithCity.length === 0) {
+          toast.error("At least one location with a city is required.")
+          return
+        }
+        const university = await createUniversity({
+          name: data.name.trim(),
+          countryId: data.countryId,
+          websiteUrl: data.websiteUrl?.trim() || null,
+          linkedInUrl: data.linkedinUrl?.trim() || null,
+          ranking:
+            data.ranking && data.ranking in LABEL_TO_RANKING
+              ? LABEL_TO_RANKING[data.ranking as keyof typeof LABEL_TO_RANKING]
+              : null,
+        })
+        for (const loc of locationsWithCity) {
+          await createUniversityLocation(university.id, {
+            city: loc.city.trim(),
+            address: loc.address?.trim() || null,
+            isMainCampus: loc.isMainCampus ?? false,
+          })
+        }
+        toast.success(`University "${data.name}" created successfully.`)
+      }
+      await loadUniversities()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message === "Not found") {
+        toast.error("University not found.")
+        setEditDialogOpen(false)
+        setUniversityToEdit(null)
+      } else {
+        toast.error(message || "Failed to save university.")
+      }
     }
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // You could add the university to your state/cache here
-    if (verificationState) {
-      alert("University updated and verified successfully!")
-    } else {
-      alert("University created successfully!")
-    }
-    
-    // Close edit dialog if open
-    if (editDialogOpen) {
-      setEditDialogOpen(false)
-      setUniversityToEdit(null)
+  }
+
+  const handleDeleteUniversity = async (university: University) => {
+    try {
+      await deleteUniversity(university.id)
+      toast.success(`University "${university.name}" deleted successfully.`)
+      await loadUniversities()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message === "Not found") toast.error("University not found.")
+      else toast.error(message || "Failed to delete university.")
+      throw err
     }
   }
 
@@ -69,10 +265,17 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     // Handled by UniversitiesTable - opens detail modal
   }
 
-  const handleEditUniversity = (university: University) => {
-    setUniversityToEdit(university)
-    setEditDialogOpen(true)
-  }
+  const handleEditUniversity = useCallback(async (university: University) => {
+    try {
+      const full = await fetchUniversityById(university.id)
+      setUniversityToEdit(full)
+      setEditDialogOpen(true)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message === "Not found") toast.error("University not found.")
+      else toast.error(message || "Failed to load university.")
+    }
+  }, [])
 
   const handleFiltersChange = (newFilters: UniversityFilters) => {
     setFilters(newFilters)
@@ -93,7 +296,8 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     return universityList.filter(university => {
       // Global Countries filter
       if (globalFilters.countries.length > 0) {
-        if (!globalFilters.countries.includes(university.country)) return false
+        const countryName = university.country?.name
+        if (!countryName || !globalFilters.countries.includes(countryName)) return false
       }
 
       // Global Cities filter
@@ -108,7 +312,7 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     })
   }
 
-  // Apply global filters and filter dialog filters to universities
+  // Apply global filters and URL filter (dialog filters are applied by the API)
   const filteredUniversities = useMemo(() => {
     let universityList = universities
 
@@ -118,45 +322,18 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
     // Apply URL filter if present
     const universityFilterName = searchParams.get('universityFilter')
     const universityId = searchParams.get('universityId')
-    
+
     if (universityFilterName && universityId) {
-      universityList = universityList.filter(uni => 
-        uni.id === universityId || uni.name.trim().toLowerCase() === universityFilterName.trim().toLowerCase()
+      const idNum = Number(universityId)
+      universityList = universityList.filter(
+        (uni) =>
+          uni.id === idNum ||
+          uni.name.trim().toLowerCase() === universityFilterName.trim().toLowerCase()
       )
     }
 
-    // Apply filter dialog filters
-    return universityList.filter(university => {
-      // Countries filter
-      if (filters.countries.length > 0 && !filters.countries.includes(university.country)) {
-        return false
-      }
-
-      // Rankings filter
-      if (filters.rankings.length > 0 && !filters.rankings.includes(university.ranking)) {
-        return false
-      }
-
-      // Cities filter
-      if (filters.cities.length > 0) {
-        const hasMatchingCity = university.locations.some(location =>
-          filters.cities.includes(location.city)
-        )
-        if (!hasMatchingCity) return false
-      }
-
-      // Job Success Ratio filter
-      if (filters.minJobSuccessRatio) {
-        const minRatio = parseFloat(filters.minJobSuccessRatio)
-        if (!isNaN(minRatio) && minRatio >= 0 && minRatio <= 100) {
-          const { successRatio } = calculateUniversityJobSuccessRatio(university)
-          if (successRatio < minRatio) return false
-        }
-      }
-
-      return true
-    })
-  }, [universities, globalFilters, hasGlobalFilters, filters, searchParams])
+    return universityList
+  }, [universities, globalFilters, hasGlobalFilters, searchParams])
 
   return (
     <div className="space-y-6">
@@ -169,8 +346,15 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
+            countries={countries}
+            countriesLoading={countriesLoading}
           />
-          <UniversityCreationDialog onSubmit={handleUniversitySubmit} />
+          <UniversityCreationDialog
+            onSubmit={handleUniversitySubmit}
+            countries={countries}
+            countriesLoading={countriesLoading}
+            onCreateCountry={handleCreateCountry}
+          />
         </div>
       </div>
 
@@ -184,9 +368,11 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
         </div>
       )}
       
-      <UniversitiesTable 
+      <UniversitiesTable
         universities={filteredUniversities}
+        isLoading={universitiesLoading}
         onEdit={handleEditUniversity}
+        onDelete={handleDeleteUniversity}
       />
 
       {/* Edit University Dialog with Verification */}
@@ -203,6 +389,9 @@ export function UniversitiesPageClient({ universities }: UniversitiesPageClientP
               setUniversityToEdit(null)
             }
           }}
+          countries={countries}
+          countriesLoading={countriesLoading}
+          onCreateCountry={handleCreateCountry}
         />
       )}
     </div>

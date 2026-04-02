@@ -21,10 +21,10 @@ import {
   Trash2,
 } from "lucide-react"
 
-import { University, UniversityRanking, UNIVERSITY_RANKING_COLORS, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
+import { University, UniversityRanking, UNIVERSITY_RANKING_COLORS, UNIVERSITY_RANKING_LABELS, getRankingLabel } from "@/lib/types/university"
+import { deleteUniversityLocation, fetchUniversityById } from "@/lib/services/universities-api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -765,7 +765,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   // Delete confirmation dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [locationToDelete, setLocationToDelete] = useState<{
-    locationId: string
+    locationId: number
     locationName: string
   } | null>(null)
   
@@ -815,16 +815,16 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   }
   
   // Handle location field save
-  const handleLocationFieldSave = async (locationId: string, fieldName: string, newValue: string | boolean | null, verify: boolean) => {
+  const handleLocationFieldSave = async (locationId: number, fieldName: string, newValue: string | boolean | null, verify: boolean) => {
     try {
       // Optimistic update
-      setLocalUniversity(prev => ({
+      setLocalUniversity((prev) => ({
         ...prev,
-        locations: prev.locations.map(loc => 
-          loc.id === locationId 
+        locations: prev.locations.map((loc) =>
+          loc.id === locationId
             ? { ...loc, [fieldName]: newValue === "" ? null : newValue }
             : loc
-        )
+        ),
       }))
       
       // TODO: API call to save location field
@@ -840,8 +840,8 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   }
 
   // Handle location deletion - show confirmation dialog
-  const handleDeleteLocation = (locationId: string) => {
-    const location = localUniversity.locations.find(loc => loc.id === locationId)
+  const handleDeleteLocation = (locationId: number) => {
+    const location = localUniversity.locations.find((loc) => loc.id === locationId)
     if (!location) return
     
     // Create a descriptive name for the location
@@ -857,28 +857,22 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
   // Handle delete confirmation
   const handleDeleteConfirm = async () => {
     if (!locationToDelete) return
-    
+
     try {
-      // Optimistic update
-      const updatedLocations = localUniversity.locations.filter(
-        loc => loc.id !== locationToDelete.locationId
-      )
-      setLocalUniversity(prev => ({
-        ...prev,
-        locations: updatedLocations
-      }))
-      
-      // TODO: API call to delete location
-      // await deleteLocation(localUniversity.id, locationToDelete.locationId)
-      
+      await deleteUniversityLocation(localUniversity.id, locationToDelete.locationId)
+      const updated = await fetchUniversityById(localUniversity.id)
+      setLocalUniversity(updated)
       toast.success(`Location "${locationToDelete.locationName}" deleted successfully`)
-      
-      // Close dialog and reset state
       setDeleteDialogOpen(false)
       setLocationToDelete(null)
     } catch (error) {
-      toast.error('Failed to delete location. Please try again.')
-      console.error('Error deleting location:', error)
+      const message = error instanceof Error ? error.message : String(error)
+      if (message === "Not found") {
+        toast.error("Location not found.")
+      } else {
+        toast.error("Failed to delete location. Please try again.")
+        console.error("Error deleting location:", error)
+      }
       setDeleteDialogOpen(false)
       setLocationToDelete(null)
     }
@@ -956,7 +950,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                     
                     <InlineEditField
                       label="Country"
-                      value={localUniversity.country}
+                      value={localUniversity.country?.name ?? ""}
                       fieldName="country"
                       fieldType="text"
                       onSave={handleFieldSave}
@@ -966,7 +960,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                     
                     <InlineEditField
                       label="Ranking"
-                      value={localUniversity.ranking}
+                      value={getRankingLabel(localUniversity.ranking)}
                       fieldName="ranking"
                       fieldType="select"
                       options={rankingOptions}
@@ -1001,19 +995,19 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                     <div className="space-y-2">
                       <InlineEditField
                         label="LinkedIn"
-                        value={localUniversity.linkedinUrl || ""}
-                        fieldName="linkedinUrl"
+                        value={localUniversity.linkedInUrl || ""}
+                        fieldName="linkedInUrl"
                         fieldType="url"
                         validation={validateURL}
                         onSave={handleFieldSave}
                         placeholder="https://linkedin.com/school/example"
                         getFieldVerification={getFieldVerification}
                       />
-                      {localUniversity.linkedinUrl && (
+                      {localUniversity.linkedInUrl && (
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(localUniversity.linkedinUrl!, '_blank')}
+                          onClick={() => window.open(localUniversity.linkedInUrl!, '_blank')}
                           className="h-7 text-xs"
                         >
                           <ExternalLink className="h-3 w-3 mr-1" />
@@ -1173,38 +1167,9 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-4">
-                  {(() => {
-                    const stats = calculateUniversityJobSuccessRatio(localUniversity)
-                    if (stats.totalGraduates === 0) {
-                      return (
-                        <p className="text-base text-muted-foreground text-center py-6">
-                          No graduates found from this university
-                        </p>
-                      )
-                    }
-                    return (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="p-4 rounded-lg border bg-muted/30">
-                            <div className="text-sm text-muted-foreground mb-1">Total Graduates</div>
-                            <div className="text-2xl font-bold">{stats.totalGraduates}</div>
-                          </div>
-                          <div className="p-4 rounded-lg border bg-muted/30">
-                            <div className="text-sm text-muted-foreground mb-1">Successful Placements</div>
-                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                              {stats.successfulPlacements}
-                            </div>
-                          </div>
-                          <div className="p-4 rounded-lg border bg-muted/30">
-                            <div className="text-sm text-muted-foreground mb-1">Success Ratio</div>
-                            <div className="text-2xl font-bold text-primary">
-                              {stats.successRatio.toFixed(1)}%
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })()}
+                  <p className="text-base text-muted-foreground text-center py-6">
+                    Job success stats will be available when backend API is integrated.
+                  </p>
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -1213,8 +1178,8 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
           {/* University Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
-              <div>Created: {university.createdAt.toLocaleDateString()}</div>
-              <div>Updated: {university.updatedAt.toLocaleDateString()}</div>
+              <div>Created: {new Date(university.createdAt).toLocaleDateString()}</div>
+              <div>Updated: {new Date(university.updatedAt).toLocaleDateString()}</div>
             </div>
           </div>
         </div>

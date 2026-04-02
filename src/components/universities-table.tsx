@@ -6,7 +6,6 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   MoreHorizontalIcon,
-  SearchIcon,
   PlusIcon,
   EyeIcon,
   EditIcon,
@@ -20,10 +19,9 @@ import {
   BuildingIcon,
   GraduationCapIcon,
 } from "lucide-react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -63,11 +61,11 @@ import {
   University,
   UniversityLocation,
   UNIVERSITY_RANKING_COLORS,
-  UNIVERSITY_RANKING_LABELS,
+  RANKING_TO_LABEL,
+  getRankingLabel,
+  type UniversityRanking,
 } from "@/lib/types/university"
 import { UniversityDetailsModal } from "@/components/university-details-modal"
-import { toast } from "sonner"
-import { calculateUniversityJobSuccessRatio } from "@/lib/utils/university-stats"
 
 interface UniversitiesTableProps {
   universities: University[]
@@ -75,7 +73,7 @@ interface UniversitiesTableProps {
   onAdd?: () => void
   onView?: (university: University) => void
   onEdit?: (university: University) => void
-  onDelete?: (university: University) => void
+  onDelete?: (university: University) => void | Promise<void>
   onAddLocation?: (university: University) => void
   onEditLocation?: (location: UniversityLocation) => void
   onDeleteLocation?: (location: UniversityLocation) => void
@@ -97,18 +95,16 @@ export function UniversitiesTable({
   onEditLocation,
   onDeleteLocation,
 }: UniversitiesTableProps) {
-  const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-  const [expandedUniversities, setExpandedUniversities] = useState<Set<string>>(new Set())
+  const [expandedUniversities, setExpandedUniversities] = useState<Set<number>>(new Set())
   const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [universityToDelete, setUniversityToDelete] = useState<University | null>(null)
 
-  const toggleUniversityExpanded = (universityId: string) => {
+  const toggleUniversityExpanded = (universityId: number) => {
     setExpandedUniversities(prev => {
       const newSet = new Set(prev)
       if (newSet.has(universityId)) {
@@ -125,15 +121,13 @@ export function UniversitiesTable({
     setDeleteDialogOpen(true)
   }
 
-  const handleDeleteConfirm = () => {
-    if (universityToDelete) {
-      // Call onDelete if provided, otherwise just show toast
-      onDelete?.(universityToDelete)
-      
-      // Show success toast
-      toast.success(`University "${universityToDelete.name}" has been deleted successfully.`)
-      
-      // Close dialog and reset state
+  const handleDeleteConfirm = async () => {
+    if (!universityToDelete) return
+    try {
+      await onDelete?.(universityToDelete)
+      setDeleteDialogOpen(false)
+      setUniversityToDelete(null)
+    } catch {
       setDeleteDialogOpen(false)
       setUniversityToDelete(null)
     }
@@ -144,52 +138,30 @@ export function UniversitiesTable({
     setUniversityToDelete(null)
   }
 
-  // Filtering (including location data)
-  const filteredUniversities = useMemo(() => {
-    if (!searchQuery) return universities
-
-      return universities.filter(
-        (uni) =>
-          uni.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          uni.country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          uni.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          uni.ranking.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          uni.locations.some(loc => 
-            loc.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (loc.address !== null && loc.address.toLowerCase().includes(searchQuery.toLowerCase()))
-          )
-      )
-  }, [universities, searchQuery])
+  const getSortValue = (uni: University, key: SortKey): string | number => {
+    if (key === "jobSuccessRatio") return 0
+    if (key === "country") return uni.country?.name ?? ""
+    if (key === "ranking") return uni.ranking ?? -1
+    const v = uni[key as keyof University]
+    if (v === null || v === undefined) return ""
+    if (typeof v === "object" && "name" in v) return (v as { name: string }).name
+    return v as string | number
+  }
 
   // Sorting
   const sortedUniversities = useMemo(() => {
-    return [...filteredUniversities].sort((a, b) => {
-      // Handle job success ratio sorting (calculated field)
-      if (sortKey === "jobSuccessRatio") {
-        const aStats = calculateUniversityJobSuccessRatio(a)
-        const bStats = calculateUniversityJobSuccessRatio(b)
-        const comparison = aStats.successRatio - bStats.successRatio
-        return sortDirection === "asc" ? comparison : -comparison
-      }
-
-      // Handle regular university fields
-      const aValue = a[sortKey as keyof University]
-      const bValue = b[sortKey as keyof University]
-
-      if (aValue === bValue) return 0
-
-      let comparison = 0
-      if (aValue instanceof Date && bValue instanceof Date) {
-        comparison = aValue.getTime() - bValue.getTime()
-      } else if (typeof aValue === "boolean" && typeof bValue === "boolean") {
-        comparison = aValue === bValue ? 0 : aValue ? -1 : 1
-      } else {
-        comparison = String(aValue).localeCompare(String(bValue))
-      }
-
+    return [...universities].sort((a, b) => {
+      if (sortKey === "jobSuccessRatio") return 0
+      const aVal = getSortValue(a, sortKey)
+      const bVal = getSortValue(b, sortKey)
+      if (aVal === bVal) return 0
+      const comparison =
+        typeof aVal === "number" && typeof bVal === "number"
+          ? aVal - bVal
+          : String(aVal).localeCompare(String(bVal))
       return sortDirection === "asc" ? comparison : -comparison
     })
-  }, [filteredUniversities, sortKey, sortDirection])
+  }, [universities, sortKey, sortDirection])
 
   // Pagination
   const totalPages = Math.ceil(sortedUniversities.length / itemsPerPage)
@@ -213,15 +185,6 @@ export function UniversitiesTable({
   const handleItemsPerPageChange = (value: string) => {
     setItemsPerPage(parseInt(value))
     setCurrentPage(1)
-  }
-
-  const handleViewGraduates = (university: University) => {
-    // Navigate to candidates page with university filter
-    const params = new URLSearchParams({
-      universityFilter: university.name,
-      universityId: university.id
-    })
-    router.push(`/candidates?${params.toString()}`)
   }
 
   const SortButton = ({ column, children }: { column: SortKey; children: React.ReactNode }) => (
@@ -270,15 +233,6 @@ export function UniversitiesTable({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="relative">
-            <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search universities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-[300px]"
-            />
-          </div>
           {onAdd && (
             <Button onClick={onAdd}>
               <PlusIcon className="mr-2 h-4 w-4" />
@@ -290,7 +244,6 @@ export function UniversitiesTable({
           <div className="flex items-center justify-center h-[400px] text-center">
             <div className="space-y-2">
               <p className="text-lg font-semibold">No universities found</p>
-              <p className="text-muted-foreground">Get started by adding your first university.</p>
               {onAdd && (
                 <Button 
                   onClick={onAdd} 
@@ -309,20 +262,8 @@ export function UniversitiesTable({
 
   return (
     <div className="space-y-4">
-      {/* Header with Search and Add Button */}
+      {/* Header with Add Button */}
       <div className="flex items-center justify-between">
-        <div className="relative">
-          <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search universities..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setCurrentPage(1)
-            }}
-            className="pl-8 w-[300px]"
-          />
-        </div>
         {onAdd && (
           <Button 
             onClick={onAdd}
@@ -340,9 +281,7 @@ export function UniversitiesTable({
           <TableHeader>
             <TableRow>
               <TableHead className="w-[50px]"></TableHead> {/* Expand column */}
-              <TableHead className="w-[80px]">
-                <SortButton column="id">ID</SortButton>
-              </TableHead>
+              <TableHead className="w-[60px]">No.</TableHead>
               <TableHead>
                 <SortButton column="name">University Name</SortButton>
               </TableHead>
@@ -363,8 +302,11 @@ export function UniversitiesTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedUniversities.map((university) => {
+            {paginatedUniversities.map((university, index) => {
               const isExpanded = expandedUniversities.has(university.id)
+              const rowNumber = (currentPage - 1) * itemsPerPage + index + 1
+              const rankingLabel: UniversityRanking | null =
+                university.ranking != null ? RANKING_TO_LABEL[university.ranking] : null
               return (
                 <React.Fragment key={university.id}>
                   {/* University Master Row */}
@@ -389,8 +331,8 @@ export function UniversitiesTable({
                         />
                       </Button>
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {university.id.split('-')[1]}
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {rowNumber}
                     </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
@@ -398,7 +340,7 @@ export function UniversitiesTable({
                         {university.name}
                       </div>
                     </TableCell>
-                    <TableCell>{university.country}</TableCell>
+                    <TableCell>{university.country?.name ?? "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <MapPinIcon className="h-3 w-3" />
@@ -408,28 +350,17 @@ export function UniversitiesTable({
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className={UNIVERSITY_RANKING_COLORS[university.ranking]}
+                        className={
+                          rankingLabel
+                            ? UNIVERSITY_RANKING_COLORS[rankingLabel]
+                            : "bg-muted text-muted-foreground"
+                        }
                       >
-                        {UNIVERSITY_RANKING_LABELS[university.ranking]}
+                        {getRankingLabel(university.ranking)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {(() => {
-                        const stats = calculateUniversityJobSuccessRatio(university)
-                        if (stats.totalGraduates === 0) {
-                          return <span className="text-muted-foreground text-sm">N/A</span>
-                        }
-                        return (
-                          <div className="flex flex-col items-start">
-                            <span className="font-medium text-sm">
-                              {stats.successRatio.toFixed(1)}%
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {stats.successfulPlacements}/{stats.totalGraduates} graduates
-                            </span>
-                          </div>
-                        )
-                      })()}
+                      <span className="text-muted-foreground text-sm">—</span>
                     </TableCell>
                     <TableCell>
                       {university.websiteUrl ? (
@@ -441,8 +372,8 @@ export function UniversitiesTable({
                       )}
                     </TableCell>
                     <TableCell>
-                      {university.linkedinUrl ? (
-                        <LinkButton href={university.linkedinUrl}>
+                      {university.linkedInUrl ? (
+                        <LinkButton href={university.linkedInUrl}>
                           LinkedIn
                         </LinkButton>
                       ) : (
@@ -454,10 +385,16 @@ export function UniversitiesTable({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 transition-colors hover:bg-purple-50 hover:text-purple-600 dark:hover:bg-purple-950 dark:hover:text-purple-400 cursor-pointer"
-                        onClick={() => handleViewGraduates(university)}
-                        title={`View graduates from ${university.name}`}
+                        asChild
                       >
-                        <GraduationCapIcon className="h-4 w-4" />
+                        <Link
+                          href={`/candidates?universityId=${university.id}&universityName=${encodeURIComponent(university.name)}`}
+                          title={`View graduates from ${university.name}`}
+                          aria-label={`View candidates with education at ${university.name}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <GraduationCapIcon className="h-4 w-4" aria-hidden />
+                        </Link>
                       </Button>
                     </TableCell>
                     <TableCell>
@@ -533,9 +470,7 @@ export function UniversitiesTable({
                   {isExpanded && university.locations.map((location) => (
                     <TableRow key={location.id} className="bg-muted/30">
                       <TableCell></TableCell> {/* Empty expand column */}
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {location.id.split('-')[2]}
-                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground" />
                       <TableCell>
                         <div className="flex items-center gap-2 pl-6">
                           <MapPinIcon className="h-4 w-4 text-blue-500" />
@@ -592,7 +527,7 @@ export function UniversitiesTable({
                   {isExpanded && onAddLocation && (
                     <TableRow className="bg-muted/10 border-dashed">
                       <TableCell></TableCell> {/* Empty expand column */}
-                      <TableCell></TableCell> {/* Empty ID column */}
+                      <TableCell></TableCell> {/* Empty No. column */}
                       <TableCell>
                         <div className="flex items-center gap-2 pl-6">
                           <Button
@@ -686,7 +621,6 @@ export function UniversitiesTable({
       <div className="text-xs text-muted-foreground">
         Showing {startIndex + 1} to {Math.min(endIndex, sortedUniversities.length)} of{" "}
         {sortedUniversities.length} entries
-        {searchQuery && ` (filtered from ${universities.length} total entries)`}
       </div>
 
       {/* University Detail Modal */}

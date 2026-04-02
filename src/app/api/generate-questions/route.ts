@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const QUESTIONS_API_BASE_URL = process.env.QUESTIONS_API_URL || 'http://localhost:8002'
+function questionsApiBaseUrl(): string {
+  const raw = process.env.QUESTIONS_API_URL?.trim()
+  if (raw) return raw.replace(/\/+$/, "")
+  return "http://localhost:8002"
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
-    console.log('Proxying request to:', `${QUESTIONS_API_BASE_URL}/api/generate-questions`)
-    
-    const response = await fetch(`${QUESTIONS_API_BASE_URL}/api/generate-questions`, {
+    const base = questionsApiBaseUrl()
+    console.log("Proxying request to:", `${base}/api/generate-questions`)
+
+    const response = await fetch(`${base}/api/generate-questions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

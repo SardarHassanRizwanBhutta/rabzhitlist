@@ -52,7 +52,11 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
   )
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
+function TableRow({ className, children, ...props }: React.ComponentProps<"tr">) {
+  // <tr> may only contain <th>/<td>; JSX whitespace/newlines become text nodes and break hydration.
+  const rowChildren = React.Children.toArray(children).filter(
+    (child) => typeof child !== "string" || child.trim() !== ""
+  )
   return (
     <tr
       data-slot="table-row"
@@ -61,7 +65,9 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
         className
       )}
       {...props}
-    />
+    >
+      {rowChildren}
+    </tr>
   )
 }
 

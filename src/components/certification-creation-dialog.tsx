@@ -28,25 +28,28 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Loader2, Plus, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react"
-import { Certification, CertificationLevel, CERTIFICATION_LEVEL_LABELS } from "@/lib/types/certification"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Loader2, Plus, ShieldCheck, ChevronDown, ChevronRight, Check, ChevronsUpDown, Building2 } from "lucide-react"
+import { Certification, CertificationIssuer } from "@/lib/types/certification"
+import { IssuerCreationDialog, IssuerFormData } from "@/components/issuer-creation-dialog"
+import { createCertificationIssuer } from "@/lib/services/certifications-api"
+import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
-// Form data interface
 export interface CertificationFormData {
   certificationName: string
-  issuingBody: string
-  issuingBodyWebsite: string
-  certificationLevel: CertificationLevel | ""
+  issuerId: number | null
+  issuerName: string
 }
 
-// Verification state export
 export interface CertificationVerificationState {
   verifiedFields: Set<string>
   modifiedFields: Set<string>
@@ -63,34 +66,26 @@ interface CertificationCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string
+  issuers?: CertificationIssuer[]
+  issuersLoading?: boolean
 }
 
 const initialFormData: CertificationFormData = {
   certificationName: "",
-  issuingBody: "",
-  issuingBodyWebsite: "",
-  certificationLevel: "",
+  issuerId: null,
+  issuerName: "",
 }
 
-// Level options
-const levelOptions = Object.entries(CERTIFICATION_LEVEL_LABELS).map(([value, label]) => ({
-  value: value as CertificationLevel,
-  label
-}))
-
-// Helper function to convert Certification to CertificationFormData
 const certificationToFormData = (certification: Certification): CertificationFormData => {
   return {
-    certificationName: certification.certificationName || "",
-    issuingBody: certification.issuingBody || "",
-    issuingBodyWebsite: (certification as unknown as { issuingBodyWebsite?: string }).issuingBodyWebsite || "",
-    certificationLevel: certification.certificationLevel || "",
+    certificationName: certification.name || "",
+    issuerId: certification.issuer?.id ?? null,
+    issuerName: certification.issuer?.name || "",
   }
 }
 
-// All verifiable fields for certifications
 const CERTIFICATION_VERIFICATION_FIELDS = [
-  'certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel'
+  'certificationName', 'issuerId'
 ]
 
 export function CertificationCreationDialog({
@@ -102,6 +97,8 @@ export function CertificationCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  issuers = [],
+  issuersLoading = false,
 }: CertificationCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -109,17 +106,35 @@ export function CertificationCreationDialog({
   const [errors, setErrors] = useState<Partial<Record<keyof CertificationFormData, string>>>({})
   const initialFormDataRef = useRef<CertificationFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
-  
+
   // Verification state
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set())
-  
+
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic-info"])
   )
 
-  // Use controlled or internal open state
+  // Issuer combobox state
+  const [issuerPopoverOpen, setIssuerPopoverOpen] = useState(false)
+  const [issuerSearchQuery, setIssuerSearchQuery] = useState("")
+  const [issuerOptions, setIssuerOptions] = useState<CertificationIssuer[]>(issuers)
+
+  // Stable key so we don't re-run when parent passes a new array reference every render (e.g. default [])
+  const issuerIdsKey = useMemo(
+    () => issuers.map((i) => i.id).join(","),
+    [issuers]
+  )
+  useEffect(() => {
+    setIssuerOptions(issuers)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally sync only when issuer list identity (ids) changes
+  }, [issuerIdsKey])
+
+  // Issuer creation dialog state
+  const [createIssuerDialogOpen, setCreateIssuerDialogOpen] = useState(false)
+  const [pendingIssuerName, setPendingIssuerName] = useState("")
+
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   const setOpen = (newOpen: boolean) => {
     if (controlledOpen === undefined) {
@@ -128,7 +143,6 @@ export function CertificationCreationDialog({
     onOpenChange?.(newOpen)
   }
 
-  // Reset form when dialog opens/closes or mode/certificationData changes
   useEffect(() => {
     if (open) {
       if (mode === "edit" && certificationData) {
@@ -136,8 +150,7 @@ export function CertificationCreationDialog({
         setFormData(formDataFromCertification)
         initialFormDataRef.current = formDataFromCertification
       } else {
-        // In create mode, check for initialName prop
-        const formDataToUse = initialName 
+        const formDataToUse = initialName
           ? { ...initialFormData, certificationName: initialName }
           : initialFormData
         setFormData(formDataToUse)
@@ -145,13 +158,10 @@ export function CertificationCreationDialog({
       }
       setErrors({})
       setModifiedFields(new Set())
-      
-      // Reset verified fields if not in verification mode
       if (!showVerification) {
         setVerifiedFields(new Set())
       }
     } else {
-      // Reset form when dialog closes
       setFormData(initialFormData)
       setErrors({})
       initialFormDataRef.current = null
@@ -162,13 +172,11 @@ export function CertificationCreationDialog({
     }
   }, [open, mode, certificationData, showVerification, initialName])
 
-  // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     if (!showVerification) return false
     return modifiedFields.size > 0 || verifiedFields.size > 0
   }, [showVerification, modifiedFields, verifiedFields])
 
-  // Handle close with unsaved changes check
   const handleDialogClose = (newOpen: boolean) => {
     if (!newOpen && hasUnsavedChanges) {
       setShowUnsavedWarning(true)
@@ -179,20 +187,81 @@ export function CertificationCreationDialog({
 
   const handleInputChange = (field: keyof CertificationFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    
-    // Track modifications and auto-verify in verification mode
+
     if (showVerification) {
       setModifiedFields(prev => new Set(prev).add(field))
       setVerifiedFields(prev => new Set(prev).add(field))
     }
-    
-    // Clear error when user starts typing
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
     }
   }
 
-  // Toggle verification checkbox
+  const handleIssuerSelect = (issuer: CertificationIssuer) => {
+    setFormData(prev => ({
+      ...prev,
+      issuerId: issuer.id,
+      issuerName: issuer.name,
+    }))
+    setIssuerPopoverOpen(false)
+    setIssuerSearchQuery("")
+
+    if (showVerification) {
+      setModifiedFields(prev => new Set(prev).add("issuerId"))
+      setVerifiedFields(prev => new Set(prev).add("issuerId"))
+    }
+
+    if (errors.issuerId) {
+      setErrors(prev => ({ ...prev, issuerId: undefined }))
+    }
+  }
+
+  const handleCreateIssuer = (name: string) => {
+    setPendingIssuerName(name)
+    setIssuerPopoverOpen(false)
+    setCreateIssuerDialogOpen(true)
+  }
+
+  const handleIssuerCreated = async (issuerData: IssuerFormData) => {
+    const newIssuer = await createCertificationIssuer({
+      name: issuerData.name.trim(),
+      websiteUrl: issuerData.websiteUrl.trim() || "",
+    })
+
+    setIssuerOptions(prev =>
+      [...prev, newIssuer].sort((a, b) => a.name.localeCompare(b.name))
+    )
+
+    setFormData(prev => ({
+      ...prev,
+      issuerId: newIssuer.id,
+      issuerName: newIssuer.name,
+    }))
+
+    if (showVerification) {
+      setModifiedFields(prev => new Set(prev).add("issuerId"))
+      setVerifiedFields(prev => new Set(prev).add("issuerId"))
+    }
+
+    if (errors.issuerId) {
+      setErrors(prev => ({ ...prev, issuerId: undefined }))
+    }
+
+    toast.success(`Issuer "${issuerData.name}" created successfully.`)
+    setCreateIssuerDialogOpen(false)
+    setPendingIssuerName("")
+  }
+
+  const filteredIssuers = useMemo(() => {
+    if (!issuerSearchQuery.trim()) return issuerOptions
+    const query = issuerSearchQuery.toLowerCase().trim()
+    return issuerOptions.filter(issuer =>
+      issuer.name.toLowerCase().includes(query)
+    )
+  }, [issuerOptions, issuerSearchQuery])
+
+  // Verification
   const handleVerificationToggle = (fieldName: string, checked: boolean) => {
     setVerifiedFields(prev => {
       const newSet = new Set(prev)
@@ -205,43 +274,35 @@ export function CertificationCreationDialog({
     })
   }
 
-  // Calculate section progress
   const calculateSectionProgress = (fieldNames: string[]): { percentage: number; verified: number; total: number } => {
     let verified = 0
     const total = fieldNames.length
-
     fieldNames.forEach(fieldName => {
-      if (verifiedFields.has(fieldName)) {
-        verified++
-      }
+      if (verifiedFields.has(fieldName)) verified++
     })
-
     const percentage = total > 0 ? Math.round((verified / total) * 100) : 0
     return { percentage, verified, total }
   }
 
-  // Get progress color
   const getProgressColor = (percentage: number): string => {
     if (percentage === 100) return 'bg-green-500 hover:bg-green-600'
     if (percentage >= 70) return 'bg-yellow-500 hover:bg-yellow-600'
     return 'bg-red-500 hover:bg-red-600'
   }
 
-  // Section progress badge component
-  const SectionProgressBadge = ({ 
-    percentage, 
-    verified, 
-    total 
-  }: { 
+  const SectionProgressBadge = ({
+    percentage,
+    verified,
+    total
+  }: {
     percentage: number
     verified: number
-    total: number 
+    total: number
   }) => {
     if (total === 0) return null
-
     return (
-      <Badge 
-        variant="default" 
+      <Badge
+        variant="default"
         className={`${getProgressColor(percentage)} text-white text-xs font-medium`}
       >
         {percentage}% verified ({verified}/{total})
@@ -249,49 +310,40 @@ export function CertificationCreationDialog({
     )
   }
 
-  // Section progress calculations
-  const basicInfoProgress = useMemo(() => 
-    calculateSectionProgress(['certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel']),
+  const basicInfoProgress = useMemo(() =>
+    calculateSectionProgress(CERTIFICATION_VERIFICATION_FIELDS),
     [verifiedFields]
   )
 
-  // Overall verification progress
   const verificationProgress = useMemo(() => {
     const totalFields = CERTIFICATION_VERIFICATION_FIELDS.length
     const verifiedCount = verifiedFields.size
     return Math.round((verifiedCount / totalFields) * 100)
   }, [verifiedFields])
 
-  // Helper to get field names for a section
   const getSectionFieldNames = (sectionId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      'basic-info': ['certificationName', 'issuingBody', 'issuingBodyWebsite', 'certificationLevel'],
+      'basic-info': CERTIFICATION_VERIFICATION_FIELDS,
     }
     return fieldMap[sectionId] || []
   }
 
-  // Check if all fields in a section are verified
   const isSectionFullyVerified = (sectionId: string): boolean => {
     const sectionFields = getSectionFieldNames(sectionId)
     if (sectionFields.length === 0) return false
     return sectionFields.every(fieldName => verifiedFields.has(fieldName))
   }
 
-  // Handle verify all for a section
   const handleVerifyAllSection = (sectionId: string, checked: boolean) => {
     const sectionFields = getSectionFieldNames(sectionId)
     setVerifiedFields(prev => {
       const newSet = new Set(prev)
       sectionFields.forEach(fieldName => {
-        if (checked) {
-          newSet.add(fieldName)
-        } else {
-          newSet.delete(fieldName)
-        }
+        if (checked) newSet.add(fieldName)
+        else newSet.delete(fieldName)
       })
       return newSet
     })
-    // Also mark fields as modified when verifying
     if (checked) {
       setModifiedFields(prev => {
         const newSet = new Set(prev)
@@ -301,19 +353,14 @@ export function CertificationCreationDialog({
     }
   }
 
-  // Verification checkbox component
-  const VerificationCheckbox = ({ 
-    fieldName, 
-    label 
-  }: { 
+  const VerificationCheckbox = ({
+    fieldName,
+  }: {
     fieldName: string
-    label?: string 
+    label?: string
   }) => {
     if (!showVerification) return null
-    
     const isChecked = verifiedFields.has(fieldName)
-    const isModified = modifiedFields.has(fieldName)
-    
     return (
       <div className="flex items-center gap-1.5">
         <Checkbox
@@ -322,8 +369,8 @@ export function CertificationCreationDialog({
           onCheckedChange={(checked) => handleVerificationToggle(fieldName, checked === true)}
           className="h-4 w-4"
         />
-        <Label 
-          htmlFor={`verify-${fieldName}`} 
+        <Label
+          htmlFor={`verify-${fieldName}`}
           className={`text-xs cursor-pointer ${isChecked ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'}`}
         >
           {isChecked ? '✓ Mark as verified' : 'Mark as verified'}
@@ -335,11 +382,8 @@ export function CertificationCreationDialog({
   const toggleSection = (section: string) => {
     setExpandedSections(prev => {
       const newSet = new Set(prev)
-      if (newSet.has(section)) {
-        newSet.delete(section)
-      } else {
-        newSet.add(section)
-      }
+      if (newSet.has(section)) newSet.delete(section)
+      else newSet.add(section)
       return newSet
     })
   }
@@ -347,26 +391,12 @@ export function CertificationCreationDialog({
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof CertificationFormData, string>> = {}
 
-    // Required field validation
     if (!formData.certificationName.trim()) {
       newErrors.certificationName = "Certification name is required"
     }
 
-    if (!formData.issuingBody.trim()) {
-      newErrors.issuingBody = "Issuing body is required"
-    }
-
-    // URL validation for issuing body website
-    if (formData.issuingBodyWebsite.trim()) {
-      try {
-        new URL(formData.issuingBodyWebsite.trim())
-      } catch {
-        newErrors.issuingBodyWebsite = "Please enter a valid URL (e.g., https://example.com)"
-      }
-    }
-
-    if (!formData.certificationLevel) {
-      newErrors.certificationLevel = "Certification level is required"
+    if (!formData.issuerId) {
+      newErrors.issuerId = "Issuing body is required"
     }
 
     setErrors(newErrors)
@@ -375,18 +405,15 @@ export function CertificationCreationDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!validateForm()) {
-      return
-    }
+
+    if (!validateForm()) return
 
     setIsLoading(true)
     try {
-      // Include verification state if in verification mode
-      const verificationState: CertificationVerificationState | undefined = showVerification 
+      const verificationState: CertificationVerificationState | undefined = showVerification
         ? { verifiedFields, modifiedFields }
         : undefined
-        
+
       await onSubmit?.(formData, verificationState)
       setFormData(initialFormData)
       setErrors({})
@@ -395,6 +422,7 @@ export function CertificationCreationDialog({
       setOpen(false)
     } catch (error) {
       console.error(`Error ${mode === "edit" ? "updating" : "creating"} certification:`, error)
+      toast.error(`Failed to ${mode === "edit" ? "update" : "create"} certification. Please try again.`)
     } finally {
       setIsLoading(false)
     }
@@ -421,15 +449,11 @@ export function CertificationCreationDialog({
     setOpen(false)
   }
 
-  // Get dialog title based on mode and verification
   const getDialogTitle = () => {
-    if (showVerification) {
-      return "Verify Certification"
-    }
+    if (showVerification) return "Verify Certification"
     return mode === "edit" ? "Edit Certification" : "Create New Certification"
   }
 
-  // Get submit button text based on mode and verification
   const getSubmitButtonText = () => {
     if (isLoading) {
       if (showVerification) return "Saving & Verifying..."
@@ -452,7 +476,7 @@ export function CertificationCreationDialog({
             )}
           </DialogTrigger>
         )}
-        
+
         <DialogContent className="sm:max-w-[500px] lg:max-w-[550px] max-h-[90vh] flex flex-col p-0 [&>button]:cursor-pointer">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
             <div className="flex items-center justify-between">
@@ -461,8 +485,7 @@ export function CertificationCreationDialog({
                 {getDialogTitle()}
               </DialogTitle>
             </div>
-            
-            {/* Verification Progress Bar */}
+
             {showVerification && (
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -485,60 +508,65 @@ export function CertificationCreationDialog({
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <form onSubmit={handleSubmit} className="space-y-4" id="certification-form">
-              
-              {/* Basic Information Section */}
-              <Collapsible 
-                open={expandedSections.has("basic-info")} 
+
+              <Collapsible
+                open={expandedSections.has("basic-info")}
                 onOpenChange={() => toggleSection("basic-info")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Basic Information
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={basicInfoProgress.percentage}
-                              verified={basicInfoProgress.verified}
-                              total={basicInfoProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-basic-info"
-                                checked={isSectionFullyVerified("basic-info")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("basic-info", checked === true)}
-                                className="h-4 w-4"
+                  {/* asChild + div: avoid <button> wrapping Checkbox (also a button) — invalid HTML / hydration */}
+                  <CollapsibleTrigger asChild>
+                    <div className="w-full rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                      <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            Basic Information
+                            {showVerification && (
+                              <SectionProgressBadge
+                                percentage={basicInfoProgress.percentage}
+                                verified={basicInfoProgress.verified}
+                                total={basicInfoProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-basic-info" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            )}
+                          </CardTitle>
+                          <div className="flex items-center gap-2">
+                            {showVerification && (
+                              <div
+                                className="flex items-center gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                                onPointerDown={(e) => e.stopPropagation()}
                               >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("basic-info") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
+                                <Checkbox
+                                  id="verify-all-basic-info"
+                                  checked={isSectionFullyVerified("basic-info")}
+                                  onCheckedChange={(checked) =>
+                                    handleVerifyAllSection("basic-info", checked === true)
+                                  }
+                                  className="h-4 w-4"
+                                />
+                                <Label
+                                  htmlFor="verify-all-basic-info"
+                                  className="text-xs text-muted-foreground cursor-pointer font-normal"
+                                >
+                                  Verify All
+                                </Label>
+                              </div>
+                            )}
+                            {expandedSections.has("basic-info") ? (
+                              <ChevronDown className="size-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="size-4 text-muted-foreground" />
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
+                      </CardHeader>
+                    </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
-                      {/* Certification Name */}
+                      {/* Name */}
                       <div className="space-y-2">
-                        <Label htmlFor="certificationName">Certification Name *</Label>
+                        <Label htmlFor="certificationName">Name *</Label>
                         <Input
                           id="certificationName"
                           type="text"
@@ -547,85 +575,113 @@ export function CertificationCreationDialog({
                           onChange={(e) => handleInputChange("certificationName", e.target.value)}
                           className={errors.certificationName ? "border-red-500" : ""}
                         />
-                        {errors.certificationName ? (
+                        {errors.certificationName && (
                           <p className="text-sm text-red-500">{errors.certificationName}</p>
-                        ) : null}
+                        )}
                         {showVerification && (
                           <VerificationCheckbox fieldName="certificationName" />
                         )}
                       </div>
 
-                      {/* Issuing Body */}
+                      {/* Issuing Body Combobox */}
                       <div className="space-y-2">
-                        <Label htmlFor="issuingBody">Issuing Body *</Label>
-                        <Input
-                          id="issuingBody"
-                          type="text"
-                          placeholder="Amazon Web Services"
-                          value={formData.issuingBody}
-                          onChange={(e) => handleInputChange("issuingBody", e.target.value)}
-                          className={errors.issuingBody ? "border-red-500" : ""}
-                        />
-                        {errors.issuingBody ? (
-                          <p className="text-sm text-red-500">{errors.issuingBody}</p>
-                        ) : null}
-                        {showVerification && (
-                          <VerificationCheckbox fieldName="issuingBody" />
+                        <Label>Issuing Body *</Label>
+                        <Popover open={issuerPopoverOpen} onOpenChange={setIssuerPopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={issuerPopoverOpen}
+                              className={cn(
+                                "w-full justify-between",
+                                !formData.issuerName && "text-muted-foreground",
+                                errors.issuerId && "border-red-500"
+                              )}
+                            >
+                              {formData.issuerName ? (
+                                <span className="flex items-center gap-2">
+                                  <Building2 className="h-4 w-4 shrink-0" />
+                                  {formData.issuerName}
+                                </span>
+                              ) : (
+                                "Select issuing body..."
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[--radix-popover-trigger-width] p-0"
+                            align="start"
+                            onWheel={(e) => e.stopPropagation()}
+                          >
+                            <Command shouldFilter={false}>
+                              <CommandInput
+                                placeholder="Search issuers..."
+                                value={issuerSearchQuery}
+                                onValueChange={setIssuerSearchQuery}
+                              />
+                              <CommandList>
+                                {issuersLoading ? (
+                                  <CommandEmpty>
+                                    <div className="flex items-center justify-center gap-2 py-2">
+                                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                      <span className="text-sm text-muted-foreground">Loading issuers...</span>
+                                    </div>
+                                  </CommandEmpty>
+                                ) : filteredIssuers.length === 0 && issuerSearchQuery.trim() ? (
+                                  <>
+                                    <CommandEmpty>No issuer found.</CommandEmpty>
+                                    <CommandGroup>
+                                      <CommandItem
+                                        value={issuerSearchQuery}
+                                        onSelect={() => handleCreateIssuer(issuerSearchQuery)}
+                                        className="cursor-pointer font-medium text-primary"
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add New Issuer &quot;{issuerSearchQuery.trim()}&quot;
+                                      </CommandItem>
+                                    </CommandGroup>
+                                  </>
+                                ) : filteredIssuers.length === 0 ? (
+                                  <CommandEmpty>Type to search...</CommandEmpty>
+                                ) : (
+                                  <CommandGroup>
+                                    {filteredIssuers.map((issuer) => (
+                                      <CommandItem
+                                        key={issuer.id}
+                                        value={String(issuer.id)}
+                                        onSelect={() => handleIssuerSelect(issuer)}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <Check
+                                          className={cn(
+                                            "h-4 w-4",
+                                            formData.issuerId === issuer.id ? "opacity-100" : "opacity-0"
+                                          )}
+                                        />
+                                        <div className="flex-1">
+                                          <div className="font-medium">{issuer.name}</div>
+                                          {issuer.websiteUrl && (
+                                            <div className="text-xs text-muted-foreground">
+                                              {issuer.websiteUrl}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                )}
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {errors.issuerId && (
+                          <p className="text-sm text-red-500">{errors.issuerId}</p>
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          Organization that issues this certification
-                        </p>
-                      </div>
-
-                      {/* Issuing Body Website */}
-                      <div className="space-y-2">
-                        <Label htmlFor="issuingBodyWebsite">Issuing Body Website</Label>
-                        <Input
-                          id="issuingBodyWebsite"
-                          type="url"
-                          placeholder="https://aws.amazon.com"
-                          value={formData.issuingBodyWebsite}
-                          onChange={(e) => handleInputChange("issuingBodyWebsite", e.target.value)}
-                          className={errors.issuingBodyWebsite ? "border-red-500" : ""}
-                        />
-                        {errors.issuingBodyWebsite ? (
-                          <p className="text-sm text-red-500">{errors.issuingBodyWebsite}</p>
-                        ) : null}
                         {showVerification && (
-                          <VerificationCheckbox fieldName="issuingBodyWebsite" />
+                          <VerificationCheckbox fieldName="issuerId" />
                         )}
-                        <p className="text-xs text-muted-foreground">
-                          Website URL of the issuing body for verification purposes
-                        </p>
-                      </div>
-
-                      {/* Certification Level */}
-                      <div className="space-y-2">
-                        <Label htmlFor="level">Certification Level *</Label>
-                        <Select
-                          value={formData.certificationLevel}
-                          onValueChange={(value: CertificationLevel) => handleInputChange("certificationLevel", value)}
-                        >
-                          <SelectTrigger className={errors.certificationLevel ? "border-red-500" : ""}>
-                            <SelectValue placeholder="Select certification level" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {levelOptions.map((level) => (
-                              <SelectItem key={level.value} value={level.value}>
-                                {level.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {errors.certificationLevel ? (
-                          <p className="text-sm text-red-500">{errors.certificationLevel}</p>
-                        ) : null}
-                        {showVerification && (
-                          <VerificationCheckbox fieldName="certificationLevel" />
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          Foundation → Associate → Professional → Expert → Master
-                        </p>
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -645,8 +701,8 @@ export function CertificationCreationDialog({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               form="certification-form"
               disabled={isLoading}
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
@@ -679,7 +735,7 @@ export function CertificationCreationDialog({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="cursor-pointer">Continue Editing</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDiscardChanges}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer"
             >
@@ -688,6 +744,14 @@ export function CertificationCreationDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Issuer Dialog */}
+      <IssuerCreationDialog
+        open={createIssuerDialogOpen}
+        onOpenChange={setCreateIssuerDialogOpen}
+        onSubmit={handleIssuerCreated}
+        initialName={pendingIssuerName}
+      />
     </>
   )
 }

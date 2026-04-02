@@ -1,10 +1,15 @@
+export interface CertificationIssuer {
+  id: number
+  name: string
+  websiteUrl: string | null
+}
+
 export interface Certification {
-  id: string
-  certificationName: string
-  issuingBody: string | null
-  certificationLevel: CertificationLevel
-  createdAt: Date
-  updatedAt: Date
+  id: number
+  name: string
+  issuer: CertificationIssuer | null
+  createdAt: string
+  updatedAt: string
 }
 
 export type CertificationLevel = 

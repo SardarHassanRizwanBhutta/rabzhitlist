@@ -38,7 +38,8 @@ interface MultiSelectProps {
   disabled?: boolean
   creatable?: boolean  // New prop
   createLabel?: string  // New prop - e.g., "Add Technology", "Add Domain"
-  onCreateNew?: (value: string) => void  // New prop - callback when creating
+  /** When "+ Add" is clicked: if provided and returns a Promise, we await it and only add to selected on success. */
+  onCreateNew?: (value: string) => void | Promise<void>
 }
 
 export function MultiSelect({
@@ -81,18 +82,23 @@ export function MultiSelect({
     }
   }
 
-  const handleCreateNew = (value: string) => {
-    const trimmedValue = value.trim()
-    if (trimmedValue && !selected.includes(trimmedValue)) {
-      // Add the new value to selected
-      onChange([...selected, trimmedValue])
-      // Call the callback if provided
-      onCreateNew?.(trimmedValue)
-      // Clear search and close popover
-      setSearchValue("")
-      setOpen(false)
-    }
-  }
+  const [createInProgress, setCreateInProgress] = React.useState(false)
+  const handleCreateNew = React.useCallback(
+    async (value: string) => {
+      const trimmedValue = value.trim()
+      if (!trimmedValue || selected.includes(trimmedValue)) return
+      setCreateInProgress(true)
+      try {
+        if (onCreateNew) await Promise.resolve(onCreateNew(trimmedValue))
+        onChange([...selected, trimmedValue])
+        setSearchValue("")
+        setOpen(false)
+      } finally {
+        setCreateInProgress(false)
+      }
+    },
+    [selected, onChange, onCreateNew]
+  )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const input = e.target as HTMLInputElement
@@ -112,7 +118,7 @@ export function MultiSelect({
     item.label.toLowerCase() === searchValue.trim().toLowerCase()
   )) {
     e.preventDefault()
-    handleCreateNew(searchValue)
+    void handleCreateNew(searchValue)
   }
 }
 
@@ -232,11 +238,12 @@ export function MultiSelect({
                   <CommandGroup>
                     <CommandItem
                       value={searchValue}
-                      onSelect={() => handleCreateNew(searchValue)}
+                      onSelect={() => void handleCreateNew(searchValue)}
+                      disabled={createInProgress}
                       className="cursor-pointer font-medium text-primary"
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      {createLabel || `Add "${searchValue.trim()}"`}
+                      {createInProgress ? "Adding…" : (createLabel || `Add "${searchValue.trim()}"`)}
                     </CommandItem>
                   </CommandGroup>
                 </>
