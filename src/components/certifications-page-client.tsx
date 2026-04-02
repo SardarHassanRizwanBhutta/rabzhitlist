@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
 import { Globe } from "lucide-react"
 import { CertificationsTable } from "@/components/certifications-table"
@@ -8,91 +8,133 @@ import { CertificationCreationDialog, CertificationFormData, CertificationVerifi
 import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
-import type { Certification } from "@/lib/types/certification"
+import type { Certification, CertificationIssuer } from "@/lib/types/certification"
+import { fetchCertificationsPage, fetchCertificationIssuers, createCertification, updateCertification, deleteCertification } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
 
-interface CertificationsPageClientProps {
-  certifications: Certification[]
-}
+const DEFAULT_PAGE_SIZE = 20
 
-export function CertificationsPageClient({ certifications }: CertificationsPageClientProps) {
+export function CertificationsPageClient() {
   const searchParams = useSearchParams()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<CertificationFilters>({
-    certificationNames: [],
-    issuingBodies: [],
-    certificationLevels: [],
+    certificationNameSearch: "",
+    issuerIds: [],
   })
 
-  // Check for URL filters
+  const [items, setItems] = useState<Certification[]>([])
+  const [totalCount, setTotalCount] = useState(0)
+  const [pageNumber, setPageNumber] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+  const [totalPages, setTotalPages] = useState(0)
+  const [hasPrevious, setHasPrevious] = useState(false)
+  const [hasNext, setHasNext] = useState(false)
+  const [certificationsLoading, setCertificationsLoading] = useState(true)
+
+  const [issuers, setIssuers] = useState<CertificationIssuer[]>([])
+  const [issuersLoading, setIssuersLoading] = useState(true)
+
+  const loadCertifications = useCallback(async (page: number, size: number) => {
+    try {
+      setCertificationsLoading(true)
+      const data = await fetchCertificationsPage({
+        name: filters.certificationNameSearch.trim() || undefined,
+        issuerIds: filters.issuerIds.length > 0 ? filters.issuerIds : undefined,
+        pageNumber: page,
+        pageSize: size,
+      })
+      setItems(data.items)
+      setTotalCount(data.totalCount)
+      setPageNumber(data.pageNumber)
+      setPageSize(data.pageSize)
+      setTotalPages(data.totalPages)
+      setHasPrevious(data.hasPrevious)
+      setHasNext(data.hasNext)
+    } catch (error) {
+      console.error("Failed to fetch certifications:", error)
+      toast.error("Failed to load certifications.")
+    } finally {
+      setCertificationsLoading(false)
+    }
+  }, [filters.certificationNameSearch, filters.issuerIds])
+
+  useEffect(() => {
+    loadCertifications(pageNumber, pageSize)
+  }, [loadCertifications, pageNumber, pageSize])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadIssuers() {
+      try {
+        const data = await fetchCertificationIssuers()
+        if (!cancelled) setIssuers(data)
+      } catch (error) {
+        console.error("Failed to fetch certification issuers:", error)
+        if (!cancelled) toast.error("Failed to load certification issuers.")
+      } finally {
+        if (!cancelled) setIssuersLoading(false)
+      }
+    }
+    loadIssuers()
+    return () => { cancelled = true }
+  }, [])
+
   useEffect(() => {
     const certificationFilterName = searchParams.get('certificationFilter')
     const certificationId = searchParams.get('certificationId')
-    
     if (certificationFilterName && certificationId) {
-      // Apply certification filter
       setFilters(prev => ({
         ...prev,
-        certificationNames: [certificationFilterName]
+        certificationNameSearch: certificationFilterName,
       }))
     }
   }, [searchParams])
 
-  // Apply global filters and local filters to certifications
-  const filteredCertifications = useMemo(() => {
-    let filtered = certifications
+  const handleFiltersChange = (newFilters: CertificationFilters) => {
+    setFilters(newFilters)
+    setPageNumber(1)
+  }
 
-    // Apply global filters (limited filtering for certifications)
-    if (hasGlobalFilters) {
-      // Note: Certifications have limited global filter applicability
-      // Only status filter would apply if certifications had status field
-    }
+  const handlePageChange = (page: number) => {
+    setPageNumber(page)
+  }
 
-    // Apply local filters
-    if (filters.certificationNames.length > 0) {
-      filtered = filtered.filter(cert =>
-        filters.certificationNames.includes(cert.certificationName)
-      )
-    }
-
-    if (filters.issuingBodies.length > 0) {
-      filtered = filtered.filter(cert =>
-        cert.issuingBody !== null && filters.issuingBodies.includes(cert.issuingBody)
-      )
-    }
-
-    if (filters.certificationLevels.length > 0) {
-      filtered = filtered.filter(cert =>
-        filters.certificationLevels.includes(cert.certificationLevel)
-      )
-    }
-
-    return filtered
-  }, [certifications, globalFilters, hasGlobalFilters, filters])
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size)
+    setPageNumber(1)
+  }
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [certificationToEdit, setCertificationToEdit] = useState<Certification | null>(null)
 
   const handleCertificationSubmit = async (data: CertificationFormData, verificationState?: CertificationVerificationState) => {
-    // Here you would typically send the data to your API
-    console.log("Certification data:", data)
-    if (verificationState) {
-      console.log("Verification state:", {
-        verifiedFields: Array.from(verificationState.verifiedFields),
-        modifiedFields: Array.from(verificationState.modifiedFields)
-      })
-    }
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    // You could add/update the certification to your state/cache here
     if (certificationToEdit) {
-      toast.success(`Certification "${data.certificationName}" has been updated${verificationState ? ' and verified' : ''} successfully.`)
-      setEditDialogOpen(false)
-      setCertificationToEdit(null)
+      try {
+        await updateCertification(certificationToEdit.id, {
+          name: data.certificationName,
+          issuerId: data.issuerId ?? null,
+        })
+        toast.success(`Certification "${data.certificationName}" has been updated${verificationState ? ' and verified' : ''} successfully.`)
+        setEditDialogOpen(false)
+        setCertificationToEdit(null)
+        await loadCertifications(pageNumber, pageSize)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message === 'Not found') {
+          toast.error('Certification not found.')
+          setEditDialogOpen(false)
+          setCertificationToEdit(null)
+        } else {
+          toast.error(message || 'Failed to update certification.')
+        }
+      }
     } else {
+      await createCertification({
+        name: data.certificationName,
+        issuerId: data.issuerId!,
+      })
       toast.success(`Certification "${data.certificationName}" has been created successfully.`)
+      loadCertifications(pageNumber, pageSize)
     }
   }
 
@@ -102,21 +144,27 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
   }
 
   const handleDeleteCertification = async (certification: Certification) => {
-    // Here you would typically send the delete request to your API
-    console.log("Delete certification:", certification.id)
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    toast.success(`Certification "${certification.certificationName}" has been deleted successfully.`)
+    try {
+      await deleteCertification(certification.id)
+      toast.success(`Certification "${certification.name}" has been deleted successfully.`)
+      await loadCertifications(pageNumber, pageSize)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (message === 'Not found') {
+        toast.error('Certification not found.')
+      } else {
+        toast.error(message || 'Failed to delete certification.')
+      }
+      throw err
+    }
   }
 
   const handleClearFilters = () => {
     setFilters({
-      certificationNames: [],
-      issuingBodies: [],
-      certificationLevels: [],
+      certificationNameSearch: "",
+      issuerIds: [],
     })
+    setPageNumber(1)
   }
 
   return (
@@ -128,14 +176,18 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
         <div className="flex items-center gap-2">
           <CertificationsFilterDialog
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
+            issuers={issuers}
           />
-          <CertificationCreationDialog onSubmit={handleCertificationSubmit} />
+          <CertificationCreationDialog
+            onSubmit={handleCertificationSubmit}
+            issuers={issuers}
+            issuersLoading={issuersLoading}
+          />
         </div>
       </div>
 
-      {/* Global Filter Indicator */}
       {hasGlobalFilters && (
         <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <Globe className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -144,20 +196,30 @@ export function CertificationsPageClient({ certifications }: CertificationsPageC
           </span>
         </div>
       )}
-      
+
       <CertificationsTable
-        certifications={filteredCertifications}
+        certifications={items}
+        isLoading={certificationsLoading}
+        totalCount={totalCount}
+        pageNumber={pageNumber}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        hasPrevious={hasPrevious}
+        hasNext={hasNext}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         onEdit={handleEditCertification}
         onDelete={handleDeleteCertification}
       />
 
-      {/* Edit Certification Dialog */}
       {certificationToEdit && (
         <CertificationCreationDialog
           mode="edit"
           certificationData={certificationToEdit}
           showVerification={true}
           onSubmit={handleCertificationSubmit}
+          issuers={issuers}
+          issuersLoading={issuersLoading}
           open={editDialogOpen}
           onOpenChange={(open) => {
             setEditDialogOpen(open)

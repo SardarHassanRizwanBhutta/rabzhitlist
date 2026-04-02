@@ -36,8 +36,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Plus, GraduationCap, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight } from "lucide-react"
-import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Loader2, Plus, GraduationCap, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, ChevronsUpDown, Check } from "lucide-react"
+import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS, RANKING_TO_LABEL } from "@/lib/types/university"
+import type { Country } from "@/lib/types/country"
+import { cn } from "@/lib/utils"
 
 // Form data interfaces
 export interface UniversityLocationFormData {
@@ -51,7 +62,7 @@ export interface UniversityFormData {
   name: string
   websiteUrl: string
   linkedinUrl: string
-  country: string
+  countryId: number | null
   ranking: UniversityRanking | ""
   locations: UniversityLocationFormData[]
 }
@@ -73,7 +84,14 @@ interface UniversityCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string
+  countries?: Country[]
+  countriesLoading?: boolean
+  /** When provided, allows adding a new country from the country combobox when not found. Should create and return the new country. */
+  onCreateCountry?: (name: string) => Promise<Country | null>
 }
+
+/** Stable default — avoid `countries = []` in props (new [] each render breaks useEffect deps). */
+const EMPTY_COUNTRIES: Country[] = []
 
 const createEmptyLocation = (): UniversityLocationFormData => ({
   id: crypto.randomUUID(),
@@ -86,7 +104,7 @@ const initialFormData: UniversityFormData = {
   name: "",
   websiteUrl: "",
   linkedinUrl: "",
-  country: "",
+  countryId: null,
   ranking: "",
   locations: [createEmptyLocation()], // Start with one location
 }
@@ -97,20 +115,25 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
   label
 }))
 
-// Helper function to convert University to UniversityFormData
-const universityToFormData = (university: University): UniversityFormData => {
+// Helper to convert University (API) to UniversityFormData
+function universityToFormData(university: University, _countries?: Country[]): UniversityFormData {
+  const countryId = university.country?.id ?? null
+  const rankingLabel =
+    university.ranking != null && RANKING_TO_LABEL[university.ranking as keyof typeof RANKING_TO_LABEL]
+      ? RANKING_TO_LABEL[university.ranking as keyof typeof RANKING_TO_LABEL]
+      : ""
   return {
     name: university.name || "",
-    websiteUrl: university.websiteUrl || "",
-    linkedinUrl: university.linkedinUrl || "",
-    country: university.country || "",
-    ranking: university.ranking || "",
-    locations: university.locations.map(loc => ({
-      id: loc.id,
+    websiteUrl: university.websiteUrl ?? "",
+    linkedinUrl: university.linkedInUrl ?? "",
+    countryId,
+    ranking: rankingLabel,
+    locations: university.locations.map((loc) => ({
+      id: String(loc.id),
       city: loc.city || "",
-      address: loc.address || "",
+      address: loc.address ?? "",
       isMainCampus: loc.isMainCampus,
-    }))
+    })),
   }
 }
 
@@ -137,25 +160,42 @@ export function UniversityCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  countries = EMPTY_COUNTRIES,
+  countriesLoading = false,
+  onCreateCountry,
 }: UniversityCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [countryCreateInProgress, setCountryCreateInProgress] = useState(false)
   const [formData, setFormData] = useState<UniversityFormData>(initialFormData)
   const [errors, setErrors] = useState<{
-    university?: Partial<Record<keyof Omit<UniversityFormData, 'locations'>, string>>
+    university?: Partial<Record<keyof Omit<UniversityFormData, "locations">, string>>
     locations?: { [index: number]: Partial<Record<keyof UniversityLocationFormData, string>> }
   }>({})
   const initialFormDataRef = useRef<UniversityFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
-  
+
+  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false)
+  const [countrySearchQuery, setCountrySearchQuery] = useState("")
+
   // Verification state
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
   const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set())
-  
+
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic-info", "locations"])
   )
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchQuery.trim()) return countries
+    const q = countrySearchQuery.toLowerCase().trim()
+    return countries.filter((c) => c.name.toLowerCase().includes(q))
+  }, [countries, countrySearchQuery])
+
+  const selectedCountryName = formData.countryId != null
+    ? countries.find((c) => c.id === formData.countryId)?.name ?? ""
+    : ""
 
   // Use controlled or internal open state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
@@ -170,7 +210,7 @@ export function UniversityCreationDialog({
   useEffect(() => {
     if (open) {
       if (mode === "edit" && universityData) {
-        const formDataFromUniversity = universityToFormData(universityData)
+        const formDataFromUniversity = universityToFormData(universityData, countries)
         setFormData(formDataFromUniversity)
         initialFormDataRef.current = formDataFromUniversity
       } else {
@@ -198,7 +238,7 @@ export function UniversityCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, universityData, showVerification, initialName])
+  }, [open, mode, universityData, showVerification, initialName, countries])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -215,20 +255,32 @@ export function UniversityCreationDialog({
     setOpen(newOpen)
   }
 
-  const handleInputChange = (field: keyof Omit<UniversityFormData, 'locations'>, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-    
-    // Track modifications and auto-verify in verification mode
+  const handleInputChange = (field: keyof Omit<UniversityFormData, "locations">, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
     if (showVerification) {
-      setModifiedFields(prev => new Set(prev).add(field))
-      setVerifiedFields(prev => new Set(prev).add(field))
+      setModifiedFields((prev) => new Set(prev).add(field))
+      setVerifiedFields((prev) => new Set(prev).add(field))
     }
-    
-    // Clear error when user starts typing
     if (errors.university?.[field]) {
-      setErrors(prev => ({ 
-        ...prev, 
-        university: { ...prev.university, [field]: undefined }
+      setErrors((prev) => ({
+        ...prev,
+        university: { ...prev.university, [field]: undefined },
+      }))
+    }
+  }
+
+  const handleCountrySelect = (country: Country) => {
+    setFormData((prev) => ({ ...prev, countryId: country.id }))
+    setCountryPopoverOpen(false)
+    setCountrySearchQuery("")
+    if (showVerification) {
+      setModifiedFields((prev) => new Set(prev).add("countryId"))
+      setVerifiedFields((prev) => new Set(prev).add("country"))
+    }
+    if (errors.university?.countryId) {
+      setErrors((prev) => ({
+        ...prev,
+        university: { ...prev.university, countryId: undefined },
       }))
     }
   }
@@ -502,7 +554,7 @@ export function UniversityCreationDialog({
 
     // University validation
     if (!formData.name.trim()) universityErrors.name = "University name is required"
-    if (!formData.country.trim()) universityErrors.country = "Country is required"
+    if (formData.countryId == null || formData.countryId === 0) universityErrors.countryId = "Country is required"
     if (!formData.ranking) universityErrors.ranking = "Ranking is required"
     
     // URL validations
@@ -725,16 +777,129 @@ export function UniversityCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="country">Country *</Label>
-                          <Input
-                            id="country"
-                            type="text"
-                            placeholder="United States"
-                            value={formData.country}
-                            onChange={(e) => handleInputChange("country", e.target.value)}
-                            className={errors.university?.country ? "border-red-500" : ""}
-                          />
-                          {errors.university?.country && <p className="text-sm text-red-500">{errors.university.country}</p>}
+                          <Label>Country *</Label>
+                          <Popover open={countryPopoverOpen} onOpenChange={setCountryPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={countryPopoverOpen}
+                                className={cn(
+                                  "w-full justify-between",
+                                  !selectedCountryName && "text-muted-foreground",
+                                  errors.university?.countryId && "border-red-500"
+                                )}
+                              >
+                                {selectedCountryName ? (
+                                  <span className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 shrink-0" />
+                                    {selectedCountryName}
+                                  </span>
+                                ) : (
+                                  "Select country..."
+                                )}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                              <Command shouldFilter={false}>
+                                <CommandInput
+                                  placeholder="Search countries..."
+                                  value={countrySearchQuery}
+                                  onValueChange={setCountrySearchQuery}
+                                />
+                                <CommandList>
+                                  {countriesLoading ? (
+                                    <CommandEmpty>
+                                      <div className="flex items-center justify-center gap-2 py-2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        <span className="text-sm text-muted-foreground">Loading countries...</span>
+                                      </div>
+                                    </CommandEmpty>
+                                  ) : filteredCountries.length === 0 ? (
+                                    <>
+                                      <CommandEmpty>
+                                        {countrySearchQuery.trim() ? "No country found." : "No countries available."}
+                                      </CommandEmpty>
+                                      {countrySearchQuery.trim() && onCreateCountry && (
+                                        <CommandGroup>
+                                          <CommandItem
+                                            value={`add-country-${countrySearchQuery.trim()}`}
+                                            onSelect={async () => {
+                                              const name = countrySearchQuery.trim()
+                                              if (!name) return
+                                              setCountryCreateInProgress(true)
+                                              try {
+                                                const newCountry = await onCreateCountry(name)
+                                                if (newCountry) {
+                                                  handleCountrySelect(newCountry)
+                                                  setCountrySearchQuery("")
+                                                }
+                                              } finally {
+                                                setCountryCreateInProgress(false)
+                                              }
+                                            }}
+                                            disabled={countryCreateInProgress}
+                                            className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                                          >
+                                            <Plus className="h-4 w-4" />
+                                            {countryCreateInProgress ? "Adding…" : `Add "${countrySearchQuery.trim()}" as new country`}
+                                          </CommandItem>
+                                        </CommandGroup>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <CommandGroup>
+                                      {filteredCountries.map((country) => (
+                                        <CommandItem
+                                          key={country.id}
+                                          value={String(country.id)}
+                                          onSelect={() => handleCountrySelect(country)}
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "h-4 w-4",
+                                              formData.countryId === country.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          {country.name}
+                                        </CommandItem>
+                                      ))}
+                                      {countrySearchQuery.trim() && onCreateCountry && !filteredCountries.some((c) => c.name.toLowerCase() === countrySearchQuery.trim().toLowerCase()) && (
+                                        <CommandItem
+                                          value={`add-country-${countrySearchQuery.trim()}`}
+                                          onSelect={async () => {
+                                            const name = countrySearchQuery.trim()
+                                            if (!name) return
+                                            setCountryCreateInProgress(true)
+                                            try {
+                                              const newCountry = await onCreateCountry(name)
+                                              if (newCountry) {
+                                                handleCountrySelect(newCountry)
+                                                setCountrySearchQuery("")
+                                              }
+                                            } finally {
+                                              setCountryCreateInProgress(false)
+                                            }
+                                          }}
+                                          disabled={countryCreateInProgress}
+                                          className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                          {countryCreateInProgress ? "Adding…" : `Add "${name}" as new country`}
+                                        </CommandItem>
+                                      )}
+                                    </CommandGroup>
+                                  )}
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {errors.university?.countryId && (
+                            <p className="text-sm text-red-500">{errors.university.countryId}</p>
+                          )}
                           <VerificationCheckbox fieldName="country" />
                         </div>
 
@@ -848,10 +1013,7 @@ export function UniversityCreationDialog({
                   )}
                 </div>
                 <CollapsibleContent className="space-y-4 mt-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Add campus locations and main campus information
-                    </p>
+                  <div className="flex items-center justify-end">
                     <Button
                       type="button"
                       variant="outline"

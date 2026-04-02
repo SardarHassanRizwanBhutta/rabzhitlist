@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -15,15 +15,16 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { Filter } from "lucide-react"
+import { Filter, Loader2 } from "lucide-react"
 import { UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
-import { sampleUniversities } from "@/lib/sample-data/universities"
+import type { Country } from "@/lib/types/country"
 
 // Filter interfaces
 export interface UniversityFilters {
+  name: string
   countries: string[]
   rankings: UniversityRanking[]
-  cities: string[]
+  city: string
   minJobSuccessRatio: string  // Minimum job success ratio (e.g., "80" for 80%)
 }
 
@@ -32,47 +33,21 @@ interface UniversitiesFilterDialogProps {
   filters: UniversityFilters
   onFiltersChange: (filters: UniversityFilters) => void
   onClearFilters: () => void
+  /** Normalized countries from API (e.g. fetchCountries). Used for Country MultiSelect options. */
+  countries?: Country[]
+  countriesLoading?: boolean
 }
 
-// Extract unique values from university data
-const extractUniqueCountries = (): string[] => {
-  const countries = new Set<string>()
-  sampleUniversities.forEach(university => {
-    countries.add(university.country)
-  })
-  return Array.from(countries).sort()
-}
-
-const extractUniqueCities = (): string[] => {
-  const cities = new Set<string>()
-  sampleUniversities.forEach(university => {
-    university.locations.forEach(location => {
-      cities.add(location.city)
-    })
-  })
-  return Array.from(cities).sort()
-}
-
-// Mock data for filter options
 const rankingOptions: MultiSelectOption[] = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, label]) => ({
   value: value as UniversityRanking,
   label
 }))
 
-const countryOptions: MultiSelectOption[] = extractUniqueCountries().map(country => ({
-  value: country,
-  label: country
-}))
-
-const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
-  value: city,
-  label: city
-}))
-
 const initialFilters: UniversityFilters = {
+  name: "",
   countries: [],
   rankings: [],
-  cities: [],
+  city: "",
   minJobSuccessRatio: "",
 }
 
@@ -81,15 +56,23 @@ export function UniversitiesFilterDialog({
   filters,
   onFiltersChange,
   onClearFilters,
+  countries = [],
+  countriesLoading = false,
 }: UniversitiesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<UniversityFilters>(filters)
 
+  const countryOptions: MultiSelectOption[] = useMemo(
+    () => countries.map((c) => ({ value: c.name, label: c.name })),
+    [countries]
+  )
+
   // Calculate active filter count
   const activeFilterCount = 
+    (filters.name.trim() ? 1 : 0) +
     filters.countries.length +
     filters.rankings.length +
-    filters.cities.length +
+    (filters.city.trim() ? 1 : 0) +
     (filters.minJobSuccessRatio ? 1 : 0)
 
   React.useEffect(() => {
@@ -117,9 +100,10 @@ export function UniversitiesFilterDialog({
   }
 
   const hasAnyTempFilters = 
+    tempFilters.name.trim() !== "" ||
     tempFilters.countries.length > 0 ||
     tempFilters.rankings.length > 0 ||
-    tempFilters.cities.length > 0 ||
+    tempFilters.city.trim() !== "" ||
     tempFilters.minJobSuccessRatio !== ""
 
   return (
@@ -153,15 +137,35 @@ export function UniversitiesFilterDialog({
           <div className="space-y-6">
             {/* University Filters */}
             <div className="space-y-4">
-              <MultiSelect
-                items={countryOptions}
-                selected={tempFilters.countries}
-                onChange={(values) => handleFilterChange("countries", values)}
-                placeholder="Filter by country..."
-                label="Country"
-                searchPlaceholder="Search countries..."
-                maxDisplay={3}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="universityName">Name</Label>
+                <Input
+                  id="universityName"
+                  type="text"
+                  placeholder="Filter by name"
+                  value={tempFilters.name}
+                  onChange={(e) => handleFilterChange("name", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <MultiSelect
+                  items={countryOptions}
+                  selected={tempFilters.countries}
+                  onChange={(values) => handleFilterChange("countries", values)}
+                  placeholder={countriesLoading ? "Loading countries..." : "Filter by country..."}
+                  label="Country"
+                  searchPlaceholder="Search countries..."
+                  maxDisplay={3}
+                  disabled={countriesLoading}
+                />
+                {countriesLoading && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading countries...
+                  </p>
+                )}
+              </div>
 
               <MultiSelect
                 items={rankingOptions}
@@ -172,15 +176,16 @@ export function UniversitiesFilterDialog({
                 maxDisplay={3}
               />
 
-              <MultiSelect
-                items={cityOptions}
-                selected={tempFilters.cities}
-                onChange={(values) => handleFilterChange("cities", values)}
-                placeholder="Filter by city..."
-                label="Campus Cities"
-                searchPlaceholder="Search cities..."
-                maxDisplay={4}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="campusCity">Campus City</Label>
+                <Input
+                  id="campusCity"
+                  type="text"
+                  placeholder="Filter by campus city"
+                  value={tempFilters.city}
+                  onChange={(e) => handleFilterChange("city", e.target.value)}
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="minJobSuccessRatio">Minimum Job Success Ratio (%)</Label>

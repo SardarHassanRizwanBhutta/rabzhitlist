@@ -73,11 +73,11 @@ import {
   EmployerLocation,
   TechStackWithCount,
   EMPLOYER_STATUS_COLORS,
-  SALARY_POLICY_COLORS,
   EMPLOYER_STATUS_LABELS,
+  SALARY_POLICY_COLORS,
   SALARY_POLICY_LABELS,
-  getEmployerSizeDisplay,
-  calculateEmployerSize,
+  WORK_MODE_DB_LABELS,
+  SHIFT_TYPE_DB_LABELS,
 } from "@/lib/types/employer"
 import {
   Tooltip,
@@ -85,11 +85,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { sampleProjects } from "@/lib/sample-data/projects"
-import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { EmployerBenefit } from "@/lib/types/benefits"
-import type { WorkExperience } from "@/lib/types/candidate"
 import type { EmployerFilters } from "./employers-filter-dialog"
+
+/** Display employer size from locations (min/max sum). No calculation logic—display only. */
+function formatEmployerSize(locations: EmployerLocation[]): string {
+  if (!locations?.length) return "—"
+  const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
+  const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
+  if (totalMin === 0 && totalMax === 0) return "—"
+  if (totalMin === totalMax) return String(totalMin)
+  return `${totalMin}-${totalMax}`
+}
 
 interface EmployersTableProps {
   employers: Employer[]
@@ -109,351 +116,34 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
-// Utility function to extract tech stacks with candidate counts from work experiences for an employer
+// Use only employer's own tech stacks (no candidate-derived data).
 const getEmployerTechStacksWithCount = (employer: Employer): TechStackWithCount[] => {
-  // If employer has explicit tech stacks, return them with count = 0 (manual entry)
   if (employer.techStacks && employer.techStacks.length > 0) {
     return employer.techStacks.map(tech => ({ tech, count: 0 }))
   }
-  
-  // Extract from candidates' work experiences with counts
-  const techStackCounts = new Map<string, number>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (we.employerName?.toLowerCase().trim() === employer.name.toLowerCase().trim()) {
-        we.techStacks.forEach(tech => {
-          const normalizedTech = tech.trim()
-          techStackCounts.set(
-            normalizedTech,
-            (techStackCounts.get(normalizedTech) || 0) + 1
-          )
-        })
-      }
-    })
-  })
-  
-  // Convert to array and sort by count (descending), then alphabetically
-  return Array.from(techStackCounts.entries())
-    .map(([tech, count]) => ({ tech, count }))
-    .sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count // Higher count first
-      return a.tech.localeCompare(b.tech) // Alphabetical as tiebreaker
-    })
+  return []
 }
 
-// Backward-compatible function that returns just tech stack strings
 const getEmployerTechStacks = (employer: Employer): string[] => {
   return getEmployerTechStacksWithCount(employer).map(item => item.tech)
 }
 
-// Helper function to match employer names (handles variations and partial matches)
-const matchesEmployerName = (weEmployerName: string | null | undefined, employerName: string): boolean => {
-  if (!weEmployerName) return false
-  
-  // Normalize names (case-insensitive, handle whitespace variations)
-  const normalizedWe = weEmployerName.toLowerCase().trim().replace(/\s+/g, ' ')
-  const normalizedEmp = employerName.toLowerCase().trim().replace(/\s+/g, ' ')
-  
-  // Check for exact match
-  if (normalizedWe === normalizedEmp) return true
-  
-  // Check if one name contains the other (for cases like "Interactive Group" vs "Interactive Group of Companies")
-  if (normalizedWe.includes(normalizedEmp) || normalizedEmp.includes(normalizedWe)) return true
-  
-  // Also check if normalized versions match (remove common suffixes/prefixes)
-  const normalizedWeClean = normalizedWe.replace(/\s+(of|group|companies|inc|llc|ltd|corp|corporation)\s*$/i, '').trim()
-  const normalizedEmpClean = normalizedEmp.replace(/\s+(of|group|companies|inc|llc|ltd|corp|corporation)\s*$/i, '').trim()
-  if (normalizedWeClean === normalizedEmpClean) return true
-  if (normalizedWeClean.includes(normalizedEmpClean) || normalizedEmpClean.includes(normalizedWeClean)) return true
-  
-  return false
-}
-
-// Utility function to extract benefits from candidates' work experiences for an employer
+// Use only employer's own benefits (no candidate-derived data).
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
-  const benefitsMap = new Map<string, EmployerBenefit>()
-  
-  // First, add benefits from employer if they exist
-  if (employer.benefits && employer.benefits.length > 0) {
-    employer.benefits.forEach(benefit => {
-      const key = benefit.name.toLowerCase().trim()
-      if (!benefitsMap.has(key)) {
-        benefitsMap.set(key, { ...benefit })
-      }
-    })
-  }
-  
-  // Also extract from candidates' work experiences and merge
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (matchesEmployerName(we.employerName, employer.name)) {
-        we.benefits.forEach(benefit => {
-          // Use benefit name as key to deduplicate
-          const key = benefit.name.toLowerCase().trim()
-          if (!benefitsMap.has(key)) {
-            benefitsMap.set(key, { ...benefit })
-          }
-        })
-      }
-    })
-  })
-  return Array.from(benefitsMap.values())
+  return employer.benefits && employer.benefits.length > 0 ? [...employer.benefits] : []
 }
 
-// Utility function to extract shift types from candidates' work experiences for an employer
-const getEmployerShiftTypes = (employer: Employer): string[] => {
-  const shiftTypesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (matchesEmployerName(we.employerName, employer.name) && we.shiftType && we.shiftType.trim()) {
-        shiftTypesSet.add(we.shiftType.trim())
-      }
-    })
-  })
-  
-  return Array.from(shiftTypesSet).sort()
-}
-
-// Get unique work modes for an employer from candidates' work experiences
-const getEmployerWorkModes = (employer: Employer): string[] => {
-  const workModesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (matchesEmployerName(we.employerName, employer.name) && we.workMode && we.workMode.trim()) {
-        workModesSet.add(we.workMode.trim())
-      }
-    })
-  })
-  
-  return Array.from(workModesSet).sort()
-}
-
-// Get unique time support zones for an employer from candidates' work experiences
-const getEmployerTimeSupportZones = (employer: Employer): string[] => {
-  const timeZonesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (matchesEmployerName(we.employerName, employer.name)) {
-        we.timeSupportZones?.forEach(zone => {
-          if (zone && zone.trim()) {
-            timeZonesSet.add(zone.trim())
-          }
-        })
-      }
-    })
-  })
-  
-  return Array.from(timeZonesSet).sort()
-}
-
-/**
- * Calculate cumulative years of experience with specific tech stacks in projects for an employer.
- * Handles overlapping periods by merging them.
- * @param employer - The employer to calculate for
- * @param techStacks - Array of tech stack names to check (case-insensitive)
- * @returns Total cumulative years (rounded to 1 decimal place)
- */
-const calculateProjectTechStackYears = (employer: Employer, techStacks: string[]): number => {
-  if (techStacks.length === 0) return 0
-
-  // Get all projects for this employer
-  const employerProjects = sampleProjects.filter(project => {
-    if (project.employerName === null) return false
-    return project.employerName.trim().toLowerCase() === employer.name.trim().toLowerCase()
-  })
-
-  if (employerProjects.length === 0) return 0
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  // Normalize tech stacks to lowercase for comparison
-  const normalizedTechStacks = techStacks.map(ts => ts.toLowerCase().trim())
-
-  // Collect all date ranges for projects that have any of the selected tech stacks
-  const dateRanges: Array<{ start: Date, end: Date }> = []
-
-  employerProjects.forEach(project => {
-    // Check if this project has any of the selected tech stacks
-    const hasMatchingTechStack = project.techStacks.some(tech =>
-      normalizedTechStacks.includes(tech.toLowerCase().trim())
-    )
-
-    if (!hasMatchingTechStack || !project.startDate) return
-
-    const startDate = new Date(project.startDate)
-    startDate.setHours(0, 0, 0, 0)
-
-    // Use endDate if available, otherwise use today (ongoing project)
-    const endDate = project.endDate ? new Date(project.endDate) : today
-    endDate.setHours(0, 0, 0, 0)
-
-    // Only add valid date ranges
-    if (startDate <= endDate) {
-      dateRanges.push({ start: startDate, end: endDate })
-    }
-  })
-
-  if (dateRanges.length === 0) return 0
-
-  // Sort by start date
-  dateRanges.sort((a, b) => a.start.getTime() - b.start.getTime())
-
-  // Merge overlapping periods
-  const mergedRanges: Array<{ start: Date, end: Date }> = []
-  let currentRange = { ...dateRanges[0] }
-
-  for (let i = 1; i < dateRanges.length; i++) {
-    const nextRange = dateRanges[i]
-
-    // If current range overlaps or is adjacent to next range, merge them
-    if (currentRange.end >= nextRange.start) {
-      // Merge: extend current range to the maximum end date
-      currentRange.end = currentRange.end > nextRange.end ? currentRange.end : nextRange.end
-    } else {
-      // No overlap: save current range and start a new one
-      mergedRanges.push(currentRange)
-      currentRange = { ...nextRange }
-    }
-  }
-  mergedRanges.push(currentRange)
-
-  // Calculate total months across all merged ranges
-  let totalMonths = 0
-
-  mergedRanges.forEach(range => {
-    const yearsDiff = range.end.getFullYear() - range.start.getFullYear()
-    const monthsDiff = range.end.getMonth() - range.start.getMonth()
-    const daysDiff = range.end.getDate() - range.start.getDate()
-
-    const totalMonthsForRange = yearsDiff * 12 + monthsDiff + (daysDiff / 30)
-    
-    if (totalMonthsForRange > 0) {
-      totalMonths += totalMonthsForRange
-    }
-  })
-
-  // Convert to years (with 1 decimal place precision)
-  const totalYears = totalMonths / 12
-  return Math.round(totalYears * 10) / 10
-}
-
-// Count total unique candidates/employees for an employer
-const getApplicantCount = (employer: Employer): number => {
-  const uniqueCandidates = new Set<string>() // Use Set to count unique candidates
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names using improved matching logic
-      if (matchesEmployerName(we.employerName, employer.name)) {
-        uniqueCandidates.add(candidate.id) // Add candidate ID to set (unique)
-      }
-    })
-  })
-  
-  return uniqueCandidates.size
-}
-
-// Calculate average job tenure for an employer based on candidate work experience data
-const getAverageJobTenure = (employer: Employer, unit: "years" | "months" = "years"): number => {
-  const tenures: number[] = []
-
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      if (matchesEmployerName(we.employerName, employer.name)) {
-        if (we.startDate && we.endDate) {
-          // Calculate tenure in specified unit
-          const tenureMs = we.endDate.getTime() - we.startDate.getTime()
-          const tenureValue = unit === "years"
-            ? tenureMs / (1000 * 60 * 60 * 24 * 365.25)  // Convert to years
-            : tenureMs / (1000 * 60 * 60 * 24 * 30.44)   // Convert to months
-          tenures.push(tenureValue)
-        } else if (we.startDate && !we.endDate) {
-          // Current job - calculate from start to now
-          const tenureMs = Date.now() - we.startDate.getTime()
-          const tenureValue = unit === "years"
-            ? tenureMs / (1000 * 60 * 60 * 24 * 365.25)
-            : tenureMs / (1000 * 60 * 60 * 24 * 30.44)
-          tenures.push(tenureValue)
-        }
-      }
-    })
-  })
-
-  if (tenures.length === 0) return 0
-
-  // Calculate average
-  const sum = tenures.reduce((acc, tenure) => acc + tenure, 0)
-  return sum / tenures.length
-}
-
-// Count unique developers with specific tech stacks for an employer
-// Optionally filters by shift type if provided
-const getDeveloperCountForTechStack = (
-  employer: Employer,
-  techStacks: string[],
-  shiftTypes?: string[]
-): number => {
-  if (techStacks.length === 0) return 0
-  
-  const matchingCandidates = new Set<string>() // Use Set to count unique candidates
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names using improved matching logic
-      if (!matchesEmployerName(we.employerName, employer.name)) return
-      
-      // If shift type filter is provided, check if work experience matches
-      if (shiftTypes && shiftTypes.length > 0) {
-        if (!we.shiftType || !shiftTypes.includes(we.shiftType)) {
-          return // Skip if shift type doesn't match
-        }
-      }
-      
-      // Check if candidate has any of the required tech stacks in this work experience
-      const hasMatchingTechStack = techStacks.some(filterTech =>
-        we.techStacks.some(tech =>
-          tech.toLowerCase().trim() === filterTech.toLowerCase().trim()
-        )
-      )
-      
-      if (hasMatchingTechStack) {
-        matchingCandidates.add(candidate.id) // Add candidate ID to set (unique)
-      }
-    })
-  })
-  
-  return matchingCandidates.size
-}
-
-/**
- * Check if a work experience represents a developer role
- * Developers are identified by:
- * 1. Job title containing keywords: "Developer", "Engineer", "Programmer", "Coder", etc.
- * 2. OR having tech stacks in their work experience
- */
-function isDeveloperWorkExperience(we: WorkExperience): boolean {
-  // Check job title for developer keywords
-  const developerKeywords = [
-    "developer", "engineer", "programmer", "coder", 
-    "architect", "dev", "sde", "swe", "software"
-  ]
-  
-  const jobTitle = we.jobTitle?.toLowerCase() || ""
-  const hasDeveloperTitle = developerKeywords.some(keyword => 
-    jobTitle.includes(keyword)
-  )
-  
-  // Check if has tech stacks (developers typically have tech stacks)
-  const hasTechStacks = we.techStacks && we.techStacks.length > 0
-  
-  return hasDeveloperTitle || hasTechStacks
-}
-
+// From employer list/detail API: single work mode and shift type, arrays for time zones.
+const getEmployerShiftTypes = (employer: Employer): string[] =>
+  employer.shiftType && employer.shiftType in SHIFT_TYPE_DB_LABELS
+    ? [SHIFT_TYPE_DB_LABELS[employer.shiftType]]
+    : []
+const getEmployerWorkModes = (employer: Employer): string[] =>
+  employer.workMode && employer.workMode in WORK_MODE_DB_LABELS
+    ? [WORK_MODE_DB_LABELS[employer.workMode]]
+    : []
+const getEmployerTimeSupportZones = (employer: Employer): string[] =>
+  employer.timeSupportZones ?? []
 
 // Helper to get intensity class based on count for visual emphasis
 const getCountIntensityClass = (count: number): string => {
@@ -568,642 +258,15 @@ export function EmployersTable({
     setEmployerToDelete(null)
   }
 
-  // Apply filters
-  const filteredEmployers = useMemo(() => {
-    if (!filters) return employers
+  // No client-side filtering; filtering will be done by API when integrated.
+  const filteredEmployers = useMemo(() => employers, [employers])
 
-    return employers.filter(employer => {
-      // Status filter
-      if (filters.status.length > 0 && !filters.status.includes(employer.status)) {
-        return false
-      }
-
-      // Ranking filter
-      if (filters.rankings.length > 0 && !filters.rankings.includes(employer.ranking)) {
-        return false
-      }
-
-      // Tags filter
-      if (filters.tags.length > 0) {
-        if (!employer.tags || employer.tags.length === 0) {
-          return false
-        }
-        
-        // Check if employer has at least one of the selected tags
-        const hasMatchingTag = filters.tags.some(filterTag =>
-          employer.tags!.some(tag => tag.toLowerCase() === filterTag.toLowerCase())
-        )
-        
-        if (!hasMatchingTag) {
-          return false
-        }
-      }
-
-      // DPL Competitive filter
-      if (filters.isDPLCompetitive !== null) {
-        const employerIsDPLCompetitive = employer.isDPLCompetitive || false
-        if (filters.isDPLCompetitive !== employerIsDPLCompetitive) {
-          return false
-        }
-      }
-
-      // Founded year filter
-      if (filters.foundedYears.length > 0) {
-        if (employer.foundedYear === null || !filters.foundedYears.includes(employer.foundedYear.toString())) {
-          return false
-        }
-      }
-
-      // Country filter
-      if (filters.countries.length > 0) {
-        const hasMatchingCountry = employer.locations.some(location => 
-          location.country !== null && filters.countries.includes(location.country)
-        )
-        if (!hasMatchingCountry) return false
-      }
-
-      // City filter
-      if (filters.cities.length > 0) {
-        const hasMatchingCity = employer.locations.some(location => 
-          location.city !== null && filters.cities.includes(location.city)
-        )
-        if (!hasMatchingCity) return false
-      }
-
-      // Employer type filter
-      if (filters.employerTypes.length > 0) {
-        if (!filters.employerTypes.includes(employer.employerType)) {
-          return false
-        }
-      }
-
-      // Salary policy filter
-      if (filters.salaryPolicies.length > 0) {
-        const hasMatchingSalaryPolicy = employer.locations.some(location => 
-          filters.salaryPolicies.includes(location.salaryPolicy)
-        )
-        if (!hasMatchingSalaryPolicy) return false
-      }
-
-      // Size filter
-      if (filters.sizeMin || filters.sizeMax) {
-        const { totalMinSize, totalMaxSize } = calculateEmployerSize(employer.locations)
-        
-        if (filters.sizeMin) {
-          const filterMin = parseInt(filters.sizeMin)
-          if (!isNaN(filterMin) && totalMaxSize < filterMin) {
-            return false // Employer's max size is below filter minimum
-          }
-        }
-        
-        if (filters.sizeMax) {
-          const filterMax = parseInt(filters.sizeMax)
-          if (!isNaN(filterMax) && totalMinSize > filterMax) {
-            return false // Employer's min size is above filter maximum
-          }
-        }
-      }
-
-      // Minimum Locations Count filter - filter by total number of offices
-      if (filters.minLocationsCount) {
-        const minCount = parseInt(filters.minLocationsCount)
-        if (!isNaN(minCount) && minCount > 0) {
-          if (employer.locations.length < minCount) {
-            return false
-          }
-        }
-      }
-
-      // Minimum Cities Count filter - filter by number of unique cities
-      if (filters.minCitiesCount) {
-        const minCount = parseInt(filters.minCitiesCount)
-        if (!isNaN(minCount) && minCount > 0) {
-          // If country filter is applied, count cities only within those countries
-          // Otherwise, count all unique cities
-          let locationsToCheck = employer.locations
-          
-          if (filters.countries.length > 0) {
-            locationsToCheck = employer.locations.filter(location =>
-              location.country !== null && filters.countries.includes(location.country)
-            )
-          }
-          
-          // Count unique cities
-          const uniqueCities = new Set(
-            locationsToCheck
-              .map(location => location.city)
-              .filter(city => city !== null)
-          )
-          
-          if (uniqueCities.size < minCount) {
-            return false
-          }
-        }
-      }
-
-      // Minimum Applicants filter - filter by number of candidates/employees
-      if (filters.minApplicants) {
-        const minCount = parseInt(filters.minApplicants)
-        if (!isNaN(minCount) && minCount > 0) {
-          const applicantCount = getApplicantCount(employer)
-          if (applicantCount < minCount) {
-            return false
-          }
-        }
-      }
-
-      // Employee Cities filter - filter employers by their employees' cities
-      if (filters.employeeCities.length > 0) {
-        const hasEmployeeFromCity = sampleCandidates.some(candidate => {
-          // Check if candidate is from one of the selected cities
-          if (!filters.employeeCities.includes(candidate.city)) return false
-          
-          // Check if candidate has worked at this employer
-          return candidate.workExperiences?.some(we =>
-            matchesEmployerName(we.employerName, employer.name)
-          )
-        })
-        if (!hasEmployeeFromCity) return false
-      }
-
-      // Employee Countries filter - filter employers by their employees' countries (using city-to-country mapping)
-      if (filters.employeeCountries.length > 0) {
-        // City to Country mapping (same as in filter dialog)
-        const CITY_TO_COUNTRY_MAP: Record<string, string> = {
-          // Pakistan cities
-          "Karachi": "Pakistan",
-          "Lahore": "Pakistan",
-          "Islamabad": "Pakistan",
-          "Rawalpindi": "Pakistan",
-          "Faisalabad": "Pakistan",
-          "Multan": "Pakistan",
-          "Peshawar": "Pakistan",
-          "Quetta": "Pakistan",
-          "Sialkot": "Pakistan",
-          "Hyderabad": "Pakistan",
-          "Gujranwala": "Pakistan",
-          "Sargodha": "Pakistan",
-          "Bahawalpur": "Pakistan",
-          "Sukkur": "Pakistan",
-          "Larkana": "Pakistan",
-          "Sheikhupura": "Pakistan",
-          "Rahim Yar Khan": "Pakistan",
-          "Gujrat": "Pakistan",
-          "Kasur": "Pakistan",
-          "Mardan": "Pakistan",
-          // US cities (common ones)
-          "New York": "United States",
-          "Los Angeles": "United States",
-          "Chicago": "United States",
-          "Houston": "United States",
-          "Phoenix": "United States",
-          "Philadelphia": "United States",
-          "San Antonio": "United States",
-          "San Diego": "United States",
-          "Dallas": "United States",
-          "San Jose": "United States",
-          "Austin": "United States",
-          "Jacksonville": "United States",
-          "San Francisco": "United States",
-          "Columbus": "United States",
-          "Fort Worth": "United States",
-          "Charlotte": "United States",
-          "Seattle": "United States",
-          "Denver": "United States",
-          "Washington": "United States",
-          "Boston": "United States",
-          "El Paso": "United States",
-          "Detroit": "United States",
-          "Nashville": "United States",
-          "Portland": "United States",
-          "Oklahoma City": "United States",
-          "Las Vegas": "United States",
-          "Memphis": "United States",
-          "Louisville": "United States",
-          "Baltimore": "United States",
-          "Milwaukee": "United States",
-        }
-        
-        const hasEmployeeFromCountry = sampleCandidates.some(candidate => {
-          // Map candidate's city to country
-          const candidateCountry = candidate.city ? CITY_TO_COUNTRY_MAP[candidate.city] : null
-          if (!candidateCountry || !filters.employeeCountries.includes(candidateCountry)) {
-            return false
-          }
-          
-          // Check if candidate has worked at this employer
-          return candidate.workExperiences?.some(we =>
-            matchesEmployerName(we.employerName, employer.name)
-          )
-        })
-        if (!hasEmployeeFromCountry) return false
-      }
-
-
-      // Benefits filter
-      if (filters.benefits.length > 0) {
-        const employerBenefits = getEmployerBenefits(employer)
-        
-        // Normalize filter benefit names
-        const normalizedFilterBenefits = filters.benefits.map(b => b.toLowerCase().trim())
-        
-        // Check if any employer benefit matches any filter benefit
-        const hasMatchingBenefit = employerBenefits.some(benefit => {
-          const normalizedBenefitName = benefit.name.toLowerCase().trim()
-          return normalizedFilterBenefits.some(filterBenefit =>
-            normalizedBenefitName === filterBenefit
-          )
-        })
-        
-        if (!hasMatchingBenefit) return false
-      }
-
-      // Shift Type filter
-      if (filters.shiftTypes.length > 0) {
-        const employerShiftTypes = getEmployerShiftTypes(employer)
-        
-        if (filters.shiftTypesStrict) {
-          // Strict mode: ALL employees must work in selected shift types ONLY
-          // Employer's shift types must exactly match the selected shift types (no extra types)
-          const normalizedSelectedTypes = filters.shiftTypes.map(type => type.trim().toLowerCase()).sort()
-          const normalizedEmployerTypes = employerShiftTypes.map(type => type.trim().toLowerCase()).sort()
-          
-          // Check if arrays are equal (same length and same elements)
-          if (normalizedSelectedTypes.length !== normalizedEmployerTypes.length) {
-            return false
-          }
-          
-          const hasExactMatch = normalizedSelectedTypes.every((type, index) => 
-            type === normalizedEmployerTypes[index]
-          )
-          
-          if (!hasExactMatch) return false
-        } else {
-          // Non-strict mode: check if employer has candidates working in any of the selected shift types
-        const hasMatchingShiftType = filters.shiftTypes.some(filterShiftType =>
-          employerShiftTypes.includes(filterShiftType)
-        )
-        if (!hasMatchingShiftType) return false
-        }
-      }
-
-      // Work Mode filter - check if employer has candidates working in any of the selected work modes
-      if (filters.workModes.length > 0) {
-        const employerWorkModes = getEmployerWorkModes(employer)
-        
-        if (filters.workModesStrict) {
-          // Strict mode: ALL employees must work in selected work modes ONLY
-          // Employer's work modes must exactly match the selected work modes (no extra modes)
-          const normalizedSelectedModes = filters.workModes.map(mode => mode.trim().toLowerCase()).sort()
-          const normalizedEmployerModes = employerWorkModes.map(mode => mode.trim().toLowerCase()).sort()
-          
-          // Check if arrays are equal (same length and same elements)
-          if (normalizedSelectedModes.length !== normalizedEmployerModes.length) {
-            return false
-          }
-          
-          const hasExactMatch = normalizedSelectedModes.every((mode, index) => 
-            mode === normalizedEmployerModes[index]
-          )
-          
-          if (!hasExactMatch) return false
-        } else {
-          // Non-strict mode: check if employer has candidates working in any of the selected work modes
-        const hasMatchingWorkMode = filters.workModes.some(filterWorkMode =>
-          employerWorkModes.includes(filterWorkMode.trim())
-        )
-        if (!hasMatchingWorkMode) return false
-        }
-      }
-
-      // Time Support Zones filter - check if employer has candidates working in any of the selected time zones
-      if (filters.timeSupportZones.length > 0) {
-        const employerTimeZones = getEmployerTimeSupportZones(employer)
-        const hasMatchingTimeZone = filters.timeSupportZones.some(filterTimeZone =>
-          employerTimeZones.includes(filterTimeZone.trim())
-        )
-        if (!hasMatchingTimeZone) return false
-      }
-
-      // Count-based Tech Stack filter (uses employerTechStacks)
-      // Filter employers by minimum number of developers with specific tech stacks
-      if (filters.employerTechStacks.length > 0 && filters.techStackMinCount) {
-        const minCount = parseInt(filters.techStackMinCount)
-        if (!isNaN(minCount) && minCount > 0) {
-          // Count developers with selected tech stacks, optionally filtered by shift type
-          const developerCount = getDeveloperCountForTechStack(
-            employer,
-            filters.employerTechStacks,
-            filters.shiftTypes.length > 0 ? filters.shiftTypes : undefined
-          )
-          
-          // Only include employer if they have at least the minimum count
-          if (developerCount < minCount) {
-            return false
-          }
-        }
-      }
-      
-      // Regular Tech Stack filter (only applies if count filter is not active)
-      // If count filter is active, we've already filtered above, so skip this
-      if (filters.employerTechStacks.length > 0 && !filters.techStackMinCount) {
-        const employerTechStacks = getEmployerTechStacks(employer)
-        const hasMatchingTechStack = filters.employerTechStacks.some(filterTech =>
-          employerTechStacks.some(tech =>
-            tech.toLowerCase().trim() === filterTech.toLowerCase().trim()
-          )
-        )
-        if (!hasMatchingTechStack) return false
-      }
-      
-      // Project-based filters
-      // Filter projects that belong to this employer (case-insensitive, handle null)
-      const employerProjects = sampleProjects.filter(project => {
-        if (project.employerName === null) return false
-        return project.employerName.trim().toLowerCase() === employer.name.trim().toLowerCase()
-      })
-      
-      // Helper function for case-insensitive array comparison
-      const arraysMatch = (arr1: string[], arr2: string[]) => {
-        return arr1.some(item1 => 
-          arr2.some(item2 => 
-            item1.toLowerCase().trim() === item2.toLowerCase().trim()
-          )
-        )
-      }
-      
-      // If any project-based filter is active, check if employer has matching projects
-      const hasProjectFilters = 
-        filters.techStacks.length > 0 ||
-        (filters.projectTechStackMinYears?.techStacks.length || 0) > 0 ||
-        filters.verticalDomains.length > 0 ||
-        filters.horizontalDomains.length > 0 ||
-        filters.technicalAspects.length > 0 ||
-        filters.clientLocations.length > 0 ||
-        filters.projectStatus.length > 0 ||
-        filters.projectTeamSizeMin ||
-        filters.projectTeamSizeMax ||
-        filters.hasPublishedProject !== null ||
-        filters.publishPlatforms.length > 0 ||
-        filters.minDownloadCount
-
-      // If no projects found and project filters are active, exclude this employer
-      if (hasProjectFilters && employerProjects.length === 0) {
-        return false
-      }
-      
-      // Layoff filters
-      const employerLayoffs = employer.layoffs || []
-      
-      // Filter by layoff date range
-      if (filters.layoffDateStart || filters.layoffDateEnd) {
-        const startDate = filters.layoffDateStart 
-          ? new Date(filters.layoffDateStart)
-          : null
-        const endDate = filters.layoffDateEnd 
-          ? new Date(filters.layoffDateEnd)
-          : new Date() // If no end date specified, use today
-        
-        if (startDate) startDate.setHours(0, 0, 0, 0)
-        if (endDate) {
-          endDate.setHours(23, 59, 59, 999) // Include the entire end date
-        }
-        
-        const hasLayoffInRange = employerLayoffs.some(layoff => {
-          const layoffDate = new Date(layoff.layoffDate)
-          layoffDate.setHours(0, 0, 0, 0)
-          
-          if (startDate && endDate) {
-            // Both dates specified - check if layoff is within range
-            return layoffDate >= startDate && layoffDate <= endDate
-          } else if (startDate) {
-            // Only start date - check if layoff is on or after start date
-            return layoffDate >= startDate
-          } else if (endDate) {
-            // Only end date - check if layoff is on or before end date
-            return layoffDate <= endDate
-          }
-          
-          return false
-        })
-        
-        if (!hasLayoffInRange) {
-          return false
-        }
-      }
-      
-      // Filter by minimum employees laid off
-      if (filters.minLayoffEmployees && filters.minLayoffEmployees.trim() !== "") {
-        const minEmployees = parseInt(filters.minLayoffEmployees)
-        if (!isNaN(minEmployees) && minEmployees > 0) {
-          // If date range is specified, only count layoffs within that period
-          let relevantLayoffs = employerLayoffs
-          
-          if (filters.layoffDateStart || filters.layoffDateEnd) {
-            const startDate = filters.layoffDateStart 
-              ? new Date(filters.layoffDateStart)
-              : null
-            const endDate = filters.layoffDateEnd 
-              ? new Date(filters.layoffDateEnd)
-              : new Date()
-            
-            if (startDate) startDate.setHours(0, 0, 0, 0)
-            if (endDate) {
-              endDate.setHours(23, 59, 59, 999)
-            }
-            
-            relevantLayoffs = employerLayoffs.filter(layoff => {
-              const layoffDate = new Date(layoff.layoffDate)
-              layoffDate.setHours(0, 0, 0, 0)
-              
-              if (startDate && endDate) {
-                return layoffDate >= startDate && layoffDate <= endDate
-              } else if (startDate) {
-                return layoffDate >= startDate
-              } else if (endDate) {
-                return layoffDate <= endDate
-              }
-              
-              return false
-            })
-          }
-          
-          // Calculate total employees laid off in relevant period
-          const totalEmployeesLaidOff = relevantLayoffs.reduce((sum, layoff) => 
-            sum + layoff.numberOfEmployeesLaidOff, 0
-          )
-          
-          if (totalEmployeesLaidOff < minEmployees) {
-            return false
-          }
-        }
-      }
-      
-      
-      // Technology stack filter
-      if (filters.techStacks.length > 0) {
-        const hasMatchingTechStack = employerProjects.some(project =>
-          arraysMatch(project.techStacks, filters.techStacks)
-        )
-        if (!hasMatchingTechStack) return false
-      }
-
-      // Project Tech Stack Minimum Years filter
-      if (filters.projectTechStackMinYears?.techStacks.length > 0 && filters.projectTechStackMinYears?.minYears) {
-        const minYears = parseFloat(filters.projectTechStackMinYears.minYears)
-        if (!isNaN(minYears) && minYears > 0) {
-          const totalYears = calculateProjectTechStackYears(employer, filters.projectTechStackMinYears.techStacks)
-          if (totalYears < minYears) {
-            return false
-          }
-        }
-      }
-
-      // Vertical domains filter
-      if (filters.verticalDomains.length > 0) {
-        const hasMatchingVerticalDomain = employerProjects.some(project =>
-          arraysMatch(project.verticalDomains, filters.verticalDomains)
-        )
-        if (!hasMatchingVerticalDomain) return false
-      }
-
-      // Horizontal domains filter
-      if (filters.horizontalDomains.length > 0) {
-        const hasMatchingHorizontalDomain = employerProjects.some(project =>
-          arraysMatch(project.horizontalDomains, filters.horizontalDomains)
-        )
-        if (!hasMatchingHorizontalDomain) return false
-      }
-
-      // Technical aspects filter
-      if (filters.technicalAspects.length > 0) {
-        const hasMatchingTechnicalAspect = employerProjects.some(project =>
-          arraysMatch(project.technicalAspects, filters.technicalAspects)
-        )
-        if (!hasMatchingTechnicalAspect) return false
-      }
-
-      // Client Locations filter
-      if (filters.clientLocations.length > 0) {
-        const hasMatchingClientLocation = employerProjects.some(project =>
-          project.clientLocation && filters.clientLocations.includes(project.clientLocation)
-        )
-        if (!hasMatchingClientLocation) return false
-      }
-
-      // Project status filter
-      if (filters.projectStatus.length > 0) {
-        const hasMatchingProjectStatus = employerProjects.some(project =>
-          filters.projectStatus.some(filterStatus => 
-            project.status.toLowerCase().trim() === filterStatus.toLowerCase().trim()
-          )
-        )
-        if (!hasMatchingProjectStatus) return false
-      }
-
-      // Project Team Size filter
-      if (filters.projectTeamSizeMin || filters.projectTeamSizeMax) {
-        // Helper function to parse team size - can be "5" or "20-30"
-        const parseTeamSize = (teamSize: string | null): { min: number; max: number } | null => {
-          if (!teamSize) return null
-          
-          const rangeMatch = teamSize.match(/^(\d+)-(\d+)$/)
-          if (rangeMatch) {
-            const [, min, max] = rangeMatch
-            return { min: parseInt(min), max: parseInt(max) }
-          }
-          // Single number
-          const num = parseInt(teamSize)
-          if (isNaN(num)) return null
-          return { min: num, max: num }
-        }
-
-        const hasMatchingTeamSize = employerProjects.some(project => {
-          if (!project.teamSize) return false
-          
-          const projectTeamSize = parseTeamSize(project.teamSize)
-          if (!projectTeamSize) return false
-          
-          // Check minimum filter
-          if (filters.projectTeamSizeMin) {
-            const filterMin = parseInt(filters.projectTeamSizeMin)
-            if (!isNaN(filterMin) && projectTeamSize.max < filterMin) {
-              return false // Project's max team size is below filter minimum
-            }
-          }
-          
-          // Check maximum filter
-          if (filters.projectTeamSizeMax) {
-            const filterMax = parseInt(filters.projectTeamSizeMax)
-            if (!isNaN(filterMax) && projectTeamSize.min > filterMax) {
-              return false // Project's min team size is above filter maximum
-            }
-          }
-          
-          return true
-        })
-        
-        if (!hasMatchingTeamSize) return false
-      }
-
-      // Has Published Project filter
-      if (filters.hasPublishedProject === true) {
-        const hasPublished = employerProjects.some(project => project.isPublished === true)
-        if (!hasPublished) {
-          return false
-        }
-      }
-
-      // Publish Platforms filter
-      if (filters.publishPlatforms.length > 0) {
-        const hasMatchingPlatform = employerProjects.some(project => {
-          if (!project.isPublished || !project.publishPlatforms || project.publishPlatforms.length === 0) {
-            return false
-          }
-          return filters.publishPlatforms.some(filterPlatform =>
-            project.publishPlatforms.some(platform =>
-              platform.toLowerCase().trim() === filterPlatform.toLowerCase().trim()
-            )
-          )
-        })
-        if (!hasMatchingPlatform) return false
-      }
-
-      // Download Count filter
-      if (filters.minDownloadCount) {
-        const minCount = parseInt(filters.minDownloadCount)
-        if (!isNaN(minCount) && minCount > 0) {
-          const hasProjectWithMinDownloads = employerProjects.some(project =>
-            project.downloadCount !== undefined && project.downloadCount >= minCount
-          )
-          if (!hasProjectWithMinDownloads) {
-            return false
-          }
-        }
-      }
-
-      // Average Job Tenure filter (in years)
-      if (filters.avgJobTenureMin || filters.avgJobTenureMax) {
-        const avgTenure = getAverageJobTenure(employer, "years")
-
-        if (filters.avgJobTenureMin) {
-          const minTenure = parseFloat(filters.avgJobTenureMin)
-          if (!isNaN(minTenure) && avgTenure < minTenure) {
-            return false
-          }
-        }
-
-        if (filters.avgJobTenureMax) {
-          const maxTenure = parseFloat(filters.avgJobTenureMax)
-          if (!isNaN(maxTenure) && avgTenure > maxTenure) {
-            return false
-          }
-        }
-      }
-
-      return true
-    })
-  }, [employers, filters])
+  const getSizeSortValue = (locations: EmployerLocation[]): number => {
+    if (!locations?.length) return 0
+    const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
+    const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
+    return (totalMin + totalMax) / 2
+  }
 
   // Sorting
   const sortedEmployers = useMemo(() => {
@@ -1212,19 +275,11 @@ export function EmployersTable({
       let bValue: string | number | Date
 
       if (sortKey === 'size') {
-        // Handle calculated size sorting by average total employees
-        const aSize = calculateEmployerSize(a.locations)
-        const bSize = calculateEmployerSize(b.locations)
-        aValue = (aSize.totalMinSize + aSize.totalMaxSize) / 2
-        bValue = (bSize.totalMinSize + bSize.totalMaxSize) / 2
-      } else if (sortKey === 'applicants') {
-        // Handle applicants count sorting
-        aValue = getApplicantCount(a)
-        bValue = getApplicantCount(b)
-      } else if (sortKey === 'avgJobTenure') {
-        // Handle average tenure sorting
-        aValue = getAverageJobTenure(a, "years")
-        bValue = getAverageJobTenure(b, "years")
+        aValue = getSizeSortValue(a.locations)
+        bValue = getSizeSortValue(b.locations)
+      } else if (sortKey === 'applicants' || sortKey === 'avgJobTenure') {
+        aValue = 0
+        bValue = 0
       } else {
         aValue = a[sortKey as keyof Employer] as string | number | Date
         bValue = b[sortKey as keyof Employer] as string | number | Date
@@ -1460,15 +515,15 @@ export function EmployersTable({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {getEmployerSizeDisplay(employer.locations)}
+                        {formatEmployerSize(employer.locations)}
                       </Badge>
                     </TableCell>
                     <TableCell>
                       <Badge
                         variant="secondary"
-                        className={EMPLOYER_STATUS_COLORS[employer.status]}
+                        className={EMPLOYER_STATUS_COLORS[employer.status ?? "Active"]}
                       >
-                        {EMPLOYER_STATUS_LABELS[employer.status]}
+                        {EMPLOYER_STATUS_LABELS[employer.status ?? "Active"]}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -1477,19 +532,11 @@ export function EmployersTable({
                     <TableCell>
                       <Badge variant="secondary" className="flex items-center gap-1 font-medium">
                         <UsersIcon className="h-3 w-3" />
-                        {getApplicantCount(employer)}
+                        —
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span
-                        className="text-sm font-medium"
-                        title={`Average job tenure: ${getAverageJobTenure(employer, "years").toFixed(1)} years`}
-                      >
-                        {(() => {
-                          const tenure = getAverageJobTenure(employer, "years")
-                          return tenure > 0 ? `${tenure.toFixed(1)}y` : '—'
-                        })()}
-                      </span>
+                      <span className="text-sm font-medium text-muted-foreground">—</span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">

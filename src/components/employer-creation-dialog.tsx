@@ -36,16 +36,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon } from "lucide-react"
-import { Employer, EmployerStatus, SalaryPolicy, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, Layoff, LayoffReason, LAYOFF_REASON_LABELS } from "@/lib/types/employer"
+import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon, ChevronsUpDown, Check } from "lucide-react"
+import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicy, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB } from "@/lib/types/employer"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { sampleProjects } from "@/lib/sample-data/projects"
 import { EmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
+import type { LookupItem } from "@/lib/services/lookups-api"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
 import { format } from "date-fns"
+import type { Country } from "@/lib/types/country"
 import { cn } from "@/lib/utils"
 
 // Form data interfaces
@@ -55,7 +63,7 @@ export interface EmployerLocationFormData {
   city: string
   address: string
   isHeadquarters: boolean
-  salaryPolicy: SalaryPolicy | ""
+  salaryPolicy: SalaryPolicyDb | ""
   minSize: string
   maxSize: string
 }
@@ -64,7 +72,7 @@ export interface LayoffFormData {
   id: string
   layoffDate: Date | undefined
   numberOfEmployeesLaidOff: string
-  reason: LayoffReason
+  reason: LayoffReasonDb
   reasonOther: string
   source: string
 }
@@ -73,9 +81,15 @@ export interface EmployerFormData {
   name: string
   websiteUrl: string
   linkedinUrl: string
-  status: EmployerStatus | ""
+  statuses: EmployerStatusDb[]
   foundedYear: string
+  employerTypes: EmployerTypeDb[]
+  workMode: WorkModeDb | ""
+  shiftType: ShiftTypeDb | ""
+  ranking: RankingDb | ""
   techStacks: string[]
+  timeSupportZones: string[]
+  tags: string[]
   benefits: EmployerBenefit[]
   isDPLCompetitive: boolean
   avgJobTenure: string
@@ -91,15 +105,38 @@ export interface EmployerVerificationState {
 
 type DialogMode = "create" | "edit"
 
+export interface EmployerLookups {
+  techStacks: LookupItem[]
+  /** Tags from API; "+ Add Tag" calls onCreateTag when provided. */
+  tags?: LookupItem[]
+  /** Time support zones from API; "+ Add Time Zone" calls onCreateTimeSupportZone when provided. */
+  timeSupportZones?: LookupItem[]
+  /** Benefits from API; "Add Benefit" in BenefitsSelector calls onCreateBenefit when provided. */
+  benefits?: LookupItem[]
+}
+
 interface EmployerCreationDialogProps {
   children?: React.ReactNode
   mode?: DialogMode
   employerData?: Employer
   showVerification?: boolean
-  onSubmit?: (data: EmployerFormData, verificationState?: EmployerVerificationState) => Promise<void> | void
+  onSubmit?: (data: EmployerFormData, verificationState?: EmployerVerificationState) => Promise<{ id: number; name: string } | void> | void
+  onSuccess?: (employer: { id: number; name: string }) => void
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string  // For pre-filling employer name in create mode
+  /** Normalized countries for location country combobox (from API). */
+  countries?: Country[]
+  countriesLoading?: boolean
+  /** When provided, Tech Stacks / Tags / Time Support Zones use lookups; "+ Add" handlers create new items. */
+  lookups?: EmployerLookups
+  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTag?: (name: string) => Promise<void>
+  onCreateTimeSupportZone?: (name: string) => Promise<void>
+  /** When BenefitsSelector "Add Benefit" is used; return new EmployerBenefit to add to form. */
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
+  /** When provided, allows adding a new country from location country combobox when not found. Should create and return the new country. */
+  onCreateCountry?: (name: string) => Promise<Country | null>
 }
 
 const createEmptyLocation = (): EmployerLocationFormData => ({
@@ -117,7 +154,7 @@ const createEmptyLayoff = (): LayoffFormData => ({
   id: crypto.randomUUID(),
   layoffDate: undefined,
   numberOfEmployeesLaidOff: "",
-  reason: "Cost reduction",
+  reason: "cost_reduction",
   reasonOther: "",
   source: "",
 })
@@ -126,9 +163,15 @@ const initialFormData: EmployerFormData = {
   name: "",
   websiteUrl: "",
   linkedinUrl: "",
-  status: "",
+  statuses: [],
   foundedYear: "",
+  employerTypes: [],
+  workMode: "",
+  shiftType: "",
+  ranking: "",
   techStacks: [],
+  timeSupportZones: [],
+  tags: [],
   benefits: [],
   isDPLCompetitive: false,
   avgJobTenure: "",
@@ -136,158 +179,61 @@ const initialFormData: EmployerFormData = {
   layoffs: [],
 }
 
-// Status options
-const statusOptions = Object.entries(EMPLOYER_STATUS_LABELS).map(([value, label]) => ({
-  value: value as EmployerStatus,
-  label
-}))
+// Status options (DB enum values for multi-select)
+const statusOptions: MultiSelectOption[] = (Object.entries(EMPLOYER_STATUS_DB_LABELS) as [EmployerStatusDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
 
-// Salary policy options
-const salaryPolicyOptions = Object.entries(SALARY_POLICY_LABELS).map(([value, label]) => ({
-  value: value as SalaryPolicy,
-  label
-}))
+// Salary policy options (DB enum values for location)
+const salaryPolicyOptions = (Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
 
-// Extract unique tech stacks from candidates and projects
-const extractUniqueTechStacks = (): MultiSelectOption[] => {
-  const techStacksMap = new Map<string, string>() // Map<lowercase, original>
-  
-  // From candidates' work experiences
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      we.techStacks.forEach(tech => {
-        const lowerTech = tech.toLowerCase().trim()
-        if (lowerTech && !techStacksMap.has(lowerTech)) {
-          techStacksMap.set(lowerTech, tech.trim())
-        }
-      })
-    })
-    // Also include standalone tech stacks from candidate level
-    candidate.techStacks?.forEach(tech => {
-      const lowerTech = tech.toLowerCase().trim()
-      if (lowerTech && !techStacksMap.has(lowerTech)) {
-        techStacksMap.set(lowerTech, tech.trim())
-      }
-    })
-  })
-  
-  // From projects
-  sampleProjects.forEach(project => {
-    project.techStacks.forEach(tech => {
-      const lowerTech = tech.toLowerCase().trim()
-      if (lowerTech && !techStacksMap.has(lowerTech)) {
-        techStacksMap.set(lowerTech, tech.trim())
-      }
-    })
-  })
-  
-  return Array.from(techStacksMap.values()).sort().map(tech => ({
-    label: tech,
-    value: tech
-  }))
-}
+// Work mode, shift type, ranking options (DB enum values)
+const workModeOptions = (Object.entries(WORK_MODE_DB_LABELS) as [WorkModeDb, string][]).map(([value, label]) => ({ value, label }))
+const shiftTypeOptions = (Object.entries(SHIFT_TYPE_DB_LABELS) as [ShiftTypeDb, string][]).map(([value, label]) => ({ value, label }))
+const rankingOptions = (Object.entries(RANKING_DB_LABELS) as [RankingDb, string][]).map(([value, label]) => ({ value, label }))
 
-// Tech stack options
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+const normalizeTechStack = (tech: string): string => tech.trim()
 
-// Create a map for case-insensitive lookup of tech stack options
-const techStackOptionsMap = new Map<string, string>() // Map<lowercase, original>
-techStackOptions.forEach(option => {
-  const lower = option.value.toLowerCase().trim()
-  if (!techStackOptionsMap.has(lower)) {
-    techStackOptionsMap.set(lower, option.value)
-  }
-})
-
-// Helper to normalize tech stack to match options (case-insensitive)
-const normalizeTechStack = (tech: string): string => {
-  const normalized = tech.trim()
-  const lower = normalized.toLowerCase()
-  // Return the original case from options if found, otherwise return trimmed original
-  return techStackOptionsMap.get(lower) || normalized
-}
-
-// Get tech stacks for an employer (from employer data or candidates)
+// Use only employer's own tech stacks and benefits (no candidate-derived data).
 const getEmployerTechStacks = (employer: Employer): string[] => {
-  const techStacksSet = new Set<string>()
-  
-  // If employer has explicit tech stacks, add them first (normalized to match options)
-  if (employer.techStacks && employer.techStacks.length > 0) {
-    employer.techStacks.forEach(tech => {
-      techStacksSet.add(normalizeTechStack(tech))
-    })
-  }
-  
-  // Also extract from candidates' work experiences (normalized to match options)
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (exact match after normalization)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      // Use exact match for precision, but also handle common variations
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch) {
-        we.techStacks.forEach(tech => {
-          const normalized = normalizeTechStack(tech)
-          if (normalized) {
-            techStacksSet.add(normalized)
-          }
-        })
-      }
-    })
-  })
-  
-  return Array.from(techStacksSet).sort()
+  return employer.techStacks && employer.techStacks.length > 0 ? [...employer.techStacks] : []
+}
+const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
+  return employer.benefits && employer.benefits.length > 0 ? [...employer.benefits] : []
 }
 
-// Get benefits for an employer (from employer data or candidates)
-const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
-  const benefitsMap = new Map<string, EmployerBenefit>()
-  
-  // First, use benefits from employer if they exist
-  if (employer.benefits && employer.benefits.length > 0) {
-    employer.benefits.forEach(benefit => {
-      const key = benefit.name.toLowerCase().trim()
-      benefitsMap.set(key, { ...benefit })
-    })
-  }
-  
-  // Also extract from candidates' work experiences
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      // Match employer names (exact match after normalization)
-      const weEmployerName = we.employerName?.toLowerCase().trim() || ""
-      const employerName = employer.name.toLowerCase().trim()
-      // Use exact match for precision, but also handle common variations
-      const isMatch = weEmployerName === employerName || 
-                     (weEmployerName && employerName && 
-                      (weEmployerName.replace(/\s+/g, ' ') === employerName.replace(/\s+/g, ' ')))
-      if (isMatch) {
-        we.benefits.forEach(benefit => {
-          // Use benefit name as key to deduplicate
-          const key = benefit.name.toLowerCase().trim()
-          // Only add if not already present (employer's explicit benefits take precedence)
-          if (!benefitsMap.has(key)) {
-            benefitsMap.set(key, { ...benefit })
-          }
-        })
-      }
-    })
-  })
-  return Array.from(benefitsMap.values())
-}
+// Employer type options for MultiSelect (DB enum values with display labels)
+const employerTypeOptions: MultiSelectOption[] = (Object.entries(EMPLOYER_TYPE_DB_LABELS) as [EmployerTypeDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
 
 // Helper function to convert Employer to EmployerFormData
 const employerToFormData = (employer: Employer): EmployerFormData => {
+  const employerTypes: EmployerTypeDb[] = employer.employerTypes?.length
+    ? [...employer.employerTypes]
+    : employer.employerType
+      ? [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
+      : []
+  const statuses: EmployerStatusDb[] = employer.statuses?.length
+    ? [...employer.statuses]
+    : employer.status
+      ? [EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]]
+      : []
   return {
     name: employer.name || "",
     websiteUrl: employer.websiteUrl || "",
     linkedinUrl: employer.linkedinUrl || "",
-    status: employer.status || "",
+    statuses,
     foundedYear: employer.foundedYear?.toString() || "",
+    employerTypes,
+    workMode: employer.workMode ?? "",
+    shiftType: employer.shiftType ?? "",
+    ranking: employer.ranking ? RANKING_DISPLAY_TO_DB[employer.ranking] : "",
     techStacks: getEmployerTechStacks(employer),
+    timeSupportZones: employer.timeSupportZones ?? [],
+    tags: employer.tags ?? [],
     benefits: getEmployerBenefits(employer),
     isDPLCompetitive: employer.isDPLCompetitive || false,
     avgJobTenure: employer.avgJobTenure?.toString() || "",
@@ -297,7 +243,9 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
       city: loc.city || "",
       address: loc.address || "",
       isHeadquarters: loc.isHeadquarters,
-      salaryPolicy: loc.salaryPolicy || "",
+      salaryPolicy: (loc.salaryPolicy && loc.salaryPolicy in SALARY_POLICY_DB_LABELS)
+        ? (loc.salaryPolicy as SalaryPolicyDb)
+        : (loc.salaryPolicy ? SALARY_POLICY_DISPLAY_TO_DB[loc.salaryPolicy as SalaryPolicy] : ""),
       minSize: loc.minSize?.toString() || "",
       maxSize: loc.maxSize?.toString() || "",
     })),
@@ -305,17 +253,23 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
       id: layoff.id,
       layoffDate: new Date(layoff.layoffDate),
       numberOfEmployeesLaidOff: layoff.numberOfEmployeesLaidOff.toString(),
-      reason: layoff.reason,
+      reason: LAYOFF_REASON_DISPLAY_TO_DB[layoff.reason],
       reasonOther: layoff.reasonOther || "",
       source: layoff.source,
     }))
   }
 }
 
-// All verifiable fields for employers
+// All verifiable fields for employers (Basic Information section only)
 const EMPLOYER_VERIFICATION_FIELDS = [
-  'name', 'status', 'foundedYear', 'websiteUrl', 'linkedinUrl', 'isDPLCompetitive', 'avgJobTenure'
+  'name', 'statuses', 'foundedYear', 'employerTypes', 'ranking', 'websiteUrl', 'linkedinUrl', 'isDPLCompetitive', 'avgJobTenure'
 ]
+
+// Work Arrangements & Tags section fields
+const WORK_ARRANGEMENTS_TAGS_FIELDS = ['workMode', 'shiftType', 'timeSupportZones', 'tags']
+
+// Technology Stacks & Benefits section fields
+const TECH_STACK_BENEFITS_FIELDS = ['techStacks', 'benefits']
 
 // Location fields (dynamic based on number of locations)
 const getLocationFieldNames = (locationIndex: number): string[] => {
@@ -336,9 +290,18 @@ export function EmployerCreationDialog({
   employerData,
   showVerification = true,
   onSubmit,
+  onSuccess,
   onOpenChange,
   open: controlledOpen,
   initialName,
+  countries = [],
+  countriesLoading = false,
+  lookups,
+  onCreateTechStack,
+  onCreateTag,
+  onCreateTimeSupportZone,
+  onCreateBenefit,
+  onCreateCountry,
 }: EmployerCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -357,7 +320,30 @@ export function EmployerCreationDialog({
   
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["basic-info", "locations"])
+    new Set(["basic-info", "work-arrangements-tags", "tech-stack-benefits", "locations"])
+  )
+
+  // Location country combobox: which location's popover is open (null = none)
+  const [locationCountryPopoverIndex, setLocationCountryPopoverIndex] = useState<number | null>(null)
+  const [locationCountrySearchQuery, setLocationCountrySearchQuery] = useState("")
+  const [locationCountryCreateInProgress, setLocationCountryCreateInProgress] = useState<number | null>(null)
+  const filteredCountries = useMemo(() => {
+    if (!locationCountrySearchQuery.trim()) return countries
+    const q = locationCountrySearchQuery.toLowerCase().trim()
+    return countries.filter((c) => c.name.toLowerCase().includes(q))
+  }, [countries, locationCountrySearchQuery])
+
+  const techStackOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.techStacks]
+  )
+  const tagOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.tags?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.tags]
+  )
+  const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.timeSupportZones?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.timeSupportZones]
   )
 
   // Use controlled or internal open state
@@ -509,7 +495,7 @@ export function EmployerCreationDialog({
   const handleLayoffChange = (
     index: number,
     field: keyof LayoffFormData,
-    value: string | Date | undefined | LayoffReason
+    value: string | Date | undefined | LayoffReasonDb
   ) => {
     setFormData(prev => ({
       ...prev,
@@ -572,13 +558,14 @@ export function EmployerCreationDialog({
     const locationErrors: { [index: number]: Partial<Record<keyof EmployerLocationFormData, string>> } = {}
     const layoffErrors: { [index: number]: Partial<Record<keyof LayoffFormData, string>> } = {}
 
-    // Employer validation
+    // Employer validation (name required; foundedYear optional but must be 1800–current year if set)
     if (!formData.name.trim()) employerErrors.name = "Employer name is required"
-    if (!formData.status) employerErrors.status = "Status is required"
-    if (!formData.foundedYear.trim()) {
-      employerErrors.foundedYear = "Founded year is required"
-    } else if (!/^\d{4}$/.test(formData.foundedYear) || parseInt(formData.foundedYear) < 1800 || parseInt(formData.foundedYear) > new Date().getFullYear()) {
-      employerErrors.foundedYear = "Please enter a valid year (e.g., 2019)"
+    if (formData.foundedYear.trim()) {
+      const year = parseInt(formData.foundedYear, 10)
+      const currentYear = new Date().getFullYear()
+      if (!/^\d{4}$/.test(formData.foundedYear) || Number.isNaN(year) || year < 1800 || year > currentYear) {
+        employerErrors.foundedYear = `Please enter a valid year between 1800 and ${currentYear}`
+      }
     }
     
     // URL validations
@@ -705,6 +692,16 @@ export function EmployerCreationDialog({
     [verifiedFields]
   )
 
+  const workArrangementsTagsProgress = useMemo(() =>
+    calculateSectionProgress(WORK_ARRANGEMENTS_TAGS_FIELDS),
+    [verifiedFields]
+  )
+
+  const techStackBenefitsProgress = useMemo(() =>
+    calculateSectionProgress(TECH_STACK_BENEFITS_FIELDS),
+    [verifiedFields]
+  )
+
   const locationsProgress = useMemo(() => {
     let total = 0
     let verified = 0
@@ -788,6 +785,12 @@ export function EmployerCreationDialog({
   const getSectionFieldNames = (sectionId: string): string[] => {
     if (sectionId === 'basic-info') {
       return EMPLOYER_VERIFICATION_FIELDS
+    }
+    if (sectionId === 'work-arrangements-tags') {
+      return WORK_ARRANGEMENTS_TAGS_FIELDS
+    }
+    if (sectionId === 'tech-stack-benefits') {
+      return TECH_STACK_BENEFITS_FIELDS
     }
     if (sectionId === 'locations') {
       const fields: string[] = []
@@ -919,7 +922,10 @@ export function EmployerCreationDialog({
         ? { verifiedFields, modifiedFields }
         : undefined
         
-      await onSubmit?.(formData, verificationState)
+      const result = await onSubmit?.(formData, verificationState)
+      if (result && typeof result === "object" && "id" in result && "name" in result) {
+        onSuccess?.(result as { id: number; name: string })
+      }
       setFormData(initialFormData)
       setErrors({})
       setVerifiedFields(new Set())
@@ -1071,7 +1077,7 @@ export function EmployerCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="name">Employer Name *</Label>
+                          <Label htmlFor="name">Name *</Label>
                           <Input
                             id="name"
                             type="text"
@@ -1101,24 +1107,69 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="status">Status *</Label>
+                          <Label htmlFor="statuses">Status</Label>
+                          <MultiSelect
+                            items={statusOptions}
+                            selected={formData.statuses}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, statuses: values as EmployerStatusDb[] }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("statuses"))
+                                setVerifiedFields(prev => new Set(prev).add("statuses"))
+                              }
+                            }}
+                            placeholder="Select status"
+                            searchPlaceholder="Search statuses..."
+                            maxDisplay={3}
+                          />
+                          {errors.employer?.statuses && <p className="text-sm text-red-500">{errors.employer.statuses}</p>}
+                          <VerificationCheckbox fieldName="statuses" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="employerTypes">Type</Label>
+                          <MultiSelect
+                            items={employerTypeOptions}
+                            selected={formData.employerTypes}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, employerTypes: values as EmployerTypeDb[] }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("employerTypes"))
+                                setVerifiedFields(prev => new Set(prev).add("employerTypes"))
+                              }
+                            }}
+                            placeholder="Select employer type"
+                            searchPlaceholder="Search types..."
+                            maxDisplay={4}
+                          />
+                          <VerificationCheckbox fieldName="employerTypes" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="ranking">Ranking</Label>
                           <Select
-                            value={formData.status}
-                            onValueChange={(value: EmployerStatus) => handleInputChange("status", value)}
+                            value={formData.ranking || undefined}
+                            onValueChange={(value: RankingDb) => {
+                              setFormData(prev => ({ ...prev, ranking: value }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("ranking"))
+                                setVerifiedFields(prev => new Set(prev).add("ranking"))
+                              }
+                            }}
                           >
-                            <SelectTrigger className={errors.employer?.status ? "border-red-500" : ""}>
-                              <SelectValue placeholder="Select status" />
+                            <SelectTrigger className={errors.employer?.ranking ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select ranking" />
                             </SelectTrigger>
                             <SelectContent>
-                              {statusOptions.map((status) => (
-                                <SelectItem key={status.value} value={status.value}>
-                                  {status.label}
+                              {rankingOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
-                          {errors.employer?.status && <p className="text-sm text-red-500">{errors.employer.status}</p>}
-                          <VerificationCheckbox fieldName="status" />
+                          {errors.employer?.ranking && <p className="text-sm text-red-500">{errors.employer.ranking}</p>}
+                          <VerificationCheckbox fieldName="ranking" />
                         </div>
 
                         <div className="space-y-2">
@@ -1170,26 +1221,7 @@ export function EmployerCreationDialog({
                           <VerificationCheckbox fieldName="isDPLCompetitive" />
                         </div>
 
-                        <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor="techStacks">Tech Stacks</Label>
-                          <MultiSelect
-                            items={techStackOptions}
-                            selected={formData.techStacks}
-                            onChange={(values) => {
-                              setFormData(prev => ({ ...prev, techStacks: values }))
-                              if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("techStacks"))
-                                setVerifiedFields(prev => new Set(prev).add("techStacks"))
-                              }
-                            }}
-                            placeholder="Select technologies..."
-                            searchPlaceholder="Search technologies..."
-                            maxDisplay={4}
-                          />
-                          <VerificationCheckbox fieldName="techStacks" />
-                        </div>
-
-                        <div className="space-y-2 md:col-span-2">
+                        <div className="space-y-2">
                           <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
                           <Input
                             id="avgJobTenure"
@@ -1206,17 +1238,254 @@ export function EmployerCreationDialog({
                               }
                             }}
                           />
-                          <p className="text-xs text-muted-foreground">
-                            Average time employees stay with this employer (calculated from work experience data or manually entered)
-                          </p>
                           <VerificationCheckbox fieldName="avgJobTenure" />
                         </div>
                       </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
 
-                      {/* Benefits */}
+              {/* Work Arrangements & Tags Section */}
+              <Collapsible
+                open={expandedSections.has("work-arrangements-tags")}
+                onOpenChange={() => toggleSection("work-arrangements-tags")}
+              >
+                <Card>
+                  <CollapsibleTrigger className="w-full">
+                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          Work Arrangements &amp; Tags
+                          {showVerification && (
+                            <SectionProgressBadge
+                              percentage={workArrangementsTagsProgress.percentage}
+                              verified={workArrangementsTagsProgress.verified}
+                              total={workArrangementsTagsProgress.total}
+                            />
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {showVerification && (
+                            <div
+                              className="flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Checkbox
+                                id="verify-all-work-arrangements-tags"
+                                checked={isSectionFullyVerified("work-arrangements-tags")}
+                                onCheckedChange={(checked) => handleVerifyAllSection("work-arrangements-tags", checked === true)}
+                                className="h-4 w-4"
+                              />
+                              <Label
+                                htmlFor="verify-all-work-arrangements-tags"
+                                className="text-xs text-muted-foreground cursor-pointer font-normal"
+                              >
+                                Verify All
+                              </Label>
+                            </div>
+                          )}
+                          {expandedSections.has("work-arrangements-tags") ? (
+                            <ChevronDown className="size-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="size-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="workMode">Work Mode</Label>
+                          <Select
+                            value={formData.workMode || undefined}
+                            onValueChange={(value: WorkModeDb) => {
+                              setFormData(prev => ({ ...prev, workMode: value }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("workMode"))
+                                setVerifiedFields(prev => new Set(prev).add("workMode"))
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={errors.employer?.workMode ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select work mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {workModeOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.employer?.workMode && <p className="text-sm text-red-500">{errors.employer.workMode}</p>}
+                          <VerificationCheckbox fieldName="workMode" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="shiftType">Shift Type</Label>
+                          <Select
+                            value={formData.shiftType || undefined}
+                            onValueChange={(value: ShiftTypeDb) => {
+                              setFormData(prev => ({ ...prev, shiftType: value }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("shiftType"))
+                                setVerifiedFields(prev => new Set(prev).add("shiftType"))
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={errors.employer?.shiftType ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select shift type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {shiftTypeOptions.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.employer?.shiftType && <p className="text-sm text-red-500">{errors.employer.shiftType}</p>}
+                          <VerificationCheckbox fieldName="shiftType" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="timeSupportZones">Time Support Zones</Label>
+                          <MultiSelect
+                            items={timeSupportZoneOptions}
+                            selected={formData.timeSupportZones}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, timeSupportZones: values }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("timeSupportZones"))
+                                setVerifiedFields(prev => new Set(prev).add("timeSupportZones"))
+                              }
+                            }}
+                            placeholder="Select time zones..."
+                            searchPlaceholder="Search time zones..."
+                            maxDisplay={5}
+                            creatable={true}
+                            createLabel="+ Add Time Zone"
+                            onCreateNew={onCreateTimeSupportZone ? (name) => onCreateTimeSupportZone(name) : undefined}
+                          />
+                          <VerificationCheckbox fieldName="timeSupportZones" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="tags">Tags</Label>
+                          <MultiSelect
+                            items={tagOptions}
+                            selected={formData.tags}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, tags: values }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("tags"))
+                                setVerifiedFields(prev => new Set(prev).add("tags"))
+                              }
+                            }}
+                            placeholder="Select tags..."
+                            searchPlaceholder="Search tags..."
+                            maxDisplay={3}
+                            creatable={true}
+                            createLabel="Add Tag"
+                            onCreateNew={onCreateTag ? (name) => onCreateTag(name) : undefined}
+                          />
+                          <VerificationCheckbox fieldName="tags" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+
+              {/* Technology Stacks & Benefits Section */}
+              <Collapsible
+                open={expandedSections.has("tech-stack-benefits")}
+                onOpenChange={() => toggleSection("tech-stack-benefits")}
+              >
+                <Card>
+                  <CollapsibleTrigger className="w-full">
+                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          Technology Stacks &amp; Benefits
+                          {showVerification && (
+                            <SectionProgressBadge
+                              percentage={techStackBenefitsProgress.percentage}
+                              verified={techStackBenefitsProgress.verified}
+                              total={techStackBenefitsProgress.total}
+                            />
+                          )}
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {showVerification && (
+                            <div
+                              className="flex items-center gap-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Checkbox
+                                id="verify-all-tech-stack-benefits"
+                                checked={isSectionFullyVerified("tech-stack-benefits")}
+                                onCheckedChange={(checked) => handleVerifyAllSection("tech-stack-benefits", checked === true)}
+                                className="h-4 w-4"
+                              />
+                              <Label
+                                htmlFor="verify-all-tech-stack-benefits"
+                                className="text-xs text-muted-foreground cursor-pointer font-normal"
+                              >
+                                Verify All
+                              </Label>
+                            </div>
+                          )}
+                          {expandedSections.has("tech-stack-benefits") ? (
+                            <ChevronDown className="size-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="size-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="techStacks">Tech Stacks</Label>
+                          <MultiSelect
+                            items={techStackOptions}
+                            selected={formData.techStacks}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, techStacks: values }))
+                              if (showVerification) {
+                                setModifiedFields(prev => new Set(prev).add("techStacks"))
+                                setVerifiedFields(prev => new Set(prev).add("techStacks"))
+                              }
+                            }}
+                            placeholder="Select technologies..."
+                            searchPlaceholder="Search technologies..."
+                            maxDisplay={4}
+                            creatable={true}
+                            createLabel="Add Technology"
+                            onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                          />
+                          <VerificationCheckbox fieldName="techStacks" />
+                        </div>
                       <div className="space-y-2">
                         <BenefitsSelector
                           benefits={formData.benefits}
+                            benefitOptions={lookups?.benefits ?? []}
+                            onCreateBenefit={
+                              onCreateBenefit
+                                ? async (name) => {
+                                    const added = await onCreateBenefit(name)
+                                    if (added)
+                                      setFormData((prev) => ({ ...prev, benefits: [...prev.benefits, added] }))
+                                    return added
+                                  }
+                                : undefined
+                            }
                           onChange={(benefits) => {
                             setFormData(prev => ({ ...prev, benefits }))
                             if (showVerification) {
@@ -1226,6 +1495,7 @@ export function EmployerCreationDialog({
                           }}
                         />
                         <VerificationCheckbox fieldName="benefits" />
+                        </div>
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1288,10 +1558,7 @@ export function EmployerCreationDialog({
                   )}
                 </div>
                 <CollapsibleContent className="space-y-4 mt-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Add office locations and headquarters information
-                    </p>
+                  <div className="flex items-center justify-end">
                     <Button
                       type="button"
                       variant="outline"
@@ -1324,15 +1591,143 @@ export function EmployerCreationDialog({
                   <CardContent className="pt-0">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor={`country-${index}`}>Country *</Label>
-                                <Input
-                                  id={`country-${index}`}
-                                  type="text"
-                                  placeholder="United States"
-                                  value={location.country}
-                                  onChange={(e) => handleLocationChange(index, "country", e.target.value)}
-                                  className={errors.locations?.[index]?.country ? "border-red-500" : ""}
-                                />
+                                <Label>Country *</Label>
+                                <Popover
+                                  open={locationCountryPopoverIndex === index}
+                                  onOpenChange={(open) => {
+                                    if (!open) {
+                                      setLocationCountryPopoverIndex(null)
+                                      setLocationCountrySearchQuery("")
+                                    } else {
+                                      setLocationCountryPopoverIndex(index)
+                                      setLocationCountrySearchQuery("")
+                                    }
+                                  }}
+                                >
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={locationCountryPopoverIndex === index}
+                                      className={cn(
+                                        "w-full justify-between",
+                                        !location.country && "text-muted-foreground",
+                                        errors.locations?.[index]?.country && "border-red-500"
+                                      )}
+                                    >
+                                      {location.country ? (
+                                        <span className="flex items-center gap-2">
+                                          <MapPin className="h-4 w-4 shrink-0" />
+                                          {location.country}
+                                        </span>
+                                      ) : (
+                                        "Select country..."
+                                      )}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                                    <Command shouldFilter={false}>
+                                      <CommandInput
+                                        placeholder="Search countries..."
+                                        value={locationCountryPopoverIndex === index ? locationCountrySearchQuery : ""}
+                                        onValueChange={setLocationCountrySearchQuery}
+                                      />
+                                      <CommandList>
+                                        {countriesLoading ? (
+                                          <CommandEmpty>
+                                            <div className="flex items-center justify-center gap-2 py-2">
+                                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                              <span className="text-sm text-muted-foreground">Loading countries...</span>
+                                            </div>
+                                          </CommandEmpty>
+                                        ) : filteredCountries.length === 0 ? (
+                                          <>
+                                            <CommandEmpty>
+                                              {locationCountrySearchQuery.trim() ? "No country found." : "No countries available."}
+                                            </CommandEmpty>
+                                            {locationCountrySearchQuery.trim() && onCreateCountry && (
+                                              <CommandGroup>
+                                                <CommandItem
+                                                  value={`add-country-${locationCountrySearchQuery.trim()}`}
+                                                  onSelect={async () => {
+                                                    const name = locationCountrySearchQuery.trim()
+                                                    if (!name) return
+                                                    setLocationCountryCreateInProgress(index)
+                                                    try {
+                                                      const newCountry = await onCreateCountry(name)
+                                                      if (newCountry) {
+                                                        handleLocationChange(index, "country", newCountry.name)
+                                                        setLocationCountryPopoverIndex(null)
+                                                        setLocationCountrySearchQuery("")
+                                                      }
+                                                    } finally {
+                                                      setLocationCountryCreateInProgress(null)
+                                                    }
+                                                  }}
+                                                  disabled={locationCountryCreateInProgress !== null}
+                                                  className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                                                >
+                                                  <Plus className="h-4 w-4" />
+                                                  {locationCountryCreateInProgress === index ? "Adding…" : `Add "${locationCountrySearchQuery.trim()}" as new country`}
+                                                </CommandItem>
+                                              </CommandGroup>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <CommandGroup>
+                                            {filteredCountries.map((country) => (
+                                              <CommandItem
+                                                key={country.id}
+                                                value={String(country.id)}
+                                                onSelect={() => {
+                                                  handleLocationChange(index, "country", country.name)
+                                                  setLocationCountryPopoverIndex(null)
+                                                  setLocationCountrySearchQuery("")
+                                                }}
+                                                className="flex items-center gap-2"
+                                              >
+                                                <Check
+                                                  className={cn(
+                                                    "h-4 w-4",
+                                                    location.country === country.name ? "opacity-100" : "opacity-0"
+                                                  )}
+                                                />
+                                                {country.name}
+                                              </CommandItem>
+                                            ))}
+                                            {locationCountrySearchQuery.trim() && onCreateCountry && !filteredCountries.some((c) => c.name.toLowerCase() === locationCountrySearchQuery.trim().toLowerCase()) && (
+                                              <CommandItem
+                                                value={`add-country-${locationCountrySearchQuery.trim()}`}
+                                                onSelect={async () => {
+                                                  const name = locationCountrySearchQuery.trim()
+                                                  if (!name) return
+                                                  setLocationCountryCreateInProgress(index)
+                                                  try {
+                                                    const newCountry = await onCreateCountry(name)
+                                                    if (newCountry) {
+                                                      handleLocationChange(index, "country", newCountry.name)
+                                                      setLocationCountryPopoverIndex(null)
+                                                      setLocationCountrySearchQuery("")
+                                                    }
+                                                  } finally {
+                                                    setLocationCountryCreateInProgress(null)
+                                                  }
+                                                }}
+                                                disabled={locationCountryCreateInProgress !== null}
+                                                className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                                              >
+                                                <Plus className="h-4 w-4" />
+                                                {locationCountryCreateInProgress === index ? "Adding…" : `Add "${name}" as new country`}
+                                              </CommandItem>
+                                            )}
+                                          </CommandGroup>
+                                        )}
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                                 {errors.locations?.[index]?.country && (
                                   <p className="text-sm text-red-500">{errors.locations[index].country}</p>
                                 )}
@@ -1409,7 +1804,7 @@ export function EmployerCreationDialog({
                                 <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy *</Label>
                                 <Select
                                   value={location.salaryPolicy}
-                                  onValueChange={(value: SalaryPolicy) => handleLocationChange(index, "salaryPolicy", value)}
+                                  onValueChange={(value: SalaryPolicyDb) => handleLocationChange(index, "salaryPolicy", value)}
                                 >
                                   <SelectTrigger className={errors.locations?.[index]?.salaryPolicy ? "border-red-500" : ""}>
                                     <SelectValue placeholder="Select policy" />
@@ -1507,10 +1902,7 @@ export function EmployerCreationDialog({
                   )}
                 </div>
                 <CollapsibleContent className="space-y-4 mt-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Track layoff events for this employer
-                    </p>
+                  <div className="flex items-center justify-end">
                     <Button
                       type="button"
                       variant="outline"
@@ -1545,7 +1937,7 @@ export function EmployerCreationDialog({
                         <CardContent className="pt-0">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor={`layoffDate-${index}`}>Layoff Date *</Label>
+                              <Label htmlFor={`layoffDate-${index}`}>Date *</Label>
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <Button
@@ -1558,7 +1950,7 @@ export function EmployerCreationDialog({
                                     )}
                                   >
                                     <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
-                                    {layoff.layoffDate ? format(layoff.layoffDate, "PPP") : "Pick a date"}
+                                    {layoff.layoffDate ? format(layoff.layoffDate, "PPP") : "Pick a layoff date"}
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-auto p-0" align="start">
@@ -1579,7 +1971,7 @@ export function EmployerCreationDialog({
                             </div>
 
                             <div className="space-y-2">
-                              <Label htmlFor={`numberOfEmployeesLaidOff-${index}`}>Number of Employees Laid Off *</Label>
+                              <Label htmlFor={`numberOfEmployeesLaidOff-${index}`}>No. of Affected Employees *</Label>
                               <Input
                                 id={`numberOfEmployeesLaidOff-${index}`}
                                 type="number"
@@ -1599,20 +1991,20 @@ export function EmployerCreationDialog({
                               <Label htmlFor={`reason-${index}`}>Reason *</Label>
                               <Select 
                                 value={layoff.reason} 
-                                onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReason)}
+                                onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReasonDb)}
                               >
                                 <SelectTrigger className={errors.layoffs?.[index]?.reason ? "border-red-500" : ""}>
-                                  <SelectValue />
+                                  <SelectValue placeholder="Select reason" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {Object.entries(LAYOFF_REASON_LABELS).map(([value, label]) => (
+                                  {(Object.entries(LAYOFF_REASON_DB_LABELS) as [LayoffReasonDb, string][]).map(([value, label]) => (
                                     <SelectItem key={value} value={value}>
                                       {label}
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
-                              {layoff.reason === "Other" && (
+                              {layoff.reason === "other" && (
                                 <div className="mt-2">
                                   <Input
                                     placeholder="Specify reason"

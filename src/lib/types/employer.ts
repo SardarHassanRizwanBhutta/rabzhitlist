@@ -19,6 +19,31 @@ export type LayoffReason =
   | "Funding issues"
   | "Other"
 
+/** DB enum layoff_reason_enum (layoffs.reason). */
+export type LayoffReasonDb =
+  | "cost_reduction"
+  | "restructuring"
+  | "economic_downturn"
+  | "funding_issues"
+  | "other"
+
+export const LAYOFF_REASON_DB_LABELS: Record<LayoffReasonDb, string> = {
+  cost_reduction: "Cost reduction",
+  restructuring: "Restructuring",
+  economic_downturn: "Economic downturn",
+  funding_issues: "Funding issues",
+  other: "Other",
+}
+
+/** Map display (LayoffReason) to DB value for API. */
+export const LAYOFF_REASON_DISPLAY_TO_DB: Record<LayoffReason, LayoffReasonDb> = {
+  "Cost reduction": "cost_reduction",
+  "Restructuring": "restructuring",
+  "Economic downturn": "economic_downturn",
+  "Funding issues": "funding_issues",
+  "Other": "other",
+}
+
 export interface Layoff {
   id: string
   employerId: string
@@ -52,12 +77,22 @@ export interface Employer {
   name: string
   websiteUrl: string | null
   linkedinUrl: string | null
-  status: EmployerStatus
+  /** @deprecated Use statuses (employer_statuses junction). */
+  status?: EmployerStatus
+  /** Multiple statuses from employer_statuses (DB enum values). */
+  statuses?: EmployerStatusDb[]
   foundedYear: number | null
   ranking: EmployerRanking
+  /** DB enum value (employers.work_mode). */
+  workMode?: WorkModeDb
+  /** DB enum value (employers.shift_type). */
+  shiftType?: ShiftTypeDb
   employerType: EmployerType
+  /** Multiple types from employer_employer_types (DB enum values). */
+  employerTypes?: EmployerTypeDb[]
   locations: EmployerLocation[]
   techStacks?: string[]
+  timeSupportZones?: string[]
   benefits?: EmployerBenefit[]
   isDPLCompetitive?: boolean  // Separate field for DPL Competitive status
   avgJobTenure?: number  // Manually set average job tenure in years (calculated from work experience data)
@@ -79,10 +114,42 @@ export type EmployerStatus =
   | "Flagged"
   | "Closed"
 
+/** DB enum employer_status_enum (employer_statuses junction). */
+export type EmployerStatusDb = "open" | "closed" | "flagged"
+
+export const EMPLOYER_STATUS_DB_LABELS: Record<EmployerStatusDb, string> = {
+  open: "Open",
+  closed: "Closed",
+  flagged: "Flagged",
+}
+
+/** Map display (EmployerStatus) to DB value for API/edit. */
+export const EMPLOYER_STATUS_DISPLAY_TO_DB: Record<EmployerStatus, EmployerStatusDb> = {
+  Active: "open",
+  Flagged: "flagged",
+  Closed: "closed",
+}
+
 export type SalaryPolicy = 
   | "Standard"
   | "Tax Free"
   | "Remittance"
+
+/** DB enum salary_policy_enum (e.g. employer_locations.salary_policy). */
+export type SalaryPolicyDb = "standard" | "tax_free" | "remittance"
+
+export const SALARY_POLICY_DB_LABELS: Record<SalaryPolicyDb, string> = {
+  standard: "Standard",
+  tax_free: "Tax Free",
+  remittance: "Remittance",
+}
+
+/** Map display (SalaryPolicy) to DB value for API/edit. */
+export const SALARY_POLICY_DISPLAY_TO_DB: Record<SalaryPolicy, SalaryPolicyDb> = {
+  Standard: "standard",
+  "Tax Free": "tax_free",
+  Remittance: "remittance",
+}
 
 export type EmployerRanking =
   | "Top"
@@ -104,6 +171,71 @@ export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
   "Startup": "Startup",
   "Integrator": "Integrator",
   "Resource Augmentation": "Resource Augmentation",
+}
+
+/** DB enum employer_type_enum (employer_employer_types junction). */
+export type EmployerTypeDb =
+  | "services_based"
+  | "product_based"
+  | "saas"
+  | "startup"
+  | "integrator"
+  | "resource_augmentation"
+
+export const EMPLOYER_TYPE_DB_LABELS: Record<EmployerTypeDb, string> = {
+  services_based: "Services Based",
+  product_based: "Product Based",
+  saas: "SaaS",
+  startup: "Startup",
+  integrator: "Integrator",
+  resource_augmentation: "Resource Augmentation",
+}
+
+/** Map display (EmployerType) to DB value for API/edit. */
+export const EMPLOYER_TYPE_DISPLAY_TO_DB: Record<EmployerType, EmployerTypeDb> = {
+  "Services Based": "services_based",
+  "Product Based": "product_based",
+  "SAAS": "saas",
+  "Startup": "startup",
+  "Integrator": "integrator",
+  "Resource Augmentation": "resource_augmentation",
+}
+
+/** DB enum ranking_enum (employers.ranking). */
+export type RankingDb = "standard" | "top" | "dpl_favourite"
+
+export const RANKING_DB_LABELS: Record<RankingDb, string> = {
+  standard: "Standard",
+  top: "Top",
+  dpl_favourite: "DPL Favourite",
+}
+
+/** Map display (EmployerRanking) to DB value for API/edit. */
+export const RANKING_DISPLAY_TO_DB: Record<EmployerRanking, RankingDb> = {
+  Standard: "standard",
+  Top: "top",
+  "DPL Favourite": "dpl_favourite",
+}
+
+/** DB enum work_mode_enum (employers.work_mode). */
+export type WorkModeDb = "onsite" | "remote" | "hybrid"
+
+export const WORK_MODE_DB_LABELS: Record<WorkModeDb, string> = {
+  onsite: "Onsite",
+  remote: "Remote",
+  hybrid: "Hybrid",
+}
+
+/** DB enum shift_type_enum (employers.shift_type). */
+export type ShiftTypeDb = "day" | "night" | "evening" | "rotational" | "flexible" | "on_call"
+
+export const SHIFT_TYPE_DB_LABELS: Record<ShiftTypeDb, string> = {
+  day: "Day",
+  night: "Night",
+  evening: "Evening",
+  rotational: "Rotational",
+  flexible: "Flexible",
+  on_call: "On Call",
 }
 
 export interface EmployerTableColumn {
@@ -154,20 +286,3 @@ export const EMPLOYER_RANKING_LABELS: Record<EmployerRanking, string> = {
   "DPL Favourite": "DPL Favourite"
 }
 
-// Size calculation utilities
-export const calculateEmployerSize = (locations: EmployerLocation[]): { totalMinSize: number; totalMaxSize: number } => {
-  const totalMinSize = locations.reduce((sum, location) => sum + (location.minSize ?? 0), 0)
-  const totalMaxSize = locations.reduce((sum, location) => sum + (location.maxSize ?? 0), 0)
-  return { totalMinSize, totalMaxSize}
-}
-
-// Get display label for calculated size
-export const getEmployerSizeDisplay = (locations: EmployerLocation[]): string => {
-  const { totalMinSize, totalMaxSize } = calculateEmployerSize(locations)
-  
-  if (totalMinSize === totalMaxSize) {
-    return `${totalMinSize}`
-  } else {
-    return `${totalMinSize}-${totalMaxSize}`
-  }
-}

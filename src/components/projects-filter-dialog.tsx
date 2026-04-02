@@ -56,11 +56,21 @@ export interface ProjectFilters {
   minDownloadCount: string  // Minimum download count (e.g., "100000" for 100K+)
 }
 
+export interface ProjectLookupOptions {
+  techStacks: MultiSelectOption[]
+  verticalDomains: MultiSelectOption[]
+  horizontalDomains: MultiSelectOption[]
+  technicalAspects: MultiSelectOption[]
+  clientLocations: MultiSelectOption[]
+}
+
 interface ProjectsFilterDialogProps {
   children?: React.ReactNode
   filters: ProjectFilters
   onFiltersChange: (filters: ProjectFilters) => void
   onClearFilters: () => void
+  /** When provided, filter dropdowns use these instead of sample data. */
+  lookupOptions?: ProjectLookupOptions
 }
 
 // Extract unique values from project data
@@ -193,30 +203,7 @@ const employerCountryOptions: MultiSelectOption[] = extractUniqueEmployerCountri
   label: country
 }))
 
-const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(location => ({
-  value: location,
-  label: location
-}))
 
-const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
-}))
-
-const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
-  value: aspect,
-  label: aspect
-}))
-
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
-  value: tech,
-  label: tech
-}))
 
 // Publish platform options
 const publishPlatformOptions: MultiSelectOption[] = [
@@ -258,9 +245,16 @@ export function ProjectsFilterDialog({
   filters,
   onFiltersChange,
   onClearFilters,
+  lookupOptions,
 }: ProjectsFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<ProjectFilters>(filters)
+
+  const techStackOptions: MultiSelectOption[] = lookupOptions?.techStacks ?? extractUniqueTechStacks().map((tech) => ({ value: tech, label: tech }))
+  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? extractUniqueVerticalDomains().map((d) => ({ value: d, label: d }))
+  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? extractUniqueHorizontalDomains().map((d) => ({ value: d, label: d }))
+  const technicalAspectOptions: MultiSelectOption[] = lookupOptions?.technicalAspects ?? extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a }))
+  const clientLocationOptions: MultiSelectOption[] = lookupOptions?.clientLocations ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc }))
 
   // Calculate active filter count
   const activeFilterCount = 

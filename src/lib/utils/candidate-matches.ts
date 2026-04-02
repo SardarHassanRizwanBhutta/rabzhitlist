@@ -2,8 +2,6 @@ import type { Candidate } from "@/lib/types/candidate"
 import type { CandidateFilters } from "@/components/candidates-filter-dialog"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
-import { sampleUniversities } from "@/lib/sample-data/universities"
-import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
 
@@ -92,10 +90,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.employerSizeMin ||
     filters.employerSizeMax ||
     filters.employerRankings.length > 0 ||
-    filters.universities.length > 0 ||
-    filters.universityCountries.length > 0 ||
-    filters.universityRankings.length > 0 ||
-    filters.universityCities.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -603,11 +597,14 @@ export function getCandidateMatchContext(
 
       if (employer) {
         // Employer status match
-        if (filters.employerStatus.includes(employer.status)) {
+        if (
+          employer.status != null &&
+          filters.employerStatus.includes(employer.status)
+        ) {
           matchedCriteria.push({
             type: 'status',
             label: 'Employer Status',
-            values: [employer.status]
+            values: [employer.status],
           })
           hasMatch = true
         }
@@ -803,10 +800,6 @@ export function getCandidateMatchContext(
 
   // Education Background Matches
   const hasEducationFilters = !!(
-    filters.universities.length > 0 ||
-    filters.universityCountries.length > 0 ||
-    filters.universityRankings.length > 0 ||
-    filters.universityCities.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -821,56 +814,6 @@ export function getCandidateMatchContext(
     candidate.educations?.forEach(edu => {
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
-
-      // University match
-      if (filters.universities.some(uni => 
-        edu.universityLocationName.toLowerCase().includes(uni.toLowerCase())
-      )) {
-        matchedCriteria.push({
-          type: 'university',
-          label: 'University',
-          values: [edu.universityLocationName]
-        })
-        hasMatch = true
-      }
-
-      // Find university in sample data
-      const university = sampleUniversities.find(uni =>
-        uni.locations.some(loc => loc.id === edu.universityLocationId)
-      )
-
-      if (university) {
-        // University country match
-        if (filters.universityCountries.includes(university.country)) {
-          matchedCriteria.push({
-            type: 'country',
-            label: 'Country',
-            values: [university.country]
-          })
-          hasMatch = true
-        }
-
-        // University ranking match
-        if (filters.universityRankings.includes(university.ranking)) {
-          matchedCriteria.push({
-            type: 'ranking',
-            label: 'Ranking',
-            values: [university.ranking]
-          })
-          hasMatch = true
-        }
-
-        // University city match
-        const location = university.locations.find(loc => loc.id === edu.universityLocationId)
-        if (location && filters.universityCities.includes(location.city)) {
-          matchedCriteria.push({
-            type: 'city',
-            label: 'Campus City',
-            values: [location.city]
-          })
-          hasMatch = true
-        }
-      }
 
       // Degree match
       if (filters.degreeNames.includes(edu.degreeName)) {
@@ -1016,34 +959,7 @@ export function getCandidateMatchContext(
         hasMatch = true
       }
 
-      // Find certification in sample data
-      const certification = sampleCertifications.find(c =>
-        c.id === cert.certificationId || 
-        c.certificationName.toLowerCase() === cert.certificationName.toLowerCase()
-      )
-
-      if (certification) {
-        // Issuing body match
-        if (certification.issuingBody && 
-            filters.certificationIssuingBodies.includes(certification.issuingBody)) {
-          matchedCriteria.push({
-            type: 'issuingBody',
-            label: 'Issuing Body',
-            values: [certification.issuingBody]
-          })
-          hasMatch = true
-        }
-
-        // Certification level match
-        if (filters.certificationLevels.includes(certification.certificationLevel)) {
-          matchedCriteria.push({
-            type: 'level',
-            label: 'Level',
-            values: [certification.certificationLevel]
-          })
-          hasMatch = true
-        }
-      }
+      // TODO: Issuing body matching requires API lookup
 
       if (hasMatch) {
         certificationItems.push({
@@ -1142,7 +1058,7 @@ export function getCandidateMatchContext(
         const isInternationalPlatform = INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform =>
           achievement.name.toLowerCase().includes(platform.toLowerCase())
         )
-        if (isInternationalPlatform && achievement.achievementType === "Competition") {
+        if (isInternationalPlatform && achievement.achievementType === "competition") {
           matchedCriteria.push({
             type: 'internationalBugBounty',
             label: 'International Bug Bounty',

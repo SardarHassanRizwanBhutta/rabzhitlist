@@ -244,6 +244,18 @@ const extractUniqueTechnicalAspects = (): string[] => {
   return Array.from(aspects).sort()
 }
 
+// Extract unique client locations (from clientLocations array or legacy clientLocation)
+const extractUniqueClientLocations = (): string[] => {
+  const locations = new Set<string>()
+  sampleProjects.forEach(project => {
+    const list = project.clientLocations ?? (project.clientLocation ? [project.clientLocation] : [])
+    list.forEach(loc => {
+      if (loc?.trim()) locations.add(loc.trim())
+    })
+  })
+  return Array.from(locations).sort()
+}
+
 // Multi-select options
 const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
   value: tech,
@@ -265,6 +277,11 @@ const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspect
   label: aspect
 }))
 
+const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(loc => ({
+  value: loc,
+  label: loc
+}))
+
 // Status options
 const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({
   label,
@@ -274,6 +291,14 @@ const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label])
 interface ProjectsTableProps {
   projects: Project[]
   isLoading?: boolean
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
   onAdd?: () => void
   onView?: (project: Project) => void
   onEdit?: (project: Project) => void
@@ -307,6 +332,14 @@ const calculateTeamSize = (projectName: string): number => {
 export function ProjectsTable({
   projects,
   isLoading = false,
+  totalCount,
+  pageNumber,
+  pageSize,
+  totalPages,
+  hasPrevious,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
   onAdd,
   onView,
   onEdit,
@@ -317,8 +350,6 @@ export function ProjectsTable({
   const [searchQuery, setSearchQuery] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("projectName")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
@@ -386,12 +417,6 @@ export function ProjectsTable({
     })
   }, [filteredProjects, sortKey, sortDirection])
 
-  // Pagination
-  const totalPages = Math.ceil(sortedProjects.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedProjects = sortedProjects.slice(startIndex, endIndex)
-
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc")
@@ -399,15 +424,6 @@ export function ProjectsTable({
       setSortKey(key)
       setSortDirection("asc")
     }
-  }
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
-  }
-
-  const handleItemsPerPageChange = (value: string) => {
-    setItemsPerPage(parseInt(value))
-    setCurrentPage(1)
   }
 
   const handleViewTeam = (project: Project) => {
@@ -540,7 +556,7 @@ export function ProjectsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedProjects.map((project) => (
+            {sortedProjects.map((project) => (
               <TableRow 
                 key={project.id}
                 className="hover:bg-muted/50 cursor-pointer"
@@ -568,8 +584,8 @@ export function ProjectsTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
-                    <UsersIcon className="h-3 w-3 text-muted-foreground" />
-                    {calculateTeamSize(project.projectName) || project.teamSize || "N/A"}
+                    <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span>{project.teamSize ?? "N/A"}</span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -648,16 +664,16 @@ export function ProjectsTable({
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select
-            value={itemsPerPage.toString()}
-            onValueChange={handleItemsPerPageChange}
+            value={pageSize.toString()}
+            onValueChange={(value) => onPageSizeChange(parseInt(value))}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
-              {ITEMS_PER_PAGE_OPTIONS.map((pageSize) => (
-                <SelectItem key={pageSize} value={pageSize.toString()}>
-                  {pageSize}
+              {ITEMS_PER_PAGE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -666,14 +682,14 @@ export function ProjectsTable({
 
         <div className="flex items-center space-x-6 lg:space-x-8">
           <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            Page {currentPage} of {totalPages || 1}
+            Page {pageNumber} of {totalPages || 1}
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to first page</span>
               <ChevronsLeftIcon className="h-4 w-4" />
@@ -681,8 +697,8 @@ export function ProjectsTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(pageNumber - 1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to previous page</span>
               <ChevronLeftIcon className="h-4 w-4" />
@@ -690,8 +706,8 @@ export function ProjectsTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(pageNumber + 1)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to next page</span>
               <ChevronRightIcon className="h-4 w-4" />
@@ -699,8 +715,8 @@ export function ProjectsTable({
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(totalPages)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to last page</span>
               <ChevronsRightIcon className="h-4 w-4" />
@@ -711,9 +727,9 @@ export function ProjectsTable({
 
       {/* Results Info */}
       <div className="text-xs text-muted-foreground">
-        Showing {startIndex + 1} to {Math.min(endIndex, sortedProjects.length)} of{" "}
-        {sortedProjects.length} entries
-        {searchQuery && ` (filtered from ${projects.length} total entries)`}
+        Showing {totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1} to{" "}
+        {Math.min(pageNumber * pageSize, totalCount)} of {totalCount} projects
+        {searchQuery && " (local sort applied)"}
       </div>
 
       {/* Project Detail Dialog */}
@@ -2248,6 +2264,154 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   )
 }
 
+// Inline Editable Select Component (Select dropdown like Create Project dialog)
+interface InlineEditableSelectProps {
+  label: string
+  value: string
+  fieldName: string
+  options: { value: string; label: string }[]
+  onSave: (fieldName: string, newValue: string, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  placeholder?: string
+  className?: string
+}
+
+const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
+  label,
+  value,
+  fieldName,
+  options,
+  onSave,
+  getFieldVerification,
+  placeholder = "Select option...",
+  className = ""
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value || '')
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+
+  const verification = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verification === 'verified'
+
+  React.useEffect(() => {
+    if (!isEditing) setEditValue(value || '')
+  }, [value, isEditing])
+
+  React.useEffect(() => {
+    if (isEditing) setWillVerify(isCurrentlyVerified)
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value || '')
+    setWillVerify(isCurrentlyVerified)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value || '')
+    setWillVerify(isCurrentlyVerified)
+  }
+
+  const handleSave = async () => {
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const valueChanged = editValue !== value
+    if (!valueChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } catch (err) {
+      setEditValue(value || '')
+      setWillVerify(isCurrentlyVerified)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const VerificationIndicator = ({ fieldName: fName }: { fieldName: string }) => {
+    const status = getFieldVerification?.(fName) || 'unverified'
+    return (
+      <div className="flex items-center gap-1 shrink-0">
+        <VerificationBadge status={status} size="sm" />
+      </div>
+    )
+  }
+
+  const displayValue = value ? (options.find(opt => opt.value === value)?.label || value) : 'N/A'
+
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fieldName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-3">
+              <Select value={editValue || undefined} onValueChange={setEditValue} disabled={isSaving}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-select-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(c) => setWillVerify(c as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor={`verify-select-${fieldName}`} className={cn("text-xs cursor-pointer", willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground')}>
+                  {willVerify ? '✓ Verified' : 'Mark as verified'}
+                </Label>
+              </div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="h-8 w-8 p-0" title={willVerify ? "Save & Verify" : "Save"}>
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="h-8 w-8 p-0" title="Cancel">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span className="text-sm">{displayValue}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Project Detail Dialog Component
 interface ProjectDetailDialogProps {
   project: Project
@@ -2296,20 +2460,44 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
     return user?.name
   }
 
+  // Format team size string from min/max (for display in table)
+  const formatTeamSizeFromMinMax = (min: number | null | undefined, max: number | null | undefined): string | null => {
+    if (min == null && max == null) return null
+    if (min != null && max != null && min === max) return String(min)
+    if (min != null && max != null) return `${min}-${max}`
+    if (min != null) return String(min)
+    if (max != null) return String(max)
+    return null
+  }
+
   // Handle field save
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | string[] | boolean | null | undefined, verify: boolean = false) => {
     try {
-      // Convert downloadCount from string to number if needed
-      let processedValue = newValue
+      let processedValue: string | number | Date | string[] | boolean | null | undefined = newValue
       if (fieldName === 'downloadCount' && typeof newValue === 'string') {
-        processedValue = newValue.trim() === '' ? undefined : parseInt(newValue)
+        processedValue = newValue.trim() === '' ? undefined : parseInt(newValue, 10)
+      }
+      if (fieldName === 'minTeamSize') {
+        processedValue = typeof newValue === 'string'
+          ? (newValue.trim() === '' ? null : parseInt(newValue, 10))
+          : newValue
+      }
+      if (fieldName === 'maxTeamSize') {
+        processedValue = typeof newValue === 'string'
+          ? (newValue.trim() === '' ? null : parseInt(newValue, 10))
+          : newValue
       }
 
-      // Optimistic update
-      setLocalProject(prev => ({
-        ...prev,
-        [fieldName]: processedValue
-      }))
+      // Optimistic update; when min/max team size changes, also update teamSize
+      setLocalProject(prev => {
+        const next = { ...prev, [fieldName]: processedValue }
+        if (fieldName === 'minTeamSize' || fieldName === 'maxTeamSize') {
+          const min = fieldName === 'minTeamSize' ? (processedValue as number | null) : (prev.minTeamSize ?? null)
+          const max = fieldName === 'maxTeamSize' ? (processedValue as number | null) : (prev.maxTeamSize ?? null)
+          next.teamSize = formatTeamSizeFromMinMax(min, max)
+        }
+        return next
+      })
       
       // TODO: API call to save field
       // await updateProjectField(project.id, fieldName, processedValue, verify)
@@ -2375,14 +2563,14 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
           <div className="flex items-start justify-between">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <TagIcon className="h-5 w-5 text-blue-600" />
-              {project.projectName}
+              {localProject.projectName}
             </DialogTitle>
             <div className="flex gap-2 mr-8">
               {onVerify && (
                 <Button 
                   variant="default" 
                   size="sm" 
-                  onClick={() => onVerify(project)}
+                  onClick={() => onVerify(localProject)}
                   className="gap-1.5"
                 >
                   Edit & Verify
@@ -2417,8 +2605,19 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-1">
               <InlineEditField
+                label="Project Name"
+                value={localProject.projectName ?? ""}
+                fieldName="projectName"
+                fieldType="text"
+                validation={(value) => (!value?.trim() ? "Project name is required" : null)}
+                onSave={handleFieldSave}
+                placeholder="Project name"
+                getFieldVerification={getFieldVerification}
+              />
+
+              <InlineEditField
                 label="Employer"
-                value={localProject.employerName || ""}
+                value={localProject.employerName ?? ""}
                 fieldName="employerName"
                 fieldType="select"
                 options={employerOptions}
@@ -2426,31 +2625,57 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                 placeholder="Select employer..."
                 getFieldVerification={getFieldVerification}
               />
+
+              <InlineEditableMultiSelect
+                label="Client Locations"
+                value={localProject.clientLocations ?? []}
+                fieldName="clientLocations"
+                options={clientLocationOptions}
+                onSave={handleMultiSelectFieldSave}
+                getFieldVerification={getFieldVerification}
+                placeholder="Select client locations..."
+                searchPlaceholder="Search locations..."
+                badgeColorClass="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
+                maxDisplay={4}
+              />
               
-              <InlineEditField
+              <InlineEditableSelect
                 label="Project Type"
-                value={localProject.projectType}
+                value={localProject.projectType ?? ""}
                 fieldName="projectType"
-                fieldType="select"
                 options={projectTypeOptions}
                 onSave={handleFieldSave}
                 getFieldVerification={getFieldVerification}
+                placeholder="Select project type..."
               />
-              
-              <InlineEditField
-                label="Team Size"
-                value={calculateTeamSize(localProject.projectName) || localProject.teamSize || ""}
-                fieldName="teamSize"
-                fieldType="text"
-                validation={validateTeamSize}
-                onSave={handleFieldSave}
-                placeholder="e.g., 5 or 20-30"
-                getFieldVerification={getFieldVerification}
-              />
-              
-              <InlineEditableCombobox
+
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-muted-foreground">Team Size</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InlineEditField
+                    label="Minimum"
+                    value={localProject.minTeamSize != null ? String(localProject.minTeamSize) : ""}
+                    fieldName="minTeamSize"
+                    fieldType="number"
+                    onSave={handleFieldSave}
+                    placeholder="e.g., 5"
+                    getFieldVerification={getFieldVerification}
+                  />
+                  <InlineEditField
+                    label="Maximum"
+                    value={localProject.maxTeamSize != null ? String(localProject.maxTeamSize) : ""}
+                    fieldName="maxTeamSize"
+                    fieldType="number"
+                    onSave={handleFieldSave}
+                    placeholder="e.g., 30"
+                    getFieldVerification={getFieldVerification}
+                  />
+                </div>
+              </div>
+
+              <InlineEditableSelect
                 label="Status"
-                value={localProject.status}
+                value={localProject.status ?? ""}
                 fieldName="status"
                 options={statusOptions}
                 onSave={handleFieldSave}
@@ -2646,8 +2871,8 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
           {/* Project Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
-              <div>Created: {project.createdAt.toLocaleDateString()}</div>
-              <div>Updated: {project.updatedAt.toLocaleDateString()}</div>
+              <div>Created: {localProject.createdAt?.toLocaleDateString?.() ?? "—"}</div>
+              <div>Updated: {localProject.updatedAt?.toLocaleDateString?.() ?? "—"}</div>
             </div>
           </div>
         </div>

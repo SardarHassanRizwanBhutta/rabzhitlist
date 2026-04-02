@@ -26,12 +26,8 @@ import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { sampleUniversities } from "@/lib/sample-data/universities"
-import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { PROJECT_STATUS_LABELS, ProjectStatus } from "@/lib/types/project"
 import { EmployerStatus, SalaryPolicy, EmployerRanking, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
-import { UniversityRanking, UNIVERSITY_RANKING_LABELS } from "@/lib/types/university"
-
 // Filter interfaces
 export interface CandidateFilters {
   // Global search for basic info fields (name, email, phone, CNIC, etc.)
@@ -123,11 +119,6 @@ export interface CandidateFilters {
   employerSizeMin: string
   employerSizeMax: string
   employerRankings: string[]  // Filter candidates by employer ranking
-  // University-related filters
-  universities: string[]
-  universityCountries: string[]
-  universityRankings: string[]
-  universityCities: string[]
   // Education detail filters
   degreeNames: string[]
   majorNames: string[]
@@ -291,7 +282,9 @@ const extractUniqueTechnicalAspects = () => {
 const extractUniqueEmployerStatuses = () => {
   const statuses = new Set<string>()
   sampleEmployers.forEach(employer => {
-    statuses.add(employer.status)
+    if (employer.status != null) {
+      statuses.add(employer.status)
+    }
   })
   return Array.from(statuses).sort()
 }
@@ -330,33 +323,6 @@ const extractUniqueEmployerSalaryPolicies = () => {
   return Array.from(policies).sort()
 }
 
-// Extract unique university data for filters
-const extractUniqueUniversities = () => {
-  const universities = new Set<string>()
-  sampleUniversities.forEach(university => {
-    universities.add(university.name)
-  })
-  return Array.from(universities).sort()
-}
-
-const extractUniqueUniversityCountries = () => {
-  const countries = new Set<string>()
-  sampleUniversities.forEach(university => {
-    countries.add(university.country)
-  })
-  return Array.from(countries).sort()
-}
-
-const extractUniqueUniversityCities = () => {
-  const cities = new Set<string>()
-  sampleUniversities.forEach(university => {
-    university.locations.forEach(location => {
-      cities.add(location.city)
-    })
-  })
-  return Array.from(cities).sort()
-}
-
 // Extract unique education detail data for filters
 const extractUniqueDegreeNames = () => {
   const degrees = new Set<string>()
@@ -382,31 +348,13 @@ const extractUniqueMajorNames = () => {
   return Array.from(majors).sort()
 }
 
-// Extract unique certification data for filters
-const extractUniqueCertificationNames = () => {
-  const names = new Set<string>()
-  sampleCertifications.forEach(certification => {
-    names.add(certification.certificationName)
-  })
-  return Array.from(names).sort()
-}
+// TODO: Populate from API
+const extractUniqueCertificationNames = (): string[] => []
 
-const extractUniqueCertificationIssuingBodies = () => {
-  const issuingBodies = new Set<string>()
-  sampleCertifications.forEach(certification => {
-    if (certification.issuingBody !== null) {
-      issuingBodies.add(certification.issuingBody)
-    }
-  })
-  return Array.from(issuingBodies).sort()
-}
+const extractUniqueCertificationIssuingBodies = (): string[] => []
 
 const extractUniqueCertificationLevels = () => {
-  const levels = new Set<string>()
-  sampleCertifications.forEach(certification => {
-    levels.add(certification.certificationLevel)
-  })
-  return Array.from(levels).sort()
+  return ["Foundation", "Associate", "Professional", "Expert", "Master"]
 }
 
 // International bug bounty platforms list
@@ -565,31 +513,9 @@ const employerSalaryPolicyOptions: MultiSelectOption[] = extractUniqueEmployerSa
   label: SALARY_POLICY_LABELS[policy as SalaryPolicy] || policy
 }))
 
-// University-related filter options
-const universityOptions: MultiSelectOption[] = extractUniqueUniversities().map(university => ({
-  value: university,
-  label: university
-}))
-
-const universityCountryOptions: MultiSelectOption[] = extractUniqueUniversityCountries().map(country => ({
-  value: country,
-  label: country
-}))
-
-// Mock data for filter options
-const rankingOptions: MultiSelectOption[] = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, label]) => ({
-  value: value as UniversityRanking,
-  label
-}))
-
 const employerRankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABELS).map(([value, label]) => ({
   value: value as EmployerRanking,
   label
-}))
-
-const universityCityOptions: MultiSelectOption[] = extractUniqueUniversityCities().map(city => ({
-  value: city,
-  label: city
 }))
 
 // Education detail filter options
@@ -767,11 +693,6 @@ const initialFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
-  // University-related filters
-  universities: [],
-  universityCountries: [],
-  universityRankings: [],
-  universityCities: [],
   // Education detail filters
   degreeNames: [],
   majorNames: [],
@@ -952,10 +873,6 @@ export function CandidatesFilterDialog({
           updated.employerRankings = []
           break
         case "education":
-          updated.universities = []
-          updated.universityCountries = []
-          updated.universityRankings = []
-          updated.universityCities = []
           updated.degreeNames = []
           updated.majorNames = []
           updated.isTopper = null
@@ -1110,10 +1027,6 @@ export function CandidatesFilterDialog({
         )
       case "education":
         return (
-          tempFilters.universities.length +
-          tempFilters.universityCountries.length +
-          tempFilters.universityRankings.length +
-          tempFilters.universityCities.length +
           tempFilters.degreeNames.length +
           tempFilters.majorNames.length +
           (tempFilters.isTopper !== null ? 1 : 0) +
@@ -1242,10 +1155,6 @@ export function CandidatesFilterDialog({
     tempFilters.employerRankings.length > 0 ||
     tempFilters.employerSizeMin ||
     tempFilters.employerSizeMax ||
-    tempFilters.universities.length > 0 ||
-    tempFilters.universityCountries.length > 0 ||
-    tempFilters.universityRankings.length > 0 ||
-    tempFilters.universityCities.length > 0 ||
     tempFilters.degreeNames.length > 0 ||
     tempFilters.majorNames.length > 0 ||
     tempFilters.isTopper !== null ||
@@ -2673,7 +2582,7 @@ export function CandidatesFilterDialog({
               />
             </section>
 
-            {/* University-Based Filters Section */}
+            {/* Education Filters Section */}
             <section id="filter-education" className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-muted-foreground">Education Background</h3>
@@ -2690,46 +2599,6 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               
-              <MultiSelect
-                items={universityOptions}
-                selected={tempFilters.universities}
-                onChange={(values) => handleFilterChange("universities", values)}
-                placeholder="Filter by university..."
-                label="Universities"
-                searchPlaceholder="Search universities..."
-                maxDisplay={3}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MultiSelect
-                  items={universityCountryOptions}
-                  selected={tempFilters.universityCountries}
-                  onChange={(values) => handleFilterChange("universityCountries", values)}
-                  placeholder="Filter by country..."
-                  label="University Countries"
-                  searchPlaceholder="Search countries..."
-                  maxDisplay={3}
-                />
-
-                <MultiSelect
-                  items={rankingOptions}
-                  selected={tempFilters.universityRankings}
-                  onChange={(values) => handleFilterChange("universityRankings", values)}
-                  placeholder="Filter by ranking..."
-                  label="University Ranking"
-                  maxDisplay={3}
-                />
-              </div>
-
-              <MultiSelect
-                items={universityCityOptions}
-                selected={tempFilters.universityCities}
-                onChange={(values) => handleFilterChange("universityCities", values)}
-                placeholder="Filter by campus city..."
-                label="Campus Cities"
-                searchPlaceholder="Search cities..."
-                maxDisplay={4}
-              />     
               <MultiSelect
                 items={degreeNameOptions}
                 selected={tempFilters.degreeNames}

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { X, Plus, Check, ChevronsUpDown, DollarSign, Calendar } from "lucide-react"
+import { X, Plus, ChevronsUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -37,17 +37,21 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { EmployerBenefit, BenefitUnit } from "@/lib/types/benefits"
-import { 
-  PREDEFINED_BENEFITS, 
-  benefitRequiresAmount, 
-  getBenefitDefaultUnit,
-  generateBenefitId,
-  UNIT_LABELS 
-} from "@/lib/sample-data/benefits"
+import { generateBenefitId, UNIT_LABELS } from "@/lib/utils/benefits"
+
+/** Option from API (e.g. BenefitDto). */
+export interface BenefitOption {
+  id: number
+  name: string
+}
 
 interface BenefitsSelectorProps {
   benefits: EmployerBenefit[]
   onChange: (benefits: EmployerBenefit[]) => void
+  /** Options from API to show in dropdown. When provided with onCreateBenefit, "Add Benefit" appears when search has no match. */
+  benefitOptions?: BenefitOption[]
+  /** When user clicks "Add Benefit", call API to create; return new EmployerBenefit to add to selection. */
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
   disabled?: boolean
   className?: string
 }
@@ -55,6 +59,8 @@ interface BenefitsSelectorProps {
 export function BenefitsSelector({
   benefits,
   onChange,
+  benefitOptions = [],
+  onCreateBenefit,
   disabled = false,
   className,
 }: BenefitsSelectorProps) {
@@ -65,38 +71,69 @@ export function BenefitsSelector({
   const [customHasAmount, setCustomHasAmount] = useState(false)
   const [customAmount, setCustomAmount] = useState("")
   const [customUnit, setCustomUnit] = useState<BenefitUnit>("PKR")
+  const [isAddingBenefit, setIsAddingBenefit] = useState(false)
 
-  // Get selected benefit names
-  const selectedNames = benefits.map(b => b.name)
+  const selectedNames = benefits.map((b) => b.name)
+  const searchLower = searchValue.trim().toLowerCase()
 
-  // Filter predefined benefits based on search
-  const filteredBenefits = React.useMemo(() => {
-    if (!searchValue.trim()) return PREDEFINED_BENEFITS
-    const searchLower = searchValue.toLowerCase()
-    return PREDEFINED_BENEFITS.filter(benefit => 
-      benefit.name.toLowerCase().includes(searchLower)
+  // Options that match search and are not already selected
+  const filteredOptions = React.useMemo(() => {
+    if (!searchLower) return benefitOptions
+    return benefitOptions.filter(
+      (opt) =>
+        opt.name.toLowerCase().includes(searchLower) &&
+        !selectedNames.some((n) => n.toLowerCase() === opt.name.toLowerCase())
     )
-  }, [searchValue])
+  }, [benefitOptions, searchLower, selectedNames])
 
-  // Check if search value already exists
-  const searchValueExists = React.useMemo(() => {
-    if (!searchValue.trim()) return false
-    const searchLower = searchValue.trim().toLowerCase()
-    return PREDEFINED_BENEFITS.some(benefit => 
-      benefit.name.toLowerCase() === searchLower
-    ) || selectedNames.some(name => name.toLowerCase() === searchLower)
-  }, [searchValue, selectedNames])
+  // Search matches an existing option (by name)
+  const searchMatchesOption = React.useMemo(
+    () =>
+      searchLower &&
+      benefitOptions.some((opt) => opt.name.toLowerCase() === searchLower),
+    [benefitOptions, searchLower]
+  )
+  const searchValueExists = selectedNames.some((n) => n.toLowerCase() === searchLower)
 
-  // Check if we should show "Create" option
-  const shouldShowCreate = searchValue.trim().length >= 2 && 
-    !searchValueExists && 
-    filteredBenefits.length === 0
+  // Show "Add Benefit" when search has no match and we have a create handler
+  const shouldShowAddBenefit =
+    searchValue.trim().length >= 1 &&
+    !searchValueExists &&
+    !searchMatchesOption &&
+    !!onCreateBenefit
 
-  // Handle creating new benefit from search - opens dialog
+  const addBenefitToSelection = (opt: BenefitOption) => {
+    const newBenefit: EmployerBenefit = {
+      id: String(opt.id),
+      name: opt.name,
+      amount: null,
+      unit: null,
+    }
+    onChange([...benefits, newBenefit])
+  }
+
+  const handleAddBenefitViaApi = async () => {
+    if (!searchValue.trim() || searchValueExists || !onCreateBenefit) return
+    setIsAddingBenefit(true)
+    try {
+      const added = await onCreateBenefit(searchValue.trim())
+      if (added) {
+        onChange([...benefits, added])
+        setSearchValue("")
+        setOpen(false)
+      }
+    } finally {
+      setIsAddingBenefit(false)
+    }
+  }
+
+  // Fallback: open dialog when no API handler (e.g. legacy flow)
   const handleCreateNewBenefit = () => {
+    if (onCreateBenefit) {
+      handleAddBenefitViaApi()
+      return
+    }
     if (!searchValue.trim() || searchValueExists) return
-    
-    // Pre-fill the benefit name and open dialog
     setCustomBenefitName(searchValue.trim())
     setCustomHasAmount(false)
     setCustomAmount("")
@@ -105,7 +142,6 @@ export function BenefitsSelector({
     setCustomDialogOpen(true)
   }
 
-  // Add custom benefit from dialog
   const handleAddCustomBenefit = () => {
     if (!customBenefitName.trim()) return
 
@@ -115,10 +151,7 @@ export function BenefitsSelector({
       amount: customHasAmount ? (parseInt(customAmount) || 0) : null,
       unit: customHasAmount ? customUnit : null,
     }
-    
     onChange([...benefits, newBenefit])
-    
-    // Reset form
     setCustomBenefitName("")
     setCustomHasAmount(false)
     setCustomAmount("")
@@ -127,37 +160,6 @@ export function BenefitsSelector({
     setSearchValue("")
   }
 
-  // Get icon for benefit based on unit type
-  const getBenefitIcon = (benefitName: string) => {
-    const template = PREDEFINED_BENEFITS.find(b => b.name === benefitName)
-    if (!template?.hasAmount) return null
-    
-    if (template.defaultUnit === "days") {
-      return <Calendar className="h-3 w-3 text-muted-foreground ml-auto" />
-    }
-    return <DollarSign className="h-3 w-3 text-muted-foreground ml-auto" />
-  }
-
-  // Toggle a predefined benefit
-  const toggleBenefit = (benefitName: string) => {
-    const isSelected = selectedNames.includes(benefitName)
-    
-    if (isSelected) {
-      // Remove benefit
-      onChange(benefits.filter(b => b.name !== benefitName))
-    } else {
-      // Add benefit
-      const hasAmount = benefitRequiresAmount(benefitName)
-      const defaultUnit = getBenefitDefaultUnit(benefitName)
-      const newBenefit: EmployerBenefit = {
-        id: generateBenefitId(),
-        name: benefitName,
-        amount: hasAmount ? 0 : null,
-        unit: hasAmount ? defaultUnit : null,
-      }
-      onChange([...benefits, newBenefit])
-    }
-  }
 
   // Update benefit amount
   const updateBenefitAmount = (benefitId: string, amount: number) => {
@@ -186,7 +188,7 @@ export function BenefitsSelector({
   }
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-0.5", className)}>
       <Label className="text-sm font-medium">Benefits</Label>
       
       {/* Benefit Selector Dropdown */}
@@ -219,62 +221,51 @@ export function BenefitsSelector({
                 value={searchValue}
                 onValueChange={setSearchValue}
                 onKeyDown={(e) => {
-                  if (shouldShowCreate && e.key === "Enter") {
+                  if (shouldShowAddBenefit && e.key === "Enter") {
                     e.preventDefault()
                     handleCreateNewBenefit()
                   }
                 }}
               />
               <CommandList>
-                {shouldShowCreate ? (
-                  <>
-                    <CommandEmpty>
-                      <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                        No benefit found.
-                      </div>
-                    </CommandEmpty>
-                    <CommandGroup>
+                {filteredOptions.length > 0 && (
+                  <CommandGroup heading="Benefits">
+                    {filteredOptions.map((opt) => (
                       <CommandItem
-                        value={searchValue}
-                        onSelect={handleCreateNewBenefit}
-                        className="cursor-pointer font-medium text-primary"
+                        key={opt.id}
+                        value={opt.name}
+                        onSelect={() => {
+                          addBenefitToSelection(opt)
+                          setSearchValue("")
+                        }}
+                        className="cursor-pointer"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Create New Benefit
+                        {opt.name}
                       </CommandItem>
-                    </CommandGroup>
-                  </>
-                ) : filteredBenefits.length === 0 ? (
-                  <CommandEmpty>No benefit found.</CommandEmpty>
-                ) : (
-                  <CommandGroup>
-                    {filteredBenefits.map((benefit) => {
-                      const isSelected = selectedNames.includes(benefit.name)
-                      return (
-                        <CommandItem
-                          key={benefit.name}
-                          value={benefit.name}
-                          onSelect={() => toggleBenefit(benefit.name)}
-                          className="cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2 flex-1">
-                            <Check
-                              className={cn(
-                                "h-4 w-4",
-                                isSelected ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <span>{benefit.name}</span>
-                            {benefit.hasAmount && benefit.defaultUnit && (
-                              <span className="text-xs text-muted-foreground ml-auto">
-                                ({benefit.defaultUnit === "days" ? "days" : benefit.defaultUnit === "count" ? "count" : benefit.defaultUnit === "percent" ? "%" : "PKR"})
-                              </span>
-                            )}
-                          </div>
-                        </CommandItem>
-                      )
-                    })}
+                    ))}
                   </CommandGroup>
+                )}
+                {shouldShowAddBenefit && (
+                  <CommandGroup>
+                    <CommandItem
+                      value={`add:${searchValue}`}
+                      onSelect={handleCreateNewBenefit}
+                      disabled={isAddingBenefit}
+                      className="cursor-pointer font-medium text-primary"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {isAddingBenefit ? "Adding..." : "Add Benefit"}
+                    </CommandItem>
+                  </CommandGroup>
+                )}
+                {filteredOptions.length === 0 && !shouldShowAddBenefit && (
+                  <CommandEmpty>
+                    <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                      {searchValue.trim().length === 0
+                        ? "Type to search benefits"
+                        : "No matching benefits. Type a name and use \"Add Benefit\" to create one."}
+                    </div>
+                  </CommandEmpty>
                 )}
               </CommandList>
             </Command>
@@ -373,10 +364,9 @@ export function BenefitsSelector({
       {benefits.length > 0 && (
         <div className="space-y-2">
           {benefits.map((benefit) => {
-            const template = PREDEFINED_BENEFITS.find(b => b.name === benefit.name)
-            const requiresAmount = template?.hasAmount ?? (benefit.amount !== null)
-            const currentUnit = benefit.unit || template?.defaultUnit || "PKR"
-            
+            const requiresAmount = benefit.amount !== null || benefit.unit !== null
+            const currentUnit = benefit.unit ?? "PKR"
+
             return (
               <div 
                 key={benefit.id} 

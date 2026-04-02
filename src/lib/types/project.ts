@@ -4,12 +4,21 @@ export interface Project {
   id: string
   projectName: string
   employerName: string | null
-  clientLocation?: string | null  // Where the client is located (e.g., "San Francisco", "Silicon Valley", "United States")
+  /** Set when loaded from API; used for update payloads. */
+  employerId?: number
+  /** Single location (legacy/display); when loaded from API use clientLocations for full list. */
+  clientLocation?: string | null
+  /** Multiple client locations (many-to-many); set when loaded from API. */
+  clientLocations?: string[]
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalAspects: string[]
-  teamSize: string | null  // "5" or "20-30"
+  teamSize: string | null  // "5" or "20-30" (derived from min/max for display)
+  /** Min team size (from API); used for inline edit in detail dialog. */
+  minTeamSize?: number | null
+  /** Max team size (from API); used for inline edit in detail dialog. */
+  maxTeamSize?: number | null
   startDate: Date | null
   endDate: Date | null
   status: ProjectStatus
@@ -24,12 +33,22 @@ export interface Project {
   updatedAt: Date
 }
 
-export type ProjectType = 
-  | "Academic"
-  | "Freelance"
+/** UI type; aligns with backend project_type_enum (employer, academic, personal, freelance, open_source). */
+export type ProjectType =
   | "Employer"
+  | "Academic"
   | "Personal"
+  | "Freelance"
   | "Open Source"
+
+/** All project types in backend enum order (for dropdowns). */
+export const PROJECT_TYPES: ProjectType[] = [
+  "Employer",
+  "Academic",
+  "Personal",
+  "Freelance",
+  "Open Source",
+]
 
 export type ProjectStatus = 
   | "Development"

@@ -18,7 +18,6 @@ import { GlobalFilters, getGlobalFilterCount } from "@/lib/types/global-filters"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 
 interface GlobalFilterDialogProps {
@@ -46,11 +45,6 @@ const extractGlobalCountries = (): string[] => {
     })
   })
   
-  // From universities
-  sampleUniversities.forEach(university => {
-    countries.add(university.country)
-  })
-  
   return Array.from(countries).sort()
 }
 
@@ -70,13 +64,6 @@ const extractGlobalCities = (): string[] => {
       if (location.city !== null) {
         cities.add(location.city)
       }
-    })
-  })
-  
-  // From universities
-  sampleUniversities.forEach(university => {
-    university.locations.forEach(location => {
-      cities.add(location.city)
     })
   })
   
@@ -138,7 +125,9 @@ const extractGlobalStatuses = (): string[] => {
   
   // From employers
   sampleEmployers.forEach(employer => {
-    statuses.add(employer.status)
+    if (employer.status != null) {
+      statuses.add(employer.status)
+    }
   })
   
   return Array.from(statuses).sort()

@@ -84,10 +84,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Progress } from "@/components/ui/progress"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleUniversities } from "@/lib/sample-data/universities"
-import { sampleCertifications } from "@/lib/sample-data/certifications"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { formatBenefitAmount } from "@/lib/sample-data/benefits"
+import { formatBenefitAmount } from "@/lib/utils/benefits"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -215,15 +214,12 @@ const baseProjectOptions: ComboboxOption[] = sampleProjects.map(project => ({
 const baseUniversityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(university =>
   university.locations.map(location => ({
     label: `${university.name} - ${location.city}`,
-    value: location.id
+    value: String(location.id),
   }))
 )
 
-// Base certification options
-const baseCertificationOptions: ComboboxOption[] = sampleCertifications.map(cert => ({
-  label: cert.certificationName,
-  value: cert.id
-}))
+// TODO: Populate from API
+const baseCertificationOptions: ComboboxOption[] = []
 
 // Extract unique tech stacks from sample projects and candidates
 const extractUniqueTechStacks = (): MultiSelectOption[] => {
@@ -2770,49 +2766,12 @@ export function CandidateDetailsModal({
     }
   }
 
-  // Handle university creation
-  const handleUniversityCreated = async (universityData: UniversityFormData) => {
-    try {
-      const universityName = universityData.name.trim()
-      
-      if (!universityName) {
-        toast.error("University name is required")
-        return
-      }
-
-      // Create location options for the new university
-      const newLocationOptions: ComboboxOption[] = universityData.locations.map(location => ({
-        label: `${universityName} - ${location.city}`,
-        value: location.id
-      }))
-      
-      // Add new location options to universityLocationOptions
-      setUniversityLocationOptions(prev => {
-        const updated = [...prev, ...newLocationOptions]
-        return updated.sort((a, b) => a.label.localeCompare(b.label))
-      })
-
-      // Auto-select the first location (or main campus if available) if we have a pending field
-      if (pendingUniversityFieldName) {
-        const mainCampus = universityData.locations.find(loc => loc.isMainCampus)
-        const locationToSelect = mainCampus || universityData.locations[0]
-        
-        if (locationToSelect) {
-          await handleFieldSave(pendingUniversityFieldName, locationToSelect.id, false)
-          // Also update the name field if it exists
-          const nameFieldName = pendingUniversityFieldName.replace('.universityLocationId', '.universityLocationName')
-          await handleFieldSave(nameFieldName, `${universityName} - ${locationToSelect.city}`, false)
-        }
-      }
-
-      toast.success(`University "${universityName}" has been created successfully.`)
-      setCreateUniversityDialogOpen(false)
-      setPendingUniversityName("")
-      setPendingUniversityFieldName(null)
-    } catch (error) {
-      console.error("Error creating university:", error)
-      toast.error("Failed to create university. Please try again.")
-    }
+  // Handle university creation - backend API integration pending
+  const handleUniversityCreated = async (_universityData: UniversityFormData) => {
+    setCreateUniversityDialogOpen(false)
+    setPendingUniversityName("")
+    setPendingUniversityFieldName(null)
+    toast.info("University creation will be available when backend API is integrated.")
   }
 
   // Handle certification creation
@@ -3213,12 +3172,12 @@ export function CandidateDetailsModal({
   const handleUniversityClick = (universityLocationId: string) => {
     // Find university by location ID
     const university = sampleUniversities.find(uni =>
-      uni.locations.some(loc => loc.id === universityLocationId)
+      uni.locations.some(loc => String(loc.id) === universityLocationId)
     )
     if (university) {
       const params = new URLSearchParams({
         universityFilter: university.name,
-        universityId: university.id
+        universityId: String(university.id),
       })
       router.push(`/universities?${params.toString()}`)
       onOpenChange(false) // Close modal after navigation
@@ -3226,19 +3185,12 @@ export function CandidateDetailsModal({
   }
 
   const handleCertificationClick = (certificationId: string, certificationName: string) => {
-    // Find certification by ID or name
-    const certification = sampleCertifications.find(cert =>
-      cert.id === certificationId || 
-      cert.certificationName.trim().toLowerCase() === certificationName.trim().toLowerCase()
-    )
-    if (certification) {
-      const params = new URLSearchParams({
-        certificationFilter: certification.certificationName,
-        certificationId: certification.id
-      })
-      router.push(`/certifications?${params.toString()}`)
-      onOpenChange(false) // Close modal after navigation
-    }
+    const params = new URLSearchParams({
+      certificationFilter: certificationName,
+      certificationId: certificationId
+    })
+    router.push(`/certifications?${params.toString()}`)
+    onOpenChange(false)
   }
 
   const handleProjectClick = (projectName: string) => {
@@ -4281,9 +4233,9 @@ export function CandidateDetailsModal({
                                     // Find the university location name from the selected ID
                                     const selectedLocation = sampleUniversities
                                       .flatMap(uni => uni.locations)
-                                      .find(loc => loc.id === newValue)
-                                    const selectedUniversity = sampleUniversities.find(uni => 
-                                      uni.locations.some(loc => loc.id === newValue)
+                                      .find(loc => String(loc.id) === newValue)
+                                    const selectedUniversity = sampleUniversities.find(uni =>
+                                      uni.locations.some(loc => String(loc.id) === newValue)
                                     )
                                     if (selectedLocation && selectedUniversity) {
                                       await handleFieldSave(`educations[${idx}].universityLocationName`, `${selectedUniversity.name} - ${selectedLocation.city}`, shouldVerify)
@@ -4488,15 +4440,14 @@ export function CandidateDetailsModal({
                               <div className="flex items-center gap-2 mb-2">
                                 <InlineEditableCombobox
                                   label=""
-                                  value={cert.certificationId}
+                                  value={cert.certificationId != null ? String(cert.certificationId) : ""}
                                   fieldName={`certifications[${idx}].certificationId`}
                                   options={certificationOptions}
                                   onSave={async (fieldName, newValue, shouldVerify) => {
                                     await handleFieldSave(fieldName, newValue, shouldVerify)
-                                    // Find the certification name from the selected ID
-                                    const selectedCert = sampleCertifications.find(c => c.id === newValue)
-                                    if (selectedCert) {
-                                      await handleFieldSave(`certifications[${idx}].certificationName`, selectedCert.certificationName, shouldVerify)
+                                    const selectedOption = certificationOptions.find(c => c.value === newValue)
+                                    if (selectedOption) {
+                                      await handleFieldSave(`certifications[${idx}].certificationName`, selectedOption.label, shouldVerify)
                                     }
                                   }}
                                   placeholder="Select certification..."
@@ -4512,7 +4463,12 @@ export function CandidateDetailsModal({
                                   }}
                                   renderDisplay={(displayValue, value) => (
                                     <button
-                                      onClick={() => handleCertificationClick(cert.certificationId, cert.certificationName)}
+                                      onClick={() =>
+                                        handleCertificationClick(
+                                          cert.certificationId != null ? String(cert.certificationId) : "",
+                                          cert.certificationName
+                                        )
+                                      }
                                       className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
                                       title={`View ${displayValue} details`}
                                     >
