@@ -2660,7 +2660,7 @@ export function CandidateCreationDialog({
         )}
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="candidate-form" onSubmit={handleSubmit} className="space-y-6">
           {/* Section 1: Basic Information */}
           <div id="basic-info">
           <Card>
@@ -4290,7 +4290,8 @@ export function CandidateCreationDialog({
               Cancel
             </Button>
             <Button 
-              type="submit" 
+              type="submit"
+              form="candidate-form"
               disabled={isLoading}
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >

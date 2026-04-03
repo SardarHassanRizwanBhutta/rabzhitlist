@@ -18,6 +18,15 @@ import {
   MBTI_TYPES,
   CANDIDATE_SOURCE_DB,
   type CandidateSourceDb,
+  parseCandidateSource,
+  SHIFT_TYPE_DB,
+  type ShiftTypeDb,
+  WORK_MODE_DB,
+  type WorkModeDb,
+  CERTIFICATION_LEVEL_DB,
+  type CertificationLevelDb,
+  ACHIEVEMENT_TYPE_DB,
+  type AchievementTypeDb,
 } from "@/lib/constants/candidate-enums"
 import type { BenefitUnit, EmployerBenefit } from "@/lib/types/benefits"
 import { API_BASE_URL } from "@/lib/config/api"
@@ -48,7 +57,7 @@ export interface CandidateListItemDto {
   currentSalary: number | null
   expectedSalary: number | null
   personalityType: number | null
-  source: string | null
+  source: string | number | null
   status: string
   resumeUrl: string | null
   createdAt: string
@@ -68,9 +77,68 @@ export interface CreateCandidateDto {
   currentSalary?: number | null
   expectedSalary?: number | null
   personalityType?: number | null
-  source?: string | null
+  source?: number | null
   status?: string
   resumeUrl?: string | null
+  techStackIds?: number[]
+  projects?: CreateCandidateProjectDto[]
+  educations?: CreateCandidateEducationDto[]
+  certifications?: CreateCandidateCertificationDto[]
+  achievements?: CreateCandidateAchievementDto[]
+  workExperiences?: CreateCandidateWorkExperienceDto[]
+}
+
+interface CreateCandidateProjectDto {
+  projectId: number
+  contribution?: string | null
+}
+
+interface CreateCandidateEducationDto {
+  universityId: number
+  degreeId?: number | null
+  majorId?: number | null
+  startMonth?: string | null
+  endMonth?: string | null
+  grades?: string | null
+  isTopper?: boolean
+  isMainCheetah?: boolean
+}
+
+interface CreateCandidateCertificationDto {
+  certificationId: number
+  issueDate?: string | null
+  expiryDate?: string | null
+  url?: string | null
+  level?: number | null
+}
+
+interface CreateCandidateAchievementDto {
+  name: string
+  type: number
+  ranking?: string | null
+  year?: number | null
+  url?: string | null
+  description?: string | null
+}
+
+interface CreateCandidateWorkExperienceBenefitDto {
+  benefitId: number
+  hasValue: boolean
+  unitType?: number | null
+  value?: number | null
+}
+
+interface CreateCandidateWorkExperienceDto {
+  employerId: number
+  jobTitle: string
+  startDate?: string | null
+  endDate?: string | null
+  shiftType?: number | null
+  workMode?: number | null
+  timeSupportZoneIds?: number[]
+  techStackIds?: number[]
+  benefits?: CreateCandidateWorkExperienceBenefitDto[]
+  projects?: CreateCandidateProjectDto[]
 }
 
 export interface UpdateCandidateDto {
@@ -86,7 +154,7 @@ export interface UpdateCandidateDto {
   currentSalary: number | null
   expectedSalary: number | null
   personalityType: number | null
-  source: string | null
+  source: number | null
   status: string
   resumeUrl: string | null
 }
@@ -110,10 +178,11 @@ function nullIfEmpty(s: string): string | null {
   return t === "" ? null : t
 }
 
-/** Send only allowed enum values; otherwise null (form validation should prevent invalid). */
-function sourceFormToApi(source: string): string | null {
+/** Send numeric enum index to match the C# backend enum. */
+function sourceFormToApi(source: string): number | null {
   const s = source.trim().toLowerCase()
-  return CANDIDATE_SOURCE_DB.includes(s as CandidateSourceDb) ? s : null
+  const idx = CANDIDATE_SOURCE_DB.indexOf(s as CandidateSourceDb)
+  return idx === -1 ? null : idx
 }
 
 function parseOptionalSalary(s: string): number | null {
@@ -150,14 +219,21 @@ function mapProjectExperience(raw: Record<string, unknown>, idx: number): Projec
   }
 }
 
+const API_TO_BENEFIT_UNIT: Record<number, BenefitUnit> = { 0: "PKR", 1: "days", 2: "count", 3: "percent" }
+
 function mapBenefit(raw: Record<string, unknown>, idx: number): EmployerBenefit {
-  const u = raw.unit
-  const unit: BenefitUnit | null =
-    u === "PKR" || u === "days" || u === "count" || u === "percent" ? u : null
+  const u = raw.unitType ?? raw.unit
+  let unit: BenefitUnit | null = null
+  if (typeof u === "number") {
+    unit = API_TO_BENEFIT_UNIT[u] ?? null
+  } else if (u === "PKR" || u === "days" || u === "count" || u === "percent") {
+    unit = u
+  }
+  const amt = raw.value ?? raw.amount
   return {
-    id: String(raw.id ?? `b-${idx}`),
-    name: String(raw.name ?? ""),
-    amount: typeof raw.amount === "number" ? raw.amount : raw.amount != null ? Number(raw.amount) : null,
+    id: String(raw.benefitId ?? raw.id ?? `b-${idx}`),
+    name: String(raw.name ?? raw.benefitName ?? ""),
+    amount: typeof amt === "number" ? amt : amt != null ? Number(amt) : null,
     unit,
   }
 }
@@ -193,8 +269,12 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     endDate: parseIsoDate(raw.endDate),
     techStacks,
     domains,
-    shiftType: (raw.shiftType as WorkExperience["shiftType"]) ?? "",
-    workMode: (raw.workMode as WorkExperience["workMode"]) ?? "",
+    shiftType: typeof raw.shiftType === "number"
+      ? (SHIFT_TYPE_DB[raw.shiftType] ?? "") as WorkExperience["shiftType"]
+      : (raw.shiftType as WorkExperience["shiftType"]) ?? "",
+    workMode: typeof raw.workMode === "number"
+      ? (WORK_MODE_DB[raw.workMode] ?? "") as WorkExperience["workMode"]
+      : (raw.workMode as WorkExperience["workMode"]) ?? "",
     timeSupportZones,
     benefits,
   }
@@ -217,7 +297,7 @@ function mapStandaloneProject(raw: Record<string, unknown>, idx: number): Candid
 
 const ACHIEVEMENT_TYPES: AchievementType[] = [
   "competition",
-  "open_source",
+  "openSource",
   "award",
   "medal",
   "publication",
@@ -227,8 +307,15 @@ const ACHIEVEMENT_TYPES: AchievementType[] = [
 ]
 
 function normalizeAchievementType(raw: unknown): AchievementType {
-  const s = String(raw ?? "competition").toLowerCase().replace(/-/g, "_")
-  return (ACHIEVEMENT_TYPES.includes(s as AchievementType) ? s : "other") as AchievementType
+  if (typeof raw === "number") {
+    return ACHIEVEMENT_TYPES[raw] ?? "other"
+  }
+  const s = String(raw ?? "competition")
+  const lower = s.toLowerCase().replace(/[-_]/g, "")
+  for (const t of ACHIEVEMENT_TYPES) {
+    if (t.toLowerCase() === lower) return t
+  }
+  return "other"
 }
 
 function mapCertification(raw: Record<string, unknown>, idx: number): CandidateCertification {
@@ -251,8 +338,13 @@ function mapCertification(raw: Record<string, unknown>, idx: number): CandidateC
         : raw.certificationIssuerName != null
           ? String(raw.certificationIssuerName)
           : null,
-    certificationLevel:
-      raw.certificationLevel != null ? (String(raw.certificationLevel).toLowerCase() as CandidateCertification["certificationLevel"]) : null,
+    certificationLevel: typeof raw.certificationLevel === "number"
+      ? (CERTIFICATION_LEVEL_DB[raw.certificationLevel] ?? null) as CandidateCertification["certificationLevel"]
+      : typeof raw.level === "number"
+        ? (CERTIFICATION_LEVEL_DB[raw.level] ?? null) as CandidateCertification["certificationLevel"]
+        : raw.certificationLevel != null
+          ? (String(raw.certificationLevel).toLowerCase() as CandidateCertification["certificationLevel"])
+          : null,
     issueDate: parseIsoDate(raw.issueDate),
     expiryDate: parseIsoDate(raw.expiryDate),
     certificationUrl: url,
@@ -303,7 +395,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     city: row.city ?? "",
     linkedinUrl: row.linkedInUrl,
     githubUrl: row.githubUrl,
-    source: row.source ?? "",
+    source: parseCandidateSource(row.source),
     status: row.status as Candidate["status"],
     resume: row.resumeUrl,
     totalExperienceYears: row.totalExperienceYears,
@@ -364,7 +456,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     city: data.city != null ? String(data.city) : "",
     linkedinUrl: data.linkedInUrl != null ? String(data.linkedInUrl) : null,
     githubUrl: data.githubUrl != null ? String(data.githubUrl) : null,
-    source: data.source != null ? String(data.source) : "",
+    source: parseCandidateSource(data.source as string | number | null),
     status: String(data.status ?? "sourced") as Candidate["status"],
     resume: data.resumeUrl != null ? String(data.resumeUrl) : null,
     totalExperienceYears:
@@ -383,7 +475,136 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
   }
 }
 
-export function candidateFormDataToCreateDto(data: CandidateFormData): CreateCandidateDto {
+function enumIndex<T extends string>(arr: readonly T[], val: string): number | null {
+  const lower = val.trim().toLowerCase()
+  const idx = arr.findIndex((v) => v.toLowerCase() === lower)
+  return idx === -1 ? null : idx
+}
+
+function formatDateForApi(d: Date | undefined): string | null {
+  if (!d) return null
+  return d.toISOString().split("T")[0] ?? null
+}
+
+function lookupIdByName(
+  lookups: Array<{ id: number; name: string }>,
+  name: string,
+): number | null {
+  const lower = name.trim().toLowerCase()
+  return lookups.find((l) => l.name.toLowerCase() === lower)?.id ?? null
+}
+
+function benefitUnitToApi(unit: string | null): number | null {
+  if (!unit) return null
+  const map: Record<string, number> = { PKR: 0, days: 1, count: 2, percent: 3 }
+  return map[unit] ?? null
+}
+
+export interface CandidateCreateLookups {
+  techStacks?: Array<{ id: number; name: string }>
+  timeSupportZones?: Array<{ id: number; name: string }>
+  benefits?: Array<{ id: number; name: string }>
+  degrees?: Array<{ id: number; name: string }>
+  majors?: Array<{ id: number; name: string }>
+}
+
+export function candidateFormDataToCreateDto(
+  data: CandidateFormData,
+  lookups?: CandidateCreateLookups,
+): CreateCandidateDto {
+  const techStackIds = (data.techStacks ?? [])
+    .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
+    .filter((id): id is number => id != null)
+
+  const projects: CreateCandidateProjectDto[] = (data.projects ?? [])
+    .filter((p) => p.projectId != null)
+    .map((p) => ({
+      projectId: p.projectId!,
+      contribution: nullIfEmpty(p.contributionNotes ?? ""),
+    }))
+
+  const educations: CreateCandidateEducationDto[] = (data.educations ?? [])
+    .filter((e) => e.universityLocationId)
+    .map((e) => ({
+      universityId: Number(e.universityLocationId),
+      degreeId: e.degreeName ? lookupIdByName(lookups?.degrees ?? [], e.degreeName) : null,
+      majorId: e.majorName ? lookupIdByName(lookups?.majors ?? [], e.majorName) : null,
+      startMonth: formatDateForApi(e.startMonth),
+      endMonth: formatDateForApi(e.endMonth),
+      grades: e.grades ?? null,
+      isTopper: e.isTopper ?? false,
+      isMainCheetah: e.isCheetah ?? false,
+    }))
+
+  const certifications: CreateCandidateCertificationDto[] = (data.certifications ?? [])
+    .filter((c) => c.certificationId != null)
+    .map((c) => ({
+      certificationId: c.certificationId!,
+      issueDate: formatDateForApi(c.issueDate),
+      expiryDate: formatDateForApi(c.expiryDate),
+      url: c.certificationUrl ?? null,
+      level: c.certificationLevel
+        ? enumIndex(CERTIFICATION_LEVEL_DB, c.certificationLevel)
+        : null,
+    }))
+
+  const achievements: CreateCandidateAchievementDto[] = (data.achievements ?? [])
+    .filter((a) => a.name.trim())
+    .map((a) => ({
+      name: a.name.trim(),
+      type: enumIndex(ACHIEVEMENT_TYPE_DB, a.achievementType) ?? 7,
+      ranking: a.ranking ?? null,
+      year: a.year ?? null,
+      url: a.url ?? null,
+      description: a.description ?? null,
+    }))
+
+  const workExperiences: CreateCandidateWorkExperienceDto[] = (data.workExperiences ?? [])
+    .filter((we) => we.employerId != null)
+    .map((we) => {
+      const weProjects: CreateCandidateProjectDto[] = (we.projects ?? [])
+        .filter((p) => p.projectId != null)
+        .map((p) => ({
+          projectId: p.projectId!,
+          contribution: nullIfEmpty(p.contributionNotes ?? ""),
+        }))
+
+      const weTechStackIds = (we.techStacks ?? [])
+        .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
+        .filter((id): id is number => id != null)
+
+      const weTszIds = (we.timeSupportZones ?? [])
+        .map((name) => lookupIdByName(lookups?.timeSupportZones ?? [], name))
+        .filter((id): id is number => id != null)
+
+      const weBenefits: CreateCandidateWorkExperienceBenefitDto[] = (we.benefits ?? [])
+        .reduce<CreateCandidateWorkExperienceBenefitDto[]>((acc, b) => {
+          const benefitId = lookupIdByName(lookups?.benefits ?? [], b.name)
+          if (benefitId != null) {
+            acc.push({
+              benefitId,
+              hasValue: b.amount != null,
+              unitType: benefitUnitToApi(b.unit),
+              value: b.amount,
+            })
+          }
+          return acc
+        }, [])
+
+      return {
+        employerId: we.employerId!,
+        jobTitle: we.jobTitle.trim(),
+        startDate: formatDateForApi(we.startDate),
+        endDate: formatDateForApi(we.endDate),
+        shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
+        workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
+        timeSupportZoneIds: weTszIds.length > 0 ? weTszIds : undefined,
+        techStackIds: weTechStackIds.length > 0 ? weTechStackIds : undefined,
+        benefits: weBenefits.length > 0 ? weBenefits : undefined,
+        projects: weProjects.length > 0 ? weProjects : undefined,
+      }
+    })
+
   return {
     name: data.name.trim(),
     email: nullIfEmpty(data.email),
@@ -400,6 +621,12 @@ export function candidateFormDataToCreateDto(data: CandidateFormData): CreateCan
     source: sourceFormToApi(data.source),
     status: "sourced",
     resumeUrl: null,
+    techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
+    projects: projects.length > 0 ? projects : undefined,
+    educations: educations.length > 0 ? educations : undefined,
+    certifications: certifications.length > 0 ? certifications : undefined,
+    achievements: achievements.length > 0 ? achievements : undefined,
+    workExperiences: workExperiences.length > 0 ? workExperiences : undefined,
   }
 }
 
@@ -479,6 +706,12 @@ export async function createCandidate(body: CreateCandidateDto): Promise<Candida
   })
   if (!res.ok) {
     const text = await res.text()
+    if (text.includes("IX_candidates_cnic")) {
+      throw new Error("A candidate with this CNIC already exists.")
+    }
+    if (text.includes("IX_candidates_email")) {
+      throw new Error("A candidate with this email already exists.")
+    }
     throw new Error(`Create candidate: ${res.status} — ${text}`)
   }
   const data = (await res.json()) as Record<string, unknown>

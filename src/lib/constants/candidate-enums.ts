@@ -4,13 +4,14 @@
  * certification_level_enum, achievement_type_enum.
  */
 
+/** Backend enum ShiftType: 0=day, 1=night, 2=evening, 3=rotational, 4=flexible, 5=onCall */
 export const SHIFT_TYPE_DB = [
   "day",
   "night",
   "evening",
   "rotational",
   "flexible",
-  "on_call",
+  "onCall",
 ] as const
 export type ShiftTypeDb = (typeof SHIFT_TYPE_DB)[number]
 
@@ -20,7 +21,7 @@ export const SHIFT_TYPE_LABELS: Record<ShiftTypeDb, string> = {
   evening: "Evening",
   rotational: "Rotational",
   flexible: "Flexible",
-  on_call: "On Call",
+  onCall: "On Call",
 }
 
 export const WORK_MODE_DB = ["onsite", "remote", "hybrid"] as const
@@ -58,9 +59,10 @@ export const CERTIFICATION_LEVEL_LABELS_DB: Record<CertificationLevelDb, string>
   master: "Master",
 }
 
+/** Backend enum AchievementType: 0=competition, 1=openSource, 2=award, 3=medal, 4=publication, 5=certification, 6=recognition, 7=other */
 export const ACHIEVEMENT_TYPE_DB = [
   "competition",
-  "open_source",
+  "openSource",
   "award",
   "medal",
   "publication",
@@ -72,7 +74,7 @@ export type AchievementTypeDb = (typeof ACHIEVEMENT_TYPE_DB)[number]
 
 export const ACHIEVEMENT_TYPE_LABELS: Record<AchievementTypeDb, string> = {
   competition: "Competition",
-  open_source: "Open Source",
+  openSource: "Open Source",
   award: "Award",
   medal: "Medal",
   publication: "Publication",
@@ -81,8 +83,8 @@ export const ACHIEVEMENT_TYPE_LABELS: Record<AchievementTypeDb, string> = {
   other: "Other",
 }
 
-/** PostgreSQL enum `source` on candidates — exact lowercase values for API. */
-export const CANDIDATE_SOURCE_DB = ["headhunt", "referral", "zoho", "manual"] as const
+/** Backend enum CandidateSource: 0=headhunt, 1=zoho, 2=manual, 3=referral */
+export const CANDIDATE_SOURCE_DB = ["headhunt", "zoho", "manual", "referral"] as const
 export type CandidateSourceDb = (typeof CANDIDATE_SOURCE_DB)[number]
 
 export const CANDIDATE_SOURCE_LABELS: Record<CandidateSourceDb, string> = {
@@ -92,8 +94,12 @@ export const CANDIDATE_SOURCE_LABELS: Record<CandidateSourceDb, string> = {
   manual: "Manual",
 }
 
-/** Map API/legacy free text to a valid form value; empty string if unknown. */
-export function parseCandidateSource(raw: string | null | undefined): CandidateSourceDb | "" {
-  const s = (raw ?? "").trim().toLowerCase()
+/** Map API value (numeric index or string) to a valid form value; empty string if unknown. */
+export function parseCandidateSource(raw: string | number | null | undefined): CandidateSourceDb | "" {
+  if (raw == null) return ""
+  if (typeof raw === "number") {
+    return CANDIDATE_SOURCE_DB[raw] ?? ""
+  }
+  const s = raw.trim().toLowerCase()
   return CANDIDATE_SOURCE_DB.includes(s as CandidateSourceDb) ? (s as CandidateSourceDb) : ""
 }

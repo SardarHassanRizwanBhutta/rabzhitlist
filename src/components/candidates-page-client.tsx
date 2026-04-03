@@ -403,7 +403,7 @@ export function CandidatesPageClient() {
 
   const handleCandidateSubmit = async (data: CandidateFormData) => {
     try {
-      await createCandidate(candidateFormDataToCreateDto(data))
+      await createCandidate(candidateFormDataToCreateDto(data, candidateLookups))
       toast.success("Candidate created successfully.")
       setPageNumber(1)
       refetchCandidates()
