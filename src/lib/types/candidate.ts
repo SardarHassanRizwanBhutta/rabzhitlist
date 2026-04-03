@@ -74,10 +74,10 @@ export interface OrganizationalRole {
   endDate?: Date
 }
 
-/** DB enum achievement_type_enum (snake_case). */
+/** Backend enum AchievementType (camelCase). */
 export type AchievementType =
   | "competition"
-  | "open_source"
+  | "openSource"
   | "award"
   | "medal"
   | "publication"
