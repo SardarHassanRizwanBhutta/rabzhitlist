@@ -249,13 +249,21 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     : []
   const techRaw = raw.techStacks ?? raw.techStackNames
   const techStacks = Array.isArray(techRaw)
-    ? techRaw.map((t) => (typeof t === "string" ? t : String((asRecord(t) ?? {}).name ?? t)))
+    ? techRaw.map((t) => {
+        if (typeof t === "string") return t
+        const r = asRecord(t) ?? {}
+        return String(r.techStackName ?? r.name ?? t)
+      })
     : []
   const domainsRaw = raw.domains
   const domains = Array.isArray(domainsRaw) ? domainsRaw.map((d) => String(d)) : []
   const tzRaw = raw.timeSupportZones ?? raw.timeSupportZoneNames
   const timeSupportZones = Array.isArray(tzRaw)
-    ? tzRaw.map((z) => (typeof z === "string" ? z : String((asRecord(z) ?? {}).name ?? z)))
+    ? tzRaw.map((z) => {
+        if (typeof z === "string") return z
+        const r = asRecord(z) ?? {}
+        return String(r.timeSupportZoneName ?? r.name ?? z)
+      })
     : []
   const eid = raw.employerId
   return {
@@ -429,7 +437,11 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     : []
   const techRaw = data.techStacks
   const techStacks = Array.isArray(techRaw)
-    ? techRaw.map((t) => (typeof t === "string" ? t : String((asRecord(t) ?? {}).name ?? t)))
+    ? techRaw.map((t) => {
+        if (typeof t === "string") return t
+        const r = asRecord(t) ?? {}
+        return String(r.techStackName ?? r.name ?? t)
+      })
     : []
   const certRaw = data.certifications
   const certifications = Array.isArray(certRaw)
@@ -743,4 +755,441 @@ export async function deleteCandidate(id: number): Promise<void> {
     const text = await res.text()
     throw new Error(`Delete candidate: ${res.status} — ${text}`)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Sub-resource API client functions (for granular edits after creation)
+// ---------------------------------------------------------------------------
+
+async function subPost(path: string, body?: object): Promise<unknown> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`POST ${path}: ${res.status} — ${text}`)
+  }
+  const ct = res.headers.get("content-type") ?? ""
+  return ct.includes("application/json") ? res.json() : null
+}
+
+async function subPut(path: string, body: object): Promise<unknown> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`PUT ${path}: ${res.status} — ${text}`)
+  }
+  const ct = res.headers.get("content-type") ?? ""
+  return ct.includes("application/json") ? res.json() : null
+}
+
+async function subDelete(path: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" })
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text()
+    throw new Error(`DELETE ${path}: ${res.status} — ${text}`)
+  }
+}
+
+// --- Tech Stacks ---
+
+export function addCandidateTechStack(candidateId: number, techStackId: number) {
+  return subPost(`/api/candidates/${candidateId}/tech-stacks`, { techStackId })
+}
+export function removeCandidateTechStack(candidateId: number, techStackId: number) {
+  return subDelete(`/api/candidates/${candidateId}/tech-stacks/${techStackId}`)
+}
+
+// --- Standalone Projects ---
+
+export function upsertCandidateProject(candidateId: number, projectId: number, contribution: string | null) {
+  return subPut(`/api/candidates/${candidateId}/projects/${projectId}`, { projectId, contribution })
+}
+export function removeCandidateProject(candidateId: number, projectId: number) {
+  return subDelete(`/api/candidates/${candidateId}/projects/${projectId}`)
+}
+
+// --- Educations ---
+
+export function createCandidateEducation(candidateId: number, body: CreateCandidateEducationDto) {
+  return subPost(`/api/candidates/${candidateId}/educations`, body) as Promise<Record<string, unknown>>
+}
+export function updateCandidateEducation(candidateId: number, educationId: number, body: CreateCandidateEducationDto) {
+  return subPut(`/api/candidates/${candidateId}/educations/${educationId}`, body)
+}
+export function deleteCandidateEducation(candidateId: number, educationId: number) {
+  return subDelete(`/api/candidates/${candidateId}/educations/${educationId}`)
+}
+
+// --- Certifications ---
+
+export function upsertCandidateCertification(candidateId: number, body: CreateCandidateCertificationDto) {
+  return subPut(`/api/candidates/${candidateId}/certifications`, body)
+}
+export function removeCandidateCertification(candidateId: number, certificationId: number) {
+  return subDelete(`/api/candidates/${candidateId}/certifications/${certificationId}`)
+}
+
+// --- Achievements ---
+
+export function createCandidateAchievement(candidateId: number, body: CreateCandidateAchievementDto) {
+  return subPost(`/api/candidates/${candidateId}/achievements`, body) as Promise<Record<string, unknown>>
+}
+export function updateCandidateAchievement(candidateId: number, achievementId: number, body: CreateCandidateAchievementDto) {
+  return subPut(`/api/candidates/${candidateId}/achievements/${achievementId}`, body)
+}
+export function deleteCandidateAchievement(candidateId: number, achievementId: number) {
+  return subDelete(`/api/candidates/${candidateId}/achievements/${achievementId}`)
+}
+
+// --- Work Experiences ---
+
+interface CreateWorkExperienceBody {
+  employerId: number
+  jobTitle: string
+  startDate?: string | null
+  endDate?: string | null
+  shiftType?: number | null
+  workMode?: number | null
+}
+
+export function createCandidateWorkExperience(candidateId: number, body: CreateWorkExperienceBody) {
+  return subPost(`/api/candidates/${candidateId}/work-experiences`, body) as Promise<Record<string, unknown>>
+}
+export function updateCandidateWorkExperience(candidateId: number, weId: number, body: CreateWorkExperienceBody) {
+  return subPut(`/api/candidates/${candidateId}/work-experiences/${weId}`, body)
+}
+export function deleteCandidateWorkExperience(candidateId: number, weId: number) {
+  return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}`)
+}
+
+// --- Work Experience Sub-resources ---
+
+export function addWeTechStack(candidateId: number, weId: number, techStackId: number) {
+  return subPost(`/api/candidates/${candidateId}/work-experiences/${weId}/tech-stacks`, { techStackId })
+}
+export function removeWeTechStack(candidateId: number, weId: number, techStackId: number) {
+  return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/tech-stacks/${techStackId}`)
+}
+export function addWeTimeSupportZone(candidateId: number, weId: number, timeSupportZoneId: number) {
+  return subPost(`/api/candidates/${candidateId}/work-experiences/${weId}/time-support-zones`, { timeSupportZoneId })
+}
+export function removeWeTimeSupportZone(candidateId: number, weId: number, tszId: number) {
+  return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/time-support-zones/${tszId}`)
+}
+export function upsertWeBenefit(candidateId: number, weId: number, body: CreateCandidateWorkExperienceBenefitDto) {
+  return subPut(`/api/candidates/${candidateId}/work-experiences/${weId}/benefits/${body.benefitId}`, body)
+}
+export function removeWeBenefit(candidateId: number, weId: number, benefitId: number) {
+  return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/benefits/${benefitId}`)
+}
+export function upsertWeProject(candidateId: number, weId: number, projectId: number, contribution: string | null) {
+  return subPut(`/api/candidates/${candidateId}/work-experiences/${weId}/projects/${projectId}`, { projectId, contribution })
+}
+export function removeWeProject(candidateId: number, weId: number, projectId: number) {
+  return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/projects/${projectId}`)
+}
+
+// ---------------------------------------------------------------------------
+// syncCandidateSubResources — diff old vs new, call sub-resource APIs
+// ---------------------------------------------------------------------------
+
+export async function syncCandidateSubResources(
+  candidateId: number,
+  formData: CandidateFormData,
+  existing: Candidate,
+  lookups?: CandidateCreateLookups,
+): Promise<void> {
+  const errors: string[] = []
+
+  function safe(label: string, fn: () => Promise<unknown>): Promise<void> {
+    return fn().then(() => {}, (err) => {
+      errors.push(`${label}: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }
+
+  // --- Tech Stacks ---
+  const oldTsIds = new Set<number>()
+  const tsLookup = lookups?.techStacks ?? []
+  for (const name of existing.techStacks ?? []) {
+    const id = lookupIdByName(tsLookup, name)
+    if (id != null) oldTsIds.add(id)
+  }
+  const newTsIds = new Set<number>()
+  for (const name of formData.techStacks ?? []) {
+    const id = lookupIdByName(tsLookup, name)
+    if (id != null) newTsIds.add(id)
+  }
+  const tsOps: Promise<void>[] = []
+  for (const id of newTsIds) {
+    if (!oldTsIds.has(id)) tsOps.push(safe("Add tech stack", () => addCandidateTechStack(candidateId, id)))
+  }
+  for (const id of oldTsIds) {
+    if (!newTsIds.has(id)) tsOps.push(safe("Remove tech stack", () => removeCandidateTechStack(candidateId, id)))
+  }
+
+  // --- Standalone Projects ---
+  const oldProjIds = new Set((existing.projects ?? []).map(p => p.projectId).filter((id): id is number => id != null))
+  const projOps: Promise<void>[] = []
+  for (const p of formData.projects ?? []) {
+    if (p.projectId != null) {
+      projOps.push(safe("Upsert project", () => upsertCandidateProject(candidateId, p.projectId!, nullIfEmpty(p.contributionNotes ?? ""))))
+      oldProjIds.delete(p.projectId)
+    }
+  }
+  for (const id of oldProjIds) {
+    projOps.push(safe("Remove project", () => removeCandidateProject(candidateId, id)))
+  }
+
+  // --- Educations ---
+  const oldEduMap = new Map((existing.educations ?? []).map(e => [Number(e.id), e]))
+  const seenEduIds = new Set<number>()
+  const eduOps: Promise<void>[] = []
+  for (const edu of formData.educations ?? []) {
+    if (!edu.universityLocationId && !edu.degreeName && !edu.majorName) continue
+    const eduBody: CreateCandidateEducationDto = {
+      universityId: edu.universityLocationId ? Number(edu.universityLocationId) : 0,
+      degreeId: edu.degreeName ? lookupIdByName(lookups?.degrees ?? [], edu.degreeName) : null,
+      majorId: edu.majorName ? lookupIdByName(lookups?.majors ?? [], edu.majorName) : null,
+      startMonth: formatDateForApi(edu.startMonth),
+      endMonth: formatDateForApi(edu.endMonth),
+      grades: edu.grades ?? null,
+      isTopper: edu.isTopper ?? false,
+      isMainCheetah: edu.isCheetah ?? false,
+    }
+    const numId = Number(edu.id)
+    if (oldEduMap.has(numId)) {
+      seenEduIds.add(numId)
+      eduOps.push(safe("Update education", () => updateCandidateEducation(candidateId, numId, eduBody)))
+    } else {
+      eduOps.push(safe("Create education", () => createCandidateEducation(candidateId, eduBody)))
+    }
+  }
+  for (const id of oldEduMap.keys()) {
+    if (!seenEduIds.has(id)) eduOps.push(safe("Delete education", () => deleteCandidateEducation(candidateId, id)))
+  }
+
+  // --- Certifications ---
+  const oldCertIds = new Set((existing.certifications ?? []).map(c => c.certificationId).filter((id): id is number => id != null))
+  const certOps: Promise<void>[] = []
+  for (const cert of formData.certifications ?? []) {
+    if (cert.certificationId == null) continue
+    const certBody: CreateCandidateCertificationDto = {
+      certificationId: cert.certificationId,
+      issueDate: formatDateForApi(cert.issueDate),
+      expiryDate: formatDateForApi(cert.expiryDate),
+      url: cert.certificationUrl ?? null,
+      level: cert.certificationLevel ? enumIndex(CERTIFICATION_LEVEL_DB, cert.certificationLevel) : null,
+    }
+    certOps.push(safe("Upsert certification", () => upsertCandidateCertification(candidateId, certBody)))
+    oldCertIds.delete(cert.certificationId)
+  }
+  for (const id of oldCertIds) {
+    certOps.push(safe("Remove certification", () => removeCandidateCertification(candidateId, id)))
+  }
+
+  // --- Achievements ---
+  const oldAchMap = new Map((existing.achievements ?? []).map(a => [Number(a.id), a]))
+  const seenAchIds = new Set<number>()
+  const achOps: Promise<void>[] = []
+  for (const ach of formData.achievements ?? []) {
+    if (!ach.name.trim()) continue
+    const achBody: CreateCandidateAchievementDto = {
+      name: ach.name.trim(),
+      type: enumIndex(ACHIEVEMENT_TYPE_DB, ach.achievementType) ?? 7,
+      ranking: ach.ranking || null,
+      year: ach.year ?? null,
+      url: ach.url || null,
+      description: ach.description || null,
+    }
+    const numId = Number(ach.id)
+    if (oldAchMap.has(numId)) {
+      seenAchIds.add(numId)
+      achOps.push(safe("Update achievement", () => updateCandidateAchievement(candidateId, numId, achBody)))
+    } else {
+      achOps.push(safe("Create achievement", () => createCandidateAchievement(candidateId, achBody)))
+    }
+  }
+  for (const id of oldAchMap.keys()) {
+    if (!seenAchIds.has(id)) achOps.push(safe("Delete achievement", () => deleteCandidateAchievement(candidateId, id)))
+  }
+
+  // --- Work Experiences ---
+  const oldWeMap = new Map((existing.workExperiences ?? []).map(w => [Number(w.id), w]))
+  const seenWeIds = new Set<number>()
+  const weOps: Promise<void>[] = []
+
+  for (const we of formData.workExperiences ?? []) {
+    if (we.employerId == null) continue
+    const weBasic: CreateWorkExperienceBody = {
+      employerId: we.employerId,
+      jobTitle: we.jobTitle.trim(),
+      startDate: formatDateForApi(we.startDate),
+      endDate: formatDateForApi(we.endDate),
+      shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
+      workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
+    }
+
+    const numId = Number(we.id)
+    if (oldWeMap.has(numId)) {
+      // Update existing work experience basic fields, then sync sub-resources
+      seenWeIds.add(numId)
+      weOps.push(safe("Update work experience", async () => {
+        await updateCandidateWorkExperience(candidateId, numId, weBasic)
+        await syncWeSubResources(candidateId, numId, we, oldWeMap.get(numId)!, lookups)
+      }))
+    } else {
+      // Create new work experience, then add sub-resources using the returned ID
+      weOps.push(safe("Create work experience", async () => {
+        const result = await createCandidateWorkExperience(candidateId, weBasic) as Record<string, unknown>
+        const newId = typeof result.id === "number" ? result.id : Number(result.id)
+        if (!Number.isFinite(newId)) return
+        await addWeSubResources(candidateId, newId, we, lookups)
+      }))
+    }
+  }
+  for (const id of oldWeMap.keys()) {
+    if (!seenWeIds.has(id)) weOps.push(safe("Delete work experience", () => deleteCandidateWorkExperience(candidateId, id)))
+  }
+
+  // Execute all sections in parallel
+  await Promise.all([...tsOps, ...projOps, ...eduOps, ...certOps, ...achOps, ...weOps])
+
+  if (errors.length > 0) {
+    throw new Error(`Some updates failed:\n${errors.join("\n")}`)
+  }
+}
+
+/** Add all sub-resources for a newly created work experience. */
+async function addWeSubResources(
+  candidateId: number,
+  weId: number,
+  we: CandidateFormData["workExperiences"][number],
+  lookups?: CandidateCreateLookups,
+): Promise<void> {
+  const tsLookup = lookups?.techStacks ?? []
+  const tszLookup = lookups?.timeSupportZones ?? []
+  const benefitsLookup = lookups?.benefits ?? []
+
+  const ops: Promise<unknown>[] = []
+
+  for (const name of we.techStacks ?? []) {
+    const id = lookupIdByName(tsLookup, name)
+    if (id != null) ops.push(addWeTechStack(candidateId, weId, id))
+  }
+  for (const name of we.timeSupportZones ?? []) {
+    const id = lookupIdByName(tszLookup, name)
+    if (id != null) ops.push(addWeTimeSupportZone(candidateId, weId, id))
+  }
+  for (const b of we.benefits ?? []) {
+    const benefitId = lookupIdByName(benefitsLookup, b.name)
+    if (benefitId != null) {
+      ops.push(upsertWeBenefit(candidateId, weId, {
+        benefitId,
+        hasValue: b.amount != null,
+        unitType: benefitUnitToApi(b.unit),
+        value: b.amount,
+      }))
+    }
+  }
+  for (const p of we.projects ?? []) {
+    if (p.projectId != null) {
+      ops.push(upsertWeProject(candidateId, weId, p.projectId, nullIfEmpty(p.contributionNotes ?? "")))
+    }
+  }
+
+  await Promise.all(ops)
+}
+
+/** Sync sub-resources for an existing work experience (diff old vs new). */
+async function syncWeSubResources(
+  candidateId: number,
+  weId: number,
+  newWe: CandidateFormData["workExperiences"][number],
+  oldWe: WorkExperience,
+  lookups?: CandidateCreateLookups,
+): Promise<void> {
+  const tsLookup = lookups?.techStacks ?? []
+  const tszLookup = lookups?.timeSupportZones ?? []
+  const benefitsLookup = lookups?.benefits ?? []
+  const ops: Promise<unknown>[] = []
+
+  // Tech stacks
+  const oldWeTsIds = new Set<number>()
+  for (const name of oldWe.techStacks ?? []) {
+    const id = lookupIdByName(tsLookup, name)
+    if (id != null) oldWeTsIds.add(id)
+  }
+  const newWeTsIds = new Set<number>()
+  for (const name of newWe.techStacks ?? []) {
+    const id = lookupIdByName(tsLookup, name)
+    if (id != null) newWeTsIds.add(id)
+  }
+  for (const id of newWeTsIds) {
+    if (!oldWeTsIds.has(id)) ops.push(addWeTechStack(candidateId, weId, id))
+  }
+  for (const id of oldWeTsIds) {
+    if (!newWeTsIds.has(id)) ops.push(removeWeTechStack(candidateId, weId, id))
+  }
+
+  // Time support zones
+  const oldTszIds = new Set<number>()
+  for (const name of oldWe.timeSupportZones ?? []) {
+    const id = lookupIdByName(tszLookup, name)
+    if (id != null) oldTszIds.add(id)
+  }
+  const newTszIds = new Set<number>()
+  for (const name of newWe.timeSupportZones ?? []) {
+    const id = lookupIdByName(tszLookup, name)
+    if (id != null) newTszIds.add(id)
+  }
+  for (const id of newTszIds) {
+    if (!oldTszIds.has(id)) ops.push(addWeTimeSupportZone(candidateId, weId, id))
+  }
+  for (const id of oldTszIds) {
+    if (!newTszIds.has(id)) ops.push(removeWeTimeSupportZone(candidateId, weId, id))
+  }
+
+  // Benefits
+  const oldBenefitIds = new Set<number>()
+  for (const b of oldWe.benefits ?? []) {
+    const id = lookupIdByName(benefitsLookup, b.name)
+    if (id != null) oldBenefitIds.add(id)
+  }
+  const newBenefitIds = new Set<number>()
+  for (const b of newWe.benefits ?? []) {
+    const benefitId = lookupIdByName(benefitsLookup, b.name)
+    if (benefitId != null) {
+      newBenefitIds.add(benefitId)
+      ops.push(upsertWeBenefit(candidateId, weId, {
+        benefitId,
+        hasValue: b.amount != null,
+        unitType: benefitUnitToApi(b.unit),
+        value: b.amount,
+      }))
+    }
+  }
+  for (const id of oldBenefitIds) {
+    if (!newBenefitIds.has(id)) ops.push(removeWeBenefit(candidateId, weId, id))
+  }
+
+  // Projects
+  const oldProjIds = new Set((oldWe.projects ?? []).map(p => p.projectId).filter((id): id is number => id != null))
+  for (const p of newWe.projects ?? []) {
+    if (p.projectId != null) {
+      ops.push(upsertWeProject(candidateId, weId, p.projectId, nullIfEmpty(p.contributionNotes ?? "")))
+      oldProjIds.delete(p.projectId)
+    }
+  }
+  for (const id of oldProjIds) {
+    ops.push(removeWeProject(candidateId, weId, id))
+  }
+
+  await Promise.all(ops)
 }
