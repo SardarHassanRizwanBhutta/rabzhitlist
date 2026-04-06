@@ -39,7 +39,16 @@ import {
 import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
-import { CandidateCreationDialog, CandidateFormData, VerificationState } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups } from "@/components/candidate-creation-dialog"
+import {
+  updateCandidate,
+  candidateFormDataToUpdateDto,
+  syncCandidateSubResources,
+} from "@/lib/services/candidates-api"
+import { fetchTechStacks } from "@/lib/services/lookups-api"
+import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
+import { fetchBenefits } from "@/lib/services/benefits-api"
+import { fetchDegrees, fetchMajors } from "@/lib/services/majors-degrees-api"
 import { 
   getVerificationsForCandidate,
   calculateVerificationSummary,
@@ -2479,7 +2488,25 @@ export function CandidateDetailsModal({
   
   // State for Edit dialog (now includes verification by default)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  
+
+  // Lookups for the edit dialog (loaded lazily when edit dialog opens)
+  const [editLookups, setEditLookups] = useState<CandidateLookups>({ techStacks: [] })
+  const editLookupsLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (!editDialogOpen || editLookupsLoadedRef.current) return
+    editLookupsLoadedRef.current = true
+    Promise.all([
+      fetchTechStacks().catch(() => []),
+      fetchTimeSupportZones().catch(() => []),
+      fetchBenefits().catch(() => []),
+      fetchDegrees().catch(() => []),
+      fetchMajors().catch(() => []),
+    ]).then(([techStacks, timeSupportZones, benefits, degrees, majors]) => {
+      setEditLookups({ techStacks, timeSupportZones, benefits, degrees, majors })
+    })
+  }, [editDialogOpen])
+
   // State for Interaction Mode dialog
   const [interactionMode, setInteractionMode] = useState<InteractionMode | null>(null)
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false)
@@ -2812,21 +2839,28 @@ export function CandidateDetailsModal({
     }
   }
   
-  // Handle edit submission (verification is always included in edit mode)
   const handleEditSubmit = async (formData: CandidateFormData, verificationState?: VerificationState) => {
-    // In real app, this would call API to update candidate and save verifications
-    console.log("Updating candidate with verification:", { formData, verificationState })
-    
-    // Show success message
-    const verifiedCount = verificationState?.verifiedFields.size || 0
-    const modifiedCount = verificationState?.modifiedFields.size || 0
-    
-    toast.success(
-      `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ''}.`,
-      { duration: 4000 }
-    )
-    
-    setEditDialogOpen(false)
+    if (!candidate) return
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    try {
+      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidate))
+      await syncCandidateSubResources(id, formData, candidate, editLookups)
+
+      const verifiedCount = verificationState?.verifiedFields.size || 0
+      const modifiedCount = verificationState?.modifiedFields.size || 0
+      toast.success(
+        `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
+        { duration: 4000 }
+      )
+      setEditDialogOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
+      throw err
+    }
   }
 
   // Get verification data for this candidate
@@ -4687,6 +4721,7 @@ export function CandidateDetailsModal({
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSubmit={handleEditSubmit}
+          lookups={editLookups}
         />
       )}
 

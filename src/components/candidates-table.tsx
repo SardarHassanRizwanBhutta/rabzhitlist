@@ -78,6 +78,7 @@ import {
   fetchCandidateById,
   updateCandidate,
   candidateFormDataToUpdateDto,
+  syncCandidateSubResources,
 } from "@/lib/services/candidates-api"
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -108,9 +109,8 @@ interface CandidatesTableProps {
 type SortDirection = "asc" | "desc" | null
 type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status" | "yearsOfExperience" | "avgTenure"
 
-// Helper function to get job title from first work experience
 const getJobTitle = (candidate: Candidate): string => {
-  return candidate.workExperiences?.[0]?.jobTitle || "N/A"
+  return candidate.postingTitle || "N/A"
 }
 
 // Helper function to calculate total years of experience from work experiences
@@ -363,6 +363,7 @@ export function CandidatesTable({
     }
     try {
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
+      await syncCandidateSubResources(id, formData, candidateToEdit, candidateLookups)
       toast.success("Candidate updated successfully.")
       onCandidatesListChanged?.()
       setEditDialogOpen(false)
