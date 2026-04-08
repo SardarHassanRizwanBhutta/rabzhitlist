@@ -671,9 +671,7 @@ export function ProjectCreationDialog({
 
     const minTeamSizeNum = formData.minTeamSize.trim() ? parseInt(formData.minTeamSize, 10) : null
     const maxTeamSizeNum = formData.maxTeamSize.trim() ? parseInt(formData.maxTeamSize, 10) : null
-    if (minTeamSizeNum === null && maxTeamSizeNum === null) {
-      newErrors.minTeamSize = "Minimum or maximum team size is required"
-    } else {
+    if (minTeamSizeNum !== null || maxTeamSizeNum !== null) {
       if (formData.minTeamSize.trim() && (isNaN(minTeamSizeNum!) || minTeamSizeNum! < 0)) {
         newErrors.minTeamSize = "Must be 0 or greater"
       }
@@ -683,14 +681,6 @@ export function ProjectCreationDialog({
       if (minTeamSizeNum !== null && maxTeamSizeNum !== null && minTeamSizeNum > maxTeamSizeNum) {
         newErrors.maxTeamSize = "Maximum team size must be greater than or equal to minimum"
       }
-    }
-
-    if (!formData.status) {
-      newErrors.status = "Project status is required"
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = "Project description is required"
     }
 
     // Optional URL validation
@@ -1046,7 +1036,7 @@ export function ProjectCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="status">Status *</Label>
+                          <Label htmlFor="status">Status</Label>
                           <Select
                             value={formData.status || ""}
                             onValueChange={(value) => handleInputChange("status", value as ProjectStatus)}
@@ -1072,7 +1062,7 @@ export function ProjectCreationDialog({
 
                       {/* Team Size — own row */}
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Team Size *</Label>
+                        <Label className="text-sm font-medium">Team Size</Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <Label htmlFor="minTeamSize" className="text-xs text-muted-foreground">
@@ -1448,7 +1438,7 @@ export function ProjectCreationDialog({
                     <CardContent className="pt-0 space-y-4">
                       {/* Description */}
                       <div className="space-y-2">
-                        <Label htmlFor="description">Description *</Label>
+                        <Label htmlFor="description">Description</Label>
                         <Textarea
                           id="description"
                           placeholder="Provide a detailed description of the project, its goals, and key features..."
