@@ -102,6 +102,14 @@ interface EmployersTableProps {
   employers: Employer[]
   filters?: EmployerFilters
   isLoading?: boolean
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (size: number) => void
   onAdd?: () => void
   onView?: (employer: Employer) => void
   onEdit?: (employer: Employer) => void
@@ -204,6 +212,14 @@ export function EmployersTable({
   employers,
   filters,
   isLoading = false,
+  totalCount,
+  pageNumber,
+  pageSize,
+  totalPages,
+  hasPrevious,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
   onAdd,
   onView,
   onEdit,
@@ -215,8 +231,6 @@ export function EmployersTable({
   const router = useRouter()
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [expandedEmployers, setExpandedEmployers] = useState<Set<string>>(new Set())
   const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -300,11 +314,8 @@ export function EmployersTable({
     })
   }, [filteredEmployers, sortKey, sortDirection])
 
-  // Pagination
-  const totalPages = Math.ceil(sortedEmployers.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedEmployers = sortedEmployers.slice(startIndex, endIndex)
+  const startIndex = (pageNumber - 1) * pageSize
+  const endIndex = startIndex + employers.length
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -315,13 +326,8 @@ export function EmployersTable({
     }
   }
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
-  }
-
   const handleItemsPerPageChange = (value: string) => {
-    setItemsPerPage(parseInt(value))
-    setCurrentPage(1)
+    onPageSizeChange(parseInt(value))
   }
 
   const handleViewProjects = (employer: Employer) => {
@@ -472,7 +478,7 @@ export function EmployersTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedEmployers.map((employer) => {
+            {sortedEmployers.map((employer) => {
               const isExpanded = expandedEmployers.has(employer.id)
               return (
                 <React.Fragment key={employer.id}>
@@ -848,16 +854,16 @@ export function EmployersTable({
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
           <Select
-            value={itemsPerPage.toString()}
+            value={pageSize.toString()}
             onValueChange={handleItemsPerPageChange}
           >
             <SelectTrigger className="h-8 w-[70px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent side="top">
-              {ITEMS_PER_PAGE_OPTIONS.map((pageSize) => (
-                <SelectItem key={pageSize} value={pageSize.toString()}>
-                  {pageSize}
+              {ITEMS_PER_PAGE_OPTIONS.map((size) => (
+                <SelectItem key={size} value={size.toString()}>
+                  {size}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -866,14 +872,14 @@ export function EmployersTable({
 
         <div className="flex items-center space-x-6 lg:space-x-8">
           <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-            Page {currentPage} of {totalPages || 1}
+            Page {pageNumber} of {totalPages || 1}
           </div>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to first page</span>
               <ChevronsLeftIcon className="h-4 w-4" />
@@ -881,8 +887,8 @@ export function EmployersTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
+              onClick={() => onPageChange(pageNumber - 1)}
+              disabled={!hasPrevious}
             >
               <span className="sr-only">Go to previous page</span>
               <ChevronLeftIcon className="h-4 w-4" />
@@ -890,8 +896,8 @@ export function EmployersTable({
             <Button
               variant="outline"
               className="h-8 w-8 p-0"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(pageNumber + 1)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to next page</span>
               <ChevronRightIcon className="h-4 w-4" />
@@ -899,8 +905,8 @@ export function EmployersTable({
             <Button
               variant="outline"
               className="hidden h-8 w-8 p-0 lg:flex"
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
+              onClick={() => onPageChange(totalPages)}
+              disabled={!hasNext}
             >
               <span className="sr-only">Go to last page</span>
               <ChevronsRightIcon className="h-4 w-4" />
@@ -911,8 +917,8 @@ export function EmployersTable({
 
       {/* Results Info */}
       <div className="text-xs text-muted-foreground">
-        Showing {startIndex + 1} to {Math.min(endIndex, sortedEmployers.length)} of{" "}
-        {sortedEmployers.length} entries
+        Showing {totalCount === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalCount)} of{" "}
+        {totalCount} entries
       </div>
 
       {/* Employer Detail Dialog */}

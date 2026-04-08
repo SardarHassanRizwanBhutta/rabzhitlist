@@ -100,6 +100,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [totalCount, setTotalCount] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
+  const [hasPrevious, setHasPrevious] = useState(false)
+  const [hasNext, setHasNext] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [employerToEdit, setEmployerToEdit] = useState<Employer | null>(null)
   const [techStacksLookup, setTechStacksLookup] = useState<LookupItem[]>([])
@@ -226,6 +228,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       setEmployers(result.items.map(employerListItemToEmployer))
       setTotalCount(result.totalCount)
       setTotalPages(result.totalPages)
+      setHasPrevious(result.hasPrevious)
+      setHasNext(result.hasNext)
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load employers")
       setEmployers([])
@@ -279,6 +283,15 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
 
   const handleClearFilters = useCallback(() => {
     setFilters(initialFilters)
+    setPageNumber(1)
+  }, [])
+
+  const handlePageChange = useCallback((page: number) => {
+    setPageNumber(page)
+  }, [])
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size)
     setPageNumber(1)
   }, [])
 
@@ -363,6 +376,14 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         employers={employers}
         filters={filters}
         isLoading={loading}
+        totalCount={totalCount}
+        pageNumber={pageNumber}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        hasPrevious={hasPrevious}
+        hasNext={hasNext}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         onView={handleViewEmployer}
         onEdit={handleEditEmployer}
         onDelete={handleDeleteEmployer}
