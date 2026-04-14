@@ -94,6 +94,7 @@ import { Progress } from "@/components/ui/progress"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -264,8 +265,11 @@ const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
 
 // Base tech stack options
 const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
-// Base horizontal domain options
-const baseHorizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains()
+// Base horizontal domain options (fixed enum set from backend)
+const baseHorizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
+}))
 
 interface CandidateDetailsModalProps {
   candidate: Candidate | null

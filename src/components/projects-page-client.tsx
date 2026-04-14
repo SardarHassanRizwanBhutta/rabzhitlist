@@ -21,21 +21,26 @@ import {
   buildFetchProjectsParams,
   buildCreateProjectDto,
   buildUpdateProjectDto,
+  VERTICAL_DOMAINS,
+  HORIZONTAL_DOMAINS,
+  verticalDomainLabelToInt,
+  horizontalDomainLabelToInt,
+  technicalDomainLabelToInt,
+  ensureTechnicalDomainsCatalogLoaded,
+  technicalDomainCatalogToSelectOptions,
   type CreateProjectOptions,
 } from "@/lib/services/projects-api"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import {
   fetchTechStacks,
-  fetchVerticalDomains,
-  fetchHorizontalDomains,
   fetchTechnicalAspects,
+  fetchTechnicalAspectTypes,
   fetchClientLocations,
   createTechStack,
-  createVerticalDomain,
-  createHorizontalDomain,
   createTechnicalAspect,
   createClientLocation,
 } from "@/lib/services/lookups-api"
+import type { MultiSelectOption } from "@/components/ui/multi-select"
 
 const DEFAULT_PAGE_SIZE = 20
 
@@ -43,13 +48,12 @@ const initialFilters: ProjectFilters = {
   status: [],
   projectTypes: [],
   employers: [],
-  employerCities: [],
-  employerCountries: [],
-  employerTypes: [],
   clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
+  technicalAspectTypeIds: [],
   techStacks: [],
   completionDateStart: null,
   completionDateEnd: null,
@@ -72,6 +76,25 @@ function namesToIds(names: string[], lookup: LookupItem[]): number[] {
     .filter((id): id is number => id != null)
 }
 
+function labelsToInts(labels: string[], toInt: (label: string) => number | undefined): number[] {
+  return labels.map(toInt).filter((v): v is number => v != null)
+}
+
+function aspectTypeIdStringsToInts(ids: string[]): number[] {
+  return ids.map((s) => parseInt(s, 10)).filter((n): n is number => !Number.isNaN(n))
+}
+
+/** PUT/POST body uses `technicalAspects` (enum ints per PROJECT-API-REFERENCE.md), not `technicalAspectIds`. */
+function technicalAspectEnumsForProjectBody(
+  legacyAspectNames: string[],
+  aspectTypeIdStrings: string[] | undefined,
+  legacyLookup: LookupItem[]
+): number[] {
+  const fromLegacy = namesToIds(legacyAspectNames, legacyLookup)
+  const fromTypes = aspectTypeIdStringsToInts(aspectTypeIdStrings ?? [])
+  return [...new Set([...fromTypes, ...fromLegacy])]
+}
+
 export function ProjectsPageClient() {
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<ProjectFilters>(initialFilters)
@@ -85,53 +108,67 @@ export function ProjectsPageClient() {
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
 
-  // Lookup data for dropdowns (prefetched on mount; used by filter dialog and create/edit dialog)
+  // Lookup data for dropdowns (prefetched on mount)
   const [techStacksLookup, setTechStacksLookup] = useState<LookupItem[]>([])
-  const [verticalDomainsLookup, setVerticalDomainsLookup] = useState<LookupItem[]>([])
-  const [horizontalDomainsLookup, setHorizontalDomainsLookup] = useState<LookupItem[]>([])
   const [technicalAspectsLookup, setTechnicalAspectsLookup] = useState<LookupItem[]>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
+  const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<MultiSelectOption[]>([])
 
-  // Resolve filter names to IDs for server-side filtering (used when building params)
-  const filterIds = useMemo(
-    () => ({
+  // Resolve filter names/labels to IDs/integers for server-side filtering
+  const filterIds = useMemo(() => {
+    const fromLegacyAspects = namesToIds(filters.technicalAspects, technicalAspectsLookup)
+    const fromAspectTypes = aspectTypeIdStringsToInts(filters.technicalAspectTypeIds)
+    const technicalAspectEnumValues = [...new Set([...fromAspectTypes, ...fromLegacyAspects])]
+    return {
       techStackIds: namesToIds(filters.techStacks, techStacksLookup),
-      verticalDomainIds: namesToIds(filters.verticalDomains, verticalDomainsLookup),
-      horizontalDomainIds: namesToIds(filters.horizontalDomains, horizontalDomainsLookup),
-      technicalAspectIds: namesToIds(filters.technicalAspects, technicalAspectsLookup),
+      verticalDomains: labelsToInts(filters.verticalDomains, verticalDomainLabelToInt),
+      horizontalDomains: labelsToInts(filters.horizontalDomains, horizontalDomainLabelToInt),
+      technicalDomains: labelsToInts(filters.technicalDomains, technicalDomainLabelToInt),
+      technicalAspectEnumValues,
       clientLocationIds: namesToIds(filters.clientLocations, clientLocationsLookup),
-    }),
-    [
-      filters.techStacks,
-      filters.verticalDomains,
-      filters.horizontalDomains,
-      filters.technicalAspects,
-      filters.clientLocations,
-      techStacksLookup,
-      verticalDomainsLookup,
-      horizontalDomainsLookup,
-      technicalAspectsLookup,
-      clientLocationsLookup,
-    ]
-  )
+    }
+  }, [
+    filters.techStacks,
+    filters.verticalDomains,
+    filters.horizontalDomains,
+    filters.technicalDomains,
+    filters.technicalAspects,
+    filters.technicalAspectTypeIds,
+    filters.clientLocations,
+    techStacksLookup,
+    technicalAspectsLookup,
+    clientLocationsLookup,
+  ])
 
-  // Fetch lookups once on mount (for filter and create/edit dropdowns); do not re-run when projects or filters change
+  // Fetch lookups once on mount (technical domains from GET /api/TechnicalDomains)
   useEffect(() => {
     let cancelled = false
     Promise.all([
       fetchTechStacks(),
-      fetchVerticalDomains(),
-      fetchHorizontalDomains(),
       fetchTechnicalAspects(),
       fetchClientLocations(),
-    ]).then(([tech, vertical, horizontal, technical, clientLocs]) => {
+      fetchTechnicalAspectTypes(),
+      ensureTechnicalDomainsCatalogLoaded(),
+    ]).then(([tech, technical, clientLocs, aspectTypes, tdCatalog]) => {
       if (cancelled) return
       setTechStacksLookup(tech)
-      setVerticalDomainsLookup(vertical)
-      setHorizontalDomainsLookup(horizontal)
       setTechnicalAspectsLookup(technical)
       setClientLocationsLookup(clientLocs)
+      setTechnicalAspectTypeSelectOptions(
+        aspectTypes.map((a) => ({ value: String(a.value), label: a.label }))
+      )
+      setTechnicalDomainSelectOptions(technicalDomainCatalogToSelectOptions(tdCatalog))
     })
+      .catch(() => {
+        if (!cancelled) {
+          setTechStacksLookup([])
+          setTechnicalAspectsLookup([])
+          setClientLocationsLookup([])
+          setTechnicalAspectTypeSelectOptions([])
+          setTechnicalDomainSelectOptions([])
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -143,16 +180,21 @@ export function ProjectsPageClient() {
     setLoading(true)
     setError(null)
 
-    const params = buildFetchProjectsParams(filters, pageNumber, pageSize, {
-      techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
-      verticalDomainIds: filterIds.verticalDomainIds.length ? filterIds.verticalDomainIds : undefined,
-      horizontalDomainIds: filterIds.horizontalDomainIds.length ? filterIds.horizontalDomainIds : undefined,
-      technicalAspectIds: filterIds.technicalAspectIds.length ? filterIds.technicalAspectIds : undefined,
-      clientLocationIds: filterIds.clientLocationIds.length ? filterIds.clientLocationIds : undefined,
-    })
-
-    fetchProjectsFiltered(params)
-      .then((result) => {
+    ;(async () => {
+      try {
+        await ensureTechnicalDomainsCatalogLoaded()
+        if (cancelled) return
+        const params = buildFetchProjectsParams(filters, pageNumber, pageSize, {
+          techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
+          verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
+          horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
+          technicalDomains: filterIds.technicalDomains.length ? filterIds.technicalDomains : undefined,
+          technicalAspectEnumValues: filterIds.technicalAspectEnumValues.length
+            ? filterIds.technicalAspectEnumValues
+            : undefined,
+          clientLocationIds: filterIds.clientLocationIds.length ? filterIds.clientLocationIds : undefined,
+        })
+        const result = await fetchProjectsFiltered(params)
         if (cancelled) return
         const items = result?.items ?? []
         setProjects(items.map(projectListItemDtoToProject))
@@ -160,17 +202,16 @@ export function ProjectsPageClient() {
         setTotalPages(result?.totalPages ?? 0)
         setHasNext(result?.hasNext ?? false)
         setHasPrevious(result?.hasPrevious ?? false)
-      })
-      .catch((e) => {
+      } catch (e) {
         if (cancelled) return
         const message = e instanceof Error ? e.message : "Failed to load projects"
         setError(message)
         toast.error(message)
         setProjects([])
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false)
-      })
+      }
+    })()
 
     return () => {
       cancelled = true
@@ -178,11 +219,15 @@ export function ProjectsPageClient() {
   }, [filters, pageNumber, pageSize, filterIds])
 
   const loadProjects = useCallback(async () => {
+    await ensureTechnicalDomainsCatalogLoaded()
     const params = buildFetchProjectsParams(filters, pageNumber, pageSize, {
       techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
-      verticalDomainIds: filterIds.verticalDomainIds.length ? filterIds.verticalDomainIds : undefined,
-      horizontalDomainIds: filterIds.horizontalDomainIds.length ? filterIds.horizontalDomainIds : undefined,
-      technicalAspectIds: filterIds.technicalAspectIds.length ? filterIds.technicalAspectIds : undefined,
+      verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
+      horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
+      technicalDomains: filterIds.technicalDomains.length ? filterIds.technicalDomains : undefined,
+      technicalAspectEnumValues: filterIds.technicalAspectEnumValues.length
+        ? filterIds.technicalAspectEnumValues
+        : undefined,
       clientLocationIds: filterIds.clientLocationIds.length ? filterIds.clientLocationIds : undefined,
     })
     const result = await fetchProjectsFiltered(params)
@@ -204,9 +249,14 @@ export function ProjectsPageClient() {
     const employerId = data.selectedEmployer?.id ?? null
     const options: CreateProjectOptions = {
       techStackIds: namesToIds(data.techStacks, techStacksLookup),
-      verticalDomainIds: namesToIds(data.verticalDomains, verticalDomainsLookup),
-      horizontalDomainIds: namesToIds(data.horizontalDomains, horizontalDomainsLookup),
-      technicalAspectIds: namesToIds(data.technicalAspects, technicalAspectsLookup),
+      verticalDomains: labelsToInts(data.verticalDomains, verticalDomainLabelToInt),
+      horizontalDomains: labelsToInts(data.horizontalDomains, horizontalDomainLabelToInt),
+      technicalDomains: labelsToInts(data.technicalDomains, technicalDomainLabelToInt),
+      technicalAspects: technicalAspectEnumsForProjectBody(
+        data.technicalAspects,
+        data.technicalAspectTypeIds,
+        technicalAspectsLookup
+      ),
       clientLocationIds: namesToIds(data.clientLocations, clientLocationsLookup),
       employerId,
     }
@@ -214,7 +264,6 @@ export function ProjectsPageClient() {
       if (projectToEdit) {
         const body = buildUpdateProjectDto(data, {
           ...options,
-          isPublished: projectToEdit.isPublished,
           employerId,
         })
         await updateProject(Number(projectToEdit.id), body)
@@ -240,16 +289,20 @@ export function ProjectsPageClient() {
     const employerId = formData.selectedEmployer?.id ?? null
     const options: CreateProjectOptions = {
       techStackIds: namesToIds(formData.techStacks, techStacksLookup),
-      verticalDomainIds: namesToIds(formData.verticalDomains, verticalDomainsLookup),
-      horizontalDomainIds: namesToIds(formData.horizontalDomains, horizontalDomainsLookup),
-      technicalAspectIds: namesToIds(formData.technicalAspects, technicalAspectsLookup),
+      verticalDomains: labelsToInts(formData.verticalDomains, verticalDomainLabelToInt),
+      horizontalDomains: labelsToInts(formData.horizontalDomains, horizontalDomainLabelToInt),
+      technicalDomains: labelsToInts(formData.technicalDomains, technicalDomainLabelToInt),
+      technicalAspects: technicalAspectEnumsForProjectBody(
+        formData.technicalAspects,
+        formData.technicalAspectTypeIds,
+        technicalAspectsLookup
+      ),
       clientLocationIds: namesToIds(formData.clientLocations, clientLocationsLookup),
       employerId,
     }
     try {
       const body = buildUpdateProjectDto(formData, {
         ...options,
-        isPublished: projectToVerify.isPublished,
         employerId,
       })
       await updateProject(Number(projectToVerify.id), body)
@@ -310,30 +363,13 @@ export function ProjectsPageClient() {
   }
 
   // Create lookup handlers: POST new value, add to state so dropdown and submit have it
-  const handleCreateTechStack = useCallback(async (name: string) => {
+  const handleCreateTechStack = useCallback(async (name: string, context?: { aspectTypeId: number }) => {
     try {
-      const created = await createTechStack(name)
+      const ids = context?.aspectTypeId != null ? [context.aspectTypeId] : undefined
+      const created = await createTechStack(name, ids)
       setTechStacksLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add technology")
-      throw e
-    }
-  }, [])
-  const handleCreateVerticalDomain = useCallback(async (name: string) => {
-    try {
-      const created = await createVerticalDomain(name)
-      setVerticalDomainsLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add vertical domain")
-      throw e
-    }
-  }, [])
-  const handleCreateHorizontalDomain = useCallback(async (name: string) => {
-    try {
-      const created = await createHorizontalDomain(name)
-      setHorizontalDomainsLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add horizontal domain")
       throw e
     }
   }, [])
@@ -380,8 +416,10 @@ export function ProjectsPageClient() {
             onClearFilters={handleClearFilters}
             lookupOptions={{
               techStacks: techStacksLookup.map((l) => ({ value: l.name, label: l.name })),
-              verticalDomains: verticalDomainsLookup.map((l) => ({ value: l.name, label: l.name })),
-              horizontalDomains: horizontalDomainsLookup.map((l) => ({ value: l.name, label: l.name })),
+              verticalDomains: VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
+              horizontalDomains: HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
+              technicalDomains: technicalDomainSelectOptions,
+              technicalAspectTypes: technicalAspectTypeSelectOptions,
               technicalAspects: technicalAspectsLookup.map((l) => ({ value: l.name, label: l.name })),
               clientLocations: clientLocationsLookup.map((l) => ({ value: l.name, label: l.name })),
             }}
@@ -400,14 +438,12 @@ export function ProjectsPageClient() {
             onSubmit={handleProjectSubmit}
             lookups={{
               techStacks: techStacksLookup,
-              verticalDomains: verticalDomainsLookup,
-              horizontalDomains: horizontalDomainsLookup,
               technicalAspects: technicalAspectsLookup,
               clientLocations: clientLocationsLookup,
+              technicalDomains: technicalDomainSelectOptions,
+              technicalAspectTypes: technicalAspectTypeSelectOptions,
             }}
             onCreateTechStack={handleCreateTechStack}
-            onCreateVerticalDomain={handleCreateVerticalDomain}
-            onCreateHorizontalDomain={handleCreateHorizontalDomain}
             onCreateTechnicalAspect={handleCreateTechnicalAspect}
             onCreateClientLocation={handleCreateClientLocation}
           />
@@ -423,14 +459,12 @@ export function ProjectsPageClient() {
               onSubmit={handleProjectSubmit}
               lookups={{
                 techStacks: techStacksLookup,
-                verticalDomains: verticalDomainsLookup,
-                horizontalDomains: horizontalDomainsLookup,
                 technicalAspects: technicalAspectsLookup,
                 clientLocations: clientLocationsLookup,
+                technicalDomains: technicalDomainSelectOptions,
+                technicalAspectTypes: technicalAspectTypeSelectOptions,
               }}
               onCreateTechStack={handleCreateTechStack}
-              onCreateVerticalDomain={handleCreateVerticalDomain}
-              onCreateHorizontalDomain={handleCreateHorizontalDomain}
               onCreateTechnicalAspect={handleCreateTechnicalAspect}
               onCreateClientLocation={handleCreateClientLocation}
             />
@@ -448,14 +482,12 @@ export function ProjectsPageClient() {
               onSubmit={handleVerifySubmit}
               lookups={{
                 techStacks: techStacksLookup,
-                verticalDomains: verticalDomainsLookup,
-                horizontalDomains: horizontalDomainsLookup,
                 technicalAspects: technicalAspectsLookup,
                 clientLocations: clientLocationsLookup,
+                technicalDomains: technicalDomainSelectOptions,
+                technicalAspectTypes: technicalAspectTypeSelectOptions,
               }}
               onCreateTechStack={handleCreateTechStack}
-              onCreateVerticalDomain={handleCreateVerticalDomain}
-              onCreateHorizontalDomain={handleCreateHorizontalDomain}
               onCreateTechnicalAspect={handleCreateTechnicalAspect}
               onCreateClientLocation={handleCreateClientLocation}
             />
@@ -492,6 +524,7 @@ export function ProjectsPageClient() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onVerify={handleVerify}
+        technicalDomainOptions={technicalDomainSelectOptions}
       />
     </div>
   )

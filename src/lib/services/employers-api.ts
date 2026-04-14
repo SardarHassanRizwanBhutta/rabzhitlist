@@ -9,6 +9,8 @@ import type { EmployerFormData, EmployerLocationFormData, LayoffFormData } from 
 import {
   EMPLOYER_TYPE_DB_LABELS,
   SALARY_POLICY_DB_LABELS,
+  normalizeSalaryPolicy,
+  type SalaryPolicy,
   type WorkModeDb,
   type ShiftTypeDb,
   type RankingDb,
@@ -50,9 +52,10 @@ export const EMPLOYER_TYPE_TO_API: Record<EmployerTypeDb, number> = {
   resource_augmentation: 5,
 }
 export const SALARY_POLICY_TO_API: Record<SalaryPolicyDb, number> = {
-  standard: 0,
-  tax_free: 1,
-  remittance: 2,
+  gross_salary: 0,
+  remittance_salary: 1,
+  net_salary: 2,
+  fixed_salary_plus_commission_or_monthly_bonus: 3,
 }
 export const LAYOFF_REASON_TO_API: Record<LayoffReasonDb, number> = {
   cost_reduction: 0,
@@ -93,9 +96,10 @@ const API_TO_EMPLOYER_TYPE: Record<number, EmployerTypeDb> = {
   5: "resource_augmentation",
 }
 const API_TO_SALARY_POLICY: Record<number, SalaryPolicyDb> = {
-  0: "standard",
-  1: "tax_free",
-  2: "remittance",
+  0: "gross_salary",
+  1: "remittance_salary",
+  2: "net_salary",
+  3: "fixed_salary_plus_commission_or_monthly_bonus",
 }
 const API_TO_LAYOFF_REASON: Record<number, LayoffReasonDb> = {
   0: "cost_reduction",
@@ -313,7 +317,9 @@ export interface FetchEmployersParams {
   tags?: string[]
   rankings?: number[]
   isDPLCompetitive?: boolean
-  // Add more filter keys as needed per Employer-Filters-Reference.md
+  verticalDomains?: number[]
+  horizontalDomains?: number[]
+  technicalDomains?: number[]
 }
 
 function buildQueryString(params: FetchEmployersParams): string {
@@ -323,6 +329,9 @@ function buildQueryString(params: FetchEmployersParams): string {
   if (params.foundedYears?.length) params.foundedYears.forEach((y) => search.append("foundedYears", y))
   if (params.tags?.length) params.tags.forEach((t) => search.append("tags", t))
   if (params.isDPLCompetitive != null) search.set("isDPLCompetitive", String(params.isDPLCompetitive))
+  params.verticalDomains?.forEach((v) => search.append("VerticalDomains", String(v)))
+  params.horizontalDomains?.forEach((v) => search.append("HorizontalDomains", String(v)))
+  params.technicalDomains?.forEach((v) => search.append("TechnicalDomains", String(v)))
   return search.toString()
 }
 
@@ -473,7 +482,7 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       city: loc.city,
       address: null,
       isHeadquarters: false,
-      salaryPolicy: (loc.salaryPolicy as "Standard" | "Tax Free" | "Remittance") || "Standard",
+      salaryPolicy: normalizeSalaryPolicy(loc.salaryPolicy),
       minSize: loc.minSize,
       maxSize: loc.maxSize,
       createdAt: new Date(),
@@ -494,7 +503,9 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
   const locations: EmployerLocation[] = dto.locations.map((loc) => {
     const policyNum = loc.salaryPolicy
     const policyDb: SalaryPolicyDb | null = policyNum != null && policyNum in API_TO_SALARY_POLICY ? (API_TO_SALARY_POLICY as Record<number, SalaryPolicyDb>)[policyNum] : null
-    const salaryPolicyDisplay = policyDb ? (SALARY_POLICY_DB_LABELS[policyDb] as "Standard" | "Tax Free" | "Remittance") : "Standard"
+    const salaryPolicyDisplay: SalaryPolicy = policyDb
+      ? (SALARY_POLICY_DB_LABELS[policyDb] as SalaryPolicy)
+      : "Gross Salary"
     return {
       id: String(loc.id),
       employerId: String(dto.id),

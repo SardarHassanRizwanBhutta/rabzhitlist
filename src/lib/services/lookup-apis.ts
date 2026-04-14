@@ -37,25 +37,9 @@ async function createOne<T>(path: string, body: CreateLookupItemDto): Promise<T>
   return res.json()
 }
 
-// --- Vertical Domains ---
-
-export async function getVerticalDomains(): Promise<LookupItem[]> {
-  return getList<LookupItem>("/api/verticaldomains")
-}
-
-export async function createVerticalDomain(name: string): Promise<LookupItem> {
-  return createOne<LookupItem>("/api/verticaldomains", { name })
-}
-
-// --- Horizontal Domains ---
-
-export async function getHorizontalDomains(): Promise<LookupItem[]> {
-  return getList<LookupItem>("/api/horizontaldomains")
-}
-
-export async function createHorizontalDomain(name: string): Promise<LookupItem> {
-  return createOne<LookupItem>("/api/horizontaldomains", { name })
-}
+// --- Vertical Domains & Horizontal Domains ---
+// These are now fixed enums on the backend (no CRUD).
+// Use VERTICAL_DOMAINS / HORIZONTAL_DOMAINS from projects-api.ts for dropdowns.
 
 // --- Technical Aspects ---
 

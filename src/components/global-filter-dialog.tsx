@@ -18,6 +18,7 @@ import { GlobalFilters, getGlobalFilterCount } from "@/lib/types/global-filters"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 
 interface GlobalFilterDialogProps {
@@ -149,14 +150,14 @@ const techStackOptions: MultiSelectOption[] = extractGlobalTechStacks().map(tech
   label: tech
 }))
 
-const verticalDomainOptions: MultiSelectOption[] = extractGlobalVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
-const horizontalDomainOptions: MultiSelectOption[] = extractGlobalHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
 const technicalAspectOptions: MultiSelectOption[] = extractGlobalTechnicalAspects().map(aspect => ({

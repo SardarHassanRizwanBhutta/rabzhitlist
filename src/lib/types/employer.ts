@@ -130,25 +130,40 @@ export const EMPLOYER_STATUS_DISPLAY_TO_DB: Record<EmployerStatus, EmployerStatu
   Closed: "closed",
 }
 
-export type SalaryPolicy = 
-  | "Standard"
-  | "Tax Free"
-  | "Remittance"
+/** Display strings match backend list / API descriptions. */
+export type SalaryPolicy =
+  | "Gross Salary"
+  | "Remittance Salary"
+  | "Net Salary"
+  | "Fixed Salary + Commission/ Monthly Bonus"
 
-/** DB enum salary_policy_enum (e.g. employer_locations.salary_policy). */
-export type SalaryPolicyDb = "standard" | "tax_free" | "remittance"
+/** DB-style keys for forms and mapping to API integers (see SALARY_POLICY_TO_API). */
+export type SalaryPolicyDb =
+  | "gross_salary"
+  | "remittance_salary"
+  | "net_salary"
+  | "fixed_salary_plus_commission_or_monthly_bonus"
 
 export const SALARY_POLICY_DB_LABELS: Record<SalaryPolicyDb, string> = {
-  standard: "Standard",
-  tax_free: "Tax Free",
-  remittance: "Remittance",
+  gross_salary: "Gross Salary",
+  remittance_salary: "Remittance Salary",
+  net_salary: "Net Salary",
+  fixed_salary_plus_commission_or_monthly_bonus: "Fixed Salary + Commission/ Monthly Bonus",
 }
 
 /** Map display (SalaryPolicy) to DB value for API/edit. */
 export const SALARY_POLICY_DISPLAY_TO_DB: Record<SalaryPolicy, SalaryPolicyDb> = {
-  Standard: "standard",
-  "Tax Free": "tax_free",
-  Remittance: "remittance",
+  "Gross Salary": "gross_salary",
+  "Remittance Salary": "remittance_salary",
+  "Net Salary": "net_salary",
+  "Fixed Salary + Commission/ Monthly Bonus": "fixed_salary_plus_commission_or_monthly_bonus",
+}
+
+/** Pre-migration API labels → current display (edge cases / cached data). */
+const LEGACY_SALARY_POLICY_DISPLAY: Record<string, SalaryPolicy> = {
+  Standard: "Gross Salary",
+  "Tax Free": "Net Salary",
+  Remittance: "Remittance Salary",
 }
 
 export type EmployerRanking =
@@ -257,9 +272,11 @@ export const EMPLOYER_STATUS_COLORS: Record<EmployerStatus, string> = {
 }
 
 export const SALARY_POLICY_COLORS: Record<SalaryPolicy, string> = {
-  Standard: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-  "Tax Free": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Remittance: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+  "Gross Salary": "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+  "Remittance Salary": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+  "Net Salary": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  "Fixed Salary + Commission/ Monthly Bonus":
+    "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200",
 }
 
 export const EMPLOYER_STATUS_LABELS: Record<EmployerStatus, string> = {
@@ -269,9 +286,19 @@ export const EMPLOYER_STATUS_LABELS: Record<EmployerStatus, string> = {
 }
 
 export const SALARY_POLICY_LABELS: Record<SalaryPolicy, string> = {
-  Standard: "Standard",
-  "Tax Free": "Tax Free",
-  Remittance: "Remittance"
+  "Gross Salary": "Gross Salary",
+  "Remittance Salary": "Remittance Salary",
+  "Net Salary": "Net Salary",
+  "Fixed Salary + Commission/ Monthly Bonus": "Fixed Salary + Commission/ Monthly Bonus",
+}
+
+/** Normalize list/detail or legacy strings to a current {@link SalaryPolicy}. */
+export function normalizeSalaryPolicy(policy: string | null | undefined): SalaryPolicy {
+  if (!policy) return "Gross Salary"
+  if (policy in SALARY_POLICY_DISPLAY_TO_DB) return policy as SalaryPolicy
+  const legacy = LEGACY_SALARY_POLICY_DISPLAY[policy]
+  if (legacy) return legacy
+  return "Gross Salary"
 }
 
 export const EMPLOYER_RANKING_COLORS: Record<EmployerRanking, string> = {

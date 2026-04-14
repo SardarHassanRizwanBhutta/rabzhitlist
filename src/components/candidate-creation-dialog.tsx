@@ -70,6 +70,7 @@ import {
   type CandidateSourceDb,
   parseCandidateSource,
 } from "@/lib/constants/candidate-enums"
+import { HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { EmployerCombobox, type SelectedEmployer as WorkExperienceSelectedEmployer } from "@/components/employer-combobox"
 import { fetchEmployerById, type BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
@@ -1105,7 +1106,9 @@ export function CandidateCreationDialog({
     return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [lookups?.majors, selectedMajorNames])
 
-  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>([])
+  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(
+    () => HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
+  )
   
   const [errors, setErrors] = useState<{
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, string>>

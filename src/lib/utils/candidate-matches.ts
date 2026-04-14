@@ -1,5 +1,6 @@
 import type { Candidate } from "@/lib/types/candidate"
 import type { CandidateFilters } from "@/components/candidates-filter-dialog"
+import { normalizeSalaryPolicy } from "@/lib/types/employer"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -647,10 +648,14 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
 
-        // Salary policy match
-        const matchingPolicies = employer.locations
-          .map(loc => loc.salaryPolicy)
-          .filter(policy => filters.employerSalaryPolicies.includes(policy))
+        // Salary policy match (normalize legacy labels on employer rows)
+        const matchingPolicies = [
+          ...new Set(
+            employer.locations
+              .map((loc) => normalizeSalaryPolicy(loc.salaryPolicy))
+              .filter((policy) => filters.employerSalaryPolicies.includes(policy))
+          ),
+        ]
         if (matchingPolicies.length > 0) {
           matchedCriteria.push({
             type: 'salaryPolicy',

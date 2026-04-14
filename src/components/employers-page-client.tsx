@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Globe } from "lucide-react"
 import { toast } from "sonner"
 import { EmployersTable } from "@/components/employers-table"
@@ -35,8 +35,18 @@ import {
   employerDtoToEmployer,
   employerListItemToEmployer,
 } from "@/lib/services/employers-api"
+import {
+  ensureTechnicalDomainsCatalogLoaded,
+  technicalDomainCatalogToSelectOptions,
+  technicalDomainLabelToInt,
+} from "@/lib/services/projects-api"
+import type { MultiSelectOption } from "@/components/ui/multi-select"
 
 const DEFAULT_PAGE_SIZE = 20
+
+function labelsToTechnicalDomainInts(labels: string[]): number[] {
+  return labels.map((l) => technicalDomainLabelToInt(l)).filter((v): v is number => v != null)
+}
 
 interface EmployersPageClientProps {
   /** Optional initial employers (e.g. from server). If not provided, list is fetched client-side. */
@@ -75,6 +85,7 @@ const initialFilters: EmployerFilters = {
   },
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   clientLocations: [],
   projectStatus: [],
@@ -110,6 +121,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [benefitsLookup, setBenefitsLookup] = useState<LookupItem[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
+  const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+
+  const technicalDomainFilterInts = useMemo(
+    () => labelsToTechnicalDomainInts(filters.technicalDomains),
+    [filters.technicalDomains]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -118,13 +135,15 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       fetchTags(),
       fetchTimeSupportZones(),
       fetchBenefits(),
+      ensureTechnicalDomainsCatalogLoaded(),
     ])
-      .then(([techStacks, tags, timeSupportZones, benefits]) => {
+      .then(([techStacks, tags, timeSupportZones, benefits, tdCatalog]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
           setTagsLookup(tags)
           setTimeSupportZonesLookup(timeSupportZones)
           setBenefitsLookup(benefits)
+          setTechnicalDomainSelectOptions(technicalDomainCatalogToSelectOptions(tdCatalog))
         }
       })
       .catch(() => {
@@ -133,6 +152,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           setTagsLookup([])
           setTimeSupportZonesLookup([])
           setBenefitsLookup([])
+          setTechnicalDomainSelectOptions([])
         }
       })
     return () => {
@@ -218,12 +238,14 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     setLoading(true)
     setError(null)
     try {
+      await ensureTechnicalDomainsCatalogLoaded()
       const result = await fetchEmployers({
         pageNumber,
         pageSize,
         foundedYears: filters.foundedYears?.length ? filters.foundedYears : undefined,
         tags: filters.tags?.length ? filters.tags : undefined,
         isDPLCompetitive: filters.isDPLCompetitive ?? undefined,
+        technicalDomains: technicalDomainFilterInts.length ? technicalDomainFilterInts : undefined,
       })
       setEmployers(result.items.map(employerListItemToEmployer))
       setTotalCount(result.totalCount)
@@ -236,7 +258,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     } finally {
       setLoading(false)
     }
-  }, [pageNumber, pageSize, filters.foundedYears, filters.tags, filters.isDPLCompetitive])
+  }, [pageNumber, pageSize, filters.foundedYears, filters.tags, filters.isDPLCompetitive, technicalDomainFilterInts])
 
   useEffect(() => {
     refetchEmployers()
@@ -338,6 +360,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
+            lookupOptions={{ technicalDomains: technicalDomainSelectOptions }}
           />
           <EmployerCreationDialog
             onSubmit={handleEmployerSubmit}
