@@ -100,6 +100,7 @@ import {
 } from "@/lib/types/project"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { 
   getVerificationsForProject,
   calculateProjectVerificationSummary,
@@ -262,14 +263,14 @@ const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech
   label: tech
 }))
 
-const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
 const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
@@ -304,6 +305,8 @@ interface ProjectsTableProps {
   onEdit?: (project: Project) => void
   onDelete?: (project: Project) => void
   onVerify?: (project: Project) => void
+  /** From GET /api/TechnicalDomains; empty until parent loads catalog. */
+  technicalDomainOptions?: MultiSelectOption[]
 }
 
 type SortKey = keyof Project
@@ -345,6 +348,7 @@ export function ProjectsTable({
   onEdit,
   onDelete,
   onVerify,
+  technicalDomainOptions = [],
 }: ProjectsTableProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -392,6 +396,7 @@ export function ProjectsTable({
         project.techStacks.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.verticalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.horizontalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        project.technicalDomains.some((domain) => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.technicalAspects.some(aspect => aspect.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.isPublished && "published".includes(searchQuery.toLowerCase())) ||
         (project.publishPlatforms && project.publishPlatforms.some(platform => platform.toLowerCase().includes(searchQuery.toLowerCase())))
@@ -547,6 +552,7 @@ export function ProjectsTable({
               <TableHead className="w-[180px]">Tech Stacks</TableHead>
               <TableHead className="w-[160px]">Horizontal Domains</TableHead>
               <TableHead className="w-[160px]">Vertical Domains</TableHead>
+              <TableHead className="w-[160px]">Technical Domains</TableHead>
               <TableHead className="w-[180px]">Technical Aspects</TableHead>
               <TableHead className="w-[100px]">
                 <SortButton column="teamSize">Team Size</SortButton>
@@ -578,6 +584,13 @@ export function ProjectsTable({
                 </TableCell>
                 <TableCell>
                   {renderTags(project.verticalDomains, 2, "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200")}
+                </TableCell>
+                <TableCell>
+                  {renderTags(
+                    project.technicalDomains,
+                    2,
+                    "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                  )}
                 </TableCell>
                 <TableCell>
                   {renderTags(project.technicalAspects, 2, "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200")}
@@ -746,6 +759,7 @@ export function ProjectsTable({
             setSelectedProject(null) // Close detail dialog
             onVerify(project)
           } : undefined}
+          technicalDomainOptions={technicalDomainOptions}
         />
       )}
 
@@ -2418,9 +2432,16 @@ interface ProjectDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onVerify?: (project: Project) => void
+  technicalDomainOptions: MultiSelectOption[]
 }
 
-function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectDetailDialogProps) {
+function ProjectDetailDialog({
+  project,
+  open,
+  onOpenChange,
+  onVerify,
+  technicalDomainOptions: technicalDomainOptionsForDetail,
+}: ProjectDetailDialogProps) {
   // Local state for project data (for optimistic updates)
   const [localProject, setLocalProject] = useState<Project>(project)
   
@@ -2820,6 +2841,19 @@ function ProjectDetailDialog({ project, open, onOpenChange, onVerify }: ProjectD
                   maxDisplay={4}
                 />
               </div>
+
+              <InlineEditableMultiSelect
+                label="Technical Domains"
+                value={localProject.technicalDomains || []}
+                fieldName="technicalDomains"
+                options={technicalDomainOptionsForDetail}
+                onSave={handleMultiSelectFieldSave}
+                getFieldVerification={getFieldVerification}
+                placeholder="Select technical domains..."
+                searchPlaceholder="Search technical domains..."
+                badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                maxDisplay={4}
+              />
 
               <InlineEditableMultiSelect
                 label="Technical Aspects"

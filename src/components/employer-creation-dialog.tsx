@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon, ChevronsUpDown, Check } from "lucide-react"
-import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicy, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB } from "@/lib/types/employer"
+import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB, normalizeSalaryPolicy } from "@/lib/types/employer"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { EmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
@@ -243,9 +243,12 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
       city: loc.city || "",
       address: loc.address || "",
       isHeadquarters: loc.isHeadquarters,
-      salaryPolicy: (loc.salaryPolicy && loc.salaryPolicy in SALARY_POLICY_DB_LABELS)
-        ? (loc.salaryPolicy as SalaryPolicyDb)
-        : (loc.salaryPolicy ? SALARY_POLICY_DISPLAY_TO_DB[loc.salaryPolicy as SalaryPolicy] : ""),
+      salaryPolicy:
+        loc.salaryPolicy && loc.salaryPolicy in SALARY_POLICY_DB_LABELS
+          ? (loc.salaryPolicy as SalaryPolicyDb)
+          : loc.salaryPolicy
+            ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(loc.salaryPolicy))]
+            : "",
       minSize: loc.minSize?.toString() || "",
       maxSize: loc.maxSize?.toString() || "",
     })),

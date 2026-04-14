@@ -13,6 +13,7 @@ export interface Project {
   techStacks: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
+  technicalDomains: string[]
   technicalAspects: string[]
   teamSize: string | null  // "5" or "20-30" (derived from min/max for display)
   /** Min team size (from API); used for inline edit in detail dialog. */

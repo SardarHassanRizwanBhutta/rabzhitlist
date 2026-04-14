@@ -26,8 +26,9 @@ import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { PROJECT_STATUS_LABELS, ProjectStatus } from "@/lib/types/project"
-import { EmployerStatus, SalaryPolicy, EmployerRanking, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
+import { EmployerStatus, EmployerRanking, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
 // Filter interfaces
 export interface CandidateFilters {
   // Global search for basic info fields (name, email, phone, CNIC, etc.)
@@ -313,16 +314,6 @@ const extractUniqueEmployerCities = () => {
   return Array.from(cities).sort()
 }
 
-const extractUniqueEmployerSalaryPolicies = () => {
-  const policies = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    employer.locations.forEach(location => {
-      policies.add(location.salaryPolicy)
-    })
-  })
-  return Array.from(policies).sort()
-}
-
 // Extract unique education detail data for filters
 const extractUniqueDegreeNames = () => {
   const degrees = new Set<string>()
@@ -472,14 +463,14 @@ const publishPlatformOptions: MultiSelectOption[] = [
   { value: "Desktop", label: "Desktop" },
 ]
 
-const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
 const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
@@ -508,9 +499,9 @@ const employerCityOptions: MultiSelectOption[] = extractUniqueEmployerCities().m
   label: city
 }))
 
-const employerSalaryPolicyOptions: MultiSelectOption[] = extractUniqueEmployerSalaryPolicies().map(policy => ({
-  value: policy,
-  label: SALARY_POLICY_LABELS[policy as SalaryPolicy] || policy
+const employerSalaryPolicyOptions: MultiSelectOption[] = Object.entries(SALARY_POLICY_LABELS).map(([value, label]) => ({
+  value,
+  label,
 }))
 
 const employerRankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABELS).map(([value, label]) => ({

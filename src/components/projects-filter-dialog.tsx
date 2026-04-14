@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -17,50 +17,37 @@ import { Label } from "@/components/ui/label"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Filter, CalendarIcon } from "lucide-react"
-import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
-import { EmployerType, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
-import { sampleEmployers } from "@/lib/sample-data/employers"
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Filter, CalendarIcon, ChevronsUpDown, Check, X } from "lucide-react"
+import { searchEmployers, fetchEmployerById } from "@/lib/services/employers-api"
+import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import { ProjectStatus, PROJECT_STATUS_LABELS, PROJECT_TYPES } from "@/lib/types/project"
 import { sampleProjects } from "@/lib/sample-data/projects"
+import {
+  VERTICAL_DOMAINS,
+  HORIZONTAL_DOMAINS,
+  type ProjectsListFilterInput,
+} from "@/lib/services/projects-api"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 
-// Filter interfaces
-export interface ProjectFilters {
-  status: ProjectStatus[]
-  projectTypes: string[]
-  employers: string[]
-  employerCities: string[]  // Filter by employer's city
-  employerCountries: string[]  // Filter by employer's country
-  employerTypes: string[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
-  clientLocations: string[]  // Filter by client's location (e.g., "San Francisco", "Silicon Valley", "United States")
-  verticalDomains: string[]
-  horizontalDomains: string[]
-  technicalAspects: string[]
-  techStacks: string[]
-  // Completion Date Range - filters by endDate only
-  completionDateStart: Date | null
-  completionDateEnd: Date | null
-  // Start & End Date Range - filters projects that started AND completed within range
-  startEndDateStart: Date | null
-  startEndDateEnd: Date | null
-  // Start Date Range - filters by startDate only
-  startDateStart: Date | null
-  startDateEnd: Date | null
-  teamSizeMin: string
-  teamSizeMax: string
-  projectName: string
-  projectLink: string
-  isPublished: boolean | null  // null = no filter, true = only published, false = only unpublished
-  publishPlatforms: string[]  // ["App Store", "Play Store", "Web", "Desktop"]
-  minDownloadCount: string  // Minimum download count (e.g., "100000" for 100K+)
-}
+export type ProjectFilters = ProjectsListFilterInput
 
 export interface ProjectLookupOptions {
   techStacks: MultiSelectOption[]
   verticalDomains: MultiSelectOption[]
   horizontalDomains: MultiSelectOption[]
-  technicalAspects: MultiSelectOption[]
+  technicalDomains: MultiSelectOption[]
+  /** Legacy GET /api/TechnicalAspects — optional when empty. */
+  technicalAspects?: MultiSelectOption[]
+  /** GET /api/TechnicalAspectTypes — preferred for project filter when non-empty. */
+  technicalAspectTypes?: MultiSelectOption[]
   clientLocations: MultiSelectOption[]
 }
 
@@ -106,66 +93,6 @@ const extractUniqueTechnicalAspects = (): string[] => {
   return Array.from(aspects).sort()
 }
 
-const extractUniqueProjectTypes = (): string[] => {
-  const types = new Set<string>()
-  sampleProjects.forEach(project => {
-    types.add(project.projectType)
-  })
-  return Array.from(types).sort()
-}
-
-// Extract unique cities from employers that have projects
-const extractUniqueEmployerCities = (): string[] => {
-  const cities = new Set<string>()
-  const employersWithProjects = new Set<string>()
-  
-  // First, collect all employer names that have projects
-  sampleProjects.forEach(project => {
-    if (project.employerName) {
-      employersWithProjects.add(project.employerName.trim())
-    }
-  })
-  
-  // Then, extract cities from those employers
-  sampleEmployers.forEach(employer => {
-    if (employersWithProjects.has(employer.name.trim())) {
-      employer.locations.forEach(location => {
-        if (location.city !== null) {
-          cities.add(location.city)
-        }
-      })
-    }
-  })
-  
-  return Array.from(cities).sort()
-}
-
-// Extract unique countries from employers that have projects
-const extractUniqueEmployerCountries = (): string[] => {
-  const countries = new Set<string>()
-  const employersWithProjects = new Set<string>()
-  
-  // First, collect all employer names that have projects
-  sampleProjects.forEach(project => {
-    if (project.employerName) {
-      employersWithProjects.add(project.employerName.trim())
-    }
-  })
-  
-  // Then, extract countries from those employers
-  sampleEmployers.forEach(employer => {
-    if (employersWithProjects.has(employer.name.trim())) {
-      employer.locations.forEach(location => {
-        if (location.country !== null) {
-          countries.add(location.country)
-        }
-      })
-    }
-  })
-  
-  return Array.from(countries).sort()
-}
-
 // Extract unique client locations from projects
 const extractUniqueClientLocations = (): string[] => {
   const locations = new Set<string>()
@@ -183,27 +110,10 @@ const statusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_LABELS)
   label
 }))
 
-const projectTypeOptions: MultiSelectOption[] = extractUniqueProjectTypes().map(type => ({
+const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   value: type,
-  label: type
+  label: type,
 }))
-
-const employerOptions: MultiSelectOption[] = sampleEmployers.map(employer => ({
-  value: employer.id,
-  label: employer.name
-}))
-
-const employerCityOptions: MultiSelectOption[] = extractUniqueEmployerCities().map(city => ({
-  value: city,
-  label: city
-}))
-
-const employerCountryOptions: MultiSelectOption[] = extractUniqueEmployerCountries().map(country => ({
-  value: country,
-  label: country
-}))
-
-
 
 // Publish platform options
 const publishPlatformOptions: MultiSelectOption[] = [
@@ -217,13 +127,12 @@ const initialFilters: ProjectFilters = {
   status: [],
   projectTypes: [],
   employers: [],
-  employerCities: [],
-  employerCountries: [],
-  employerTypes: [],
   clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
+  technicalAspectTypeIds: [],
   techStacks: [],
   completionDateStart: null,
   completionDateEnd: null,
@@ -250,10 +159,131 @@ export function ProjectsFilterDialog({
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<ProjectFilters>(filters)
 
+  // Employer combobox: server-driven search (same pattern as ProjectCreationDialog)
+  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
+  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
+  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
+  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
+  const [employerNameById, setEmployerNameById] = useState<Record<string, string>>({})
+  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const employerAbortRef = useRef<AbortController | null>(null)
+  const employerNameByIdRef = useRef<Record<string, string>>({})
+  employerNameByIdRef.current = employerNameById
+
+  // Debounced employer search: min 2 chars, 300ms debounce, abort stale
+  useEffect(() => {
+    if (employerDebounceRef.current) {
+      clearTimeout(employerDebounceRef.current)
+      employerDebounceRef.current = null
+    }
+    if (employerSearchQuery.trim().length < 2) {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+        employerAbortRef.current = null
+      }
+      setEmployerSearchResults([])
+      setEmployerSearchLoading(false)
+      return
+    }
+    employerDebounceRef.current = setTimeout(() => {
+      employerDebounceRef.current = null
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+      const controller = new AbortController()
+      employerAbortRef.current = controller
+      setEmployerSearchLoading(true)
+      const query = employerSearchQuery.trim()
+      searchEmployers(query, 10, controller.signal)
+        .then((list) => {
+          if (employerAbortRef.current !== controller) return
+          setEmployerSearchResults(list)
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return
+          setEmployerSearchResults([])
+        })
+        .finally(() => {
+          if (employerAbortRef.current === controller) {
+            setEmployerSearchLoading(false)
+          }
+        })
+    }, 300)
+    return () => {
+      if (employerDebounceRef.current) {
+        clearTimeout(employerDebounceRef.current)
+      }
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [employerSearchQuery])
+
+  useEffect(() => {
+    return () => {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [])
+
+  // Resolve labels for employer ids restored from applied filters (e.g. after reopen dialog)
+  useEffect(() => {
+    const missing = tempFilters.employers.filter((id) => !employerNameByIdRef.current[id])
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map((id) => {
+        const n = parseInt(id, 10)
+        if (Number.isNaN(n)) return Promise.resolve(null as { id: string; name: string } | null)
+        return fetchEmployerById(n)
+          .then((dto) => ({ id: String(dto.id), name: dto.name }))
+          .catch(() => null)
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setEmployerNameById((prev) => {
+        const next = { ...prev }
+        for (const r of results) {
+          if (r) next[r.id] = r.name
+        }
+        return next
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tempFilters.employers])
+
+  const toggleEmployerFromSearch = (emp: EmployerLookupDto) => {
+    const idStr = String(emp.id)
+    setEmployerNameById((prev) => ({ ...prev, [idStr]: emp.name }))
+    setTempFilters((prev) => {
+      const has = prev.employers.includes(idStr)
+      return {
+        ...prev,
+        employers: has ? prev.employers.filter((x) => x !== idStr) : [...prev.employers, idStr],
+      }
+    })
+  }
+
+  const removeEmployerId = (idStr: string) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      employers: prev.employers.filter((x) => x !== idStr),
+    }))
+  }
+
   const techStackOptions: MultiSelectOption[] = lookupOptions?.techStacks ?? extractUniqueTechStacks().map((tech) => ({ value: tech, label: tech }))
-  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? extractUniqueVerticalDomains().map((d) => ({ value: d, label: d }))
-  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? extractUniqueHorizontalDomains().map((d) => ({ value: d, label: d }))
-  const technicalAspectOptions: MultiSelectOption[] = lookupOptions?.technicalAspects ?? extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a }))
+  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
+  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
+  const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
+  const technicalAspectTypeFilterOptions: MultiSelectOption[] = lookupOptions?.technicalAspectTypes ?? []
+  const legacyTechnicalAspectOptions: MultiSelectOption[] =
+    lookupOptions?.technicalAspects?.length
+      ? lookupOptions.technicalAspects
+      : extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a }))
+  const useTechnicalAspectTypesFilter = technicalAspectTypeFilterOptions.length > 0
   const clientLocationOptions: MultiSelectOption[] = lookupOptions?.clientLocations ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc }))
 
   // Calculate active filter count
@@ -261,13 +291,12 @@ export function ProjectsFilterDialog({
     filters.status.length +
     filters.projectTypes.length +
     filters.employers.length +
-    filters.employerCities.length +
-    filters.employerCountries.length +
-    filters.employerTypes.length +
     filters.clientLocations.length +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
+    filters.technicalDomains.length +
     filters.technicalAspects.length +
+    filters.technicalAspectTypeIds.length +
     filters.techStacks.length +
     (filters.completionDateStart ? 1 : 0) +
     (filters.completionDateEnd ? 1 : 0) +
@@ -337,6 +366,10 @@ export function ProjectsFilterDialog({
 
   const handleClearFilters = () => {
     setTempFilters(initialFilters)
+    setEmployerNameById({})
+    setEmployerSearchQuery("")
+    setEmployerSearchResults([])
+    setEmployerComboboxOpen(false)
     onClearFilters()
     // Keep dialog open for user to see cleared state
   }
@@ -350,9 +383,6 @@ export function ProjectsFilterDialog({
     tempFilters.status.length > 0 ||
     tempFilters.projectTypes.length > 0 ||
     tempFilters.employers.length > 0 ||
-    tempFilters.employerCities.length > 0 ||
-    tempFilters.employerCountries.length > 0 ||
-    tempFilters.employerTypes.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
     tempFilters.completionDateStart !== null ||
     tempFilters.completionDateEnd !== null ||
@@ -362,7 +392,9 @@ export function ProjectsFilterDialog({
     tempFilters.startDateEnd !== null ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
+    tempFilters.technicalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
+    tempFilters.technicalAspectTypeIds.length > 0 ||
     tempFilters.techStacks.length > 0 ||
     tempFilters.completionDateStart !== null ||
     tempFilters.completionDateEnd !== null ||
@@ -458,49 +490,124 @@ export function ProjectsFilterDialog({
                 />
               </div>
 
-              <MultiSelect
-                items={employerOptions}
-                selected={tempFilters.employers}
-                onChange={(values) => handleFilterChange("employers", values)}
-                placeholder="Filter by employer..."
-                label="Employer"
-                searchPlaceholder="Search employers..."
-                maxDisplay={3}
-              />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MultiSelect
-                  items={employerCityOptions}
-                  selected={tempFilters.employerCities}
-                  onChange={(values) => handleFilterChange("employerCities", values)}
-                  placeholder="Filter by city..."
-                  label="Employer City"
-                  searchPlaceholder="Search cities..."
-                  maxDisplay={3}
-                />
-
-                <MultiSelect
-                  items={employerCountryOptions}
-                  selected={tempFilters.employerCountries}
-                  onChange={(values) => handleFilterChange("employerCountries", values)}
-                  placeholder="Filter by country..."
-                  label="Employer Country"
-                  searchPlaceholder="Search countries..."
-                  maxDisplay={3}
-                />
-                
-                <MultiSelect
-                  items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
-                  selected={tempFilters.employerTypes}
-                  onChange={(values) => handleFilterChange("employerTypes", values)}
-                  placeholder="Filter by employer type..."
-                  label="Employer Type"
-                  searchPlaceholder="Search types..."
-                  maxDisplay={3}
-                />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Employer</Label>
+                <Popover
+                  open={employerComboboxOpen}
+                  onOpenChange={(nextOpen) => {
+                    setEmployerComboboxOpen(nextOpen)
+                    if (!nextOpen) {
+                      setEmployerSearchQuery("")
+                      setEmployerSearchResults([])
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={employerComboboxOpen}
+                      className={cn(
+                        "w-full justify-between items-start gap-2 h-auto min-h-[2.5rem] px-3 py-2 font-normal text-left"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
+                        {tempFilters.employers.length === 0 && (
+                          <span className="text-muted-foreground">Search employers to add…</span>
+                        )}
+                        {tempFilters.employers.slice(0, 3).map((id) => (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="max-w-full shrink gap-0 pr-0.5 font-normal hover:bg-secondary/80 flex items-center"
+                          >
+                            <span className="truncate pl-1.5 py-0.5 max-w-[min(12rem,100%)]">
+                              {employerNameById[id] ?? `Employer #${id}`}
+                            </span>
+                            <span
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm outline-none ring-offset-background hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  removeEmployerId(id)
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                removeEmployerId(id)
+                              }}
+                              aria-label={`Remove ${employerNameById[id] ?? id}`}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </span>
+                          </Badge>
+                        ))}
+                        {tempFilters.employers.length > 3 && (
+                          <Badge variant="secondary" className="font-normal">
+                            +{tempFilters.employers.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 mt-1" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search employers..."
+                        value={employerSearchQuery}
+                        onValueChange={setEmployerSearchQuery}
+                        className="h-9"
+                      />
+                      <CommandList>
+                        {employerSearchLoading && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+                        )}
+                        {!employerSearchLoading && employerSearchQuery.trim().length < 2 && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                        )}
+                        {!employerSearchLoading &&
+                          employerSearchQuery.trim().length >= 2 &&
+                          employerSearchResults.length === 0 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">No employers found</div>
+                          )}
+                        {!employerSearchLoading && employerSearchResults.length > 0 && (
+                          <CommandGroup>
+                            {employerSearchResults.map((emp) => {
+                              const idStr = String(emp.id)
+                              const selected = tempFilters.employers.includes(idStr)
+                              return (
+                                <CommandItem
+                                  key={emp.id}
+                                  value={idStr}
+                                  onSelect={() => toggleEmployerFromSearch(emp)}
+                                  className="cursor-pointer"
+                                >
+                                  {emp.name}
+                                  {selected ? (
+                                    <Check className="ml-auto h-4 w-4 opacity-100" />
+                                  ) : null}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
                   items={clientLocationOptions}
                   selected={tempFilters.clientLocations}
@@ -546,14 +653,36 @@ export function ProjectsFilterDialog({
                 />
 
                 <MultiSelect
-                  items={technicalAspectOptions}
-                  selected={tempFilters.technicalAspects}
-                  onChange={(values) => handleFilterChange("technicalAspects", values)}
-                  placeholder="Filter by technical aspect..."
-                  label="Technical Aspects"
-                  searchPlaceholder="Search technical aspects..."
+                  items={technicalDomainOptions}
+                  selected={tempFilters.technicalDomains}
+                  onChange={(values) => handleFilterChange("technicalDomains", values)}
+                  placeholder="Filter by technical domain..."
+                  label="Technical Domains"
+                  searchPlaceholder="Search technical domains..."
                   maxDisplay={3}
                 />
+
+                {useTechnicalAspectTypesFilter ? (
+                  <MultiSelect
+                    items={technicalAspectTypeFilterOptions}
+                    selected={tempFilters.technicalAspectTypeIds}
+                    onChange={(values) => handleFilterChange("technicalAspectTypeIds", values)}
+                    placeholder="Filter by technical aspect..."
+                    label="Technical Aspects"
+                    searchPlaceholder="Search technical aspects..."
+                    maxDisplay={3}
+                  />
+                ) : (
+                  <MultiSelect
+                    items={legacyTechnicalAspectOptions}
+                    selected={tempFilters.technicalAspects}
+                    onChange={(values) => handleFilterChange("technicalAspects", values)}
+                    placeholder="Filter by technical aspect..."
+                    label="Technical Aspects"
+                    searchPlaceholder="Search technical aspects..."
+                    maxDisplay={3}
+                  />
+                )}
               </div>
             </div>
 

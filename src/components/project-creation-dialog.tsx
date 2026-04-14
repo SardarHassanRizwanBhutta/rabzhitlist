@@ -45,13 +45,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { toast } from "sonner"
 import { Loader2, Plus, Check, ChevronsUpDown, ShieldCheck, ChevronDown, ChevronRight, X } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { Project, ProjectStatus, ProjectType, PROJECT_STATUS_LABELS, PROJECT_TYPES } from "@/lib/types/project"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import type { LookupItem } from "@/lib/services/lookups-api"
+import { fetchTechnicalAspectTypes, fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import {
+  VERTICAL_DOMAINS,
+  HORIZONTAL_DOMAINS,
+  ensureTechnicalDomainsCatalogLoaded,
+  technicalDomainCatalogToSelectOptions,
+} from "@/lib/services/projects-api"
+import { mergeStacksFromAspectSelections } from "@/lib/utils/technical-aspect-type-selection"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { searchEmployers, fetchEmployerById, createEmployer, buildCreateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
@@ -83,7 +91,13 @@ export interface ProjectFormData {
   clientLocations: string[]
   verticalDomains: string[]
   horizontalDomains: string[]
+  technicalDomains: string[]
+  /** Legacy free-form technical aspect names from API (edit); not edited in UI during prototype. */
   technicalAspects: string[]
+  /** Technical aspect type ids as strings from GET /api/TechnicalAspectTypes (`value`). */
+  technicalAspectTypeIds: string[]
+  /** Selected technology names per aspect type id string; merged into techStacks (deduped). */
+  techStacksByAspectType: Record<string, string[]>
 }
 
 // Verification state export
@@ -96,10 +110,12 @@ type DialogMode = "create" | "edit"
 
 export interface ProjectLookups {
   techStacks: LookupItem[]
-  verticalDomains: LookupItem[]
-  horizontalDomains: LookupItem[]
   technicalAspects: LookupItem[]
   clientLocations: LookupItem[]
+  /** From GET /api/TechnicalDomains. When omitted, dialog loads catalog on open (create). */
+  technicalDomains?: MultiSelectOption[]
+  /** From GET /api/TechnicalAspectTypes. When omitted, dialog fetches on open. */
+  technicalAspectTypes?: MultiSelectOption[]
 }
 
 interface ProjectCreationDialogProps {
@@ -113,9 +129,8 @@ interface ProjectCreationDialogProps {
   initialName?: string
   /** When provided, Technologies, Domains, and Client Location dropdowns use these; "+ Add" calls the create handlers. */
   lookups?: ProjectLookups
-  onCreateTechStack?: (name: string) => Promise<void>
-  onCreateVerticalDomain?: (name: string) => Promise<void>
-  onCreateHorizontalDomain?: (name: string) => Promise<void>
+  /** Optional `context.aspectTypeId` when adding from a scoped list (backend may use later). */
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
   onCreateClientLocation?: (name: string) => Promise<void>
 }
@@ -139,7 +154,10 @@ const initialFormData: ProjectFormData = {
   clientLocations: [],
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
+  technicalAspectTypeIds: [],
+  techStacksByAspectType: {},
 }
 
 const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => ({
@@ -154,15 +172,6 @@ const publishPlatformOptions: MultiSelectOption[] = [
   { value: "Web", label: "Web" },
   { value: "Desktop", label: "Desktop" },
 ]
-
-// Extract unique values from project data (same as filter dialog)
-const extractUniqueTechStacks = (): string[] => {
-  const techStacks = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.techStacks.forEach(tech => techStacks.add(tech))
-  })
-  return Array.from(techStacks).sort()
-}
 
 // Extract unique client locations from projects (for MultiSelect options)
 const extractUniqueClientLocations = (): string[] => {
@@ -189,14 +198,6 @@ const extractUniqueHorizontalDomains = (): string[] => {
     project.horizontalDomains.forEach(domain => domains.add(domain))
   })
   return Array.from(domains).sort()
-}
-
-const extractUniqueTechnicalAspects = (): string[] => {
-  const aspects = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.technicalAspects.forEach(aspect => aspects.add(aspect))
-  })
-  return Array.from(aspects).sort()
 }
 
 // Type options: fixed list matching backend project_type_enum (employer, academic, personal, freelance, open_source)
@@ -246,7 +247,10 @@ const projectToFormData = (project: Project): ProjectFormData => {
     clientLocations: project.clientLocations?.length ? [...project.clientLocations] : (project.clientLocation ? [project.clientLocation] : []),
     verticalDomains: project.verticalDomains ? [...project.verticalDomains] : [],
     horizontalDomains: project.horizontalDomains ? [...project.horizontalDomains] : [],
+    technicalDomains: project.technicalDomains ? [...project.technicalDomains] : [],
     technicalAspects: project.technicalAspects ? [...project.technicalAspects] : [],
+    technicalAspectTypeIds: [],
+    techStacksByAspectType: {},
   }
 }
 
@@ -255,7 +259,13 @@ const PROJECT_VERIFICATION_FIELDS = [
   'projectName', 'selectedEmployer', 'projectType', 'minTeamSize', 'maxTeamSize', 'status',
   'startDate', 'endDate', 'description', 'notes', 'projectLink',
   'isPublished', 'publishPlatforms', 'downloadCount',
-  'techStacks', 'clientLocations', 'verticalDomains', 'horizontalDomains', 'technicalAspects'
+  'techStacks',
+  'technicalAspectTypeIds',
+  'clientLocations',
+  'verticalDomains',
+  'horizontalDomains',
+  'technicalDomains',
+  'technicalAspects',
 ]
 
 export function ProjectCreationDialog({
@@ -269,34 +279,28 @@ export function ProjectCreationDialog({
   initialName,
   lookups,
   onCreateTechStack,
-  onCreateVerticalDomain,
-  onCreateHorizontalDomain,
   onCreateTechnicalAspect,
   onCreateClientLocation,
 }: ProjectCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
+  const [fetchedTechnicalDomainOptions, setFetchedTechnicalDomainOptions] = useState<MultiSelectOption[]>([])
 
-  const techStackOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueTechStacks().map((t) => ({ value: t, label: t })),
-    [lookups?.techStacks]
-  )
   const verticalDomainOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.verticalDomains?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueVerticalDomains().map((d) => ({ value: d, label: d })),
-    [lookups?.verticalDomains]
+    () => VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
+    []
   )
   const horizontalDomainOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.horizontalDomains?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueHorizontalDomains().map((d) => ({ value: d, label: d })),
-    [lookups?.horizontalDomains]
-  )
-  const technicalAspectOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.technicalAspects?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a })),
-    [lookups?.technicalAspects]
+    () => HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
+    []
   )
   const clientLocationOptions: MultiSelectOption[] = useMemo(
     () => lookups?.clientLocations?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc })),
     [lookups?.clientLocations]
   )
   const [isLoading, setIsLoading] = useState(false)
+  const [fetchedTechnicalAspectTypeOptions, setFetchedTechnicalAspectTypeOptions] = useState<MultiSelectOption[]>([])
+  /** Scoped stack lists per aspect type id string (from GET /api/TechStacks?technicalAspectTypeId=). */
+  const [scopedStacksByTypeId, setScopedStacksByTypeId] = useState<Record<string, LookupItem[]>>({})
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<Record<keyof ProjectFormData, string>>>({})
   const initialFormDataRef = useRef<ProjectFormData | null>(null)
@@ -319,6 +323,90 @@ export function ProjectCreationDialog({
     }
     onOpenChange?.(newOpen)
   }
+
+  const technicalDomainOptions: MultiSelectOption[] = useMemo(() => {
+    if (lookups?.technicalDomains !== undefined) return lookups.technicalDomains
+    return fetchedTechnicalDomainOptions
+  }, [lookups?.technicalDomains, fetchedTechnicalDomainOptions])
+
+  const technicalAspectTypeOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.technicalAspectTypes ?? fetchedTechnicalAspectTypeOptions,
+    [lookups?.technicalAspectTypes, fetchedTechnicalAspectTypeOptions]
+  )
+
+  const aspectTypeIdsKey = useMemo(
+    () => [...formData.technicalAspectTypeIds].sort().join(","),
+    [formData.technicalAspectTypeIds]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    if (lookups?.technicalAspectTypes !== undefined) return
+    let cancelled = false
+    fetchTechnicalAspectTypes()
+      .then((rows) => {
+        if (cancelled) return
+        setFetchedTechnicalAspectTypeOptions(rows.map((r) => ({ value: String(r.value), label: r.label })))
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedTechnicalAspectTypeOptions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, lookups?.technicalAspectTypes])
+
+  useEffect(() => {
+    if (!open) return
+    const ids = formData.technicalAspectTypeIds
+    if (ids.length === 0) {
+      setScopedStacksByTypeId({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const next: Record<string, LookupItem[]> = {}
+      await Promise.all(
+        ids.map(async (idStr) => {
+          const id = parseInt(idStr, 10)
+          if (Number.isNaN(id)) {
+            next[idStr] = []
+            return
+          }
+          try {
+            const list = await fetchTechStacks(id)
+            if (!cancelled) next[idStr] = list
+          } catch (e) {
+            if (!cancelled) {
+              next[idStr] = []
+              toast.error(e instanceof Error ? e.message : `Failed to load technologies for aspect type ${idStr}`)
+            }
+          }
+        })
+      )
+      if (!cancelled) setScopedStacksByTypeId(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, aspectTypeIdsKey])
+
+  useEffect(() => {
+    if (!open || mode !== "create") return
+    if (lookups?.technicalDomains !== undefined) return
+    let cancelled = false
+    ensureTechnicalDomainsCatalogLoaded()
+      .then((items) => {
+        if (cancelled) return
+        setFetchedTechnicalDomainOptions(technicalDomainCatalogToSelectOptions(items))
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedTechnicalDomainOptions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, mode, lookups?.technicalDomains])
 
   // Load existing verification status if in edit mode with verification
   const existingVerifications = useMemo(() => {
@@ -485,6 +573,54 @@ export function ProjectCreationDialog({
     }
   }
 
+  const handleTechnicalAspectTypeIdsChange = (values: string[]) => {
+    setFormData((prev) => {
+      const nextByAspect: Record<string, string[]> = { ...prev.techStacksByAspectType }
+      for (const key of Object.keys(nextByAspect)) {
+        if (!values.includes(key)) delete nextByAspect[key]
+      }
+      for (const id of values) {
+        if (nextByAspect[id] === undefined) nextByAspect[id] = []
+      }
+      const merged = mergeStacksFromAspectSelections(values, nextByAspect)
+      return {
+        ...prev,
+        technicalAspectTypeIds: values,
+        techStacksByAspectType: nextByAspect,
+        techStacks: merged,
+      }
+    })
+    if (showVerification) {
+      setModifiedFields((prev) => new Set(prev).add("technicalAspectTypeIds").add("techStacks"))
+      setVerifiedFields((prev) => new Set(prev).add("technicalAspectTypeIds").add("techStacks"))
+    }
+  }
+
+  const handleAspectStacksChange = (aspectIdStr: string, stackNames: string[]) => {
+    setFormData((prev) => {
+      const nextByAspect = { ...prev.techStacksByAspectType, [aspectIdStr]: stackNames }
+      const merged = mergeStacksFromAspectSelections(prev.technicalAspectTypeIds, nextByAspect)
+      return { ...prev, techStacksByAspectType: nextByAspect, techStacks: merged }
+    })
+    if (showVerification) {
+      setModifiedFields((prev) => new Set(prev).add("techStacks"))
+      setVerifiedFields((prev) => new Set(prev).add("techStacks"))
+    }
+  }
+
+  const selectedAspectTypesSorted = useMemo(() => {
+    return [...formData.technicalAspectTypeIds]
+      .map((idStr) => {
+        const opt = technicalAspectTypeOptions.find((o) => o.value === idStr)
+        if (!opt) return null
+        const id = parseInt(idStr, 10)
+        if (Number.isNaN(id)) return null
+        return { id, label: opt.label }
+      })
+      .filter((t): t is { id: number; label: string } => t != null)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [formData.technicalAspectTypeIds, technicalAspectTypeOptions])
+
   // Toggle verification checkbox
   const handleVerificationToggle = (fieldName: string, checked: boolean) => {
     setVerifiedFields(prev => {
@@ -553,13 +689,13 @@ export function ProjectCreationDialog({
     [verifiedFields]
   )
 
-  const techStackProgress = useMemo(() => 
-    calculateSectionProgress(['techStacks']),
+  const techStackProgress = useMemo(
+    () => calculateSectionProgress(["techStacks", "technicalAspectTypeIds"]),
     [verifiedFields]
   )
 
-  const domainsProgress = useMemo(() => 
-    calculateSectionProgress(['verticalDomains', 'horizontalDomains', 'technicalAspects']),
+  const domainsProgress = useMemo(
+    () => calculateSectionProgress(["verticalDomains", "horizontalDomains", "technicalDomains"]),
     [verifiedFields]
   )
 
@@ -580,8 +716,8 @@ export function ProjectCreationDialog({
     const fieldMap: Record<string, string[]> = {
       'basic-info': ['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'minTeamSize', 'maxTeamSize', 'status'],
       'dates': ['startDate', 'endDate'],
-      'tech-stack': ['techStacks'],
-      'domains': ['verticalDomains', 'horizontalDomains', 'technicalAspects'],
+      'tech-stack': ['techStacks', 'technicalAspectTypeIds'],
+      'domains': ['verticalDomains', 'horizontalDomains', 'technicalDomains'],
       'content': ['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']
     }
     return fieldMap[sectionId] || []
@@ -816,48 +952,58 @@ export function ProjectCreationDialog({
                 onOpenChange={() => toggleSection("basic-info")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Basic Information
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={basicInfoProgress.percentage}
-                              verified={basicInfoProgress.verified}
-                              total={basicInfoProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-basic-info"
-                                checked={isSectionFullyVerified("basic-info")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("basic-info", checked === true)}
-                                className="h-4 w-4"
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring -mx-1 px-1 py-1"
+                        >
+                          <span className="text-base font-semibold leading-none flex items-center gap-2 min-w-0">
+                            Basic Information
+                            {showVerification && (
+                              <SectionProgressBadge 
+                                percentage={basicInfoProgress.percentage}
+                                verified={basicInfoProgress.verified}
+                                total={basicInfoProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-basic-info" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("basic-info") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {showVerification && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="verify-all-basic-info"
+                              checked={isSectionFullyVerified("basic-info")}
+                              onCheckedChange={(checked) => handleVerifyAllSection("basic-info", checked === true)}
+                              className="h-4 w-4"
+                            />
+                            <Label 
+                              htmlFor="verify-all-basic-info" 
+                              className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            >
+                              Verify All
+                            </Label>
+                          </div>
+                        )}
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={expandedSections.has("basic-info") ? "Collapse section" : "Expand section"}
+                          >
+                            {expandedSections.has("basic-info") ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
                       {/* Name */}
@@ -1109,48 +1255,58 @@ export function ProjectCreationDialog({
                 onOpenChange={() => toggleSection("dates")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Project Dates
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={datesProgress.percentage}
-                              verified={datesProgress.verified}
-                              total={datesProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-dates"
-                                checked={isSectionFullyVerified("dates")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("dates", checked === true)}
-                                className="h-4 w-4"
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring -mx-1 px-1 py-1"
+                        >
+                          <span className="text-base font-semibold leading-none flex items-center gap-2 min-w-0">
+                            Project Dates
+                            {showVerification && (
+                              <SectionProgressBadge 
+                                percentage={datesProgress.percentage}
+                                verified={datesProgress.verified}
+                                total={datesProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-dates" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("dates") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {showVerification && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="verify-all-dates"
+                              checked={isSectionFullyVerified("dates")}
+                              onCheckedChange={(checked) => handleVerifyAllSection("dates", checked === true)}
+                              className="h-4 w-4"
+                            />
+                            <Label 
+                              htmlFor="verify-all-dates" 
+                              className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            >
+                              Verify All
+                            </Label>
+                          </div>
+                        )}
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={expandedSections.has("dates") ? "Collapse section" : "Expand section"}
+                          >
+                            {expandedSections.has("dates") ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1214,71 +1370,140 @@ export function ProjectCreationDialog({
                 </Card>
               </Collapsible>
 
-              {/* Technology Stack Section */}
+              {/* Technical Aspects & Tech Stacks */}
               <Collapsible 
                 open={expandedSections.has("tech-stack")} 
                 onOpenChange={() => toggleSection("tech-stack")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Technology Stack
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={techStackProgress.percentage}
-                              verified={techStackProgress.verified}
-                              total={techStackProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-tech-stack"
-                                checked={isSectionFullyVerified("tech-stack")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("tech-stack", checked === true)}
-                                className="h-4 w-4"
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring -mx-1 px-1 py-1"
+                        >
+                          <span className="text-base font-semibold leading-none flex items-center gap-2 min-w-0">
+                            Technical Aspects & Tech Stacks
+                            {showVerification && (
+                              <SectionProgressBadge 
+                                percentage={techStackProgress.percentage}
+                                verified={techStackProgress.verified}
+                                total={techStackProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-tech-stack" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("tech-stack") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {showVerification && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="verify-all-tech-stack"
+                              checked={isSectionFullyVerified("tech-stack")}
+                              onCheckedChange={(checked) => handleVerifyAllSection("tech-stack", checked === true)}
+                              className="h-4 w-4"
+                            />
+                            <Label 
+                              htmlFor="verify-all-tech-stack" 
+                              className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            >
+                              Verify All
+                            </Label>
+                          </div>
+                        )}
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={expandedSections.has("tech-stack") ? "Collapse section" : "Expand section"}
+                          >
+                            {expandedSections.has("tech-stack") ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
                   <CollapsibleContent>
-                    <CardContent className="pt-0">
+                    <CardContent className="pt-0 space-y-5">
                       <div className="space-y-2">
-                        <Label>Technologies</Label>
+                        <Label>Technical aspect types</Label>
                         <MultiSelect
-                          items={techStackOptions}
-                          selected={formData.techStacks}
-                          onChange={(values) => handleInputChange("techStacks", values)}
-                          placeholder="Select technologies..."
-                          searchPlaceholder="Search technologies..."
+                          items={technicalAspectTypeOptions}
+                          selected={formData.technicalAspectTypeIds}
+                          onChange={handleTechnicalAspectTypeIdsChange}
+                          placeholder="Select technical aspect types..."
+                          searchPlaceholder="Search types..."
                           maxDisplay={4}
-                          creatable={true}
-                          createLabel="Add Technology"
-                          onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
                         />
-                        <VerificationCheckbox fieldName="techStacks" />
+                        <VerificationCheckbox fieldName="technicalAspectTypeIds" />
                       </div>
+
+                      {selectedAspectTypesSorted.length > 0 && (
+                        <div className="space-y-4">
+                          <Label className="text-sm">Technologies by aspect type</Label>
+                          {selectedAspectTypesSorted.map((aspectType) => {
+                            const idStr = String(aspectType.id)
+                            const rows = scopedStacksByTypeId[idStr]
+                            const items: MultiSelectOption[] = (rows ?? [])
+                              .map((r) => ({ value: r.name, label: r.name }))
+                              .sort((a, b) => a.label.localeCompare(b.label))
+                            return (
+                              <div
+                                key={aspectType.id}
+                                className="rounded-lg border bg-card/50 p-3 space-y-2 shadow-sm"
+                              >
+                                <Label className="text-sm font-medium">{aspectType.label}</Label>
+                                <MultiSelect
+                                  items={items}
+                                  selected={formData.techStacksByAspectType[idStr] ?? []}
+                                  onChange={(values) => handleAspectStacksChange(idStr, values)}
+                                  placeholder={`Select technologies for ${aspectType.label}...`}
+                                  searchPlaceholder="Search technologies..."
+                                  maxDisplay={4}
+                                  creatable={!!onCreateTechStack}
+                                  createLabel="Add technology"
+                                  onCreateNew={
+                                    onCreateTechStack
+                                      ? async (name) => {
+                                          await onCreateTechStack(name, { aspectTypeId: aspectType.id })
+                                          try {
+                                            const list = await fetchTechStacks(aspectType.id)
+                                            setScopedStacksByTypeId((prev) => ({ ...prev, [idStr]: list }))
+                                          } catch (e) {
+                                            toast.error(
+                                              e instanceof Error ? e.message : "Failed to refresh technology list"
+                                            )
+                                          }
+                                        }
+                                      : undefined
+                                  }
+                                />
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {formData.techStacks.length > 0 && (
+                        <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                          <Label className="text-xs text-muted-foreground">
+                            Project technologies (deduplicated from selections above)
+                          </Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {formData.techStacks.map((name) => (
+                              <Badge key={name} variant="secondary" className="font-normal">
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <VerificationCheckbox fieldName="techStacks" />
                     </CardContent>
                   </CollapsibleContent>
                 </Card>
@@ -1290,48 +1515,58 @@ export function ProjectCreationDialog({
                 onOpenChange={() => toggleSection("domains")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Domains & Technical Aspects
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={domainsProgress.percentage}
-                              verified={domainsProgress.verified}
-                              total={domainsProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-domains"
-                                checked={isSectionFullyVerified("domains")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("domains", checked === true)}
-                                className="h-4 w-4"
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring -mx-1 px-1 py-1"
+                        >
+                          <span className="text-base font-semibold leading-none flex items-center gap-2 min-w-0">
+                            Domains
+                            {showVerification && (
+                              <SectionProgressBadge 
+                                percentage={domainsProgress.percentage}
+                                verified={domainsProgress.verified}
+                                total={domainsProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-domains" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("domains") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {showVerification && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="verify-all-domains"
+                              checked={isSectionFullyVerified("domains")}
+                              onCheckedChange={(checked) => handleVerifyAllSection("domains", checked === true)}
+                              className="h-4 w-4"
+                            />
+                            <Label 
+                              htmlFor="verify-all-domains" 
+                              className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            >
+                              Verify All
+                            </Label>
+                          </div>
+                        )}
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={expandedSections.has("domains") ? "Collapse section" : "Expand section"}
+                          >
+                            {expandedSections.has("domains") ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
                       <div className="space-y-2">
@@ -1343,9 +1578,6 @@ export function ProjectCreationDialog({
                           placeholder="Select vertical domains..."
                           searchPlaceholder="Search vertical domains..."
                           maxDisplay={4}
-                          creatable={true}
-                          createLabel="Add Vertical Domain"
-                          onCreateNew={onCreateVerticalDomain ? (name) => onCreateVerticalDomain(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="verticalDomains" />
                       </div>
@@ -1359,28 +1591,35 @@ export function ProjectCreationDialog({
                           placeholder="Select horizontal domains..."
                           searchPlaceholder="Search horizontal domains..."
                           maxDisplay={4}
-                          creatable={true}
-                          createLabel="Add Horizontal Domain"
-                          onCreateNew={onCreateHorizontalDomain ? (name) => onCreateHorizontalDomain(name) : undefined}
                         />
                         <VerificationCheckbox fieldName="horizontalDomains" />
                       </div>
 
                       <div className="space-y-2">
-                        <Label>Technical Aspects</Label>
+                        <Label>Technical Domains</Label>
                         <MultiSelect
-                          items={technicalAspectOptions}
-                          selected={formData.technicalAspects}
-                          onChange={(values) => handleInputChange("technicalAspects", values)}
-                          placeholder="Select technical aspects..."
-                          searchPlaceholder="Search technical aspects..."
+                          items={technicalDomainOptions}
+                          selected={formData.technicalDomains}
+                          onChange={(values) => handleInputChange("technicalDomains", values)}
+                          placeholder="Select technical domains..."
+                          searchPlaceholder="Search technical domains..."
                           maxDisplay={4}
-                          creatable={true}
-                          createLabel="Add Technical Aspect"
-                          onCreateNew={onCreateTechnicalAspect ? (name) => onCreateTechnicalAspect(name) : undefined}
                         />
-                        <VerificationCheckbox fieldName="technicalAspects" />
+                        <VerificationCheckbox fieldName="technicalDomains" />
                       </div>
+
+                      {mode === "edit" && formData.technicalAspects.length > 0 && (
+                        <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 space-y-2">
+                          <Label className="text-xs text-muted-foreground font-normal">Legacy technical aspects</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {formData.technicalAspects.map((a) => (
+                              <Badge key={a} variant="outline" className="font-normal text-xs">
+                                {a}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </CollapsibleContent>
                 </Card>
@@ -1392,48 +1631,58 @@ export function ProjectCreationDialog({
                 onOpenChange={() => toggleSection("content")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Description & Links
-                          {showVerification && (
-                            <SectionProgressBadge 
-                              percentage={contentProgress.percentage}
-                              verified={contentProgress.verified}
-                              total={contentProgress.total}
-                            />
-                          )}
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-content"
-                                checked={isSectionFullyVerified("content")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("content", checked === true)}
-                                className="h-4 w-4"
+                  <CardHeader className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <CollapsibleTrigger asChild>
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring -mx-1 px-1 py-1"
+                        >
+                          <span className="text-base font-semibold leading-none flex items-center gap-2 min-w-0">
+                            Description & Links
+                            {showVerification && (
+                              <SectionProgressBadge 
+                                percentage={contentProgress.percentage}
+                                verified={contentProgress.verified}
+                                total={contentProgress.total}
                               />
-                              <Label 
-                                htmlFor="verify-all-content" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("content") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                            )}
+                          </span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {showVerification && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="verify-all-content"
+                              checked={isSectionFullyVerified("content")}
+                              onCheckedChange={(checked) => handleVerifyAllSection("content", checked === true)}
+                              className="h-4 w-4"
+                            />
+                            <Label 
+                              htmlFor="verify-all-content" 
+                              className="text-xs text-muted-foreground cursor-pointer font-normal"
+                            >
+                              Verify All
+                            </Label>
+                          </div>
+                        )}
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={expandedSections.has("content") ? "Collapse section" : "Expand section"}
+                          >
+                            {expandedSections.has("content") ? (
+                              <ChevronDown className="size-4" />
+                            ) : (
+                              <ChevronRight className="size-4" />
+                            )}
+                          </button>
+                        </CollapsibleTrigger>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    </div>
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-4">
                       {/* Description */}

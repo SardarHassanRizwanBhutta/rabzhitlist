@@ -30,6 +30,7 @@ import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 
 // Filter interfaces
 export interface EmployerFilters {
@@ -69,6 +70,7 @@ export interface EmployerFilters {
   }
   verticalDomains: string[]
   horizontalDomains: string[]
+  technicalDomains: string[]
   technicalAspects: string[]
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   projectStatus: string[]
@@ -88,11 +90,17 @@ export interface EmployerFilters {
   avgJobTenureMax: string  // Maximum average job tenure (optional)
 }
 
+export interface EmployerFilterLookupOptions {
+  technicalDomains: MultiSelectOption[]
+}
+
 interface EmployersFilterDialogProps {
   children?: React.ReactNode
   filters: EmployerFilters
   onFiltersChange: (filters: EmployerFilters) => void
   onClearFilters: () => void
+  /** Technical domain dropdown options from GET /api/TechnicalDomains. */
+  lookupOptions?: EmployerFilterLookupOptions
 }
 
 // Extract unique values from employer data
@@ -463,14 +471,14 @@ const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech
   label: tech
 }))
 
-const verticalDomainOptions: MultiSelectOption[] = extractUniqueVerticalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
-const horizontalDomainOptions: MultiSelectOption[] = extractUniqueHorizontalDomains().map(domain => ({
-  value: domain,
-  label: domain
+const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
+  value: d.label,
+  label: d.label,
 }))
 
 const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
@@ -522,6 +530,7 @@ const initialFilters: EmployerFilters = {
   },
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   clientLocations: [],
   projectStatus: [],
@@ -545,7 +554,9 @@ export function EmployersFilterDialog({
   filters,
   onFiltersChange,
   onClearFilters,
+  lookupOptions,
 }: EmployersFilterDialogProps) {
+  const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<EmployerFilters>(filters)
 
@@ -579,6 +590,7 @@ export function EmployersFilterDialog({
     ((filters.projectTechStackMinYears?.techStacks.length || 0) > 0 && filters.projectTechStackMinYears?.minYears ? 1 : 0) +
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
+    filters.technicalDomains.length +
     filters.technicalAspects.length +
     filters.clientLocations.length +
     filters.projectStatus.length +
@@ -649,6 +661,7 @@ export function EmployersFilterDialog({
     (tempFilters.projectTechStackMinYears && tempFilters.projectTechStackMinYears.techStacks.length > 0 && tempFilters.projectTechStackMinYears.minYears) ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
+    tempFilters.technicalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
@@ -1157,6 +1170,18 @@ export function EmployersFilterDialog({
                     placeholder="Filter by solution type..."
                     label="Horizontal Domains"
                     searchPlaceholder="Search solutions..."
+                    maxDisplay={3}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <MultiSelect
+                    items={technicalDomainOptions}
+                    selected={tempFilters.technicalDomains}
+                    onChange={(values) => handleFilterChange("technicalDomains", values)}
+                    placeholder="Filter by technical domain..."
+                    label="Technical Domains"
+                    searchPlaceholder="Search technical domains..."
                     maxDisplay={3}
                   />
                 </div>
