@@ -239,7 +239,6 @@ const defaultFilters: CandidateFilters = {
     techStacks: [],
     minYears: ""
   },
-  candidateDomains: [],
   shiftTypes: [],
   workModes: [],
   workModeMinYears: {

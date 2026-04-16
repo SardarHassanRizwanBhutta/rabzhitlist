@@ -65,8 +65,6 @@ export interface CandidateFilters {
     techStacks: string[]
     minYears: string
   }
-  // Candidate work experience domains
-  candidateDomains: string[]
   // Candidate work experience shift types
   shiftTypes: string[]
   // Candidate work experience work modes
@@ -227,21 +225,6 @@ const extractUniqueCandidateTechStacks = () => {
     })
   })
   return Array.from(techStacksMap.values()).sort()
-}
-
-// Extract domains from candidate work experiences (for Candidate Domains filter)
-const extractUniqueCandidateDomains = () => {
-  const domains = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      we.domains.forEach(domain => {
-        if (domain) {
-          domains.add(domain)
-        }
-      })
-    })
-  })
-  return Array.from(domains).sort()
 }
 
 const extractUniqueVerticalDomains = () => {
@@ -422,12 +405,6 @@ const techStackOptions: MultiSelectOption[] = extractUniqueProjectTechStacks().m
 const candidateTechStackOptions: MultiSelectOption[] = extractUniqueCandidateTechStacks().map(tech => ({
   value: tech,
   label: tech
-}))
-
-// Candidate work experience domains (for separate filter)
-const candidateDomainOptions: MultiSelectOption[] = extractUniqueCandidateDomains().map(domain => ({
-  value: domain,
-  label: domain
 }))
 
 // Candidate work experience shift types
@@ -629,8 +606,6 @@ const initialFilters: CandidateFilters = {
     techStacks: [],
     minYears: ""
   },
-  // Candidate work experience domains
-  candidateDomains: [],
   // Candidate work experience shift types
   shiftTypes: [],
   // Candidate work experience work modes
@@ -810,7 +785,6 @@ export function CandidatesFilterDialog({
             techStacks: [],
             minYears: ""
           }
-          updated.candidateDomains = []
           updated.shiftTypes = []
           updated.workModes = []
           updated.workModeMinYears = {
@@ -967,7 +941,6 @@ export function CandidatesFilterDialog({
         return (
           tempFilters.candidateTechStacks.length +
           ((tempFilters.techStackMinYears?.techStacks.length || 0) > 0 && tempFilters.techStackMinYears?.minYears ? 1 : 0) +
-          tempFilters.candidateDomains.length +
           tempFilters.shiftTypes.length +
           tempFilters.workModes.length +
           ((tempFilters.workModeMinYears?.workModes.length || 0) > 0 && tempFilters.workModeMinYears?.minYears ? 1 : 0) +
@@ -1114,7 +1087,6 @@ export function CandidatesFilterDialog({
     tempFilters.minClientLocationCount ||
     tempFilters.candidateTechStacks.length > 0 ||
     (tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears) ||
-    tempFilters.candidateDomains.length > 0 ||
     tempFilters.shiftTypes.length > 0 ||
     tempFilters.workModes.length > 0 ||
     (tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears) ||
@@ -1690,16 +1662,6 @@ export function CandidatesFilterDialog({
                   </p>
                 )}
               </div>
-              
-              <MultiSelect
-                items={candidateDomainOptions}
-                selected={tempFilters.candidateDomains}
-                onChange={(values) => handleFilterChange("candidateDomains", values)}
-                placeholder="Filter by domain..."
-                label="Domains"
-                searchPlaceholder="Search domains..."
-                maxDisplay={4}
-              />
               
               <MultiSelect
                 items={shiftTypeOptions}

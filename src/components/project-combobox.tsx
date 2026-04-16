@@ -25,6 +25,8 @@ export interface ProjectComboboxProps {
   disabled?: boolean
   className?: string
   error?: boolean
+  /** Resume import: seed search when opening with no linked project yet. */
+  parsedNameHint?: string
 }
 
 export function ProjectCombobox({
@@ -35,9 +37,18 @@ export function ProjectCombobox({
   disabled = false,
   className,
   error = false,
+  parsedNameHint,
 }: ProjectComboboxProps) {
   const [open, setOpen] = useState(false)
   const { query, setQuery, results, isLoading, resetSearch } = useProjectSearch()
+  const prevOpenRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current && parsedNameHint?.trim() && !value) {
+      setQuery(parsedNameHint.trim())
+    }
+    prevOpenRef.current = open
+  }, [open, parsedNameHint, value, setQuery])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
@@ -95,8 +106,14 @@ export function ProjectCombobox({
               disabled={disabled}
               className={`w-full justify-between font-normal ${error ? "border-red-500" : ""}`}
             >
-              <span className={query ? "text-foreground" : "text-muted-foreground"}>
-                {query || "Search projects..."}
+              <span
+                className={
+                  query || (!value && parsedNameHint?.trim())
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                {query || (!value && parsedNameHint?.trim()) || "Search projects..."}
               </span>
               <ChevronsUpDown className="opacity-50 shrink-0" />
             </Button>

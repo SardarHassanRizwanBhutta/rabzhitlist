@@ -84,20 +84,15 @@ const extractUniqueTechStacks = (): MultiSelectOption[] => {
 // Extract unique domains from sample data
 const extractUniqueDomains = (): MultiSelectOption[] => {
   const domainsMap = new Map<string, string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      we.domains?.forEach(domain => {
-        const lower = domain.toLowerCase().trim()
-        if (!domainsMap.has(lower)) {
-          domainsMap.set(lower, domain)
-        }
-      })
-    })
-  })
-  
+
   sampleProjects.forEach(project => {
     project.verticalDomains?.forEach(domain => {
+      const lower = domain.toLowerCase().trim()
+      if (!domainsMap.has(lower)) {
+        domainsMap.set(lower, domain)
+      }
+    })
+    project.horizontalDomains?.forEach(domain => {
       const lower = domain.toLowerCase().trim()
       if (!domainsMap.has(lower)) {
         domainsMap.set(lower, domain)

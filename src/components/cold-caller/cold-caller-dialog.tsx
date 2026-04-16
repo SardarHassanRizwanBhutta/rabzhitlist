@@ -782,7 +782,7 @@ export function ColdCallerDialog({
       return next
     })
     
-    toast.success(`University location "${newUniversityName}" created successfully`)
+    toast.success(`University "${newUniversityName}" created successfully`)
     setCreateUniversityDialogOpen(false)
     setPendingEntity(null)
   }, [pendingEntity, handleFieldSave])

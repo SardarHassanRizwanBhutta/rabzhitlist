@@ -30,6 +30,8 @@ export interface CertificationComboboxProps {
   disabled?: boolean
   className?: string
   error?: boolean
+  /** Resume import: seed certification search when opening with no linked catalog row yet. */
+  parsedNameHint?: string
 }
 
 export function CertificationCombobox({
@@ -40,9 +42,18 @@ export function CertificationCombobox({
   disabled = false,
   className,
   error = false,
+  parsedNameHint,
 }: CertificationComboboxProps) {
   const [open, setOpen] = useState(false)
   const { query, setQuery, results, isLoading, resetSearch } = useCertificationSearch()
+  const prevOpenRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current && parsedNameHint?.trim() && !value) {
+      setQuery(parsedNameHint.trim())
+    }
+    prevOpenRef.current = open
+  }, [open, parsedNameHint, value, setQuery])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
@@ -121,8 +132,14 @@ export function CertificationCombobox({
                 error ? "border-red-500" : ""
               )}
             >
-              <span className={query ? "text-foreground" : "text-muted-foreground"}>
-                {query || "Search certifications..."}
+              <span
+                className={
+                  query || (!value && parsedNameHint?.trim())
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                {query || (!value && parsedNameHint?.trim()) || "Search certifications..."}
               </span>
               <ChevronsUpDown className="opacity-50 shrink-0" />
             </Button>

@@ -63,7 +63,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.candidateTechStacksRequireInBoth ||
     (filters.techStackMinYears && filters.techStackMinYears.techStacks.length > 0 && filters.techStackMinYears.minYears) ||
     (filters.workModeMinYears && filters.workModeMinYears.workModes.length > 0 && filters.workModeMinYears.minYears) ||
-    filters.candidateDomains.length > 0 ||
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.timeSupportZones.length > 0 ||
@@ -287,8 +286,7 @@ export function getCandidateMatchContext(
     filters.technicalAspects.length > 0 ||
     filters.candidateTechStacks.length > 0 ||
     filters.candidateTechStacksRequireAll ||
-    filters.candidateTechStacksRequireInBoth ||
-    filters.candidateDomains.length > 0
+    filters.candidateTechStacksRequireInBoth
   )
 
   if (hasProjectFilters) {
@@ -395,8 +393,7 @@ export function getCandidateMatchContext(
       }
     })
 
-    // Candidate work experience tech stacks and domains
-    // Process work experiences to combine tech stacks and domains from the same work experience
+    // Candidate work experience tech stacks (optional: same-row project tech when "require in both")
     candidate.workExperiences?.forEach(we => {
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
@@ -454,23 +451,6 @@ export function getCandidateMatchContext(
             type: 'candidateTechStack',
             label,
             values: matchingTechStacks
-          })
-          hasMatch = true
-        }
-      }
-
-      // Check domains
-      if (filters.candidateDomains.length > 0) {
-        const matchingDomains = we.domains.filter(domain =>
-          filters.candidateDomains.some(filterDomain => 
-            filterDomain.toLowerCase() === domain.toLowerCase()
-          )
-        )
-        if (matchingDomains.length > 0) {
-          matchedCriteria.push({
-            type: 'candidateDomain',
-            label: 'Domain',
-            values: matchingDomains
           })
           hasMatch = true
         }

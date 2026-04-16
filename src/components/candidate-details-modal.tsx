@@ -94,7 +94,6 @@ import { Progress } from "@/components/ui/progress"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -265,11 +264,6 @@ const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
 
 // Base tech stack options
 const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
-// Base horizontal domain options (fixed enum set from backend)
-const baseHorizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
 
 interface CandidateDetailsModalProps {
   candidate: Candidate | null
@@ -2318,7 +2312,6 @@ export function CandidateDetailsModal({
   const [degreeOptions, setDegreeOptions] = useState<ComboboxOption[]>(baseDegreeOptions)
   const [majorOptions, setMajorOptions] = useState<ComboboxOption[]>(baseMajorOptions)
   const [techStackOptions, setTechStackOptions] = useState<MultiSelectOption[]>(baseTechStackOptions)
-  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(baseHorizontalDomainOptions)
   
   // Creation dialog state
   const [createEmployerDialogOpen, setCreateEmployerDialogOpen] = useState(false)
@@ -2967,7 +2960,6 @@ export function CandidateDetailsModal({
       fields.push(`workExperiences[${idx}].workMode`)
       fields.push(`workExperiences[${idx}].timeSupportZones`)
       fields.push(`workExperiences[${idx}].techStacks`)
-      fields.push(`workExperiences[${idx}].domains`)  // NEW FIELD
       exp.projects.forEach((proj, projIdx) => {
         fields.push(`workExperiences[${idx}].projects[${projIdx}].projectName`)
         fields.push(`workExperiences[${idx}].projects[${projIdx}].contributionNotes`)
@@ -3872,36 +3864,6 @@ export function CandidateDetailsModal({
                               }}
                             />
                           </div>
-                          {/* NEW: Domains */}
-                          <div className="ml-7">
-                            <InlineEditableMultiSelect
-                              label="Domains"
-                              value={experience.domains || []}
-                              fieldName={`workExperiences[${idx}].domains`}
-                              options={horizontalDomainOptions}
-                              onSave={handleMultiSelectFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].domains`} />}
-                              getFieldVerification={getFieldVerification}
-                              placeholder="Select domains..."
-                              searchPlaceholder="Search domains..."
-                              badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
-                              maxDisplay={5}
-                              creatable={true}
-                              createLabel="Create Domain"
-                              onCreateNew={(newDomain) => {
-                                const newOption = { label: newDomain, value: newDomain }
-                                setHorizontalDomainOptions(prev => {
-                                  const updated = [...prev, newOption]
-                                  return updated.sort((a, b) => a.label.localeCompare(b.label))
-                                })
-                                // Add to current selection
-                                const currentValue = experience.domains || []
-                                if (!currentValue.includes(newDomain)) {
-                                  handleMultiSelectFieldSave(`workExperiences[${idx}].domains`, [...currentValue, newDomain], false)
-                                }
-                              }}
-                            />
-                            </div>
                           {/* Benefits */}
                           <div className="ml-7">
                             <InlineEditableBenefits
@@ -4279,7 +4241,7 @@ export function CandidateDetailsModal({
                                       await handleFieldSave(`educations[${idx}].universityLocationName`, `${selectedUniversity.name} - ${selectedLocation.city}`, shouldVerify)
                                     }
                                   }}
-                                  placeholder="Select university location..."
+                                  placeholder="Select university..."
                                   searchPlaceholder="Search universities..."
                                   verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].universityLocationName`} />}
                                   getFieldVerification={getFieldVerification}

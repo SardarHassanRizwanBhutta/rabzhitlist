@@ -56,8 +56,8 @@ export function calculateDataCompletion(candidate: Candidate): DataCompletionSum
   })
 
   // Work Experience fields
-  // 8 fields per work experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, domains, benefits
-  const weTotal = (candidate.workExperiences?.length || 0) * 8
+  // 7 fields per work experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, benefits
+  const weTotal = (candidate.workExperiences?.length || 0) * 7
   // Plus contribution notes for each project
   const weProjectsTotal = candidate.workExperiences?.reduce((sum, we) => sum + (we.projects?.length || 0), 0) || 0
   const weTotalWithProjects = weTotal + weProjectsTotal

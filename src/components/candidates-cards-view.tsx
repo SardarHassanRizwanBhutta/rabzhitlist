@@ -76,7 +76,6 @@ const defaultFilters: CandidateFilters = {
     techStacks: [],
     minYears: ""
   },
-  candidateDomains: [],
   shiftTypes: [],
   workModes: [],
   workModeMinYears: {
@@ -258,8 +257,6 @@ const getCriterionColor = (type: string): string => {
     
     // Candidate Tech Stacks
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
-    // Candidate Domains
-    'candidateDomain': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
     
     // Top Developer Collaboration
     'topDeveloper': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',

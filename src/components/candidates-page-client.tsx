@@ -14,10 +14,16 @@ import {
   Grid3x3,
   Loader2,
   GraduationCap,
+  Plus,
 } from "lucide-react"
 import { CandidatesTable } from "@/components/candidates-table"
 import { CandidatesCardsView } from "@/components/candidates-cards-view"
-import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
+import {
+  CandidateCreationDialog,
+  CandidateFormData,
+  type CandidateLookups,
+} from "@/components/candidate-creation-dialog"
+import { ResumeParserDialog } from "@/components/resume-parser-dialog"
 import { fetchTechStacks, createTechStack } from "@/lib/services/lookups-api"
 import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
@@ -67,7 +73,6 @@ const initialFilters: CandidateFilters = {
     techStacks: [],
     minYears: "",
   },
-  candidateDomains: [],
   shiftTypes: [],
   workModes: [],
   workModeMinYears: {
@@ -173,6 +178,18 @@ export function CandidatesPageClient() {
   const [degreesLookup, setDegreesLookup] = useState<NonNullable<CandidateLookups["degrees"]>>([])
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
   const [lookupsLoading, setLookupsLoading] = useState(true)
+
+  const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
+  const [createCandidatePrefill, setCreateCandidatePrefill] = useState<Partial<CandidateFormData> | null>(null)
+
+  const handleCreatePrefillConsumed = useCallback(() => {
+    setCreateCandidatePrefill(null)
+  }, [])
+
+  const handleApplyResumeParse = useCallback((partial: Partial<CandidateFormData>) => {
+    setCreateCandidatePrefill(partial)
+    setCreateCandidateOpen(true)
+  }, [])
 
   const refetchCandidates = useCallback(() => {
     setReloadToken((t) => t + 1)
@@ -542,7 +559,26 @@ export function CandidatesPageClient() {
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
           />
+          <ResumeParserDialog onApplyToCreateCandidate={handleApplyResumeParse} />
+          <Button
+            type="button"
+            onClick={() => {
+              setCreateCandidatePrefill(null)
+              setCreateCandidateOpen(true)
+            }}
+            className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Candidate
+          </Button>
           <CandidateCreationDialog
+            open={createCandidateOpen}
+            onOpenChange={(o) => {
+              setCreateCandidateOpen(o)
+              if (!o) setCreateCandidatePrefill(null)
+            }}
+            createPrefill={createCandidatePrefill}
+            onCreatePrefillConsumed={handleCreatePrefillConsumed}
             onSubmit={handleCandidateSubmit}
             lookups={candidateLookups}
             onCreateTechStack={handleCreateTechStack}

@@ -24,7 +24,6 @@ export interface WorkExperience {
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
-  domains: string[]
   shiftType: ShiftType | "" | null
   workMode: WorkMode | "" | null
   timeSupportZones: string[]
@@ -124,7 +123,8 @@ export interface Candidate {
   certifications?: CandidateCertification[] | null
   educations?: CandidateEducation[] 
   techStacks?: string[] // Standalone tech stacks (overall technical skills, not tied to specific employer)
-  isTopDeveloper?: boolean | null // Top developer flag
+  /** Top developer screening flag from API (`isTopDeveloper`). */
+  isTopDeveloper?: boolean
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
   achievements?: Achievement[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms, Open Source contributions, Awards, Medals)
