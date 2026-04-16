@@ -189,15 +189,6 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       parentIndex: 0,
     })
     emptyFields.push({
-      fieldPath: 'workExperiences[0].domains',
-      apiFieldName: 'work_experience_0_domains',
-      fieldLabel: 'Domains',
-      fieldType: 'multiselect',
-      section: 'workExperience',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
       fieldPath: 'workExperiences[0].benefits',
       apiFieldName: 'work_experience_0_benefits',
       fieldLabel: 'Benefits',
@@ -225,7 +216,6 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         { path: 'workMode', apiName: `work_experience_${index}_workMode`, label: 'Work Mode', type: 'select', options: WORK_MODE_OPTIONS },
         { path: 'timeSupportZones', apiName: `work_experience_${index}_timeSupportZones`, label: 'Time Support Zones', type: 'multiselect', options: TIME_SUPPORT_ZONE_OPTIONS },
         { path: 'techStacks', apiName: `work_experience_${index}_techStacks`, label: 'Tech Stacks', type: 'multiselect' },
-        { path: 'domains', apiName: `work_experience_${index}_domains`, label: 'Domains', type: 'multiselect' },
         { path: 'benefits', apiName: `work_experience_${index}_benefits`, label: 'Benefits', type: 'benefits' },
       ]
 
@@ -296,7 +286,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     emptyFields.push({
       fieldPath: 'educations[0].universityLocationName',
       apiFieldName: 'education_0_universityLocationName',
-      fieldLabel: 'University Location',
+      fieldLabel: 'University',
       fieldType: 'combobox',
       section: 'education',
       currentValue: null,
@@ -394,7 +384,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       emptyFields.push({
         fieldPath: `educations[${newIndex}].universityLocationName`,
         apiFieldName: `education_${newIndex}_universityLocationName`,
-        fieldLabel: 'University Location',
+        fieldLabel: 'University',
         fieldType: 'combobox',
         section: 'education',
         currentValue: null,
@@ -795,15 +785,6 @@ export function createEntryFields(
           parentIndex: index,
         },
         {
-          fieldPath: `workExperiences[${index}].domains`,
-          apiFieldName: `work_experience_${index}_domains`,
-          fieldLabel: 'Domains',
-          fieldType: 'multiselect',
-          section: 'workExperience',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
           fieldPath: `workExperiences[${index}].benefits`,
           apiFieldName: `work_experience_${index}_benefits`,
           fieldLabel: 'Benefits',
@@ -821,7 +802,7 @@ export function createEntryFields(
         {
           fieldPath: `educations[${index}].universityLocationName`,
           apiFieldName: `education_${index}_universityLocationName`,
-          fieldLabel: 'University Location',
+          fieldLabel: 'University',
           fieldType: 'combobox',
           section: 'education',
           currentValue: null,
@@ -1082,9 +1063,9 @@ export function calculateCompletionPercentage(
 export function getTotalTrackableFields(candidate: Candidate): number {
   let total = 7 // Basic fields count: postingTitle, cnic, currentSalary, expectedSalary, githubUrl, linkedinUrl, personalityType
   
-  // Work experience fields (8 per experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, domains, benefits)
+  // Work experience fields (7 per experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, benefits)
   candidate.workExperiences?.forEach(we => {
-    total += 8 // startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, domains, benefits
+    total += 7 // startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, benefits
     total += we.projects?.length || 0 // contribution notes per project
   })
   

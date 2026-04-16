@@ -44,7 +44,24 @@ import {
 } from "@/components/ui/command"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Loader2, Plus, User, Briefcase, Trash2, ChevronDown, Award, GraduationCap, Check, ChevronsUpDown, X, FolderOpen, ShieldCheck, Code, Building2 } from "lucide-react"
+import {
+  Loader2,
+  Plus,
+  User,
+  Briefcase,
+  Trash2,
+  ChevronDown,
+  Award,
+  GraduationCap,
+  Check,
+  ChevronsUpDown,
+  X,
+  FolderOpen,
+  ShieldCheck,
+  Code,
+  Building2,
+  ListTodo,
+} from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
@@ -70,7 +87,6 @@ import {
   type CandidateSourceDb,
   parseCandidateSource,
 } from "@/lib/constants/candidate-enums"
-import { HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { EmployerCombobox, type SelectedEmployer as WorkExperienceSelectedEmployer } from "@/components/employer-combobox"
 import { fetchEmployerById, type BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
@@ -80,8 +96,12 @@ import {
   CertificationCombobox,
   type SelectedCertification,
 } from "@/components/certification-combobox"
-import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
-import { toast } from "sonner"
+import { UniversityCombobox } from "@/components/university-combobox"
+import {
+  collectUnresolvedCatalogRefs,
+  hasPrefillContent,
+  mergeCandidatePrefill,
+} from "@/lib/candidate/resume-to-candidate-form"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -137,7 +157,6 @@ export interface WorkExperience {
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
-  domains: string[]  // NEW FIELD
   shiftType: string
   workMode: string
   timeSupportZones: string[]
@@ -221,6 +240,8 @@ interface ComboboxProps {
   creatable?: boolean
   onCreateNew?: (value: string) => void | Promise<void>
   createLabel?: string
+  /** When value is empty (e.g. resume import with only a university name), show on trigger and seed list search on open. */
+  parsedSearchHint?: string
 }
 
 function ReusableCombobox({
@@ -235,6 +256,7 @@ function ReusableCombobox({
   creatable = false,
   onCreateNew,
   createLabel,
+  parsedSearchHint,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
@@ -302,12 +324,18 @@ function ReusableCombobox({
   }
   
   return (
-    <Popover open={open} onOpenChange={(isOpen) => {
-      setOpen(isOpen)
-      if (!isOpen) {
-        setSearchValue("")
-      }
-    }}>
+    <Popover
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (isOpen && parsedSearchHint?.trim() && !value?.trim()) {
+          setSearchValue(parsedSearchHint.trim())
+        }
+        if (!isOpen) {
+          setSearchValue("")
+        }
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -316,9 +344,11 @@ function ReusableCombobox({
           className={`w-full justify-between ${className || ""}`}
           disabled={disabled || createInProgress}
         >
-          {value
+          {value?.trim()
             ? (options.find((option) => option.value === value)?.label ?? value)
-            : placeholder}
+            : parsedSearchHint?.trim()
+              ? parsedSearchHint.trim()
+              : placeholder}
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -449,6 +479,9 @@ function WorkExperienceEmployerCombobox({
       disabled={disabled}
       error={error}
       createEmployerLookups={createEmployerLookups}
+      parsedNameHint={
+        experience.employerId == null ? experience.employerName?.trim() || undefined : undefined
+      }
     />
   )
 }
@@ -525,6 +558,7 @@ function WorkExperienceProjectCombobox({
       onChange={(sel) => onLinkedProjectChange(experienceIndex, projectIndex, sel)}
       disabled={disabled}
       error={error}
+      parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
     />
   )
 }
@@ -590,6 +624,7 @@ function StandaloneProjectCombobox({
       onChange={(sel) => onLinkedProjectChange(index, sel)}
       disabled={disabled}
       error={error}
+      parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
     />
   )
 }
@@ -674,6 +709,9 @@ function CandidateCertificationComboboxRow({
       onChange={(sel) => onCertificationChange(index, sel)}
       disabled={disabled}
       error={error}
+      parsedNameHint={
+        cert.certificationId == null ? cert.certificationName?.trim() || undefined : undefined
+      }
     />
   )
 }
@@ -714,6 +752,10 @@ interface CandidateCreationDialogProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Disable degree/major comboboxes while loading. */
   degreesMajorsLoading?: boolean
+  /** When opening Create Candidate, merge this partial snapshot (e.g. resume parser). Parent should clear after `onCreatePrefillConsumed`. */
+  createPrefill?: Partial<CandidateFormData> | null
+  /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
+  onCreatePrefillConsumed?: () => void
 }
 
 const createEmptyProject = (): ProjectExperience => ({
@@ -732,7 +774,6 @@ const createEmptyWorkExperience = (): WorkExperience => ({
   startDate: undefined,
   endDate: undefined,
   techStacks: [],
-  domains: [],  // NEW FIELD
   shiftType: "",
   workMode: "",
   timeSupportZones: [],
@@ -848,7 +889,6 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       startDate: we.startDate,
       endDate: we.endDate,
       techStacks: we.techStacks || [],
-      domains: we.domains || [],  // NEW FIELD
       shiftType: we.shiftType || "",
       workMode: we.workMode || "",
       timeSupportZones: we.timeSupportZones || [],
@@ -942,6 +982,8 @@ export function CandidateCreationDialog({
   onCreateDegree,
   onCreateMajor,
   degreesMajorsLoading = false,
+  createPrefill = null,
+  onCreatePrefillConsumed,
 }: CandidateCreationDialogProps) {
   // Always show verification by default (both create and edit modes), allow override via prop
   const showVerification = showVerificationProp ?? true
@@ -954,6 +996,11 @@ export function CandidateCreationDialog({
   
   // Track initial form data for change detection
   const initialFormDataRef = useRef<CandidateFormData | null>(null)
+  /** After resume (or other) prefill is applied in create mode, keep form when parent clears `createPrefill`. */
+  const appliedPrefillSessionRef = useRef(false)
+  const createDialogPrevOpenRef = useRef(false)
+  const onCreatePrefillConsumedRef = useRef(onCreatePrefillConsumed)
+  onCreatePrefillConsumedRef.current = onCreatePrefillConsumed
   
   // Verification state - track which fields have been verified this session
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
@@ -1003,12 +1050,6 @@ export function CandidateCreationDialog({
     [lookups?.techStacks, lookups?.timeSupportZones]
   )
 
-  // University creation state
-  const [universityLocationOptions, setUniversityLocationOptions] = useState<ComboboxOption[]>([])
-  const [createUniversityDialogOpen, setCreateUniversityDialogOpen] = useState(false)
-  const [pendingUniversityName, setPendingUniversityName] = useState<string>("")
-  const [pendingEducationIndex, setPendingEducationIndex] = useState<number | null>(null)
-  
   /** Tech stacks: API list + any values already on the candidate (edit) or newly selected. */
   const selectedTechStackNames = useMemo(() => {
     const names = new Set<string>()
@@ -1106,10 +1147,6 @@ export function CandidateCreationDialog({
     return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [lookups?.majors, selectedMajorNames])
 
-  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>(
-    () => HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
-  )
-  
   const [errors, setErrors] = useState<{
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, string>>
     workExperiences?: { 
@@ -1199,6 +1236,15 @@ export function CandidateCreationDialog({
       percentage: total > 0 ? Math.round((verified / total) * 100) : 0 
     }
   }, [showVerification, verifiedFields, formData])
+
+  const unresolvedCatalogRefs = useMemo(
+    () => (mode === "create" ? collectUnresolvedCatalogRefs(formData) : []),
+    [mode, formData]
+  )
+
+  const scrollToCatalogAnchor = useCallback((anchorId: string) => {
+    document.getElementById(anchorId)?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
   
   // Get progress color based on percentage
   const getProgressColor = (percentage: number): string => {
@@ -1584,7 +1630,6 @@ export function CandidateCreationDialog({
             `workExperiences.${idx}.startDate`,
             `workExperiences.${idx}.endDate`,
             `workExperiences.${idx}.techStacks`,
-            `workExperiences.${idx}.domains`,  // NEW FIELD
             `workExperiences.${idx}.shiftType`,
             `workExperiences.${idx}.workMode`,
             `workExperiences.${idx}.timeSupportZones`,
@@ -1899,21 +1944,6 @@ export function CandidateCreationDialog({
     [markFieldModified]
   )
 
-  // Handle university creation - backend API integration pending
-  const handleUniversityCreated = async (_universityData: UniversityFormData) => {
-    setCreateUniversityDialogOpen(false)
-    setPendingUniversityName("")
-    setPendingEducationIndex(null)
-    toast.info("University creation will be available when backend API is integrated.")
-  }
-
-  // Handle university creation cancel
-  const handleUniversityCreationCancel = () => {
-    setCreateUniversityDialogOpen(false)
-    setPendingUniversityName("")
-    setPendingEducationIndex(null)
-  }
-
   const handleWorkExperienceChange = (
     index: number, 
     field: keyof Omit<WorkExperience, 'projects'>, 
@@ -2169,19 +2199,6 @@ export function CandidateCreationDialog({
       )
     }))
 
-    // If university location is selected, populate the location name from current options (e.g. from API)
-    if (field === "universityLocationId" && value) {
-      const optionLabel = universityLocationOptions.find(o => o.value === value)?.label
-      if (optionLabel) {
-        setFormData(prev => ({
-          ...prev,
-          educations: prev.educations.map((edu, i) =>
-            i === index ? { ...edu, universityLocationName: optionLabel } : edu
-          )
-        }))
-      }
-    }
-
     // Clear error when user starts typing
     if (errors.educations?.[index]?.[field]) {
       setErrors(prev => ({
@@ -2196,6 +2213,37 @@ export function CandidateCreationDialog({
       }))
     }
   }
+
+  const handleEducationUniversityChange = useCallback(
+    (index: number, selected: { id: number; name: string } | null) => {
+      setFormData((prev) => ({
+        ...prev,
+        educations: prev.educations.map((edu, i) =>
+          i === index
+            ? {
+                ...edu,
+                universityLocationId: selected ? String(selected.id) : "",
+                universityLocationName: selected?.name ?? "",
+              }
+            : edu
+        ),
+      }))
+      setErrors((prev) => {
+        if (!prev.educations?.[index]?.universityLocationId) return prev
+        return {
+          ...prev,
+          educations: {
+            ...prev.educations,
+            [index]: {
+              ...prev.educations[index],
+              universityLocationId: undefined,
+            },
+          },
+        }
+      })
+    },
+    []
+  )
 
   const addEducation = () => {
     setFormData(prev => ({
@@ -2403,7 +2451,7 @@ export function CandidateCreationDialog({
                         edu.isTopper || edu.isCheetah
       
       if (hasAnyData) {
-        if (!edu.universityLocationId) eduErrors.universityLocationId = "University location is required"
+        if (!edu.universityLocationId) eduErrors.universityLocationId = "University is required"
         if (!edu.degreeName) eduErrors.degreeName = "Degree name is required"
         if (!edu.majorName) eduErrors.majorName = "Major name is required"
       }
@@ -2489,9 +2537,18 @@ export function CandidateCreationDialog({
     onOpenChange?.(false)
   }
 
-  // Update form data when candidateData changes (for edit mode)
+  // Update form data when candidateData changes (for edit mode) or create opens (with optional resume prefill)
   React.useEffect(() => {
-    if (mode === "edit" && candidateData && open) {
+    if (!open) {
+      appliedPrefillSessionRef.current = false
+      createDialogPrevOpenRef.current = false
+      return
+    }
+
+    const justOpened = !createDialogPrevOpenRef.current
+    createDialogPrevOpenRef.current = true
+
+    if (mode === "edit" && candidateData) {
       const newFormData = candidateToFormData(candidateData)
       setFormData(newFormData)
       initialFormDataRef.current = newFormData
@@ -2502,30 +2559,43 @@ export function CandidateCreationDialog({
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
-      // Expand all sections for optimal UX in edit/verify mode
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
       setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
-    } else if (mode === "create" && open) {
-      setFormData(initialFormData)
-      initialFormDataRef.current = initialFormData
-      setErrors({})
-      setVerifiedFields(new Set())
-      setModifiedFields(new Set())
-      setResumeFile(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
-      // Expand all sections by default for better UX
-      setWorkExperienceOpen(true)
-      setTechStacksOpen(true)
-      setProjectsOpen(true)
-      setCertificationsOpen(true)
-      setEducationOpen(true)
+      return
     }
-  }, [mode, candidateData, open])
+
+    if (mode === "create") {
+      const hadPrefill = !!(createPrefill && hasPrefillContent(createPrefill))
+      if (hadPrefill) {
+        const merged = mergeCandidatePrefill(initialFormData, createPrefill!)
+        setFormData(merged)
+        initialFormDataRef.current = merged
+        appliedPrefillSessionRef.current = true
+        onCreatePrefillConsumedRef.current?.()
+      } else if (justOpened && !appliedPrefillSessionRef.current) {
+        setFormData(initialFormData)
+        initialFormDataRef.current = initialFormData
+      }
+
+      if (justOpened || hadPrefill) {
+        setErrors({})
+        setVerifiedFields(new Set())
+        setModifiedFields(new Set())
+        setResumeFile(null)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+        setWorkExperienceOpen(true)
+        setTechStacksOpen(true)
+        setProjectsOpen(true)
+        setCertificationsOpen(true)
+        setEducationOpen(true)
+      }
+    }
+  }, [mode, candidateData, open, createPrefill])
 
   const resetForm = () => {
     if (mode === "edit" && candidateData) {
@@ -2574,9 +2644,11 @@ export function CandidateCreationDialog({
     )
   }
 
+  const isControlledOpen = controlledOpen !== undefined
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {mode === "create" && (
+      {mode === "create" && !isControlledOpen && (
         <DialogTrigger asChild>
           {children || (
             <Button className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer">
@@ -2664,6 +2736,36 @@ export function CandidateCreationDialog({
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
           <form id="candidate-form" onSubmit={handleSubmit} className="space-y-6">
+          {mode === "create" && unresolvedCatalogRefs.length > 0 ? (
+            <Card className="border-amber-200/90 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/25">
+              <CardHeader className="py-3 pb-2">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                  <ListTodo className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+                  Link catalog records
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0 text-sm">
+                <p className="text-muted-foreground">
+                  Parsed resume filled names below, but these rows still need a matching database record.
+                  Open each field to search — the parsed name is filled in when you open it. Use{" "}
+                  <span className="font-medium text-foreground">Add New</span> when there is no match.
+                </p>
+                <ul className="space-y-1.5">
+                  {unresolvedCatalogRefs.map((r) => (
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        className="text-left font-medium text-primary hover:underline"
+                        onClick={() => scrollToCatalogAnchor(r.anchorId)}
+                      >
+                        {r.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
           {/* Section 1: Basic Information */}
           <div id="basic-info">
           <Card>
@@ -3080,7 +3182,10 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.jobTitle`} />
                     </div>
 
-                    <div className="space-y-2">
+                    <div
+                      className="space-y-2 scroll-mt-28"
+                      id={`prefill-anchor-we-${index}-employer`}
+                    >
                       <WorkExperienceEmployerCombobox
                         experience={experience}
                         index={index}
@@ -3164,31 +3269,6 @@ export function CandidateCreationDialog({
                         onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor={`domains-${index}`}>Domains</Label>
-                      <MultiSelect
-                        items={horizontalDomainOptions}
-                        selected={experience.domains}
-                        onChange={(values) => handleWorkExperienceChange(index, "domains", values)}
-                        placeholder="Select domains..."
-                        searchPlaceholder="Search domains..."
-                        maxDisplay={4}
-                        creatable={true}
-                        createLabel="Create New Domain"
-                        onCreateNew={(newDomain) => {
-                          // Add the new domain to options
-                          const newOption = { label: newDomain, value: newDomain }
-                          setHorizontalDomainOptions(prev => {
-                            const updated = [...prev, newOption]
-                            return updated.sort((a, b) => a.label.localeCompare(b.label))
-                          })
-                          // Auto-select the newly added domain
-                          handleWorkExperienceChange(index, "domains", [...experience.domains, newDomain])
-                        }}
-                      />
-                      <VerificationCheckbox fieldPath={`workExperiences.${index}.domains`} />
                     </div>
 
                       <div className="space-y-2">
@@ -3297,7 +3377,10 @@ export function CandidateCreationDialog({
                             </div>
                             
                             <div className="space-y-3">
-                              <div className="space-y-2">
+                              <div
+                                className="space-y-2 scroll-mt-28"
+                                id={`prefill-anchor-we-${index}-project-${projectIndex}`}
+                              >
                                 <WorkExperienceProjectCombobox
                                   experienceIndex={index}
                                   project={project}
@@ -3535,7 +3618,7 @@ export function CandidateCreationDialog({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 scroll-mt-28" id={`prefill-anchor-sp-${index}`}>
                       <StandaloneProjectCombobox
                         index={index}
                         project={project}
@@ -3666,22 +3749,30 @@ export function CandidateCreationDialog({
                   </CardHeader>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2 md:col-span-2">
-                          <Label htmlFor={`universityLocation-${index}`}>University Location *</Label>
-                          <ReusableCombobox
-                            options={universityLocationOptions}
-                            value={education.universityLocationId}
-                            onValueChange={(value) => handleEducationChange(index, "universityLocationId", value)}
-                            placeholder="Select university location..."
-                            searchPlaceholder="Search universities..."
-                            className={errors.educations?.[index]?.universityLocationId ? "border-red-500" : ""}
-                            creatable={true}
-                            createLabel="Add New University"
-                            onCreateNew={(searchValue) => {
-                              setPendingUniversityName(searchValue)
-                              setPendingEducationIndex(index)
-                              setCreateUniversityDialogOpen(true)
-                            }}
+                        <div
+                          className="space-y-2 md:col-span-2 scroll-mt-28"
+                          id={`prefill-anchor-edu-${index}-university`}
+                        >
+                          <UniversityCombobox
+                            id={`university-${index}`}
+                            label="University *"
+                            value={(() => {
+                              const uid = education.universityLocationId?.trim()
+                              if (!uid) return null
+                              const idNum = Number(uid)
+                              if (!Number.isFinite(idNum)) return null
+                              return {
+                                id: idNum,
+                                name: education.universityLocationName?.trim() || "University",
+                              }
+                            })()}
+                            onChange={(u) => handleEducationUniversityChange(index, u)}
+                            error={!!errors.educations?.[index]?.universityLocationId}
+                            parsedNameHint={
+                              !String(education.universityLocationId ?? "").trim()
+                                ? education.universityLocationName?.trim() || undefined
+                                : undefined
+                            }
                           />
                           {errors.educations?.[index]?.universityLocationId && (
                             <p className="text-sm text-red-500">{errors.educations[index].universityLocationId}</p>
@@ -3948,7 +4039,10 @@ export function CandidateCreationDialog({
                   </CardHeader>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2 md:col-span-2">
+                        <div
+                          className="space-y-2 md:col-span-2 scroll-mt-28"
+                          id={`prefill-anchor-cert-${index}`}
+                        >
                           <CandidateCertificationComboboxRow
                             index={index}
                             cert={certification}
@@ -4331,23 +4425,6 @@ export function CandidateCreationDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Create University Dialog */}
-      <UniversityCreationDialog
-        mode="create"
-        open={createUniversityDialogOpen}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            handleUniversityCreationCancel()
-          } else {
-            setCreateUniversityDialogOpen(isOpen)
-          }
-        }}
-        onSubmit={async (universityData: UniversityFormData) => {
-          await handleUniversityCreated(universityData)
-        }}
-        initialName={pendingUniversityName}
-      />
 
     </Dialog>
   )

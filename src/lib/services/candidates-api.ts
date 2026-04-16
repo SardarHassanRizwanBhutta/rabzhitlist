@@ -62,6 +62,8 @@ export interface CandidateListItemDto {
   resumeUrl: string | null
   createdAt: string
   updatedAt: string
+  /** Same as detail GET — for list badges/filters without an extra fetch. */
+  isTopDeveloper?: boolean
 }
 
 export interface CreateCandidateDto {
@@ -80,6 +82,8 @@ export interface CreateCandidateDto {
   source?: number | null
   status?: string
   resumeUrl?: string | null
+  /** Optional; API defaults to false when omitted. */
+  isTopDeveloper?: boolean
   techStackIds?: number[]
   projects?: CreateCandidateProjectDto[]
   educations?: CreateCandidateEducationDto[]
@@ -157,6 +161,7 @@ export interface UpdateCandidateDto {
   source: number | null
   status: string
   resumeUrl: string | null
+  isTopDeveloper: boolean
 }
 
 function mbtiIndexToLabel(index: number | null | undefined): string | null {
@@ -255,8 +260,6 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
         return String(r.techStackName ?? r.name ?? t)
       })
     : []
-  const domainsRaw = raw.domains
-  const domains = Array.isArray(domainsRaw) ? domainsRaw.map((d) => String(d)) : []
   const tzRaw = raw.timeSupportZones ?? raw.timeSupportZoneNames
   const timeSupportZones = Array.isArray(tzRaw)
     ? tzRaw.map((z) => {
@@ -276,7 +279,6 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     startDate: parseIsoDate(raw.startDate),
     endDate: parseIsoDate(raw.endDate),
     techStacks,
-    domains,
     shiftType: typeof raw.shiftType === "number"
       ? (SHIFT_TYPE_DB[raw.shiftType] ?? "") as WorkExperience["shiftType"]
       : (raw.shiftType as WorkExperience["shiftType"]) ?? "",
@@ -373,7 +375,12 @@ function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEduca
     endMonth: parseIsoDate(raw.endMonth ?? raw.endDate),
     grades: raw.grades != null ? String(raw.grades) : null,
     isTopper: typeof raw.isTopper === "boolean" ? raw.isTopper : null,
-    isCheetah: typeof raw.isCheetah === "boolean" ? raw.isCheetah : null,
+    isCheetah:
+      typeof raw.isCheetah === "boolean"
+        ? raw.isCheetah
+        : typeof raw.isMainCheetah === "boolean"
+          ? raw.isMainCheetah
+          : null,
   }
 }
 
@@ -415,6 +422,8 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     certifications: [],
     educations: [],
     techStacks: [],
+    isTopDeveloper:
+      typeof row.isTopDeveloper === "boolean" ? row.isTopDeveloper : false,
   }
 }
 
@@ -481,7 +490,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     certifications,
     educations,
     techStacks,
-    isTopDeveloper: typeof data.isTopDeveloper === "boolean" ? data.isTopDeveloper : null,
+    isTopDeveloper: typeof data.isTopDeveloper === "boolean" ? data.isTopDeveloper : false,
     achievements,
     competitions: [],
   }
@@ -633,6 +642,7 @@ export function candidateFormDataToCreateDto(
     source: sourceFormToApi(data.source),
     status: "sourced",
     resumeUrl: null,
+    isTopDeveloper: data.isTopDeveloper === true,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
     projects: projects.length > 0 ? projects : undefined,
     educations: educations.length > 0 ? educations : undefined,
@@ -663,6 +673,7 @@ export function candidateFormDataToUpdateDto(
     source: base.source ?? null,
     status: existing.status,
     resumeUrl: existing.resume ?? null,
+    isTopDeveloper: base.isTopDeveloper ?? false,
   }
 }
 

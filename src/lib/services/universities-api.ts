@@ -3,6 +3,12 @@ import type { Ranking } from "@/lib/types/university"
 
 import { API_BASE_URL } from "@/lib/config/api"
 
+/** Search/combobox result: id + name only. @see GET /api/universities/search */
+export interface UniversityLookupDto {
+  id: number
+  name: string
+}
+
 /** GET /api/universities list item (ranking and cities from API) */
 export interface UniversityListItem {
   id: number
@@ -100,6 +106,24 @@ export async function updateUniversityLocation(
     )
   }
   return response.json()
+}
+
+/** Search universities by name (e.g. for combobox). GET /api/universities/search */
+export async function searchUniversities(
+  search: string,
+  limit = 10,
+  signal?: AbortSignal
+): Promise<UniversityLookupDto[]> {
+  const params = new URLSearchParams()
+  if (search.trim()) params.set("search", search.trim())
+  params.set("limit", String(Math.min(20, Math.max(1, limit))))
+  const path = `/api/universities/search?${params.toString()}`
+  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Universities API ${path}: ${res.status} — ${text}`)
+  }
+  return res.json()
 }
 
 export async function fetchUniversities(): Promise<University[]> {

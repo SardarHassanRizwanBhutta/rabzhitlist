@@ -33,6 +33,11 @@ export interface EmployerComboboxProps {
   error?: boolean
   /** Lookups for {@link buildCreateEmployerDto} when creating an employer from "+ Add New Employer". */
   createEmployerLookups?: BuildCreateEmployerDtoOptions
+  /**
+   * When there is no selected employer yet (e.g. resume import), show this text on the trigger and
+   * seed the search when the popover opens so recruiters can match or create quickly.
+   */
+  parsedNameHint?: string
 }
 
 const defaultCreateLookups: BuildCreateEmployerDtoOptions = {
@@ -50,11 +55,20 @@ export function EmployerCombobox({
   className,
   error = false,
   createEmployerLookups = defaultCreateLookups,
+  parsedNameHint,
 }: EmployerComboboxProps) {
   const [open, setOpen] = useState(false)
   const [addEmployerOpen, setAddEmployerOpen] = useState(false)
   const [addEmployerInitialName, setAddEmployerInitialName] = useState("")
   const { query, setQuery, results, loading, resetSearch } = useEmployerSearch()
+  const prevOpenRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (open && !prevOpenRef.current && parsedNameHint?.trim() && !value) {
+      setQuery(parsedNameHint.trim())
+    }
+    prevOpenRef.current = open
+  }, [open, parsedNameHint, value, setQuery])
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next)
@@ -108,8 +122,14 @@ export function EmployerCombobox({
               disabled={disabled}
               className={`w-full justify-between font-normal ${error ? "border-red-500" : ""}`}
             >
-              <span className={query ? "text-foreground" : "text-muted-foreground"}>
-                {query || "Search employers..."}
+              <span
+                className={
+                  query || (!value && parsedNameHint?.trim())
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                {query || (!value && parsedNameHint?.trim()) || "Search employers..."}
               </span>
               <ChevronsUpDown className="opacity-50 shrink-0" />
             </Button>
