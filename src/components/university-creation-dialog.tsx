@@ -716,7 +716,8 @@ export function UniversityCreationDialog({
                 onOpenChange={() => toggleSection("basic-info")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
+                  <CollapsibleTrigger asChild>
+                    <div className="w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-t-xl">
                     <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base flex items-center gap-2">
@@ -758,6 +759,7 @@ export function UniversityCreationDialog({
                         </div>
                       </div>
                     </CardHeader>
+                    </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <CardContent className="pt-0">

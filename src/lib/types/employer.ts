@@ -91,10 +91,14 @@ export interface Employer {
   /** Multiple types from employer_employer_types (DB enum values). */
   employerTypes?: EmployerTypeDb[]
   locations: EmployerLocation[]
-  techStacks?: string[]
+  /** Company-wide salary policy (not per office). */
+  salaryPolicy?: SalaryPolicy | null
   timeSupportZones?: string[]
   benefits?: EmployerBenefit[]
   isDPLCompetitive?: boolean  // Separate field for DPL Competitive status
+  /** Company-wide headcount range (not tied to a single office). */
+  minEmployees?: number | null
+  maxEmployees?: number | null
   avgJobTenure?: number  // Manually set average job tenure in years (calculated from work experience data)
   tags?: string[]  // e.g., ["Enterprise", "Startup"] (DPL Competitive is now a separate field)
   layoffs?: Layoff[]  // One-to-many relationship with Layoffs
@@ -166,10 +170,8 @@ const LEGACY_SALARY_POLICY_DISPLAY: Record<string, SalaryPolicy> = {
   Remittance: "Remittance Salary",
 }
 
-export type EmployerRanking =
-  | "Top"
-  | "Standard"
-  | "DPL Favourite"
+/** Matches backend list/detail display strings (ranking enum). */
+export type EmployerRanking = "Tier 1" | "Tier 2" | "Tier 3" | "DPL Favourite"
 
 export type EmployerType =
   | "Services Based"
@@ -216,20 +218,69 @@ export const EMPLOYER_TYPE_DISPLAY_TO_DB: Record<EmployerType, EmployerTypeDb> =
   "Resource Augmentation": "resource_augmentation",
 }
 
-/** DB enum ranking_enum (employers.ranking). */
-export type RankingDb = "standard" | "top" | "dpl_favourite"
+/** Tailwind classes for type badges (tables, filters). */
+export const EMPLOYER_TYPE_BADGE_COLORS: Record<EmployerTypeDb, string> = {
+  services_based:
+    "bg-slate-100 text-slate-800 border-slate-200/80 dark:bg-slate-900/80 dark:text-slate-200 dark:border-slate-700",
+  product_based:
+    "bg-blue-100 text-blue-900 border-blue-200/80 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-800",
+  saas: "bg-violet-100 text-violet-900 border-violet-200/80 dark:bg-violet-950/60 dark:text-violet-200 dark:border-violet-800",
+  startup:
+    "bg-amber-100 text-amber-950 border-amber-200/80 dark:bg-amber-950/50 dark:text-amber-100 dark:border-amber-800",
+  integrator:
+    "bg-emerald-100 text-emerald-900 border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800",
+  resource_augmentation:
+    "bg-rose-100 text-rose-900 border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-800",
+}
 
-export const RANKING_DB_LABELS: Record<RankingDb, string> = {
-  standard: "Standard",
-  top: "Top",
+/** DB-style keys for forms and mapping to API integers (see RANKING_TO_API in employers-api). */
+export type RankingDb = "tier_1" | "tier_2" | "tier_3" | "dpl_favourite"
+
+export const RANKING_DB_LABELS: Record<RankingDb, EmployerRanking> = {
+  tier_1: "Tier 1",
+  tier_2: "Tier 2",
+  tier_3: "Tier 3",
   dpl_favourite: "DPL Favourite",
 }
 
 /** Map display (EmployerRanking) to DB value for API/edit. */
 export const RANKING_DISPLAY_TO_DB: Record<EmployerRanking, RankingDb> = {
-  Standard: "standard",
-  Top: "top",
+  "Tier 1": "tier_1",
+  "Tier 2": "tier_2",
+  "Tier 3": "tier_3",
   "DPL Favourite": "dpl_favourite",
+}
+
+/** API / JSON ranking enum order: Tier1=0 … DplFavourite=3. */
+export const EMPLOYER_RANKING_API_ORDER: readonly EmployerRanking[] = [
+  "Tier 1",
+  "Tier 2",
+  "Tier 3",
+  "DPL Favourite",
+] as const
+
+/** Normalize list/detail strings (including removed Standard/Top) to current {@link EmployerRanking}. */
+export function normalizeEmployerRankingFromApi(
+  raw: string | number | null | undefined
+): EmployerRanking {
+  if (raw === null || raw === undefined) return "Tier 1"
+  if (typeof raw === "number" && raw >= 0 && raw <= 3) {
+    return EMPLOYER_RANKING_API_ORDER[raw] ?? "Tier 1"
+  }
+  const t = String(raw).trim()
+  const pascal: Record<string, EmployerRanking> = {
+    Tier1: "Tier 1",
+    Tier2: "Tier 2",
+    Tier3: "Tier 3",
+    DplFavourite: "DPL Favourite",
+  }
+  if (t in pascal) return pascal[t]
+  if (t in RANKING_DISPLAY_TO_DB) return t as EmployerRanking
+  if (t === "Standard") return "Tier 1"
+  if (t === "Top") return "Tier 2"
+  const n = parseInt(t, 10)
+  if (!Number.isNaN(n) && n >= 0 && n <= 3) return EMPLOYER_RANKING_API_ORDER[n] ?? "Tier 1"
+  return "Tier 1"
 }
 
 /** DB enum work_mode_enum (employers.work_mode). */
@@ -302,14 +353,16 @@ export function normalizeSalaryPolicy(policy: string | null | undefined): Salary
 }
 
 export const EMPLOYER_RANKING_COLORS: Record<EmployerRanking, string> = {
-  Top: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  Standard: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
-  "DPL Favourite": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+  "Tier 1": "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200",
+  "Tier 2": "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
+  "Tier 3": "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+  "DPL Favourite": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
 }
 
 export const EMPLOYER_RANKING_LABELS: Record<EmployerRanking, string> = {
-  Top: "Top",
-  Standard: "Standard",
-  "DPL Favourite": "DPL Favourite"
+  "Tier 1": "Tier 1",
+  "Tier 2": "Tier 2",
+  "Tier 3": "Tier 3",
+  "DPL Favourite": "DPL Favourite",
 }
 

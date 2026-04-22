@@ -148,13 +148,13 @@ const PROJECT_STATUS_API_TO_UI: Record<string, ProjectStatus> = {
   closed: "Closed",
 }
 
-const PROJECT_STATUS_UI_TO_NUM: Record<ProjectStatus, number> = {
+export const PROJECT_STATUS_UI_TO_NUM: Record<ProjectStatus, number> = {
   Development: 0,
   Maintenance: 1,
   Closed: 2,
 }
 
-const PUBLISH_PLATFORM_UI_TO_NUM: Record<PublishPlatform, number> = {
+export const PUBLISH_PLATFORM_UI_TO_NUM: Record<PublishPlatform, number> = {
   "App Store": 0,
   "Play Store": 1,
   Web: 2,
@@ -318,7 +318,7 @@ export function technicalDomainLabelToInt(label: string): number | undefined {
   return technicalDomainByLabel.get(label)
 }
 
-// --- List params (query string) — see PROJECT-FILTERS-API.md / ProjectFilterRequest ---
+// --- List params (query string) — see ProjectFilterChanges.md / ProjectFilterRequest ---
 
 /** Filter dialog state mirrored for GET /api/projects (camelCase query keys). */
 export interface ProjectsListFilterInput {
@@ -371,8 +371,18 @@ export interface FetchProjectsParams {
   maxDownloadCount?: number
   minTeamSize?: number
   maxTeamSize?: number
-  startDate?: string
-  endDate?: string
+  /** Inclusive lower bound on `EndDate` (requires non-null EndDate). */
+  completionFrom?: string
+  /** Inclusive upper bound on `EndDate` (requires non-null EndDate). */
+  completionTo?: string
+  /** Inclusive lower bound on `StartDate` (requires non-null StartDate). */
+  projectStartFrom?: string
+  /** Inclusive upper bound on `StartDate` (requires non-null StartDate). */
+  projectStartTo?: string
+  /** Active-window overlap: lower bound (see ProjectFilterChanges.md). */
+  activeWindowFrom?: string
+  /** Active-window overlap: upper bound. */
+  activeWindowTo?: string
 }
 
 function toDateString(d: Date | null | undefined): string | undefined {
@@ -381,14 +391,6 @@ function toDateString(d: Date | null | undefined): string | undefined {
   const m = String(d.getMonth() + 1).padStart(2, "0")
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
-}
-
-function deriveListStartEndDates(filters: ProjectsListFilterInput): { startDate?: string; endDate?: string } {
-  const startDate =
-    toDateString(filters.startEndDateStart) ?? toDateString(filters.startDateStart) ?? undefined
-  const endDate =
-    toDateString(filters.startEndDateEnd) ?? toDateString(filters.completionDateEnd) ?? undefined
-  return { startDate, endDate }
 }
 
 export function buildFetchProjectsParams(
@@ -428,7 +430,12 @@ export function buildFetchProjectsParams(
     .map((p) => PUBLISH_PLATFORM_UI_TO_NUM[p as PublishPlatform])
     .filter((n): n is number => n !== undefined)
 
-  const { startDate, endDate } = deriveListStartEndDates(filters)
+  const completionFrom = toDateString(filters.completionDateStart)
+  const completionTo = toDateString(filters.completionDateEnd)
+  const projectStartFrom = toDateString(filters.startDateStart)
+  const projectStartTo = toDateString(filters.startDateEnd)
+  const activeWindowFrom = toDateString(filters.startEndDateStart)
+  const activeWindowTo = toDateString(filters.startEndDateEnd)
 
   return {
     pageNumber,
@@ -449,8 +456,12 @@ export function buildFetchProjectsParams(
     minDownloadCount: minDownloadCount !== undefined && !Number.isNaN(minDownloadCount) ? minDownloadCount : undefined,
     minTeamSize: minTeamSize !== undefined && !Number.isNaN(minTeamSize) ? minTeamSize : undefined,
     maxTeamSize: maxTeamSize !== undefined && !Number.isNaN(maxTeamSize) ? maxTeamSize : undefined,
-    startDate,
-    endDate,
+    completionFrom,
+    completionTo,
+    projectStartFrom,
+    projectStartTo,
+    activeWindowFrom,
+    activeWindowTo,
   }
 }
 
@@ -551,8 +562,12 @@ function buildListQuery(params: FetchProjectsParams): string {
   if (params.maxDownloadCount != null) search.set("maxDownloadCount", String(params.maxDownloadCount))
   if (params.minTeamSize != null) search.set("minTeamSize", String(params.minTeamSize))
   if (params.maxTeamSize != null) search.set("maxTeamSize", String(params.maxTeamSize))
-  if (params.startDate) search.set("startDate", params.startDate)
-  if (params.endDate) search.set("endDate", params.endDate)
+  if (params.completionFrom) search.set("completionFrom", params.completionFrom)
+  if (params.completionTo) search.set("completionTo", params.completionTo)
+  if (params.projectStartFrom) search.set("projectStartFrom", params.projectStartFrom)
+  if (params.projectStartTo) search.set("projectStartTo", params.projectStartTo)
+  if (params.activeWindowFrom) search.set("activeWindowFrom", params.activeWindowFrom)
+  if (params.activeWindowTo) search.set("activeWindowTo", params.activeWindowTo)
   params.employerIds?.forEach((id) => search.append("employerIds", String(id)))
   params.projectTypes?.forEach((v) => search.append("projectTypes", String(v)))
   params.projectStatuses?.forEach((v) => search.append("projectStatuses", String(v)))

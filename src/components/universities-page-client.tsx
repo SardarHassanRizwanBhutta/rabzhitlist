@@ -22,14 +22,8 @@ import {
   deleteUniversityLocation,
 } from "@/lib/services/universities-api"
 import type { UniversityListItem } from "@/lib/services/universities-api"
-import { LABEL_TO_RANKING, RANKING_TO_LABEL } from "@/lib/types/university"
-import type { Ranking } from "@/lib/types/university"
-
-const RANKING_API_TO_NUMBER: Record<string, Ranking> = {
-  standard: 0,
-  top: 1,
-  dpl_favourite: 2,
-}
+import type { UniversityLocation } from "@/lib/types/university"
+import { LABEL_TO_RANKING, parseUniversityRankingFromList } from "@/lib/types/university"
 
 /** True when the location row was added in the form (id is UUID). False when it came from the server (id is numeric). */
 function isNewLocationFormRow(id: string): boolean {
@@ -37,28 +31,49 @@ function isNewLocationFormRow(id: string): boolean {
   return Number.isNaN(n) || String(n) !== id
 }
 
-const RANKING_LABEL_TO_API: Record<string, "standard" | "top" | "dpl_favourite"> = {
-  Standard: "standard",
-  Top: "top",
-  "DPL Favourite": "dpl_favourite",
+function listItemLinkedInUrl(item: UniversityListItem): string | null {
+  const a = item.linkedInUrl?.trim()
+  if (a) return a
+  const b = (item as { linkedinUrl?: string | null }).linkedinUrl?.trim()
+  return b || null
 }
 
-function mapListItemToUniversity(item: UniversityListItem): University {
-  return {
-    id: item.id,
-    name: item.name,
-    websiteUrl: null,
-    linkedInUrl: null,
-    country: item.country,
-    ranking: RANKING_API_TO_NUMBER[item.ranking] ?? null,
-    locations: item.cities.map((city, index) => ({
+function mapListItemLocations(item: UniversityListItem): UniversityLocation[] {
+  if (item.locations?.length) {
+    return item.locations.map((loc) => ({
+      id: loc.id,
+      universityId: loc.universityId,
+      city: loc.city,
+      address: loc.address ?? null,
+      isMainCampus: loc.isMainCampus,
+      createdAt: loc.createdAt,
+    }))
+  }
+  const legacy = item.cities
+  if (legacy?.length) {
+    return legacy.map((city, index) => ({
       id: 0,
       universityId: item.id,
       city,
       address: null,
       isMainCampus: index === 0,
       createdAt: "",
-    })),
+    }))
+  }
+  return []
+}
+
+function mapListItemToUniversity(item: UniversityListItem): University {
+  const website = item.websiteUrl?.trim() || null
+  const linkedIn = listItemLinkedInUrl(item)
+  return {
+    id: item.id,
+    name: item.name,
+    websiteUrl: website,
+    linkedInUrl: linkedIn,
+    country: item.country,
+    ranking: parseUniversityRankingFromList(item.ranking),
+    locations: mapListItemLocations(item),
     createdAt: "",
     updatedAt: "",
   }
@@ -94,8 +109,8 @@ export function UniversitiesPageClient() {
             .filter((id): id is number => id != null)
         : undefined
       const rankingParam =
-        filters.rankings.length > 0 && filters.rankings[0] in RANKING_LABEL_TO_API
-          ? RANKING_LABEL_TO_API[filters.rankings[0]]
+        filters.rankings.length > 0 && filters.rankings[0] in LABEL_TO_RANKING
+          ? LABEL_TO_RANKING[filters.rankings[0]]
           : undefined
       const res = await fetchUniversitiesFiltered({
         name: filters.name.trim() || undefined,

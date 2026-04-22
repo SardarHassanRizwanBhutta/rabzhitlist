@@ -1462,6 +1462,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
       currentValue.every((val, idx) => 
         val.id === editValue[idx]?.id && 
         val.name === editValue[idx]?.name &&
+        val.hasValue === editValue[idx]?.hasValue &&
         val.amount === editValue[idx]?.amount &&
         val.unit === editValue[idx]?.unit
       )
@@ -1590,7 +1591,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
               className="text-xs bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-300 dark:border-slate-800"
             >
               {benefit.name}
-              {benefit.amount !== null && (
+              {benefit.hasValue && benefit.amount != null && benefit.unit && (
                 <span className="ml-1 font-semibold">
                   : {formatBenefitAmount(benefit.amount, benefit.unit)}
                 </span>

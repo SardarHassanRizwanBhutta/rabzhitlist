@@ -143,6 +143,7 @@ export interface CandidateStandaloneProject {
 export interface WorkExperienceBenefit {
   id: string
   name: string
+  hasValue: boolean
   amount: number | null
   unit: "PKR" | "days" | "count" | "percent" | null
 }
@@ -895,7 +896,8 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       benefits: we.benefits?.map(b => ({
         id: b.id,
         name: b.name,
-        amount: b.amount,
+        hasValue: b.hasValue ?? (b.amount != null || b.unit != null),
+        amount: b.amount ?? null,
         unit: b.unit || null,
       })) || [],
     })) || [],
@@ -1043,11 +1045,10 @@ export function CandidateCreationDialog({
   
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
-      techStacksLookup: lookups?.techStacks ?? [],
       tagsLookup: [],
       timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
     }),
-    [lookups?.techStacks, lookups?.timeSupportZones]
+    [lookups?.timeSupportZones]
   )
 
   /** Tech stacks: API list + any values already on the candidate (edit) or newly selected. */

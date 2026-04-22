@@ -37,9 +37,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Loader2, Plus, Building2, MapPin, Trash2, ShieldCheck, ChevronDown, ChevronRight, AlertTriangle, CalendarIcon, ChevronsUpDown, Check } from "lucide-react"
-import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB, normalizeSalaryPolicy } from "@/lib/types/employer"
+import { Employer, Layoff, type EmployerTypeDb, EMPLOYER_TYPE_DB_LABELS, EMPLOYER_TYPE_DISPLAY_TO_DB, type RankingDb, RANKING_DB_LABELS, RANKING_DISPLAY_TO_DB, type EmployerRanking, type WorkModeDb, WORK_MODE_DB_LABELS, type ShiftTypeDb, SHIFT_TYPE_DB_LABELS, type EmployerStatusDb, EMPLOYER_STATUS_DB_LABELS, EMPLOYER_STATUS_DISPLAY_TO_DB, type LayoffReasonDb, LAYOFF_REASON_DB_LABELS, LAYOFF_REASON_DISPLAY_TO_DB, type SalaryPolicyDb, SALARY_POLICY_DB_LABELS, SALARY_POLICY_DISPLAY_TO_DB, normalizeSalaryPolicy } from "@/lib/types/employer"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { EmployerBenefit } from "@/lib/types/benefits"
+import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { Calendar } from "@/components/ui/calendar"
@@ -63,9 +63,6 @@ export interface EmployerLocationFormData {
   city: string
   address: string
   isHeadquarters: boolean
-  salaryPolicy: SalaryPolicyDb | ""
-  minSize: string
-  maxSize: string
 }
 
 export interface LayoffFormData {
@@ -87,12 +84,15 @@ export interface EmployerFormData {
   workMode: WorkModeDb | ""
   shiftType: ShiftTypeDb | ""
   ranking: RankingDb | ""
-  techStacks: string[]
+  /** Company-wide salary policy (DB enum value for API). */
+  salaryPolicy: SalaryPolicyDb | ""
   timeSupportZones: string[]
   tags: string[]
   benefits: EmployerBenefit[]
   isDPLCompetitive: boolean
-  avgJobTenure: string
+  /** Company-wide headcount range (strings for controlled inputs). */
+  minEmployees: string
+  maxEmployees: string
   locations: EmployerLocationFormData[]
   layoffs: LayoffFormData[]
 }
@@ -106,7 +106,6 @@ export interface EmployerVerificationState {
 type DialogMode = "create" | "edit"
 
 export interface EmployerLookups {
-  techStacks: LookupItem[]
   /** Tags from API; "+ Add Tag" calls onCreateTag when provided. */
   tags?: LookupItem[]
   /** Time support zones from API; "+ Add Time Zone" calls onCreateTimeSupportZone when provided. */
@@ -128,9 +127,8 @@ interface EmployerCreationDialogProps {
   /** Normalized countries for location country combobox (from API). */
   countries?: Country[]
   countriesLoading?: boolean
-  /** When provided, Tech Stacks / Tags / Time Support Zones use lookups; "+ Add" handlers create new items. */
+  /** When provided, Tags / Time Support Zones use lookups; "+ Add" handlers create new items. */
   lookups?: EmployerLookups
-  onCreateTechStack?: (name: string) => Promise<void>
   onCreateTag?: (name: string) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
   /** When BenefitsSelector "Add Benefit" is used; return new EmployerBenefit to add to form. */
@@ -145,9 +143,6 @@ const createEmptyLocation = (): EmployerLocationFormData => ({
   city: "",
   address: "",
   isHeadquarters: false,
-  salaryPolicy: "",
-  minSize: "",
-  maxSize: "",
 })
 
 const createEmptyLayoff = (): LayoffFormData => ({
@@ -169,12 +164,13 @@ const initialFormData: EmployerFormData = {
   workMode: "",
   shiftType: "",
   ranking: "",
-  techStacks: [],
+  salaryPolicy: "",
   timeSupportZones: [],
   tags: [],
   benefits: [],
   isDPLCompetitive: false,
-  avgJobTenure: "",
+  minEmployees: "",
+  maxEmployees: "",
   locations: [createEmptyLocation()], // Start with one location
   layoffs: [],
 }
@@ -184,7 +180,7 @@ const statusOptions: MultiSelectOption[] = (Object.entries(EMPLOYER_STATUS_DB_LA
   ([value, label]) => ({ value, label })
 )
 
-// Salary policy options (DB enum values for location)
+// Salary policy options (DB enum values for employer)
 const salaryPolicyOptions = (Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]).map(
   ([value, label]) => ({ value, label })
 )
@@ -192,16 +188,14 @@ const salaryPolicyOptions = (Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryP
 // Work mode, shift type, ranking options (DB enum values)
 const workModeOptions = (Object.entries(WORK_MODE_DB_LABELS) as [WorkModeDb, string][]).map(([value, label]) => ({ value, label }))
 const shiftTypeOptions = (Object.entries(SHIFT_TYPE_DB_LABELS) as [ShiftTypeDb, string][]).map(([value, label]) => ({ value, label }))
-const rankingOptions = (Object.entries(RANKING_DB_LABELS) as [RankingDb, string][]).map(([value, label]) => ({ value, label }))
+const rankingOptions = (Object.entries(RANKING_DB_LABELS) as [RankingDb, EmployerRanking][]).map(([value, label]) => ({
+  value,
+  label,
+}))
 
-const normalizeTechStack = (tech: string): string => tech.trim()
-
-// Use only employer's own tech stacks and benefits (no candidate-derived data).
-const getEmployerTechStacks = (employer: Employer): string[] => {
-  return employer.techStacks && employer.techStacks.length > 0 ? [...employer.techStacks] : []
-}
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
-  return employer.benefits && employer.benefits.length > 0 ? [...employer.benefits] : []
+  if (!employer.benefits?.length) return []
+  return employer.benefits.map((b) => normalizeEmployerBenefit(b))
 }
 
 // Employer type options for MultiSelect (DB enum values with display labels)
@@ -221,6 +215,14 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     : employer.status
       ? [EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]]
       : []
+  const minEmployeesStr = employer.minEmployees != null ? String(employer.minEmployees) : ""
+  const maxEmployeesStr = employer.maxEmployees != null ? String(employer.maxEmployees) : ""
+  const salaryPolicyDb: SalaryPolicyDb | "" =
+    employer.salaryPolicy != null && String(employer.salaryPolicy).trim()
+      ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(employer.salaryPolicy))]
+      : employer.locations[0]?.salaryPolicy != null
+        ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(employer.locations[0].salaryPolicy))]
+        : ""
   return {
     name: employer.name || "",
     websiteUrl: employer.websiteUrl || "",
@@ -231,26 +233,19 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     workMode: employer.workMode ?? "",
     shiftType: employer.shiftType ?? "",
     ranking: employer.ranking ? RANKING_DISPLAY_TO_DB[employer.ranking] : "",
-    techStacks: getEmployerTechStacks(employer),
+    salaryPolicy: salaryPolicyDb,
     timeSupportZones: employer.timeSupportZones ?? [],
     tags: employer.tags ?? [],
     benefits: getEmployerBenefits(employer),
     isDPLCompetitive: employer.isDPLCompetitive || false,
-    avgJobTenure: employer.avgJobTenure?.toString() || "",
+    minEmployees: minEmployeesStr,
+    maxEmployees: maxEmployeesStr,
     locations: employer.locations.map(loc => ({
       id: loc.id,
       country: loc.country || "",
       city: loc.city || "",
       address: loc.address || "",
       isHeadquarters: loc.isHeadquarters,
-      salaryPolicy:
-        loc.salaryPolicy && loc.salaryPolicy in SALARY_POLICY_DB_LABELS
-          ? (loc.salaryPolicy as SalaryPolicyDb)
-          : loc.salaryPolicy
-            ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(loc.salaryPolicy))]
-            : "",
-      minSize: loc.minSize?.toString() || "",
-      maxSize: loc.maxSize?.toString() || "",
     })),
     layoffs: (employer.layoffs || []).map(layoff => ({
       id: layoff.id,
@@ -265,14 +260,23 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
 
 // All verifiable fields for employers (Basic Information section only)
 const EMPLOYER_VERIFICATION_FIELDS = [
-  'name', 'statuses', 'foundedYear', 'employerTypes', 'ranking', 'websiteUrl', 'linkedinUrl', 'isDPLCompetitive', 'avgJobTenure'
+  'name',
+  'statuses',
+  'foundedYear',
+  'employerTypes',
+  'ranking',
+  'minEmployees',
+  'maxEmployees',
+  'websiteUrl',
+  'linkedinUrl',
+  'isDPLCompetitive',
 ]
 
 // Work Arrangements & Tags section fields
 const WORK_ARRANGEMENTS_TAGS_FIELDS = ['workMode', 'shiftType', 'timeSupportZones', 'tags']
 
-// Technology Stacks & Benefits section fields
-const TECH_STACK_BENEFITS_FIELDS = ['techStacks', 'benefits']
+// Benefits & Salary Policy section fields
+const BENEFITS_SALARY_POLICY_FIELDS = ['benefits', 'salaryPolicy']
 
 // Location fields (dynamic based on number of locations)
 const getLocationFieldNames = (locationIndex: number): string[] => {
@@ -280,9 +284,6 @@ const getLocationFieldNames = (locationIndex: number): string[] => {
     `locations[${locationIndex}].country`,
     `locations[${locationIndex}].city`,
     `locations[${locationIndex}].address`,
-    `locations[${locationIndex}].salaryPolicy`,
-    `locations[${locationIndex}].minSize`,
-    `locations[${locationIndex}].maxSize`,
     `locations[${locationIndex}].isHeadquarters`
   ]
 }
@@ -300,7 +301,6 @@ export function EmployerCreationDialog({
   countries = [],
   countriesLoading = false,
   lookups,
-  onCreateTechStack,
   onCreateTag,
   onCreateTimeSupportZone,
   onCreateBenefit,
@@ -323,7 +323,7 @@ export function EmployerCreationDialog({
   
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["basic-info", "work-arrangements-tags", "tech-stack-benefits", "locations"])
+    new Set(["basic-info", "work-arrangements-tags", "benefits-salary-policy", "locations"])
   )
 
   // Location country combobox: which location's popover is open (null = none)
@@ -336,10 +336,6 @@ export function EmployerCreationDialog({
     return countries.filter((c) => c.name.toLowerCase().includes(q))
   }, [countries, locationCountrySearchQuery])
 
-  const techStackOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? [],
-    [lookups?.techStacks]
-  )
   const tagOptions: MultiSelectOption[] = useMemo(
     () => lookups?.tags?.map((l) => ({ value: l.name, label: l.name })) ?? [],
     [lookups?.tags]
@@ -561,7 +557,7 @@ export function EmployerCreationDialog({
     const locationErrors: { [index: number]: Partial<Record<keyof EmployerLocationFormData, string>> } = {}
     const layoffErrors: { [index: number]: Partial<Record<keyof LayoffFormData, string>> } = {}
 
-    // Employer validation (name required; foundedYear optional but must be 1800–current year if set)
+    // Employer validation (name required; other basic fields optional with format checks when set)
     if (!formData.name.trim()) employerErrors.name = "Employer name is required"
     if (formData.foundedYear.trim()) {
       const year = parseInt(formData.foundedYear, 10)
@@ -579,49 +575,42 @@ export function EmployerCreationDialog({
       employerErrors.linkedinUrl = "LinkedIn URL must start with http:// or https://"
     }
 
-    // Location validation
-    const hasHeadquarters = formData.locations.some(loc => loc.isHeadquarters)
-    
+    if (formData.minEmployees.trim()) {
+      const minEmpNum = parseInt(formData.minEmployees, 10)
+      if (Number.isNaN(minEmpNum) || minEmpNum <= 0) {
+        employerErrors.minEmployees = "Minimum employees must be a positive number"
+      }
+    }
+
+    if (formData.maxEmployees.trim()) {
+      const maxEmpNum = parseInt(formData.maxEmployees, 10)
+      const minEmpNum = formData.minEmployees.trim()
+        ? parseInt(formData.minEmployees, 10)
+        : NaN
+      if (Number.isNaN(maxEmpNum) || maxEmpNum <= 0) {
+        employerErrors.maxEmployees = "Maximum employees must be a positive number"
+      } else if (!Number.isNaN(minEmpNum) && maxEmpNum < minEmpNum) {
+        employerErrors.maxEmployees =
+          "Maximum employees must be greater than or equal to minimum employees"
+      }
+    }
+
+    // Office locations: optional. If a row has any of country / city / address filled, require country and city for a consistent record (matches API filter).
     formData.locations.forEach((location, index) => {
+      const hasAny =
+        location.country.trim() ||
+        location.city.trim() ||
+        location.address.trim()
+      if (!hasAny) return
+
       const locErrors: Partial<Record<keyof EmployerLocationFormData, string>> = {}
-      
-      if (!location.country.trim()) locErrors.country = "Country is required"
-      if (!location.city.trim()) locErrors.city = "City is required"
-      if (!location.address.trim()) locErrors.address = "Address is required"
-      if (!location.salaryPolicy) locErrors.salaryPolicy = "Salary policy is required"
-      
-      // Employee count validation
-      if (!location.minSize.trim()) {
-        locErrors.minSize = "Minimum employees is required"
-      } else {
-        const minSizeNum = parseInt(location.minSize)
-        if (isNaN(minSizeNum) || minSizeNum <= 0) {
-          locErrors.minSize = "Minimum employees must be a positive number"
-        }
-      }
-      
-      if (!location.maxSize.trim()) {
-        locErrors.maxSize = "Maximum employees is required"
-      } else {
-        const maxSizeNum = parseInt(location.maxSize)
-        const minSizeNum = parseInt(location.minSize)
-        if (isNaN(maxSizeNum) || maxSizeNum <= 0) {
-          locErrors.maxSize = "Maximum employees must be a positive number"
-        } else if (!isNaN(minSizeNum) && maxSizeNum < minSizeNum) {
-          locErrors.maxSize = "Maximum employees must be greater than or equal to minimum employees"
-        }
-      }
-      
+      if (!location.country.trim()) locErrors.country = "Country is required when office details are entered"
+      if (!location.city.trim()) locErrors.city = "City is required when office details are entered"
+
       if (Object.keys(locErrors).length > 0) {
         locationErrors[index] = locErrors
       }
     })
-
-    // Check for headquarters requirement
-    if (!hasHeadquarters && formData.locations.length > 0) {
-      if (!locationErrors[0]) locationErrors[0] = {}
-      locationErrors[0].isHeadquarters = "At least one location must be designated as headquarters"
-    }
 
     const newErrors = {
       employer: Object.keys(employerErrors).length > 0 ? employerErrors : undefined,
@@ -700,8 +689,8 @@ export function EmployerCreationDialog({
     [verifiedFields]
   )
 
-  const techStackBenefitsProgress = useMemo(() =>
-    calculateSectionProgress(TECH_STACK_BENEFITS_FIELDS),
+  const benefitsSalaryPolicyProgress = useMemo(() =>
+    calculateSectionProgress(BENEFITS_SALARY_POLICY_FIELDS),
     [verifiedFields]
   )
 
@@ -792,8 +781,8 @@ export function EmployerCreationDialog({
     if (sectionId === 'work-arrangements-tags') {
       return WORK_ARRANGEMENTS_TAGS_FIELDS
     }
-    if (sectionId === 'tech-stack-benefits') {
-      return TECH_STACK_BENEFITS_FIELDS
+    if (sectionId === 'benefits-salary-policy') {
+      return BENEFITS_SALARY_POLICY_FIELDS
     }
     if (sectionId === 'locations') {
       const fields: string[] = []
@@ -1033,11 +1022,14 @@ export function EmployerCreationDialog({
                 onOpenChange={() => toggleSection("basic-info")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <CardHeader className="!flex flex-row flex-wrap items-center justify-between gap-2 py-3">
+                    <CollapsibleTrigger asChild className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <CardTitle className="text-base flex min-w-0 flex-1 items-center gap-2 font-semibold leading-none">
+                          <Building2 className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
                           Basic Information
                           {showVerification && (
                             <SectionProgressBadge 
@@ -1047,35 +1039,30 @@ export function EmployerCreationDialog({
                             />
                           )}
                         </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div 
-                              className="flex items-center gap-2" 
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-basic-info"
-                                checked={isSectionFullyVerified("basic-info")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("basic-info", checked === true)}
-                                className="h-4 w-4"
-                              />
-                              <Label 
-                                htmlFor="verify-all-basic-info" 
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("basic-info") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                        {expandedSections.has("basic-info") ? (
+                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                    </CollapsibleTrigger>
+                    {showVerification && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Checkbox
+                          id="verify-all-basic-info"
+                          checked={isSectionFullyVerified("basic-info")}
+                          onCheckedChange={(checked) => handleVerifyAllSection("basic-info", checked === true)}
+                          className="h-4 w-4"
+                        />
+                        <Label 
+                          htmlFor="verify-all-basic-info" 
+                          className="text-xs text-muted-foreground cursor-pointer font-normal"
+                        >
+                          Verify All
+                        </Label>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    )}
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1094,7 +1081,7 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="foundedYear">Founded Year *</Label>
+                          <Label htmlFor="foundedYear">Founded Year</Label>
                           <Input
                             id="foundedYear"
                             type="number"
@@ -1176,6 +1163,40 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
+                          <Label htmlFor="minEmployees">Minimum Employees</Label>
+                          <Input
+                            id="minEmployees"
+                            type="number"
+                            placeholder="10"
+                            min={1}
+                            value={formData.minEmployees}
+                            onChange={(e) => handleInputChange("minEmployees", e.target.value)}
+                            className={errors.employer?.minEmployees ? "border-red-500" : ""}
+                          />
+                          {errors.employer?.minEmployees && (
+                            <p className="text-sm text-red-500">{errors.employer.minEmployees}</p>
+                          )}
+                          <VerificationCheckbox fieldName="minEmployees" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="maxEmployees">Maximum Employees</Label>
+                          <Input
+                            id="maxEmployees"
+                            type="number"
+                            placeholder="50"
+                            min={1}
+                            value={formData.maxEmployees}
+                            onChange={(e) => handleInputChange("maxEmployees", e.target.value)}
+                            className={errors.employer?.maxEmployees ? "border-red-500" : ""}
+                          />
+                          {errors.employer?.maxEmployees && (
+                            <p className="text-sm text-red-500">{errors.employer.maxEmployees}</p>
+                          )}
+                          <VerificationCheckbox fieldName="maxEmployees" />
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="websiteUrl">Website URL</Label>
                           <Input
                             id="websiteUrl"
@@ -1223,26 +1244,6 @@ export function EmployerCreationDialog({
                           </div>
                           <VerificationCheckbox fieldName="isDPLCompetitive" />
                         </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="avgJobTenure">Average Job Tenure (Years)</Label>
-                          <Input
-                            id="avgJobTenure"
-                            type="number"
-                            placeholder="e.g., 2.5"
-                            min="0"
-                            step="0.1"
-                            value={formData.avgJobTenure}
-                            onChange={(e) => {
-                              setFormData(prev => ({ ...prev, avgJobTenure: e.target.value }))
-                              if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("avgJobTenure"))
-                                setVerifiedFields(prev => new Set(prev).add("avgJobTenure"))
-                              }
-                            }}
-                          />
-                          <VerificationCheckbox fieldName="avgJobTenure" />
-                        </div>
                       </div>
                     </CardContent>
                   </CollapsibleContent>
@@ -1255,10 +1256,13 @@ export function EmployerCreationDialog({
                 onOpenChange={() => toggleSection("work-arrangements-tags")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
+                  <CardHeader className="!flex flex-row flex-wrap items-center justify-between gap-2 py-3">
+                    <CollapsibleTrigger asChild className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <CardTitle className="text-base flex min-w-0 flex-1 items-center gap-2 font-semibold leading-none">
                           Work Arrangements &amp; Tags
                           {showVerification && (
                             <SectionProgressBadge
@@ -1268,35 +1272,30 @@ export function EmployerCreationDialog({
                             />
                           )}
                         </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-work-arrangements-tags"
-                                checked={isSectionFullyVerified("work-arrangements-tags")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("work-arrangements-tags", checked === true)}
-                                className="h-4 w-4"
-                              />
-                              <Label
-                                htmlFor="verify-all-work-arrangements-tags"
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("work-arrangements-tags") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                        {expandedSections.has("work-arrangements-tags") ? (
+                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                    </CollapsibleTrigger>
+                    {showVerification && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Checkbox
+                          id="verify-all-work-arrangements-tags"
+                          checked={isSectionFullyVerified("work-arrangements-tags")}
+                          onCheckedChange={(checked) => handleVerifyAllSection("work-arrangements-tags", checked === true)}
+                          className="h-4 w-4"
+                        />
+                        <Label
+                          htmlFor="verify-all-work-arrangements-tags"
+                          className="text-xs text-muted-foreground cursor-pointer font-normal"
+                        >
+                          Verify All
+                        </Label>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    )}
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1403,81 +1402,95 @@ export function EmployerCreationDialog({
                 </Card>
               </Collapsible>
 
-              {/* Technology Stacks & Benefits Section */}
+              {/* Benefits & Salary Policy Section */}
               <Collapsible
-                open={expandedSections.has("tech-stack-benefits")}
-                onOpenChange={() => toggleSection("tech-stack-benefits")}
+                open={expandedSections.has("benefits-salary-policy")}
+                onOpenChange={() => toggleSection("benefits-salary-policy")}
               >
                 <Card>
-                  <CollapsibleTrigger className="w-full">
-                    <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors py-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                          Technology Stacks &amp; Benefits
+                  <CardHeader className="!flex flex-row flex-wrap items-center justify-between gap-2 py-3">
+                    <CollapsibleTrigger asChild className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <CardTitle className="text-base flex min-w-0 flex-1 items-center gap-2 font-semibold leading-none">
+                          Benefits &amp; Salary Policy
                           {showVerification && (
                             <SectionProgressBadge
-                              percentage={techStackBenefitsProgress.percentage}
-                              verified={techStackBenefitsProgress.verified}
-                              total={techStackBenefitsProgress.total}
+                              percentage={benefitsSalaryPolicyProgress.percentage}
+                              verified={benefitsSalaryPolicyProgress.verified}
+                              total={benefitsSalaryPolicyProgress.total}
                             />
                           )}
                         </CardTitle>
-                        <div className="flex items-center gap-2">
-                          {showVerification && (
-                            <div
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Checkbox
-                                id="verify-all-tech-stack-benefits"
-                                checked={isSectionFullyVerified("tech-stack-benefits")}
-                                onCheckedChange={(checked) => handleVerifyAllSection("tech-stack-benefits", checked === true)}
-                                className="h-4 w-4"
-                              />
-                              <Label
-                                htmlFor="verify-all-tech-stack-benefits"
-                                className="text-xs text-muted-foreground cursor-pointer font-normal"
-                              >
-                                Verify All
-                              </Label>
-                            </div>
-                          )}
-                          {expandedSections.has("tech-stack-benefits") ? (
-                            <ChevronDown className="size-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="size-4 text-muted-foreground" />
-                          )}
-                        </div>
+                        {expandedSections.has("benefits-salary-policy") ? (
+                          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                    </CollapsibleTrigger>
+                    {showVerification && (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Checkbox
+                          id="verify-all-benefits-salary-policy"
+                          checked={isSectionFullyVerified("benefits-salary-policy")}
+                          onCheckedChange={(checked) => handleVerifyAllSection("benefits-salary-policy", checked === true)}
+                          className="h-4 w-4"
+                        />
+                        <Label
+                          htmlFor="verify-all-benefits-salary-policy"
+                          className="text-xs text-muted-foreground cursor-pointer font-normal"
+                        >
+                          Verify All
+                        </Label>
                       </div>
-                    </CardHeader>
-                  </CollapsibleTrigger>
+                    )}
+                  </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="techStacks">Tech Stacks</Label>
-                          <MultiSelect
-                            items={techStackOptions}
-                            selected={formData.techStacks}
-                            onChange={(values) => {
-                              setFormData(prev => ({ ...prev, techStacks: values }))
+                          <Label htmlFor="salaryPolicy">Salary Policy</Label>
+                          <Select
+                            value={formData.salaryPolicy || undefined}
+                            onValueChange={(value: SalaryPolicyDb) => {
+                              setFormData((prev) => ({ ...prev, salaryPolicy: value }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("techStacks"))
-                                setVerifiedFields(prev => new Set(prev).add("techStacks"))
+                                setModifiedFields((prev) => new Set(prev).add("salaryPolicy"))
+                                setVerifiedFields((prev) => new Set(prev).add("salaryPolicy"))
                               }
+                              setErrors((prev) => ({
+                                ...prev,
+                                employer: prev.employer
+                                  ? { ...prev.employer, salaryPolicy: undefined }
+                                  : undefined,
+                              }))
                             }}
-                            placeholder="Select technologies..."
-                            searchPlaceholder="Search technologies..."
-                            maxDisplay={4}
-                            creatable={true}
-                            createLabel="Add Technology"
-                            onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
-                          />
-                          <VerificationCheckbox fieldName="techStacks" />
+                          >
+                            <SelectTrigger
+                              id="salaryPolicy"
+                              className={errors.employer?.salaryPolicy ? "border-red-500" : ""}
+                            >
+                              <SelectValue placeholder="Select salary policy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {salaryPolicyOptions.map((policy) => (
+                                <SelectItem key={policy.value} value={policy.value}>
+                                  {policy.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.employer?.salaryPolicy && (
+                            <p className="text-sm text-red-500">{errors.employer.salaryPolicy}</p>
+                          )}
+                          <VerificationCheckbox fieldName="salaryPolicy" />
                         </div>
-                      <div className="space-y-2">
-                        <BenefitsSelector
-                          benefits={formData.benefits}
+                        <div className="space-y-2 md:col-span-2">
+                          <BenefitsSelector
+                            benefits={formData.benefits}
                             benefitOptions={lookups?.benefits ?? []}
                             onCreateBenefit={
                               onCreateBenefit
@@ -1489,15 +1502,15 @@ export function EmployerCreationDialog({
                                   }
                                 : undefined
                             }
-                          onChange={(benefits) => {
-                            setFormData(prev => ({ ...prev, benefits }))
-                            if (showVerification) {
-                              setModifiedFields(prev => new Set(prev).add("benefits"))
-                              setVerifiedFields(prev => new Set(prev).add("benefits"))
-                            }
-                          }}
-                        />
-                        <VerificationCheckbox fieldName="benefits" />
+                            onChange={(benefits) => {
+                              setFormData((prev) => ({ ...prev, benefits }))
+                              if (showVerification) {
+                                setModifiedFields((prev) => new Set(prev).add("benefits"))
+                                setVerifiedFields((prev) => new Set(prev).add("benefits"))
+                              }
+                            }}
+                          />
+                          <VerificationCheckbox fieldName="benefits" />
                         </div>
                       </div>
                     </CardContent>
@@ -1594,7 +1607,7 @@ export function EmployerCreationDialog({
                   <CardContent className="pt-0">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label>Country *</Label>
+                                <Label>Country</Label>
                                 <Popover
                                   open={locationCountryPopoverIndex === index}
                                   onOpenChange={(open) => {
@@ -1738,7 +1751,7 @@ export function EmployerCreationDialog({
                               </div>
 
                               <div className="space-y-2">
-                                <Label htmlFor={`city-${index}`}>City *</Label>
+                                <Label htmlFor={`city-${index}`}>City</Label>
                                 <Input
                                   id={`city-${index}`}
                                   type="text"
@@ -1754,7 +1767,7 @@ export function EmployerCreationDialog({
                               </div>
 
                               <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`address-${index}`}>Address *</Label>
+                                <Label htmlFor={`address-${index}`}>Address</Label>
                                 <Input
                                   id={`address-${index}`}
                                   type="text"
@@ -1769,63 +1782,6 @@ export function EmployerCreationDialog({
                                 <VerificationCheckbox fieldName={`locations[${index}].address`} />
                               </div>
 
-                              <div className="space-y-2">
-                                <Label htmlFor={`minSize-${index}`}>Minimum Employees *</Label>
-                                <Input
-                                  id={`minSize-${index}`}
-                                  type="number"
-                                  placeholder="10"
-                                  min="1"
-                                  value={location.minSize}
-                                  onChange={(e) => handleLocationChange(index, "minSize", e.target.value)}
-                                  className={errors.locations?.[index]?.minSize ? "border-red-500" : ""}
-                                />
-                                {errors.locations?.[index]?.minSize && (
-                                  <p className="text-sm text-red-500">{errors.locations[index].minSize}</p>
-                                )}
-                                <VerificationCheckbox fieldName={`locations[${index}].minSize`} />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor={`maxSize-${index}`}>Maximum Employees *</Label>
-                                <Input
-                                  id={`maxSize-${index}`}
-                                  type="number"
-                                  placeholder="50"
-                                  min="1"
-                                  value={location.maxSize}
-                                  onChange={(e) => handleLocationChange(index, "maxSize", e.target.value)}
-                                  className={errors.locations?.[index]?.maxSize ? "border-red-500" : ""}
-                                />
-                                {errors.locations?.[index]?.maxSize && (
-                                  <p className="text-sm text-red-500">{errors.locations[index].maxSize}</p>
-                                )}
-                                <VerificationCheckbox fieldName={`locations[${index}].maxSize`} />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy *</Label>
-                                <Select
-                                  value={location.salaryPolicy}
-                                  onValueChange={(value: SalaryPolicyDb) => handleLocationChange(index, "salaryPolicy", value)}
-                                >
-                                  <SelectTrigger className={errors.locations?.[index]?.salaryPolicy ? "border-red-500" : ""}>
-                                    <SelectValue placeholder="Select policy" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {salaryPolicyOptions.map((policy) => (
-                                      <SelectItem key={policy.value} value={policy.value}>
-                                        {policy.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {errors.locations?.[index]?.salaryPolicy && (
-                                  <p className="text-sm text-red-500">{errors.locations[index].salaryPolicy}</p>
-                                )}
-                                <VerificationCheckbox fieldName={`locations[${index}].salaryPolicy`} />
-                              </div>
-                              
                               <div className="space-y-2">
                                 <div className="flex items-center space-x-2 pt-6">
                                   <Switch

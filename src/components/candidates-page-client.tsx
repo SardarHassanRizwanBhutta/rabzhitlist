@@ -303,6 +303,7 @@ export function CandidatesPageClient() {
       return {
         id: String(created.id),
         name: created.name,
+        hasValue: false,
         amount: null,
         unit: null,
       }

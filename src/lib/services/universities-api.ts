@@ -9,19 +9,37 @@ export interface UniversityLookupDto {
   name: string
 }
 
-/** GET /api/universities list item (ranking and cities from API) */
+/** Campus row on GET /api/universities list items. */
+export interface UniversityListLocationDto {
+  id: number
+  universityId: number
+  city: string
+  address: string | null
+  isMainCampus: boolean
+  createdAt: string
+}
+
+/** GET /api/universities list item (locations, ranking, URLs). */
 export interface UniversityListItem {
   id: number
   name: string
   country: { id: number; name: string }
-  ranking: "standard" | "top" | "dpl_favourite"
-  cities: string[]
+  /** Display string (e.g. "Tier 1"), numeric 0–3, or null. */
+  ranking: string | number | null
+  locations?: UniversityListLocationDto[]
+  /** @deprecated Old list shape; used when `locations` is missing or empty. */
+  cities?: string[]
+  websiteUrl?: string | null
+  linkedInUrl?: string | null
 }
 
 export interface UniversitiesListResponse {
   totalCount: number
   pageNumber: number
   pageSize: number
+  totalPages?: number
+  hasPrevious?: boolean
+  hasNext?: boolean
   items: UniversityListItem[]
 }
 
@@ -29,7 +47,8 @@ export interface FetchUniversitiesParams {
   name?: string
   countryIds?: number[]
   city?: string
-  ranking?: "standard" | "top" | "dpl_favourite"
+  /** Filter by ranking enum value 0–3 (Tier1 … DplFavourite). */
+  ranking?: Ranking
   pageNumber: number
   pageSize: number
 }
@@ -141,7 +160,7 @@ export async function fetchUniversitiesFiltered(
   const search = new URLSearchParams()
   if (params.name?.trim()) search.set("name", params.name.trim())
   if (params.city?.trim()) search.set("city", params.city.trim())
-  if (params.ranking) search.set("ranking", params.ranking)
+  if (params.ranking != null) search.set("ranking", String(params.ranking))
   search.set("pageNumber", String(params.pageNumber))
   search.set("pageSize", String(params.pageSize))
   if (params.countryIds?.length) {

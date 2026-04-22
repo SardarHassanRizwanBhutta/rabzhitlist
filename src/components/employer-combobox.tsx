@@ -41,7 +41,6 @@ export interface EmployerComboboxProps {
 }
 
 const defaultCreateLookups: BuildCreateEmployerDtoOptions = {
-  techStacksLookup: [],
   tagsLookup: [],
   timeSupportZonesLookup: [],
 }
