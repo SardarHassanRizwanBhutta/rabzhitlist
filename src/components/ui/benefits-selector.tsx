@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
@@ -37,7 +38,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { EmployerBenefit, BenefitUnit } from "@/lib/types/benefits"
-import { generateBenefitId, UNIT_LABELS } from "@/lib/utils/benefits"
+import { formatBenefitAmount, generateBenefitId } from "@/lib/utils/benefits"
 
 /** Option from API (e.g. BenefitDto). */
 export interface BenefitOption {
@@ -72,6 +73,8 @@ export function BenefitsSelector({
   const [customAmount, setCustomAmount] = useState("")
   const [customUnit, setCustomUnit] = useState<BenefitUnit>("PKR")
   const [isAddingBenefit, setIsAddingBenefit] = useState(false)
+  /** Which benefit's value editor popover is open (controlled with `Popover` + `PopoverAnchor`). */
+  const [valuePopoverBenefitId, setValuePopoverBenefitId] = useState<string | null>(null)
 
   const selectedNames = benefits.map((b) => b.name)
   const searchLower = searchValue.trim().toLowerCase()
@@ -106,6 +109,7 @@ export function BenefitsSelector({
     const newBenefit: EmployerBenefit = {
       id: String(opt.id),
       name: opt.name,
+      hasValue: false,
       amount: null,
       unit: null,
     }
@@ -148,7 +152,8 @@ export function BenefitsSelector({
     const newBenefit: EmployerBenefit = {
       id: generateBenefitId(),
       name: customBenefitName.trim(),
-      amount: customHasAmount ? (parseInt(customAmount) || 0) : null,
+      hasValue: customHasAmount,
+      amount: customHasAmount ? (parseFloat(customAmount) || 0) : null,
       unit: customHasAmount ? customUnit : null,
     }
     onChange([...benefits, newBenefit])
@@ -161,18 +166,27 @@ export function BenefitsSelector({
   }
 
 
-  // Update benefit amount
-  const updateBenefitAmount = (benefitId: string, amount: number) => {
-    onChange(benefits.map(b => 
-      b.id === benefitId ? { ...b, amount } : b
-    ))
+  const updateBenefitHasValue = (benefitId: string, hasValue: boolean) => {
+    onChange(
+      benefits.map((b) =>
+        b.id === benefitId
+          ? hasValue
+            ? { ...b, hasValue: true, unit: b.unit ?? "PKR", amount: b.amount ?? null }
+            : { ...b, hasValue: false, amount: null, unit: null }
+          : b
+      )
+    )
+    if (!hasValue && valuePopoverBenefitId === benefitId) {
+      setValuePopoverBenefitId(null)
+    }
   }
 
-  // Update benefit unit
+  const updateBenefitAmount = (benefitId: string, amount: number | null) => {
+    onChange(benefits.map((b) => (b.id === benefitId ? { ...b, amount } : b)))
+  }
+
   const updateBenefitUnit = (benefitId: string, unit: BenefitUnit) => {
-    onChange(benefits.map(b => 
-      b.id === benefitId ? { ...b, unit } : b
-    ))
+    onChange(benefits.map((b) => (b.id === benefitId ? { ...b, unit } : b)))
   }
 
   // Remove a benefit
@@ -181,10 +195,42 @@ export function BenefitsSelector({
   }
 
 
-  // Get unit label for display
-  const getUnitLabel = (unit: BenefitUnit | null): string => {
-    if (!unit) return ""
-    return UNIT_LABELS[unit]
+  const valueFieldLabel = (unit: BenefitUnit): string => {
+    switch (unit) {
+      case "PKR":
+        return "Amount (PKR)"
+      case "days":
+        return "Number of days"
+      case "count":
+        return "Count"
+      case "percent":
+        return "Percentage (%)"
+      default:
+        return "Value"
+    }
+  }
+
+  const valuePlaceholder = (unit: BenefitUnit): string => {
+    switch (unit) {
+      case "PKR":
+        return "e.g. 50000"
+      case "days":
+        return "e.g. 20"
+      case "count":
+        return "e.g. 3"
+      case "percent":
+        return "e.g. 10"
+      default:
+        return ""
+    }
+  }
+
+  const benefitValueSummary = (b: EmployerBenefit): string => {
+    if (!b.hasValue) return ""
+    if (b.unit != null && b.amount != null && !Number.isNaN(b.amount)) {
+      return formatBenefitAmount(b.amount, b.unit)
+    }
+    return "Choose unit & value"
   }
 
   return (
@@ -327,6 +373,7 @@ export function BenefitsSelector({
                   <Input
                     id="custom-amount"
                     type="number"
+                    step="any"
                     placeholder={customUnit === "days" ? "e.g., 20" : customUnit === "percent" ? "e.g., 10" : "e.g., 10000"}
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
@@ -364,53 +411,155 @@ export function BenefitsSelector({
       {benefits.length > 0 && (
         <div className="space-y-2">
           {benefits.map((benefit) => {
-            const requiresAmount = benefit.amount !== null || benefit.unit !== null
             const currentUnit = benefit.unit ?? "PKR"
+            const valuePopoverOpen = valuePopoverBenefitId === benefit.id
 
             return (
-              <div 
-                key={benefit.id} 
-                className="flex items-center gap-2 p-2 border rounded-md bg-muted/30"
+              <div
+                key={benefit.id}
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-border/80 bg-muted/20 p-2.5 shadow-xs transition-colors hover:bg-muted/35"
               >
-                <Badge variant="secondary" className="shrink-0">
+                <Badge
+                  variant="secondary"
+                  className="shrink-0 max-w-[min(12rem,45%)] truncate font-medium"
+                  title={benefit.name}
+                >
                   {benefit.name}
                 </Badge>
-                
-                {requiresAmount && (
-                  <div className="flex items-center gap-1 flex-1">
-                    <Input
-                      type="number"
-                      placeholder="Amount"
-                      value={benefit.amount ?? ""}
-                      onChange={(e) => updateBenefitAmount(benefit.id, parseInt(e.target.value) || 0)}
-                      disabled={disabled}
-                      className="h-8 w-24"
-                    />
-                    <Select
-                      value={currentUnit}
-                      onValueChange={(value) => updateBenefitUnit(benefit.id, value as BenefitUnit)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="h-8 w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="PKR">PKR</SelectItem>
-                        <SelectItem value="days">Days</SelectItem>
-                        <SelectItem value="count">Count</SelectItem>
-                        <SelectItem value="percent">Percent</SelectItem>
-                      </SelectContent>
-                    </Select>
+
+                <Popover
+                  open={valuePopoverOpen}
+                  onOpenChange={(isOpen) => {
+                    if (!isOpen) {
+                      setValuePopoverBenefitId((id) => (id === benefit.id ? null : id))
+                    }
+                  }}
+                >
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <PopoverAnchor asChild>
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
+                        <div className="flex items-center gap-2 shrink-0 rounded-md px-0.5 py-0.5">
+                          <Checkbox
+                            id={`benefit-has-value-${benefit.id}`}
+                            checked={benefit.hasValue}
+                            onCheckedChange={(checked) => {
+                              const on = checked === true
+                              if (on) {
+                                updateBenefitHasValue(benefit.id, true)
+                                setValuePopoverBenefitId(benefit.id)
+                              } else {
+                                updateBenefitHasValue(benefit.id, false)
+                              }
+                            }}
+                            disabled={disabled}
+                          />
+                          <Label
+                            htmlFor={`benefit-has-value-${benefit.id}`}
+                            className="cursor-pointer text-sm font-medium text-foreground/90"
+                          >
+                            Has value
+                          </Label>
+                        </div>
+                        {benefit.hasValue && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={disabled}
+                            className="h-8 shrink-0 border-dashed text-xs font-normal text-muted-foreground hover:border-solid hover:text-foreground"
+                            onClick={() => setValuePopoverBenefitId(benefit.id)}
+                          >
+                            {benefitValueSummary(benefit)}
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverAnchor>
                   </div>
-                )}
-                
+
+                  <PopoverContent
+                    align="start"
+                    side="bottom"
+                    sideOffset={6}
+                    className="w-[min(100vw-1.5rem,20rem)] overflow-hidden p-0 shadow-lg"
+                  >
+                    <div className="border-b bg-gradient-to-br from-muted/80 to-muted/40 px-3 py-2.5">
+                      <p className="text-sm font-semibold leading-tight">{benefit.name}</p>
+                      <p className="mt-1 text-xs leading-snug text-muted-foreground">
+                        Pick a unit, then enter the amount. Changes apply as you type.
+                      </p>
+                    </div>
+                    <div className="space-y-3 p-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium text-muted-foreground">
+                          Benefit unit
+                        </Label>
+                        <Select
+                          value={currentUnit}
+                          onValueChange={(value) =>
+                            updateBenefitUnit(benefit.id, value as BenefitUnit)
+                          }
+                          disabled={disabled}
+                        >
+                          <SelectTrigger className="h-9 w-full bg-background">
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent position="popper" className="z-[60]">
+                            <SelectItem value="PKR">PKR — currency</SelectItem>
+                            <SelectItem value="days">Days</SelectItem>
+                            <SelectItem value="count">Count</SelectItem>
+                            <SelectItem value="percent">Percentage (%)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor={`benefit-value-${benefit.id}`}
+                          className="text-xs font-medium text-muted-foreground"
+                        >
+                          {valueFieldLabel(currentUnit)}
+                        </Label>
+                        <Input
+                          id={`benefit-value-${benefit.id}`}
+                          type="number"
+                          step="any"
+                          inputMode="decimal"
+                          placeholder={valuePlaceholder(currentUnit)}
+                          value={benefit.amount ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            if (v === "") {
+                              updateBenefitAmount(benefit.id, null)
+                              return
+                            }
+                            const n = parseFloat(v)
+                            updateBenefitAmount(
+                              benefit.id,
+                              Number.isNaN(n) ? null : n
+                            )
+                          }}
+                          disabled={disabled}
+                          className="h-9 bg-background"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        className="h-9 w-full"
+                        onClick={() => setValuePopoverBenefitId(null)}
+                      >
+                        Done
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => removeBenefit(benefit.id)}
                   disabled={disabled}
-                  className="h-8 w-8 p-0 hover:bg-destructive/10 hover:text-destructive"
+                  className="h-8 w-8 shrink-0 p-0 hover:bg-destructive/10 hover:text-destructive"
+                  title="Remove benefit"
                 >
                   <X className="h-4 w-4" />
                 </Button>

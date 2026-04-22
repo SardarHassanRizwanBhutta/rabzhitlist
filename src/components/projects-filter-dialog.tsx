@@ -695,8 +695,8 @@ export function ProjectsFilterDialog({
                     Completion Date Range
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Filter projects that completed (ended) within this date range. 
-                    Use case: &quot;List all projects completed between Jan–Mar 2025&quot;
+                    Bounds on project end date (completion). Only projects with an end date are included when
+                    you set a bound. Inclusive range on the calendar day (ISO date sent to the API).
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -773,10 +773,12 @@ export function ProjectsFilterDialog({
               <div className="space-y-3 border-b pb-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">
-                    Start & End Date Range
+                    Active window (timeline overlap)
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Filter projects that both started AND completed within this date range.
+                    Active window: projects whose timeline overlaps this range (standard interval overlap). Ongoing
+                    projects (no end date) are treated as open-ended for overlap. Projects without a start date never
+                    match this filter.
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -856,8 +858,8 @@ export function ProjectsFilterDialog({
                     Start Date Range
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Filter projects that started within this date range.
-                    Use case: &quot;List all projects started between Jan–Mar 2025&quot;
+                    Bounds on project start date only. Only projects with a start date are included when you set a
+                    bound. Inclusive range on the calendar day (ISO date sent to the API).
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -1002,11 +1004,6 @@ export function ProjectsFilterDialog({
                 label="Publish Platforms"
                 searchPlaceholder="Search platforms..."
               />
-              <p className="text-xs text-muted-foreground">
-                {tempFilters.publishPlatforms.length === 0 
-                  ? "Select platforms to filter by specific app stores (e.g., App Store, Play Store). Leave empty to match any platform."
-                  : "Filtering for projects published on selected platforms. Combine with 'Published App' checkbox for published projects only."}
-              </p>
             </div>
 
             {/* Download Count Filter */}
@@ -1022,9 +1019,6 @@ export function ProjectsFilterDialog({
                 value={tempFilters.minDownloadCount}
                 onChange={(e) => handleFilterChange("minDownloadCount", e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                Filter projects with at least this many downloads (e.g., 100000 for 100K+)
-              </p>
             </div>
           </div>
         </div>

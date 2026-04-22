@@ -68,10 +68,14 @@ export interface ProjectTableColumn {
   }
 }
 
+/** Tailwind classes for status badges (tables, filters). */
 export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
-  Development: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Maintenance: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  Closed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  Development:
+    "bg-green-100 text-green-900 border-green-200/80 dark:bg-green-950/50 dark:text-green-200 dark:border-green-800",
+  Maintenance:
+    "bg-blue-100 text-blue-900 border-blue-200/80 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-800",
+  Closed:
+    "bg-red-100 text-red-900 border-red-200/80 dark:bg-red-950/50 dark:text-red-200 dark:border-red-800",
 }
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {

@@ -628,14 +628,17 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
 
-        // Salary policy match (normalize legacy labels on employer rows)
-        const matchingPolicies = [
-          ...new Set(
-            employer.locations
-              .map((loc) => normalizeSalaryPolicy(loc.salaryPolicy))
-              .filter((policy) => filters.employerSalaryPolicies.includes(policy))
-          ),
-        ]
+        // Salary policy match (employer-level; fall back to first office for legacy data)
+        const rawPolicy =
+          employer.salaryPolicy ?? employer.locations[0]?.salaryPolicy ?? null
+        const employerPolicy =
+          rawPolicy != null && String(rawPolicy).trim()
+            ? normalizeSalaryPolicy(String(rawPolicy))
+            : null
+        const matchingPolicies =
+          employerPolicy && filters.employerSalaryPolicies.includes(employerPolicy)
+            ? [employerPolicy]
+            : []
         if (matchingPolicies.length > 0) {
           matchedCriteria.push({
             type: 'salaryPolicy',
@@ -647,10 +650,16 @@ export function getCandidateMatchContext(
 
         // Employer size match
         if (filters.employerSizeMin || filters.employerSizeMax) {
-          const totalMinSize = employer.locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
-          const totalMaxSize = employer.locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
-          const avgSize = totalMinSize > 0 && totalMaxSize > 0 ? Math.floor((totalMinSize + totalMaxSize) / 2) : totalMinSize || totalMaxSize || 0
-          
+          let totalMinSize: number
+          let totalMaxSize: number
+          if (employer.minEmployees != null || employer.maxEmployees != null) {
+            totalMinSize = employer.minEmployees ?? employer.maxEmployees ?? 0
+            totalMaxSize = employer.maxEmployees ?? employer.minEmployees ?? 0
+          } else {
+            totalMinSize = employer.locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
+            totalMaxSize = employer.locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
+          }
+
           const filterMinSize = filters.employerSizeMin ? parseInt(filters.employerSizeMin) : 0
           const filterMaxSize = filters.employerSizeMax ? parseInt(filters.employerSizeMax) : Infinity
           

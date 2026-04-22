@@ -4,12 +4,18 @@
  */
 
 import type { Employer, EmployerLocation, Layoff } from "@/lib/types/employer"
-import type { EmployerBenefit } from "@/lib/types/benefits"
-import type { EmployerFormData, EmployerLocationFormData, LayoffFormData } from "@/components/employer-creation-dialog"
+import {
+  employerBenefitToApiValueFields,
+  type BenefitUnit,
+  type EmployerBenefit,
+} from "@/lib/types/benefits"
+import type { EmployerFormData, LayoffFormData } from "@/components/employer-creation-dialog"
 import {
   EMPLOYER_TYPE_DB_LABELS,
   SALARY_POLICY_DB_LABELS,
   normalizeSalaryPolicy,
+  RANKING_DB_LABELS,
+  normalizeEmployerRankingFromApi,
   type SalaryPolicy,
   type WorkModeDb,
   type ShiftTypeDb,
@@ -20,7 +26,6 @@ import {
   type EmployerRanking,
   type EmployerStatusDb,
 } from "@/lib/types/employer"
-import type { BenefitUnit } from "@/lib/types/benefits"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { API_BASE_URL } from "@/lib/config/api"
 
@@ -39,9 +44,10 @@ export const SHIFT_TYPE_TO_API: Record<ShiftTypeDb, number> = {
   on_call: 5,
 }
 export const RANKING_TO_API: Record<RankingDb, number> = {
-  standard: 0,
-  top: 1,
-  dpl_favourite: 2,
+  tier_1: 0,
+  tier_2: 1,
+  tier_3: 2,
+  dpl_favourite: 3,
 }
 export const EMPLOYER_TYPE_TO_API: Record<EmployerTypeDb, number> = {
   services_based: 0,
@@ -86,7 +92,12 @@ const API_TO_SHIFT_TYPE: Record<number, ShiftTypeDb> = {
   4: "flexible",
   5: "on_call",
 }
-const API_TO_RANKING: Record<number, RankingDb> = { 0: "standard", 1: "top", 2: "dpl_favourite" }
+const API_TO_RANKING: Record<number, RankingDb> = {
+  0: "tier_1",
+  1: "tier_2",
+  2: "tier_3",
+  3: "dpl_favourite",
+}
 const API_TO_EMPLOYER_TYPE: Record<number, EmployerTypeDb> = {
   0: "services_based",
   1: "product_based",
@@ -164,7 +175,8 @@ export interface EmployerListItemDto {
   websiteUrl?: string | null
   linkedInUrl?: string | null
   foundedYear: number | null
-  ranking: string | null
+  /** Display string (e.g. "Tier 1") or numeric enum 0–3 from API. */
+  ranking: string | number | null
   employerType: string | null
   /** Employer-level work mode display: "Onsite", "Remote", "Hybrid". */
   workMode?: string | null
@@ -175,18 +187,26 @@ export interface EmployerListItemDto {
   /** Time support zone names (e.g. "PST", "EST"). */
   timeSupportZones?: string[]
   locations: EmployerListItemLocationDto[]
-  techStacks: string[]
+  /** @deprecated Not persisted on employers for now; may be absent. */
+  techStacks?: string[]
   tags: string[]
   isDPLCompetitive: boolean
+  /** When present, company-wide range (preferred over per-location list values). */
+  minEmployees?: number | null
+  maxEmployees?: number | null
+  /** Employer-level policy when API provides it. */
+  salaryPolicy?: string | null
 }
 
 export interface EmployerListItemLocationDto {
   id: number
   country: string
   city: string
-  minSize: number | null
-  maxSize: number | null
-  salaryPolicy: string | null
+  /** @deprecated Prefer employer-level min/max; may be absent after API migration. */
+  minSize?: number | null
+  maxSize?: number | null
+  /** @deprecated Prefer employer-level salary policy. */
+  salaryPolicy?: string | null
 }
 
 export interface EmployerDto {
@@ -208,6 +228,11 @@ export interface EmployerDto {
   techStacks: { id: number; name: string }[]
   createdAt: string
   updatedAt: string
+  /** Company-wide headcount range when API stores it on the employer. */
+  minEmployees?: number | null
+  maxEmployees?: number | null
+  /** Employer-level salary policy enum when API stores it on the employer. */
+  salaryPolicy?: number | null
 }
 
 export interface EmployerLocationDto {
@@ -254,11 +279,13 @@ export interface CreateEmployerDto {
   status?: number[] | null
   employerTypes?: number[] | null
   tagIds?: number[] | null
-  techStackIds?: number[] | null
   timeSupportZoneIds?: number[] | null
   benefits?: CreateEmployerBenefitDto[] | null
   locations?: CreateEmployerLocationDto[] | null
   layoffs?: CreateEmployerLayoffDto[] | null
+  minEmployees?: number | null
+  maxEmployees?: number | null
+  salaryPolicy?: number | null
 }
 
 export interface CreateEmployerBenefitDto {
@@ -305,34 +332,127 @@ export interface UpdateEmployerDto {
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). */
   status?: number[] | null
   types?: number[] | null
+  minEmployees?: number | null
+  maxEmployees?: number | null
+  salaryPolicy?: number | null
 }
 
 // --- List params (pagination + optional filters) ---
+/** Mirrors `EmployerFilterRequest` query binding for `GET /api/employers` (camelCase keys; arrays via repeated keys). */
 export interface FetchEmployersParams {
   pageNumber: number
   pageSize: number
-  status?: number[] | string[]
-  foundedYears?: string[]
+  /** Substring match on employer name (`name`). */
+  name?: string
+  status?: number[]
+  foundedYears?: number[]
+  /** Office country ids (`short` on server). */
+  countries?: number[]
+  city?: string
   employerTypes?: number[]
-  tags?: string[]
+  salaryPolicies?: number[]
   rankings?: number[]
+  tags?: string[]
   isDPLCompetitive?: boolean
+  sizeMin?: number
+  sizeMax?: number
+  minLocationsCount?: number
+  minCitiesCount?: number
+  employeeCity?: string
+  benefits?: string[]
+  shiftTypes?: number[]
+  workModes?: number[]
+  timeSupportZones?: number[]
+  avgJobTenureMin?: number
+  avgJobTenureMax?: number
   verticalDomains?: number[]
   horizontalDomains?: number[]
   technicalDomains?: number[]
+  clientLocations?: number[]
+  projectStatus?: number[]
+  projectTeamSizeMin?: number
+  projectTeamSizeMax?: number
+  hasPublishedProject?: boolean
+  publishPlatforms?: number[]
+  minDownloadCount?: number
+  layoffDateStart?: string
+  layoffDateEnd?: string
+  minLayoffEmployees?: number
+}
+
+function appendNumberList(q: URLSearchParams, key: string, values?: number[]) {
+  if (!values?.length) return
+  for (const v of values) {
+    q.append(key, String(v))
+  }
+}
+
+function appendTrimmedStrings(q: URLSearchParams, key: string, values?: string[]) {
+  if (!values?.length) return
+  for (const raw of values) {
+    const t = raw.trim()
+    if (t) q.append(key, t)
+  }
 }
 
 function buildQueryString(params: FetchEmployersParams): string {
-  const search = new URLSearchParams()
-  search.set("pageNumber", String(params.pageNumber))
-  search.set("pageSize", String(Math.min(100, params.pageSize)))
-  if (params.foundedYears?.length) params.foundedYears.forEach((y) => search.append("foundedYears", y))
-  if (params.tags?.length) params.tags.forEach((t) => search.append("tags", t))
-  if (params.isDPLCompetitive != null) search.set("isDPLCompetitive", String(params.isDPLCompetitive))
-  params.verticalDomains?.forEach((v) => search.append("VerticalDomains", String(v)))
-  params.horizontalDomains?.forEach((v) => search.append("HorizontalDomains", String(v)))
-  params.technicalDomains?.forEach((v) => search.append("TechnicalDomains", String(v)))
-  return search.toString()
+  const q = new URLSearchParams()
+  q.set("pageNumber", String(params.pageNumber))
+  q.set("pageSize", String(Math.min(100, params.pageSize)))
+
+  const nameQuery = params.name?.trim()
+  if (nameQuery) q.set("name", nameQuery)
+  const cityQuery = params.city?.trim()
+  if (cityQuery) q.set("city", cityQuery)
+  const employeeCity = params.employeeCity?.trim()
+  if (employeeCity) q.set("employeeCity", employeeCity)
+
+  appendNumberList(q, "status", params.status)
+  appendNumberList(q, "foundedYears", params.foundedYears)
+  appendNumberList(q, "countries", params.countries)
+  appendNumberList(q, "employerTypes", params.employerTypes)
+  appendNumberList(q, "salaryPolicies", params.salaryPolicies)
+  appendNumberList(q, "rankings", params.rankings)
+  appendTrimmedStrings(q, "tags", params.tags)
+  appendTrimmedStrings(q, "benefits", params.benefits)
+
+  if (params.isDPLCompetitive != null) {
+    q.set("isDPLCompetitive", params.isDPLCompetitive ? "true" : "false")
+  }
+
+  if (params.sizeMin != null) q.set("sizeMin", String(params.sizeMin))
+  if (params.sizeMax != null) q.set("sizeMax", String(params.sizeMax))
+  if (params.minLocationsCount != null) q.set("minLocationsCount", String(params.minLocationsCount))
+  if (params.minCitiesCount != null) q.set("minCitiesCount", String(params.minCitiesCount))
+
+  appendNumberList(q, "shiftTypes", params.shiftTypes)
+  appendNumberList(q, "workModes", params.workModes)
+  appendNumberList(q, "timeSupportZones", params.timeSupportZones)
+
+  if (params.avgJobTenureMin != null) q.set("avgJobTenureMin", String(params.avgJobTenureMin))
+  if (params.avgJobTenureMax != null) q.set("avgJobTenureMax", String(params.avgJobTenureMax))
+
+  appendNumberList(q, "verticalDomains", params.verticalDomains)
+  appendNumberList(q, "horizontalDomains", params.horizontalDomains)
+  appendNumberList(q, "technicalDomains", params.technicalDomains)
+  appendNumberList(q, "clientLocations", params.clientLocations)
+  appendNumberList(q, "projectStatus", params.projectStatus)
+
+  if (params.projectTeamSizeMin != null) q.set("projectTeamSizeMin", String(params.projectTeamSizeMin))
+  if (params.projectTeamSizeMax != null) q.set("projectTeamSizeMax", String(params.projectTeamSizeMax))
+
+  if (params.hasPublishedProject != null) {
+    q.set("hasPublishedProject", params.hasPublishedProject ? "true" : "false")
+  }
+
+  appendNumberList(q, "publishPlatforms", params.publishPlatforms)
+  if (params.minDownloadCount != null) q.set("minDownloadCount", String(params.minDownloadCount))
+
+  if (params.layoffDateStart) q.set("layoffDateStart", params.layoffDateStart)
+  if (params.layoffDateEnd) q.set("layoffDateEnd", params.layoffDateEnd)
+  if (params.minLayoffEmployees != null) q.set("minLayoffEmployees", String(params.minLayoffEmployees))
+
+  return q.toString()
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -461,9 +581,16 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
   const benefitsList: Employer["benefits"] = (item.benefits ?? []).map((name) => ({
     id: "",
     name,
+    hasValue: false,
     amount: null,
     unit: null,
   }))
+  const employerSalaryPolicy: SalaryPolicy =
+    item.salaryPolicy != null && String(item.salaryPolicy).trim()
+      ? normalizeSalaryPolicy(String(item.salaryPolicy))
+      : item.locations[0]?.salaryPolicy != null
+        ? normalizeSalaryPolicy(item.locations[0].salaryPolicy)
+        : "Gross Salary"
   return {
     id: String(item.id),
     name: item.name,
@@ -471,10 +598,11 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     linkedinUrl: item.linkedInUrl ?? null,
     status: normalizeEmployerStatus(item.status),
     foundedYear: item.foundedYear,
-    ranking: (item.ranking as "Top" | "Standard" | "DPL Favourite") || "Standard",
+    ranking: normalizeEmployerRankingFromApi(item.ranking),
     employerType: (item.employerType as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") || "Product Based",
     workMode: workModeDb,
     shiftType: shiftTypeDb,
+    salaryPolicy: employerSalaryPolicy,
     locations: item.locations.map((loc) => ({
       id: String(loc.id),
       employerId: String(item.id),
@@ -482,44 +610,53 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       city: loc.city,
       address: null,
       isHeadquarters: false,
-      salaryPolicy: normalizeSalaryPolicy(loc.salaryPolicy),
-      minSize: loc.minSize,
-      maxSize: loc.maxSize,
+      salaryPolicy: employerSalaryPolicy,
+      minSize: loc.minSize ?? null,
+      maxSize: loc.maxSize ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
-    techStacks: item.techStacks ?? [],
     tags: item.tags ?? [],
     benefits: benefitsList.length ? benefitsList : undefined,
     timeSupportZones: item.timeSupportZones?.length ? item.timeSupportZones : undefined,
     isDPLCompetitive: item.isDPLCompetitive ?? false,
+    minEmployees: item.minEmployees ?? item.locations[0]?.minSize ?? null,
+    maxEmployees: item.maxEmployees ?? item.locations[0]?.maxSize ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }
 }
 
+function salaryPolicyFromApiNumber(policyNum: number | null | undefined): SalaryPolicy {
+  const policyDb: SalaryPolicyDb | null =
+    policyNum != null && policyNum in API_TO_SALARY_POLICY
+      ? (API_TO_SALARY_POLICY as Record<number, SalaryPolicyDb>)[policyNum]
+      : null
+  return policyDb ? (SALARY_POLICY_DB_LABELS[policyDb] as SalaryPolicy) : "Gross Salary"
+}
+
 // --- Map API full DTO -> Employer (for edit/detail) ---
 export function employerDtoToEmployer(dto: EmployerDto): Employer {
-  const locations: EmployerLocation[] = dto.locations.map((loc) => {
-    const policyNum = loc.salaryPolicy
-    const policyDb: SalaryPolicyDb | null = policyNum != null && policyNum in API_TO_SALARY_POLICY ? (API_TO_SALARY_POLICY as Record<number, SalaryPolicyDb>)[policyNum] : null
-    const salaryPolicyDisplay: SalaryPolicy = policyDb
-      ? (SALARY_POLICY_DB_LABELS[policyDb] as SalaryPolicy)
-      : "Gross Salary"
-    return {
-      id: String(loc.id),
-      employerId: String(dto.id),
-      country: loc.country?.name ?? null,
-      city: loc.city ?? null,
-      address: loc.address ?? null,
-      isHeadquarters: loc.isHeadquarters,
-      salaryPolicy: salaryPolicyDisplay,
-      minSize: loc.minEmployees ?? null,
-      maxSize: loc.maxEmployees ?? null,
-      createdAt: new Date(loc.createdAt),
-      updatedAt: new Date(loc.createdAt),
-    }
-  })
+  const employerSalaryPolicy: SalaryPolicy =
+    dto.salaryPolicy != null
+      ? salaryPolicyFromApiNumber(dto.salaryPolicy)
+      : dto.locations[0]
+        ? salaryPolicyFromApiNumber(dto.locations[0].salaryPolicy)
+        : "Gross Salary"
+
+  const locations: EmployerLocation[] = dto.locations.map((loc) => ({
+    id: String(loc.id),
+    employerId: String(dto.id),
+    country: loc.country?.name ?? null,
+    city: loc.city ?? null,
+    address: loc.address ?? null,
+    isHeadquarters: loc.isHeadquarters,
+    salaryPolicy: employerSalaryPolicy,
+    minSize: loc.minEmployees ?? null,
+    maxSize: loc.maxEmployees ?? null,
+    createdAt: new Date(loc.createdAt),
+    updatedAt: new Date(loc.createdAt),
+  }))
 
   const layoffs: Layoff[] = (dto.layoffs ?? []).map((lay) => {
     const reasonNum = lay.reason ?? 0
@@ -546,14 +683,15 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
   const benefits: EmployerBenefit[] = (dto.benefits ?? []).map((b) => ({
     id: String(b.benefitId),
     name: b.benefitName,
-    amount: b.hasValue && b.value != null ? b.value : null,
+    hasValue: b.hasValue,
+    amount: b.hasValue && b.value != null ? Number(b.value) : null,
     unit: b.hasValue && b.unitType != null && b.unitType in API_TO_BENEFIT_UNIT ? API_TO_BENEFIT_UNIT[b.unitType] : null,
   }))
 
   const rankingDisplay: EmployerRanking =
     dto.ranking != null && dto.ranking in API_TO_RANKING
-      ? (["Standard", "Top", "DPL Favourite"] as EmployerRanking[])[dto.ranking]
-      : "Standard"
+      ? RANKING_DB_LABELS[API_TO_RANKING[dto.ranking]]
+      : "Tier 1"
   const employerTypesDb = dto.types?.map((t) => (t in API_TO_EMPLOYER_TYPE ? API_TO_EMPLOYER_TYPE[t] : "product_based")).filter(Boolean) as EmployerTypeDb[] ?? []
   const firstTypeDb = employerTypesDb[0]
   const employerTypeDisplay = firstTypeDb ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") : "Product Based"
@@ -571,7 +709,9 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     employerType: employerTypeDisplay,
     employerTypes: employerTypesDb,
     locations,
-    techStacks: dto.techStacks?.map((t) => t.name) ?? [],
+    salaryPolicy: employerSalaryPolicy,
+    minEmployees: dto.minEmployees ?? null,
+    maxEmployees: dto.maxEmployees ?? null,
     timeSupportZones: dto.timeSupportZones?.map((z) => z.name) ?? [],
     tags: dto.tags?.map((t) => t.name) ?? [],
     benefits,
@@ -583,7 +723,6 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
 
 // --- Build CreateEmployerDto from form + lookups ---
 export interface BuildCreateEmployerDtoOptions {
-  techStacksLookup: LookupItem[]
   tagsLookup: LookupItem[]
   timeSupportZonesLookup: LookupItem[]
   /** Resolve country name to country id. If not provided, 0 is used (backend may validate). */
@@ -609,38 +748,28 @@ export function buildCreateEmployerDto(
     throw new Error(`Founded year must be between 1800 and ${CURRENT_YEAR}.`)
   }
 
-  const {
-    techStacksLookup,
-    tagsLookup,
-    timeSupportZonesLookup,
-    getCountryId = () => 0,
-  } = options
+  const { tagsLookup, timeSupportZonesLookup, getCountryId = () => 0 } = options
 
   const tagIds = formData.tags
     .map((name) => tagsLookup.find((t) => t.name === name)?.id)
-    .filter((id): id is number => id != null)
-  const techStackIds = formData.techStacks
-    .map((name) => techStacksLookup.find((t) => t.name === name)?.id)
     .filter((id): id is number => id != null)
   const timeSupportZoneIds = formData.timeSupportZones
     .map((name) => timeSupportZonesLookup.find((t) => t.name === name)?.id)
     .filter((id): id is number => id != null)
 
-  // For hasValue === true send both unitType and value; for hasValue === false omit or send null.
   const benefits: CreateEmployerBenefitDto[] = formData.benefits
     .map((b): CreateEmployerBenefitDto | null => {
       const benefitId = typeof b.id === "string" ? parseInt(b.id, 10) : b.id
       if (Number.isNaN(benefitId) || benefitId <= 0) return null
-      const hasValue = b.amount != null || (b.unit != null && String(b.unit).trim() !== "")
-      const unitType =
-        hasValue && b.unit && b.unit in BENEFIT_UNIT_TO_API ? BENEFIT_UNIT_TO_API[b.unit] : null
-      const value = hasValue && b.amount != null ? b.amount : null
-      if (hasValue && (unitType == null || value == null)) return null
-      return hasValue
-        ? { benefitId, hasValue: true, unitType: unitType!, value: value! }
-        : { benefitId, hasValue: false, unitType: null, value: null }
+      const { hasValue, unitType, value } = employerBenefitToApiValueFields(b)
+      return { benefitId, hasValue, unitType, value }
     })
     .filter((b): b is CreateEmployerBenefitDto => b != null)
+
+  const minEmpTrim = formData.minEmployees.trim()
+  const maxEmpTrim = formData.maxEmployees.trim()
+  const minEmployeesParsed = minEmpTrim ? parseInt(minEmpTrim, 10) : null
+  const maxEmployeesParsed = maxEmpTrim ? parseInt(maxEmpTrim, 10) : null
 
   const locations: CreateEmployerLocationDto[] = formData.locations
     .filter((loc) => loc.city.trim() || loc.country.trim())
@@ -648,11 +777,9 @@ export function buildCreateEmployerDto(
       countryId: getCountryId(loc.country.trim()) || 0,
       city: loc.city.trim() || "",
       address: loc.address.trim() || null,
-      salaryPolicy: loc.salaryPolicy && loc.salaryPolicy in SALARY_POLICY_TO_API
-        ? SALARY_POLICY_TO_API[loc.salaryPolicy]
-        : null,
-      minEmployees: loc.minSize ? parseInt(loc.minSize, 10) : null,
-      maxEmployees: loc.maxSize ? parseInt(loc.maxSize, 10) : null,
+      salaryPolicy: null,
+      minEmployees: null,
+      maxEmployees: null,
       isHeadquarters: loc.isHeadquarters,
     }))
 
@@ -685,11 +812,18 @@ export function buildCreateEmployerDto(
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
     tagIds: tagIds.length ? tagIds : null,
-    techStackIds: techStackIds.length ? techStackIds : null,
     timeSupportZoneIds: timeSupportZoneIds.length ? timeSupportZoneIds : null,
     benefits: benefits.length ? benefits : null,
     locations: locations.length ? locations : null,
     layoffs: layoffs.length ? layoffs : null,
+    minEmployees:
+      minEmployeesParsed != null && !Number.isNaN(minEmployeesParsed) ? minEmployeesParsed : null,
+    maxEmployees:
+      maxEmployeesParsed != null && !Number.isNaN(maxEmployeesParsed) ? maxEmployeesParsed : null,
+    salaryPolicy:
+      formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API
+        ? SALARY_POLICY_TO_API[formData.salaryPolicy]
+        : null,
   }
   return dto
 }
@@ -710,5 +844,15 @@ export function buildUpdateEmployerDto(formData: EmployerFormData): UpdateEmploy
     types: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
+    minEmployees: formData.minEmployees.trim()
+      ? parseInt(formData.minEmployees.trim(), 10)
+      : null,
+    maxEmployees: formData.maxEmployees.trim()
+      ? parseInt(formData.maxEmployees.trim(), 10)
+      : null,
+    salaryPolicy:
+      formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API
+        ? SALARY_POLICY_TO_API[formData.salaryPolicy]
+        : null,
   }
 }

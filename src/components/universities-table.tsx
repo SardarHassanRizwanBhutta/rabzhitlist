@@ -14,7 +14,8 @@ import {
   ChevronRightIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
-  ExternalLinkIcon,
+  Globe,
+  Linkedin,
   MapPinIcon,
   BuildingIcon,
   GraduationCapIcon,
@@ -59,7 +60,6 @@ import {
 
 import {
   University,
-  UniversityLocation,
   UNIVERSITY_RANKING_COLORS,
   RANKING_TO_LABEL,
   getRankingLabel,
@@ -75,14 +75,65 @@ interface UniversitiesTableProps {
   onEdit?: (university: University) => void
   onDelete?: (university: University) => void | Promise<void>
   onAddLocation?: (university: University) => void
-  onEditLocation?: (location: UniversityLocation) => void
-  onDeleteLocation?: (location: UniversityLocation) => void
 }
 
 type SortKey = keyof University | "jobSuccessRatio"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
+
+/** "Add location" row: merge Country..Graduates; Actions stays an empty cell for alignment. */
+const UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN = 7
+
+/** Campus sub-rows (no row-level menu): merge Country through Actions. */
+const UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN = 8
+
+type UniversityExternalLinkKind = "website" | "linkedin"
+
+/** Empty cell placeholder — same visual as Ranking when no ranking is set. */
+function UniversityEmptyDataDash() {
+  return (
+    <Badge variant="secondary" className="bg-muted text-muted-foreground">
+      —
+    </Badge>
+  )
+}
+
+/** Icon-only external link; stops row click from opening the details modal. */
+function UniversityExternalIconLink({
+  href,
+  kind,
+  universityName,
+}: {
+  href: string
+  kind: UniversityExternalLinkKind
+  universityName: string
+}) {
+  const ariaLabel =
+    kind === "website"
+      ? `Open official website for ${universityName} in a new tab`
+      : `Open LinkedIn page for ${universityName} in a new tab`
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+      aria-label={ariaLabel}
+      title={href}
+      onClick={(e) => {
+        e.stopPropagation()
+        window.open(href, "_blank", "noopener,noreferrer")
+      }}
+    >
+      {kind === "website" ? (
+        <Globe className="h-4 w-4" aria-hidden />
+      ) : (
+        <Linkedin className="h-4 w-4" aria-hidden />
+      )}
+    </Button>
+  )
+}
 
 export function UniversitiesTable({
   universities,
@@ -92,8 +143,6 @@ export function UniversitiesTable({
   onEdit,
   onDelete,
   onAddLocation,
-  onEditLocation,
-  onDeleteLocation,
 }: UniversitiesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -203,18 +252,6 @@ export function UniversitiesTable({
     </Button>
   )
 
-  const LinkButton = ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-8 px-2 py-1"
-      onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
-    >
-      {children}
-      <ExternalLinkIcon className="ml-1 h-3 w-3" />
-    </Button>
-  )
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -295,8 +332,8 @@ export function UniversitiesTable({
               <TableHead className="w-[160px]">
                 <SortButton column="jobSuccessRatio">Placement Rate</SortButton>
               </TableHead>
-              <TableHead className="w-[120px]">Website</TableHead>
-              <TableHead className="w-[120px]">LinkedIn</TableHead>
+              <TableHead className="w-[80px] text-center">Website</TableHead>
+              <TableHead className="w-[80px] text-center">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View University Graduates">Graduates</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
@@ -340,7 +377,13 @@ export function UniversitiesTable({
                         {university.name}
                       </div>
                     </TableCell>
-                    <TableCell>{university.country?.name ?? "—"}</TableCell>
+                    <TableCell>
+                      {university.country?.name ? (
+                        university.country.name
+                      ) : (
+                        <UniversityEmptyDataDash />
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <MapPinIcon className="h-3 w-3" />
@@ -348,36 +391,44 @@ export function UniversitiesTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          rankingLabel
-                            ? UNIVERSITY_RANKING_COLORS[rankingLabel]
-                            : "bg-muted text-muted-foreground"
-                        }
-                      >
-                        {getRankingLabel(university.ranking)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground text-sm">—</span>
-                    </TableCell>
-                    <TableCell>
-                      {university.websiteUrl ? (
-                        <LinkButton href={university.websiteUrl}>
-                          Website
-                        </LinkButton>
+                      {rankingLabel ? (
+                        <Badge
+                          variant="secondary"
+                          className={UNIVERSITY_RANKING_COLORS[rankingLabel]}
+                        >
+                          {getRankingLabel(university.ranking)}
+                        </Badge>
                       ) : (
-                        <span className="text-muted-foreground text-sm">N/A</span>
+                        <UniversityEmptyDataDash />
                       )}
                     </TableCell>
                     <TableCell>
-                      {university.linkedInUrl ? (
-                        <LinkButton href={university.linkedInUrl}>
-                          LinkedIn
-                        </LinkButton>
+                      <UniversityEmptyDataDash />
+                    </TableCell>
+                    <TableCell className="px-1 text-center">
+                      {university.websiteUrl ? (
+                        <UniversityExternalIconLink
+                          href={university.websiteUrl}
+                          kind="website"
+                          universityName={university.name}
+                        />
                       ) : (
-                        <span className="text-muted-foreground text-sm">N/A</span>
+                        <span className="flex justify-center">
+                          <UniversityEmptyDataDash />
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-1 text-center">
+                      {university.linkedInUrl ? (
+                        <UniversityExternalIconLink
+                          href={university.linkedInUrl}
+                          kind="linkedin"
+                          universityName={university.name}
+                        />
+                      ) : (
+                        <span className="flex justify-center">
+                          <UniversityEmptyDataDash />
+                        </span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -485,41 +536,11 @@ export function UniversitiesTable({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open location menu</span>
-                              <MoreHorizontalIcon className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Location Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {onEditLocation && (
-                              <DropdownMenuItem onClick={() => onEditLocation(location)}>
-                                <EditIcon className="mr-2 h-4 w-4" />
-                                Edit Location
-                              </DropdownMenuItem>
-                            )}
-                            {onDeleteLocation && (
-                              <DropdownMenuItem
-                                onClick={() => onDeleteLocation(location)}
-                                className="text-red-600"
-                              >
-                                <TrashIcon className="mr-2 h-4 w-4" />
-                                Delete Location
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                      <TableCell
+                        colSpan={UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN}
+                        className="p-0 align-middle"
+                        aria-hidden
+                      />
                     </TableRow>
                   ))}
 
@@ -541,7 +562,8 @@ export function UniversitiesTable({
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell colSpan={7} className="text-muted-foreground text-sm"></TableCell>
+                      <TableCell colSpan={UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN} className="p-0" />
+                      <TableCell />
                     </TableRow>
                   )}
                 </React.Fragment>

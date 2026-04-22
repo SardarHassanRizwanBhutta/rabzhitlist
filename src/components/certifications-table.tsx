@@ -76,7 +76,7 @@ interface CertificationsTableProps {
 type SortKey = keyof Certification | "issuerName"
 type SortDirection = "asc" | "desc"
 
-const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
+const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100]
 
 export function CertificationsTable({
   certifications,

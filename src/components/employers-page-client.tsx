@@ -8,11 +8,17 @@ import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } f
 import { EmployersFilterDialog, EmployerFilters } from "@/components/employers-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
-import type { Employer } from "@/lib/types/employer"
+import type { Employer, EmployerRanking, ShiftTypeDb, WorkModeDb } from "@/lib/types/employer"
+import {
+  EMPLOYER_STATUS_DISPLAY_TO_DB,
+  EMPLOYER_TYPE_DISPLAY_TO_DB,
+  RANKING_DISPLAY_TO_DB,
+  SALARY_POLICY_DISPLAY_TO_DB,
+} from "@/lib/types/employer"
 import type { Country } from "@/lib/types/country"
-import type { LookupItem } from "@/lib/services/lookups-api"
+import { fetchClientLocations, type LookupItem } from "@/lib/services/lookups-api"
+import type { PublishPlatform, ProjectStatus } from "@/lib/types/project"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
-import { fetchTechStacks, createTechStack } from "@/lib/services/lookups-api"
 import {
   fetchTags,
   createTag,
@@ -23,6 +29,7 @@ import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import {
   fetchEmployers,
+  type FetchEmployersParams,
   fetchEmployerById,
   createEmployer,
   updateEmployer,
@@ -34,18 +41,86 @@ import {
   isNewLayoffFormRow,
   employerDtoToEmployer,
   employerListItemToEmployer,
+  RANKING_TO_API,
+  EMPLOYER_STATUS_TO_API,
+  EMPLOYER_TYPE_TO_API,
+  SALARY_POLICY_TO_API,
+  SHIFT_TYPE_TO_API,
+  WORK_MODE_TO_API,
 } from "@/lib/services/employers-api"
 import {
   ensureTechnicalDomainsCatalogLoaded,
   technicalDomainCatalogToSelectOptions,
   technicalDomainLabelToInt,
+  verticalDomainLabelToInt,
+  horizontalDomainLabelToInt,
+  PROJECT_STATUS_UI_TO_NUM,
+  PUBLISH_PLATFORM_UI_TO_NUM,
 } from "@/lib/services/projects-api"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 
 const DEFAULT_PAGE_SIZE = 20
 
+function employerRankingsToApiInts(rankings: EmployerRanking[]): number[] {
+  return rankings.map((r) => RANKING_TO_API[RANKING_DISPLAY_TO_DB[r]])
+}
+
 function labelsToTechnicalDomainInts(labels: string[]): number[] {
   return labels.map((l) => technicalDomainLabelToInt(l)).filter((v): v is number => v != null)
+}
+
+function countryNamesToIds(names: string[], list: Country[]): number[] {
+  const ids: number[] = []
+  for (const name of names) {
+    const c = list.find((x) => x.name === name)
+    if (c != null) ids.push(c.id)
+  }
+  return ids
+}
+
+function lookupNamesToIds(names: string[], lookup: LookupItem[]): number[] {
+  const ids: number[] = []
+  for (const name of names) {
+    const item = lookup.find((x) => x.name === name)
+    if (item != null) ids.push(item.id)
+  }
+  return ids
+}
+
+function parseOptionalNonNegativeInt(s: string): number | undefined {
+  const t = s.trim()
+  if (!t) return undefined
+  const n = parseInt(t, 10)
+  return Number.isFinite(n) && n >= 0 ? n : undefined
+}
+
+function parseOptionalNonNegativeLong(s: string): number | undefined {
+  const t = s.trim()
+  if (!t) return undefined
+  const n = Number(t)
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : undefined
+}
+
+function parseOptionalDouble(s: string): number | undefined {
+  const t = s.trim()
+  if (!t) return undefined
+  const n = parseFloat(t)
+  return Number.isFinite(n) ? n : undefined
+}
+
+function foundedYearStringToInts(s: string): number[] | undefined {
+  const t = s.trim()
+  if (!t) return undefined
+  const n = parseInt(t, 10)
+  if (!Number.isFinite(n) || n < 1000 || n > 9999) return undefined
+  return [n]
+}
+
+function formatDateOnlyLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
 }
 
 interface EmployersPageClientProps {
@@ -54,10 +129,11 @@ interface EmployersPageClientProps {
 }
 
 const initialFilters: EmployerFilters = {
+  employerName: "",
   status: [],
-  foundedYears: [],
+  foundedYear: "",
   countries: [],
-  cities: [],
+  city: "",
   employerTypes: [],
   salaryPolicies: [],
   sizeMin: "",
@@ -65,28 +141,17 @@ const initialFilters: EmployerFilters = {
   minLocationsCount: "",
   minCitiesCount: "",
   minApplicants: "",
-  employerTechStacks: [],
   benefits: [],
   shiftTypes: [],
-  shiftTypesStrict: false,
   workModes: [],
-  workModesStrict: false,
   timeSupportZones: [],
   rankings: [],
   tags: [],
-  techStackMinCount: "",
   isDPLCompetitive: null,
-  employeeCities: [],
-  employeeCountries: [],
-  techStacks: [],
-  projectTechStackMinYears: {
-    techStacks: [],
-    minYears: ""
-  },
+  employeeCity: "",
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
-  technicalAspects: [],
   clientLocations: [],
   projectStatus: [],
   projectTeamSizeMin: "",
@@ -115,44 +180,154 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [hasNext, setHasNext] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [employerToEdit, setEmployerToEdit] = useState<Employer | null>(null)
-  const [techStacksLookup, setTechStacksLookup] = useState<LookupItem[]>([])
   const [tagsLookup, setTagsLookup] = useState<LookupItem[]>([])
   const [timeSupportZonesLookup, setTimeSupportZonesLookup] = useState<LookupItem[]>([])
   const [benefitsLookup, setBenefitsLookup] = useState<LookupItem[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
   const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
 
-  const technicalDomainFilterInts = useMemo(
-    () => labelsToTechnicalDomainInts(filters.technicalDomains),
-    [filters.technicalDomains]
+  const employerListParams = useMemo((): FetchEmployersParams => {
+    const foundedYears = foundedYearStringToInts(filters.foundedYear)
+    const countryIds = countryNamesToIds(filters.countries, countries)
+    const timeZoneIds = lookupNamesToIds(filters.timeSupportZones, timeSupportZonesLookup)
+    const clientLocIds = lookupNamesToIds(filters.clientLocations, clientLocationsLookup)
+    const technicalInts = labelsToTechnicalDomainInts(filters.technicalDomains)
+    const verticalInts = filters.verticalDomains
+      .map((l) => verticalDomainLabelToInt(l))
+      .filter((v): v is number => v != null)
+    const horizontalInts = filters.horizontalDomains
+      .map((l) => horizontalDomainLabelToInt(l))
+      .filter((v): v is number => v != null)
+
+    const tags = filters.tags.map((t) => t.trim()).filter(Boolean)
+    const benefits = filters.benefits.map((t) => t.trim()).filter(Boolean)
+
+    const statusInts = filters.status.map((s) => EMPLOYER_STATUS_TO_API[EMPLOYER_STATUS_DISPLAY_TO_DB[s]])
+    const employerTypeInts = filters.employerTypes.map(
+      (t) => EMPLOYER_TYPE_TO_API[EMPLOYER_TYPE_DISPLAY_TO_DB[t]]
+    )
+    const salaryInts = filters.salaryPolicies.map(
+      (p) => SALARY_POLICY_TO_API[SALARY_POLICY_DISPLAY_TO_DB[p]]
+    )
+    const rankingInts = filters.rankings.length ? employerRankingsToApiInts(filters.rankings) : []
+
+    const shiftInts = filters.shiftTypes
+      .map((k) => SHIFT_TYPE_TO_API[k as ShiftTypeDb])
+      .filter((v): v is number => typeof v === "number")
+    const workModeInts = filters.workModes
+      .map((k) => WORK_MODE_TO_API[k as WorkModeDb])
+      .filter((v): v is number => typeof v === "number")
+
+    const projectStatusInts = filters.projectStatus
+      .map((s) => PROJECT_STATUS_UI_TO_NUM[s as ProjectStatus])
+      .filter((v): v is number => typeof v === "number")
+
+    const publishInts = filters.publishPlatforms
+      .map((p) => PUBLISH_PLATFORM_UI_TO_NUM[p as PublishPlatform])
+      .filter((v): v is number => typeof v === "number")
+
+    const sizeMin = parseOptionalNonNegativeInt(filters.sizeMin)
+    const sizeMax = parseOptionalNonNegativeInt(filters.sizeMax)
+    const minLocationsCount = parseOptionalNonNegativeInt(filters.minLocationsCount)
+    const minCitiesCount = parseOptionalNonNegativeInt(filters.minCitiesCount)
+    const projectTeamSizeMin = parseOptionalNonNegativeInt(filters.projectTeamSizeMin)
+    const projectTeamSizeMax = parseOptionalNonNegativeInt(filters.projectTeamSizeMax)
+    const minDownloadCount = parseOptionalNonNegativeLong(filters.minDownloadCount)
+    const minLayoffEmployees = parseOptionalNonNegativeInt(filters.minLayoffEmployees)
+    const avgJobTenureMin = parseOptionalDouble(filters.avgJobTenureMin)
+    const avgJobTenureMax = parseOptionalDouble(filters.avgJobTenureMax)
+
+    return {
+      pageNumber,
+      pageSize,
+      ...(filters.employerName.trim() ? { name: filters.employerName.trim() } : {}),
+      ...(statusInts.length ? { status: statusInts } : {}),
+      ...(foundedYears?.length ? { foundedYears } : {}),
+      ...(countryIds.length ? { countries: countryIds } : {}),
+      ...(filters.city.trim() ? { city: filters.city.trim() } : {}),
+      ...(employerTypeInts.length ? { employerTypes: employerTypeInts } : {}),
+      ...(salaryInts.length ? { salaryPolicies: salaryInts } : {}),
+      ...(rankingInts.length ? { rankings: rankingInts } : {}),
+      ...(tags.length ? { tags } : {}),
+      ...(filters.isDPLCompetitive !== null ? { isDPLCompetitive: filters.isDPLCompetitive } : {}),
+      ...(sizeMin != null ? { sizeMin } : {}),
+      ...(sizeMax != null ? { sizeMax } : {}),
+      ...(minLocationsCount != null ? { minLocationsCount } : {}),
+      ...(minCitiesCount != null ? { minCitiesCount } : {}),
+      ...(filters.employeeCity.trim() ? { employeeCity: filters.employeeCity.trim() } : {}),
+      ...(benefits.length ? { benefits } : {}),
+      ...(shiftInts.length ? { shiftTypes: shiftInts } : {}),
+      ...(workModeInts.length ? { workModes: workModeInts } : {}),
+      ...(timeZoneIds.length ? { timeSupportZones: timeZoneIds } : {}),
+      ...(avgJobTenureMin != null ? { avgJobTenureMin } : {}),
+      ...(avgJobTenureMax != null ? { avgJobTenureMax } : {}),
+      ...(verticalInts.length ? { verticalDomains: verticalInts } : {}),
+      ...(horizontalInts.length ? { horizontalDomains: horizontalInts } : {}),
+      ...(technicalInts.length ? { technicalDomains: technicalInts } : {}),
+      ...(clientLocIds.length ? { clientLocations: clientLocIds } : {}),
+      ...(projectStatusInts.length ? { projectStatus: projectStatusInts } : {}),
+      ...(projectTeamSizeMin != null ? { projectTeamSizeMin } : {}),
+      ...(projectTeamSizeMax != null ? { projectTeamSizeMax } : {}),
+      ...(filters.hasPublishedProject !== null
+        ? { hasPublishedProject: filters.hasPublishedProject }
+        : {}),
+      ...(publishInts.length ? { publishPlatforms: publishInts } : {}),
+      ...(minDownloadCount != null ? { minDownloadCount } : {}),
+      ...(filters.layoffDateStart
+        ? { layoffDateStart: formatDateOnlyLocal(filters.layoffDateStart) }
+        : {}),
+      ...(filters.layoffDateEnd ? { layoffDateEnd: formatDateOnlyLocal(filters.layoffDateEnd) } : {}),
+      ...(minLayoffEmployees != null ? { minLayoffEmployees } : {}),
+    }
+  }, [pageNumber, pageSize, filters, countries, timeSupportZonesLookup, clientLocationsLookup])
+
+  const timeSupportZoneFilterOptions = useMemo(
+    () => timeSupportZonesLookup.map((z) => ({ value: z.name, label: z.name })),
+    [timeSupportZonesLookup]
+  )
+
+  const tagFilterOptions = useMemo(
+    () => tagsLookup.map((t) => ({ value: t.name, label: t.name })),
+    [tagsLookup]
+  )
+
+  const clientLocationFilterOptions = useMemo(
+    () => clientLocationsLookup.map((l) => ({ value: l.name, label: l.name })),
+    [clientLocationsLookup]
+  )
+
+  const countryFilterOptions = useMemo(
+    () => countries.map((c) => ({ value: c.name, label: c.name })),
+    [countries]
   )
 
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      fetchTechStacks(),
       fetchTags(),
       fetchTimeSupportZones(),
       fetchBenefits(),
       ensureTechnicalDomainsCatalogLoaded(),
+      fetchClientLocations(),
     ])
-      .then(([techStacks, tags, timeSupportZones, benefits, tdCatalog]) => {
+      .then(([tags, timeSupportZones, benefits, tdCatalog, clientLocations]) => {
         if (!cancelled) {
-          setTechStacksLookup(techStacks)
           setTagsLookup(tags)
           setTimeSupportZonesLookup(timeSupportZones)
           setBenefitsLookup(benefits)
           setTechnicalDomainSelectOptions(technicalDomainCatalogToSelectOptions(tdCatalog))
+          setClientLocationsLookup(clientLocations)
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setTechStacksLookup([])
           setTagsLookup([])
           setTimeSupportZonesLookup([])
           setBenefitsLookup([])
           setTechnicalDomainSelectOptions([])
+          setClientLocationsLookup([])
         }
       })
     return () => {
@@ -177,15 +352,6 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       })
     return () => {
       cancelled = true
-    }
-  }, [])
-
-  const handleCreateTechStack = useCallback(async (name: string) => {
-    try {
-      const created = await createTechStack(name)
-      setTechStacksLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add technology")
     }
   }, [])
 
@@ -225,6 +391,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       return {
         id: String(created.id),
         name: created.name,
+        hasValue: false,
         amount: null,
         unit: null,
       }
@@ -239,14 +406,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     setError(null)
     try {
       await ensureTechnicalDomainsCatalogLoaded()
-      const result = await fetchEmployers({
-        pageNumber,
-        pageSize,
-        foundedYears: filters.foundedYears?.length ? filters.foundedYears : undefined,
-        tags: filters.tags?.length ? filters.tags : undefined,
-        isDPLCompetitive: filters.isDPLCompetitive ?? undefined,
-        technicalDomains: technicalDomainFilterInts.length ? technicalDomainFilterInts : undefined,
-      })
+      const result = await fetchEmployers(employerListParams)
       setEmployers(result.items.map(employerListItemToEmployer))
       setTotalCount(result.totalCount)
       setTotalPages(result.totalPages)
@@ -258,7 +418,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     } finally {
       setLoading(false)
     }
-  }, [pageNumber, pageSize, filters.foundedYears, filters.tags, filters.isDPLCompetitive, technicalDomainFilterInts])
+  }, [employerListParams])
 
   useEffect(() => {
     refetchEmployers()
@@ -279,7 +439,6 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           toast.success("Employer updated successfully.")
         } else {
           const dto = buildCreateEmployerDto(data, {
-            techStacksLookup,
             tagsLookup,
             timeSupportZonesLookup,
             getCountryId: (name) => countries.find((c) => c.name === name)?.id ?? 0,
@@ -295,7 +454,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         throw e
       }
     },
-    [employerToEdit, techStacksLookup, tagsLookup, timeSupportZonesLookup, countries, refetchEmployers]
+    [employerToEdit, tagsLookup, timeSupportZonesLookup, countries, refetchEmployers]
   )
 
   const handleFiltersChange = useCallback((newFilters: EmployerFilters) => {
@@ -360,19 +519,23 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
-            lookupOptions={{ technicalDomains: technicalDomainSelectOptions }}
+            lookupOptions={{
+              technicalDomains: technicalDomainSelectOptions,
+              timeSupportZones: timeSupportZoneFilterOptions,
+              tags: tagFilterOptions,
+              clientLocations: clientLocationFilterOptions,
+              countries: countryFilterOptions,
+            }}
           />
           <EmployerCreationDialog
             onSubmit={handleEmployerSubmit}
             countries={countries}
             countriesLoading={countriesLoading}
             lookups={{
-              techStacks: techStacksLookup,
               tags: tagsLookup,
               timeSupportZones: timeSupportZonesLookup,
               benefits: benefitsLookup,
             }}
-            onCreateTechStack={handleCreateTechStack}
             onCreateTag={handleCreateTag}
             onCreateTimeSupportZone={handleCreateTimeSupportZone}
             onCreateBenefit={handleCreateBenefit}
@@ -427,12 +590,10 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           countries={countries}
           countriesLoading={countriesLoading}
           lookups={{
-            techStacks: techStacksLookup,
             tags: tagsLookup,
             timeSupportZones: timeSupportZonesLookup,
             benefits: benefitsLookup,
           }}
-          onCreateTechStack={handleCreateTechStack}
           onCreateTag={handleCreateTag}
           onCreateTimeSupportZone={handleCreateTimeSupportZone}
           onCreateBenefit={handleCreateBenefit}

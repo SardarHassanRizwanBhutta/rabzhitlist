@@ -14,7 +14,8 @@ import {
   ChevronRightIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
-  ExternalLinkIcon,
+  Globe,
+  Linkedin,
   MapPinIcon,
   BuildingIcon,
   Building2Icon,
@@ -71,31 +72,97 @@ import { toast } from "sonner"
 import {
   Employer,
   EmployerLocation,
-  TechStackWithCount,
   EMPLOYER_STATUS_COLORS,
   EMPLOYER_STATUS_LABELS,
+  EMPLOYER_TYPE_BADGE_COLORS,
+  EMPLOYER_TYPE_DB_LABELS,
+  EMPLOYER_TYPE_DISPLAY_TO_DB,
   SALARY_POLICY_COLORS,
   SALARY_POLICY_LABELS,
   WORK_MODE_DB_LABELS,
   SHIFT_TYPE_DB_LABELS,
+  type EmployerTypeDb,
 } from "@/lib/types/employer"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { EmployerBenefit } from "@/lib/types/benefits"
+import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
 import type { EmployerFilters } from "./employers-filter-dialog"
 
-/** Display employer size from locations (min/max sum). No calculation logic—display only. */
-function formatEmployerSize(locations: EmployerLocation[]): string {
+/** Display company-wide headcount when set on employer; otherwise legacy sum from locations. */
+function getEmployerTypeDbList(employer: Employer): EmployerTypeDb[] {
+  if (employer.employerTypes?.length) {
+    const seen = new Set<EmployerTypeDb>()
+    const out: EmployerTypeDb[] = []
+    for (const t of employer.employerTypes) {
+      if (t in EMPLOYER_TYPE_DB_LABELS && !seen.has(t as EmployerTypeDb)) {
+        const db = t as EmployerTypeDb
+        seen.add(db)
+        out.push(db)
+      }
+    }
+    return out
+  }
+  return [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
+}
+
+function employerTypesSortKey(employer: Employer): string {
+  return getEmployerTypeDbList(employer)
+    .map((db) => EMPLOYER_TYPE_DB_LABELS[db])
+    .sort((x, y) => x.localeCompare(y))
+    .join(" ")
+}
+
+function formatEmployerSize(employer: Employer): string {
+  const { minEmployees, maxEmployees, locations } = employer
+  if (minEmployees != null || maxEmployees != null) {
+    const lo = minEmployees ?? maxEmployees
+    const hi = maxEmployees ?? minEmployees
+    if (lo == null && hi == null) return "—"
+    if (lo === hi) return String(lo ?? hi)
+    return `${lo}-${hi}`
+  }
   if (!locations?.length) return "—"
   const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
   const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
   if (totalMin === 0 && totalMax === 0) return "—"
   if (totalMin === totalMax) return String(totalMin)
   return `${totalMin}-${totalMax}`
+}
+
+type EmployerExternalLinkKind = "website" | "linkedin"
+
+/** Icon-only external link; stops row click from opening the details modal. */
+function EmployerExternalIconLink({
+  href,
+  kind,
+  employerName,
+}: {
+  href: string
+  kind: EmployerExternalLinkKind
+  employerName: string
+}) {
+  const ariaLabel =
+    kind === "website"
+      ? `Open website for ${employerName} in a new tab`
+      : `Open LinkedIn page for ${employerName} in a new tab`
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+      aria-label={ariaLabel}
+      title={href}
+      onClick={(e) => {
+        e.stopPropagation()
+        window.open(href, "_blank", "noopener,noreferrer")
+      }}
+    >
+      {kind === "website" ? (
+        <Globe className="h-4 w-4" aria-hidden />
+      ) : (
+        <Linkedin className="h-4 w-4" aria-hidden />
+      )}
+    </Button>
+  )
 }
 
 interface EmployersTableProps {
@@ -124,21 +191,14 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
-// Use only employer's own tech stacks (no candidate-derived data).
-const getEmployerTechStacksWithCount = (employer: Employer): TechStackWithCount[] => {
-  if (employer.techStacks && employer.techStacks.length > 0) {
-    return employer.techStacks.map(tech => ({ tech, count: 0 }))
-  }
-  return []
-}
-
-const getEmployerTechStacks = (employer: Employer): string[] => {
-  return getEmployerTechStacksWithCount(employer).map(item => item.tech)
+function getEmployerSalaryPolicy(employer: Employer) {
+  return employer.salaryPolicy ?? employer.locations[0]?.salaryPolicy ?? null
 }
 
 // Use only employer's own benefits (no candidate-derived data).
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
-  return employer.benefits && employer.benefits.length > 0 ? [...employer.benefits] : []
+  if (!employer.benefits?.length) return []
+  return employer.benefits.map((b) => normalizeEmployerBenefit(b))
 }
 
 // From employer list/detail API: single work mode and shift type, arrays for time zones.
@@ -152,61 +212,6 @@ const getEmployerWorkModes = (employer: Employer): string[] =>
     : []
 const getEmployerTimeSupportZones = (employer: Employer): string[] =>
   employer.timeSupportZones ?? []
-
-// Helper to get intensity class based on count for visual emphasis
-const getCountIntensityClass = (count: number): string => {
-  if (count === 0) return "opacity-70" // Manual entry, no candidates
-  if (count >= 5) return "ring-2 ring-blue-500/30 font-medium"
-  if (count >= 3) return "font-medium"
-  return ""
-}
-
-// Render tech stacks with counts - displays badge with count in parentheses
-const renderTagsWithCount = (
-  techStacks: TechStackWithCount[],
-  maxDisplay: number = 2,
-  colorClass?: string
-) => {
-  if (!techStacks || techStacks.length === 0) {
-    return <span className="text-muted-foreground text-sm">N/A</span>
-  }
-  
-  const displayTags = techStacks.slice(0, maxDisplay)
-  const remainingCount = techStacks.length - maxDisplay
-
-  return (
-    <TooltipProvider>
-      <div className="flex flex-wrap gap-1">
-        {displayTags.map((item, index) => (
-          <Tooltip key={index}>
-            <TooltipTrigger asChild>
-              <Badge
-                variant="secondary"
-                className={`text-xs cursor-default ${colorClass || ""} ${getCountIntensityClass(item.count)}`}
-              >
-                {item.tech}
-                {item.count > 0 && (
-                  <span className="ml-1 opacity-75">({item.count})</span>
-                )}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              {item.count === 0 
-                ? "Manually added" 
-                : `${item.count} candidate${item.count > 1 ? 's' : ''} use this technology`
-              }
-            </TooltipContent>
-          </Tooltip>
-        ))}
-        {remainingCount > 0 && (
-          <Badge variant="outline" className="text-xs">
-            +{remainingCount}
-          </Badge>
-        )}
-      </div>
-    </TooltipProvider>
-  )
-}
 
 export function EmployersTable({
   employers,
@@ -275,7 +280,13 @@ export function EmployersTable({
   // No client-side filtering; filtering will be done by API when integrated.
   const filteredEmployers = useMemo(() => employers, [employers])
 
-  const getSizeSortValue = (locations: EmployerLocation[]): number => {
+  const getSizeSortValue = (employer: Employer): number => {
+    if (employer.minEmployees != null || employer.maxEmployees != null) {
+      const lo = employer.minEmployees ?? employer.maxEmployees ?? 0
+      const hi = employer.maxEmployees ?? employer.minEmployees ?? 0
+      return (lo + hi) / 2
+    }
+    const { locations } = employer
     if (!locations?.length) return 0
     const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
     const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
@@ -289,8 +300,11 @@ export function EmployersTable({
       let bValue: string | number | Date
 
       if (sortKey === 'size') {
-        aValue = getSizeSortValue(a.locations)
-        bValue = getSizeSortValue(b.locations)
+        aValue = getSizeSortValue(a)
+        bValue = getSizeSortValue(b)
+      } else if (sortKey === "employerType") {
+        aValue = employerTypesSortKey(a)
+        bValue = employerTypesSortKey(b)
       } else if (sortKey === 'applicants' || sortKey === 'avgJobTenure') {
         aValue = 0
         bValue = 0
@@ -361,18 +375,6 @@ export function EmployersTable({
         ) : (
           <ChevronDownIcon className="h-4 w-4" />
         ))}
-    </Button>
-  )
-
-  const LinkButton = ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="h-8 px-2 py-1"
-      onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
-    >
-      {children}
-      <ExternalLinkIcon className="ml-1 h-3 w-3" />
     </Button>
   )
 
@@ -450,6 +452,9 @@ export function EmployersTable({
               <TableHead>
                 <SortButton column="name">Company Name</SortButton>
               </TableHead>
+              <TableHead className="min-w-[140px] max-w-[240px]">
+                <SortButton column="employerType">Type</SortButton>
+              </TableHead>
               <TableHead className="w-[120px]">
                 <SortButton column="size">Size</SortButton>
               </TableHead>
@@ -466,12 +471,12 @@ export function EmployersTable({
                 <SortButton column="avgJobTenure">Avg Tenure</SortButton>
               </TableHead>
               <TableHead className="w-[100px]">Offices</TableHead>
-              <TableHead className="w-[180px]">Tech Stacks</TableHead>
+              <TableHead className="w-[180px]">Salary Policy</TableHead>
               <TableHead className="w-[200px]">Benefits</TableHead>
               <TableHead className="w-[150px]">Shift Types</TableHead>
               <TableHead className="w-[150px]">Work Modes</TableHead>
-              <TableHead className="w-[120px]">Website</TableHead>
-              <TableHead className="w-[120px]">LinkedIn</TableHead>
+              <TableHead className="w-[80px] text-center">Website</TableHead>
+              <TableHead className="w-[80px] text-center">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View Employer Projects">Projects</TableHead>
               <TableHead className="w-[80px]" title="View Employer Candidates">Candidates</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
@@ -487,7 +492,7 @@ export function EmployersTable({
                     className="hover:bg-muted/50 cursor-pointer"
                     onClick={() => setSelectedEmployer(employer)}
                   >
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Collapsible 
                         open={isExpanded} 
                         onOpenChange={() => toggleEmployerExpanded(employer.id)}
@@ -497,6 +502,7 @@ export function EmployersTable({
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {isExpanded ? (
                               <ChevronDown className="h-4 w-4" />
@@ -519,9 +525,22 @@ export function EmployersTable({
                         )}
                       </div>
                     </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex flex-wrap gap-1">
+                        {getEmployerTypeDbList(employer).map((db) => (
+                          <Badge
+                            key={db}
+                            variant="outline"
+                            className={`text-xs font-medium ${EMPLOYER_TYPE_BADGE_COLORS[db]}`}
+                          >
+                            {EMPLOYER_TYPE_DB_LABELS[db]}
+                          </Badge>
+                        ))}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">
-                        {formatEmployerSize(employer.locations)}
+                        {formatEmployerSize(employer)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -551,7 +570,17 @@ export function EmployersTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {renderTagsWithCount(getEmployerTechStacksWithCount(employer), 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}
+                      {(() => {
+                        const policy = getEmployerSalaryPolicy(employer)
+                        if (!policy) {
+                          return <span className="text-muted-foreground text-sm">N/A</span>
+                        }
+                        return (
+                          <Badge variant="secondary" className={`text-xs ${SALARY_POLICY_COLORS[policy]}`}>
+                            {SALARY_POLICY_LABELS[policy]}
+                          </Badge>
+                        )
+                      })()}
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -637,22 +666,26 @@ export function EmployersTable({
                         )
                       })()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 text-center">
                       {employer.websiteUrl ? (
-                        <LinkButton href={employer.websiteUrl}>
-                          Website
-                        </LinkButton>
+                        <EmployerExternalIconLink
+                          href={employer.websiteUrl}
+                          kind="website"
+                          employerName={employer.name}
+                        />
                       ) : (
-                        <span className="text-muted-foreground text-sm">N/A</span>
+                        <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-1 text-center">
                       {employer.linkedinUrl ? (
-                        <LinkButton href={employer.linkedinUrl}>
-                          LinkedIn
-                        </LinkButton>
+                        <EmployerExternalIconLink
+                          href={employer.linkedinUrl}
+                          kind="linkedin"
+                          employerName={employer.name}
+                        />
                       ) : (
-                        <span className="text-muted-foreground text-sm">N/A</span>
+                        <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -764,30 +797,14 @@ export function EmployersTable({
                                   Headquarters
                                 </Badge>
                               )}
-                              <Badge variant="outline" className="text-xs">
-                                {location.minSize === location.maxSize ? `${location.minSize}` : `${location.minSize}-${location.maxSize}`} employees
-                              </Badge>
                             </div>
                             <span className="text-xs text-muted-foreground">{location.address}</span>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className={SALARY_POLICY_COLORS[location.salaryPolicy]}
-                        >
-                          {SALARY_POLICY_LABELS[location.salaryPolicy]}
-                        </Badge>
+                      <TableCell colSpan={15} className="text-muted-foreground text-sm">
+                        —
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">—</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -839,7 +856,7 @@ export function EmployersTable({
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell colSpan={9} className="text-muted-foreground text-sm"></TableCell>
+                      <TableCell colSpan={16} className="text-muted-foreground text-sm" />
                     </TableRow>
                   )}
                 </React.Fragment>

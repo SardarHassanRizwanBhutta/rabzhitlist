@@ -28,7 +28,7 @@ import {
   ACHIEVEMENT_TYPE_DB,
   type AchievementTypeDb,
 } from "@/lib/constants/candidate-enums"
-import type { BenefitUnit, EmployerBenefit } from "@/lib/types/benefits"
+import { employerBenefitToApiValueFields, type BenefitUnit, type EmployerBenefit } from "@/lib/types/benefits"
 import { API_BASE_URL } from "@/lib/config/api"
 
 // --- API DTOs (aligned with Candidates-API-Reference.md) ---
@@ -235,11 +235,21 @@ function mapBenefit(raw: Record<string, unknown>, idx: number): EmployerBenefit 
     unit = u
   }
   const amt = raw.value ?? raw.amount
+  const amountParsed =
+    typeof amt === "number" ? amt : amt != null ? Number(amt) : null
+  const amount =
+    amountParsed != null && !Number.isNaN(amountParsed) ? amountParsed : null
+  const hasValueFromApi = raw.hasValue
+  const hasValue =
+    typeof hasValueFromApi === "boolean"
+      ? hasValueFromApi
+      : amount != null || unit != null
   return {
     id: String(raw.benefitId ?? raw.id ?? `b-${idx}`),
     name: String(raw.name ?? raw.benefitName ?? ""),
-    amount: typeof amt === "number" ? amt : amt != null ? Number(amt) : null,
-    unit,
+    hasValue,
+    amount: hasValue ? amount : null,
+    unit: hasValue ? unit : null,
   }
 }
 
@@ -515,12 +525,6 @@ function lookupIdByName(
   return lookups.find((l) => l.name.toLowerCase() === lower)?.id ?? null
 }
 
-function benefitUnitToApi(unit: string | null): number | null {
-  if (!unit) return null
-  const map: Record<string, number> = { PKR: 0, days: 1, count: 2, percent: 3 }
-  return map[unit] ?? null
-}
-
 export interface CandidateCreateLookups {
   techStacks?: Array<{ id: number; name: string }>
   timeSupportZones?: Array<{ id: number; name: string }>
@@ -602,11 +606,12 @@ export function candidateFormDataToCreateDto(
         .reduce<CreateCandidateWorkExperienceBenefitDto[]>((acc, b) => {
           const benefitId = lookupIdByName(lookups?.benefits ?? [], b.name)
           if (benefitId != null) {
+            const { hasValue, unitType, value } = employerBenefitToApiValueFields(b)
             acc.push({
               benefitId,
-              hasValue: b.amount != null,
-              unitType: benefitUnitToApi(b.unit),
-              value: b.amount,
+              hasValue,
+              unitType,
+              value,
             })
           }
           return acc
@@ -1101,12 +1106,12 @@ async function addWeSubResources(
   for (const b of we.benefits ?? []) {
     const benefitId = lookupIdByName(benefitsLookup, b.name)
     if (benefitId != null) {
-      ops.push(upsertWeBenefit(candidateId, weId, {
-        benefitId,
-        hasValue: b.amount != null,
-        unitType: benefitUnitToApi(b.unit),
-        value: b.amount,
-      }))
+      ops.push(
+        upsertWeBenefit(candidateId, weId, {
+          benefitId,
+          ...employerBenefitToApiValueFields(b),
+        })
+      )
     }
   }
   for (const p of we.projects ?? []) {
@@ -1178,12 +1183,12 @@ async function syncWeSubResources(
     const benefitId = lookupIdByName(benefitsLookup, b.name)
     if (benefitId != null) {
       newBenefitIds.add(benefitId)
-      ops.push(upsertWeBenefit(candidateId, weId, {
-        benefitId,
-        hasValue: b.amount != null,
-        unitType: benefitUnitToApi(b.unit),
-        value: b.amount,
-      }))
+      ops.push(
+        upsertWeBenefit(candidateId, weId, {
+          benefitId,
+          ...employerBenefitToApiValueFields(b),
+        })
+      )
     }
   }
   for (const id of oldBenefitIds) {

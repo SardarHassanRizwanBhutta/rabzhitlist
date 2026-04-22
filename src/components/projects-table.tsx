@@ -95,8 +95,9 @@ import { cn } from "@/lib/utils"
 
 import {
   Project,
+  PROJECT_STATUS_COLORS,
   PROJECT_STATUS_LABELS,
-  ProjectStatus,
+  type ProjectStatus,
 } from "@/lib/types/project"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleProjects } from "@/lib/sample-data/projects"
@@ -313,6 +314,15 @@ type SortKey = keyof Project
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
+
+function coerceProjectStatusForDisplay(raw: string): ProjectStatus {
+  if (raw in PROJECT_STATUS_LABELS) return raw as ProjectStatus
+  const t = raw.trim().toLowerCase()
+  if (t === "development") return "Development"
+  if (t === "maintenance") return "Maintenance"
+  if (t === "closed") return "Closed"
+  return "Development"
+}
 
 // Helper function to calculate team size for a project
 const calculateTeamSize = (projectName: string): number => {
@@ -549,6 +559,9 @@ export function ProjectsTable({
               <TableHead className="w-[140px]">
                 <SortButton column="employerName">Employer</SortButton>
               </TableHead>
+              <TableHead className="w-[120px] min-w-[110px]">
+                <SortButton column="status">Status</SortButton>
+              </TableHead>
               <TableHead className="w-[180px]">Tech Stacks</TableHead>
               <TableHead className="w-[160px]">Horizontal Domains</TableHead>
               <TableHead className="w-[160px]">Vertical Domains</TableHead>
@@ -575,6 +588,19 @@ export function ProjectsTable({
                   ) : (
                     <span className="text-muted-foreground text-sm">N/A</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const status = coerceProjectStatusForDisplay(String(project.status ?? ""))
+                    return (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs font-medium whitespace-nowrap ${PROJECT_STATUS_COLORS[status]}`}
+                      >
+                        {PROJECT_STATUS_LABELS[status]}
+                      </Badge>
+                    )
+                  })()}
                 </TableCell>
                 <TableCell>
                   {renderTags(project.techStacks, 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}

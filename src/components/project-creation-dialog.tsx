@@ -1809,7 +1809,6 @@ export function ProjectCreationDialog({
         initialName={employerSearchQuery}
         onSubmit={async (formData) => {
           const dto = buildCreateEmployerDto(formData, {
-            techStacksLookup: lookups?.techStacks ?? [],
             tagsLookup: [],
             timeSupportZonesLookup: [],
           })
