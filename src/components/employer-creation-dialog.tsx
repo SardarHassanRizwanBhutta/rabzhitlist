@@ -119,6 +119,10 @@ interface EmployerCreationDialogProps {
   mode?: DialogMode
   employerData?: Employer
   showVerification?: boolean
+  /**
+   * Persist form data. Edit mode: `PUT /api/employers/{id}` does not save locations — use
+   * `POST|PUT|DELETE /api/employers/{id}/locations/...` for added, changed, or removed rows (`EmployerApiReference.md`).
+   */
   onSubmit?: (data: EmployerFormData, verificationState?: EmployerVerificationState) => Promise<{ id: number; name: string } | void> | void
   onSuccess?: (employer: { id: number; name: string }) => void
   onOpenChange?: (open: boolean) => void

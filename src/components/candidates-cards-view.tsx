@@ -48,11 +48,8 @@ import {
 } from "@/lib/services/candidates-api"
 
 const defaultFilters: CandidateFilters = {
-  basicInfoSearch: "",
   postingTitle: "",
-  cities: [],
-  excludeCities: [],
-  status: [],
+  city: "",
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -63,9 +60,9 @@ const defaultFilters: CandidateFilters = {
   projectTypes: [],
   techStacks: [],
   clientLocations: [],
-  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   startDateStart: null,
   startDateEnd: null,
@@ -104,11 +101,8 @@ const defaultFilters: CandidateFilters = {
   minProjectDownloadCount: "",
   employerStatus: [],
   employerCountries: [],
-  employerCities: [],
+  employerCity: "",
   employerTypes: [],
-  careerTransitionFromType: [],
-  careerTransitionToType: [],
-  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
@@ -127,8 +121,7 @@ const defaultFilters: CandidateFilters = {
   certificationIssuingBodies: [],
   certificationLevels: [],
   achievementTypes: [],
-  achievementPlatforms: [],
-  internationalBugBountyOnly: false,
+  achievementName: "",
   competitionPlatforms: [],
   personalityTypes: [],
   source: [],
@@ -224,6 +217,7 @@ const getCriterionColor = (type: string): string => {
     'techStack': 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200 border-cyan-300 dark:border-cyan-700',
     'verticalDomain': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700',
     'horizontalDomain': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',
+    'technicalDomain': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
     'technicalAspect': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-700',
     
     // Employer Characteristics
@@ -248,12 +242,12 @@ const getCriterionColor = (type: string): string => {
     'certification': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700',
     'issuingBody': 'bg-stone-100 text-stone-800 dark:bg-stone-900 dark:text-stone-200 border-stone-300 dark:border-stone-700',
     'level': 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 border-neutral-300 dark:border-neutral-700',
-    
+
     // Competitions
     'competitionPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     'achievementType': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     'achievementPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
-    'internationalBugBounty': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
+    'achievementName': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     
     // Candidate Tech Stacks
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
@@ -265,9 +259,6 @@ const getCriterionColor = (type: string): string => {
     // Published Apps
     'publishedPlatform': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700',
     'storeLink': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-700',
-    
-    // Career Transition
-    'careerTransition': 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-800 dark:from-purple-900 dark:to-blue-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
   }
   
   return colorMap[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border-gray-300 dark:border-gray-700'
@@ -524,31 +515,6 @@ export function CandidatesCardsView({
                         <span>{candidate.city}</span>
                       </div>
                     </div>
-                    {/* Career Transition Badge - Display prominently */}
-                    {activeFilters && matchContext && filters.careerTransitionFromType.length > 0 && filters.careerTransitionToType.length > 0 && (
-                      (() => {
-                        const transitionItem = matchContext.categories
-                          .flatMap(cat => cat.items)
-                          .find(item => item.matchedCriteria.some(c => c.type === 'careerTransition'))
-                        
-                        if (transitionItem) {
-                          const transitionValue = transitionItem.matchedCriteria
-                            .find(c => c.type === 'careerTransition')?.values[0] || ''
-                          return (
-                            <div className="mt-2">
-                              <Badge 
-                                variant="outline" 
-                                className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 font-semibold"
-                              >
-                                <Building2 className="h-3 w-3 mr-1" />
-                                {transitionValue}
-                              </Badge>
-                            </div>
-                          )
-                        }
-                        return null
-                      })()
-                    )}
                   </div>
                 </div>
               </CardHeader>

@@ -50,7 +50,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner"
 import { Loader2, Plus, Check, ChevronsUpDown, ShieldCheck, ChevronDown, ChevronRight, X } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
-import { Project, ProjectStatus, ProjectType, PROJECT_STATUS_LABELS, PROJECT_TYPES } from "@/lib/types/project"
+import {
+  Project,
+  ProjectStatus,
+  ProjectType,
+  PROJECT_STATUS_LABELS,
+  PROJECT_TYPES,
+  PUBLISH_PLATFORM_FILTER_OPTIONS,
+} from "@/lib/types/project"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { fetchTechnicalAspectTypes, fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
 import {
@@ -165,13 +172,10 @@ const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label])
   label
 }))
 
-// Publish platform options
-const publishPlatformOptions: MultiSelectOption[] = [
-  { value: "App Store", label: "App Store (iOS)" },
-  { value: "Play Store", label: "Play Store (Android)" },
-  { value: "Web", label: "Web" },
-  { value: "Desktop", label: "Desktop" },
-]
+const publishPlatformOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}))
 
 // Extract unique client locations from projects (for MultiSelect options)
 const extractUniqueClientLocations = (): string[] => {

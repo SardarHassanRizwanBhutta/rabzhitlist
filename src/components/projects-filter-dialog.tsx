@@ -27,7 +27,12 @@ import {
 import { Filter, CalendarIcon, ChevronsUpDown, Check, X } from "lucide-react"
 import { searchEmployers, fetchEmployerById } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
-import { ProjectStatus, PROJECT_STATUS_LABELS, PROJECT_TYPES } from "@/lib/types/project"
+import {
+  ProjectStatus,
+  PROJECT_STATUS_LABELS,
+  PROJECT_TYPES,
+  PUBLISH_PLATFORM_FILTER_OPTIONS,
+} from "@/lib/types/project"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import {
   VERTICAL_DOMAINS,
@@ -115,13 +120,10 @@ const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   label: type,
 }))
 
-// Publish platform options
-const publishPlatformOptions: MultiSelectOption[] = [
-  { value: "App Store", label: "App Store (iOS)" },
-  { value: "Play Store", label: "Play Store (Android)" },
-  { value: "Web", label: "Web" },
-  { value: "Desktop", label: "Desktop" },
-]
+const publishPlatformOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}))
 
 const initialFilters: ProjectFilters = {
   status: [],

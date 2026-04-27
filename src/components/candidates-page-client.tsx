@@ -24,7 +24,13 @@ import {
   type CandidateLookups,
 } from "@/components/candidate-creation-dialog"
 import { ResumeParserDialog } from "@/components/resume-parser-dialog"
-import { fetchTechStacks, createTechStack } from "@/lib/services/lookups-api"
+import {
+  fetchTechStacks,
+  fetchClientLocations,
+  createTechStack,
+  type LookupItem,
+} from "@/lib/services/lookups-api"
+import { fetchCountries } from "@/lib/services/countries-api"
 import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import { fetchDegrees, createDegree, fetchMajors, createMajor } from "@/lib/services/majors-degrees-api"
@@ -35,21 +41,44 @@ import {
   candidateListItemDtoToCandidate,
 } from "@/lib/services/candidates-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
+import type { CertificationIssuer } from "@/lib/types/certification"
+import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
 import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidates-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import { hasActiveFilters } from "@/lib/utils/candidate-matches"
 import type { Candidate } from "@/lib/types/candidate"
+import {
+  ACHIEVEMENT_TYPE_DB,
+  CANDIDATE_SOURCE_DB,
+  CERTIFICATION_LEVEL_DB,
+} from "@/lib/constants/candidate-enums"
+import {
+  EMPLOYER_STATUS_DISPLAY_TO_DB,
+  EMPLOYER_TYPE_DISPLAY_TO_DB,
+  RANKING_DISPLAY_TO_DB,
+  SALARY_POLICY_DISPLAY_TO_DB,
+} from "@/lib/types/employer"
+import {
+  EMPLOYER_STATUS_TO_API,
+  EMPLOYER_TYPE_TO_API,
+  RANKING_TO_API,
+  SALARY_POLICY_TO_API,
+} from "@/lib/services/employers-api"
+import {
+  horizontalDomainLabelToInt,
+  PROJECT_STATUS_UI_TO_NUM,
+  PUBLISH_PLATFORM_UI_TO_NUM,
+  technicalDomainLabelToInt,
+  verticalDomainLabelToInt,
+} from "@/lib/services/projects-api"
 
 const DEFAULT_PAGE_SIZE = 20
 
 const initialFilters: CandidateFilters = {
-  basicInfoSearch: "",
   postingTitle: "",
-  cities: [],
-  excludeCities: [],
-  status: [],
+  city: "",
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -60,9 +89,9 @@ const initialFilters: CandidateFilters = {
   projectTypes: [],
   techStacks: [],
   clientLocations: [],
-  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   startDateStart: null,
   startDateEnd: null,
@@ -101,11 +130,8 @@ const initialFilters: CandidateFilters = {
   minProjectDownloadCount: "",
   employerStatus: [],
   employerCountries: [],
-  employerCities: [],
+  employerCity: "",
   employerTypes: [],
-  careerTransitionFromType: [],
-  careerTransitionToType: [],
-  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
@@ -120,8 +146,7 @@ const initialFilters: CandidateFilters = {
   certificationIssuingBodies: [],
   certificationLevels: [],
   achievementTypes: [],
-  achievementPlatforms: [],
-  internationalBugBountyOnly: false,
+  achievementName: "",
   competitionPlatforms: [],
   personalityTypes: [],
   source: [],
@@ -152,6 +177,22 @@ export function CandidatesPageClient() {
     return Number.isFinite(n) && n > 0 ? n : null
   }, [searchParams])
 
+  /** Numeric project id from URL (`projectId`) for server-side list filtering. */
+  const projectIdFromUrl = useMemo(() => {
+    const raw = searchParams.get("projectId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [searchParams])
+
+  /** Numeric employer id from URL (`employerId`) for server-side list filtering. */
+  const employerIdFromUrl = useMemo(() => {
+    const raw = searchParams.get("employerId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [searchParams])
+
   const [filters, setFilters] = useState<CandidateFilters>(initialFilters)
   const [projectFilter, setProjectFilter] = useState<{ name: string; id: string } | null>(null)
   const [certificationFilter, setCertificationFilter] = useState<{ name: string; id: string } | null>(null)
@@ -177,6 +218,9 @@ export function CandidatesPageClient() {
   const [benefitsLookup, setBenefitsLookup] = useState<NonNullable<CandidateLookups["benefits"]>>([])
   const [degreesLookup, setDegreesLookup] = useState<NonNullable<CandidateLookups["degrees"]>>([])
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
+  const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
+  const [countriesLookup, setCountriesLookup] = useState<LookupItem[]>([])
+  const [certificationIssuersLookup, setCertificationIssuersLookup] = useState<CertificationIssuer[]>([])
   const [lookupsLoading, setLookupsLoading] = useState(true)
 
   const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
@@ -203,14 +247,22 @@ export function CandidatesPageClient() {
       fetchBenefits(),
       fetchDegrees(),
       fetchMajors(),
+      fetchClientLocations(),
+      fetchCountries(),
+      fetchCertificationIssuers(),
     ])
-      .then(([techStacks, timeSupportZones, benefits, degrees, majors]) => {
+      .then(([techStacks, timeSupportZones, benefits, degrees, majors, clientLocs, countries, issuers]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
           setTimeSupportZonesLookup(timeSupportZones)
           setBenefitsLookup(benefits)
           setDegreesLookup(degrees)
           setMajorsLookup(majors)
+          setClientLocationsLookup(clientLocs)
+          setCountriesLookup(
+            Array.isArray(countries) ? countries.map((c) => ({ id: c.id, name: c.name })) : [],
+          )
+          setCertificationIssuersLookup(Array.isArray(issuers) ? issuers : [])
         }
       })
       .catch(() => {
@@ -220,6 +272,9 @@ export function CandidatesPageClient() {
           setBenefitsLookup([])
           setDegreesLookup([])
           setMajorsLookup([])
+          setClientLocationsLookup([])
+          setCountriesLookup([])
+          setCertificationIssuersLookup([])
           toast.error("Failed to load candidate form lookups.")
         }
       })
@@ -231,6 +286,203 @@ export function CandidatesPageClient() {
     }
   }, [])
 
+  const toDateOnly = (d: Date | null): string | undefined => {
+    if (!d) return undefined
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    const day = String(d.getDate()).padStart(2, "0")
+    return `${y}-${m}-${day}`
+  }
+
+  const toOptionalNumber = (raw: string): number | undefined => {
+    const t = raw.trim()
+    if (!t) return undefined
+    const n = Number(t)
+    return Number.isFinite(n) ? n : undefined
+  }
+
+  const combinedFiltersForBackend = useMemo(() => {
+    const withUrl = {
+      ...filters,
+      projects:
+        projectIdFromUrl != null
+          ? filters.projects.includes(String(projectIdFromUrl))
+            ? filters.projects
+            : [...filters.projects, String(projectIdFromUrl)]
+          : filters.projects,
+      employers:
+        employerIdFromUrl != null
+          ? filters.employers.includes(String(employerIdFromUrl))
+            ? filters.employers
+            : [...filters.employers, String(employerIdFromUrl)]
+          : filters.employers,
+      certificationNames:
+        certificationIdFromUrl != null
+          ? filters.certificationNames.includes(String(certificationIdFromUrl))
+            ? filters.certificationNames
+            : [...filters.certificationNames, String(certificationIdFromUrl)]
+          : filters.certificationNames,
+    }
+    return withUrl
+  }, [filters, projectIdFromUrl, employerIdFromUrl, certificationIdFromUrl])
+
+  const backendListOptions = useMemo(() => {
+    const projectTypeToApi: Record<string, number> = {
+      Employer: 0,
+      Academic: 1,
+      Personal: 2,
+      Freelance: 3,
+      "Open Source": 4,
+    }
+    const achievementLabelToDb = new Map<string, string>(
+      Object.entries({
+        competition: "Competition",
+        openSource: "Open Source",
+        award: "Award",
+        medal: "Medal",
+        publication: "Publication",
+        certification: "Certification",
+        recognition: "Recognition",
+        other: "Other",
+      }).map(([db, label]) => [label, db]),
+    )
+
+    const employerIds = combinedFiltersForBackend.employers
+      .map((e) => Number.parseInt(e, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const projectIds = combinedFiltersForBackend.projects
+      .map((p) => Number.parseInt(p, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const certificationId =
+      combinedFiltersForBackend.certificationNames
+        .map((v) => Number.parseInt(v, 10))
+        .find((n) => Number.isFinite(n) && n > 0) ?? undefined
+
+    const issuingBodyIds = combinedFiltersForBackend.certificationIssuingBodies
+      .map((name) => certificationIssuersLookup.find((i) => i.name === name)?.id)
+      .filter((id): id is number => id != null)
+    const degreeIds = combinedFiltersForBackend.degreeNames
+      .map((name) => degreesLookup.find((d) => d.name === name)?.id)
+      .filter((id): id is number => id != null)
+    const majorIds = combinedFiltersForBackend.majorNames
+      .map((name) => majorsLookup.find((m) => m.name === name)?.id)
+      .filter((id): id is number => id != null)
+    const employerCountryIds = combinedFiltersForBackend.employerCountries
+      .map((name) => countriesLookup.find((c) => c.name === name)?.id)
+      .filter((id): id is number => id != null)
+    const clientLocationIds = combinedFiltersForBackend.clientLocations
+      .map((name) => clientLocationsLookup.find((l) => l.name === name)?.id)
+      .filter((id): id is number => id != null)
+
+    const sourceRaw = combinedFiltersForBackend.source[0]
+    const source =
+      sourceRaw && CANDIDATE_SOURCE_DB.includes(sourceRaw as (typeof CANDIDATE_SOURCE_DB)[number])
+        ? CANDIDATE_SOURCE_DB.indexOf(sourceRaw as (typeof CANDIDATE_SOURCE_DB)[number])
+        : undefined
+
+    const certificationLevels = combinedFiltersForBackend.certificationLevels
+      .map((l) => CERTIFICATION_LEVEL_DB.indexOf(l as (typeof CERTIFICATION_LEVEL_DB)[number]))
+      .filter((n) => n >= 0)
+    const employerStatuses = combinedFiltersForBackend.employerStatus
+      .map((s) => EMPLOYER_STATUS_DISPLAY_TO_DB[s as keyof typeof EMPLOYER_STATUS_DISPLAY_TO_DB])
+      .map((db) => (db != null ? EMPLOYER_STATUS_TO_API[db] : undefined))
+      .filter((n): n is number => n != null)
+    const employerTypes = combinedFiltersForBackend.employerTypes
+      .map((t) => EMPLOYER_TYPE_DISPLAY_TO_DB[t as keyof typeof EMPLOYER_TYPE_DISPLAY_TO_DB])
+      .map((db) => (db != null ? EMPLOYER_TYPE_TO_API[db] : undefined))
+      .filter((n): n is number => n != null)
+    const employerSalaryPolicies = combinedFiltersForBackend.employerSalaryPolicies
+      .map((p) => SALARY_POLICY_DISPLAY_TO_DB[p as keyof typeof SALARY_POLICY_DISPLAY_TO_DB])
+      .map((db) => (db != null ? SALARY_POLICY_TO_API[db] : undefined))
+      .filter((n): n is number => n != null)
+    const employerRankings = combinedFiltersForBackend.employerRankings
+      .map((r) => RANKING_DISPLAY_TO_DB[r as keyof typeof RANKING_DISPLAY_TO_DB])
+      .map((db) => (db != null ? RANKING_TO_API[db] : undefined))
+      .filter((n): n is number => n != null)
+    const projectStatus = combinedFiltersForBackend.projectStatus
+      .map((s) => PROJECT_STATUS_UI_TO_NUM[s as keyof typeof PROJECT_STATUS_UI_TO_NUM])
+      .filter((n): n is number => n != null)
+    const projectTypes = combinedFiltersForBackend.projectTypes
+      .map((t) => projectTypeToApi[t])
+      .filter((n): n is number => n != null)
+    const publishPlatforms = combinedFiltersForBackend.publishPlatforms
+      .map((p) => PUBLISH_PLATFORM_UI_TO_NUM[p as keyof typeof PUBLISH_PLATFORM_UI_TO_NUM])
+      .filter((n): n is number => n != null)
+    const verticalDomains = combinedFiltersForBackend.verticalDomains
+      .map((v) => verticalDomainLabelToInt(v))
+      .filter((n): n is number => n != null)
+    const horizontalDomains = combinedFiltersForBackend.horizontalDomains
+      .map((h) => horizontalDomainLabelToInt(h))
+      .filter((n): n is number => n != null)
+    const technicalDomains = combinedFiltersForBackend.technicalDomains
+      .map((t) => technicalDomainLabelToInt(t))
+      .filter((n): n is number => n != null)
+    const achievementTypes = combinedFiltersForBackend.achievementTypes
+      .map((label) => achievementLabelToDb.get(label))
+      .filter((db): db is string => !!db)
+      .map((db) => ACHIEVEMENT_TYPE_DB.indexOf(db as (typeof ACHIEVEMENT_TYPE_DB)[number]))
+      .filter((n) => n >= 0)
+
+    return {
+      postingTitle: combinedFiltersForBackend.postingTitle.trim() || undefined,
+      city: combinedFiltersForBackend.city.trim() || undefined,
+      personalityTypes:
+        combinedFiltersForBackend.personalityTypes.length > 0
+          ? combinedFiltersForBackend.personalityTypes
+          : undefined,
+      source,
+      isTopDeveloper: combinedFiltersForBackend.isTopDeveloper ?? undefined,
+      currentSalaryMin: toOptionalNumber(combinedFiltersForBackend.currentSalaryMin),
+      currentSalaryMax: toOptionalNumber(combinedFiltersForBackend.currentSalaryMax),
+      expectedSalaryMin: toOptionalNumber(combinedFiltersForBackend.expectedSalaryMin),
+      expectedSalaryMax: toOptionalNumber(combinedFiltersForBackend.expectedSalaryMax),
+      certificationId,
+      issuingBodyIds: issuingBodyIds.length > 0 ? issuingBodyIds : undefined,
+      certificationLevels: certificationLevels.length > 0 ? certificationLevels : undefined,
+      universityId: universityIdFromUrl ?? undefined,
+      degreeIds: degreeIds.length > 0 ? degreeIds : undefined,
+      majorIds: majorIds.length > 0 ? majorIds : undefined,
+      isTopper: combinedFiltersForBackend.isTopper ?? undefined,
+      isMainCheetah: combinedFiltersForBackend.isCheetah ?? undefined,
+      graduateDateStart: toDateOnly(combinedFiltersForBackend.educationEndDateStart),
+      graduateDateEnd: toDateOnly(combinedFiltersForBackend.educationEndDateEnd),
+      employerIds: employerIds.length > 0 ? employerIds : undefined,
+      employerSalaryPolicies:
+        employerSalaryPolicies.length > 0 ? employerSalaryPolicies : undefined,
+      employerTypes: employerTypes.length > 0 ? employerTypes : undefined,
+      employerCountries: employerCountryIds.length > 0 ? employerCountryIds : undefined,
+      employerCity: combinedFiltersForBackend.employerCity.trim() || undefined,
+      employerStatuses: employerStatuses.length > 0 ? employerStatuses : undefined,
+      employerRankings: employerRankings.length > 0 ? employerRankings : undefined,
+      employerSizeMin: toOptionalNumber(combinedFiltersForBackend.employerSizeMin),
+      employerSizeMax: toOptionalNumber(combinedFiltersForBackend.employerSizeMax),
+      projectIds: projectIds.length > 0 ? projectIds : undefined,
+      verticalDomains: verticalDomains.length > 0 ? verticalDomains : undefined,
+      horizontalDomains: horizontalDomains.length > 0 ? horizontalDomains : undefined,
+      technicalDomains: technicalDomains.length > 0 ? technicalDomains : undefined,
+      clientLocations: clientLocationIds.length > 0 ? clientLocationIds : undefined,
+      projectStatus: projectStatus.length > 0 ? projectStatus : undefined,
+      projectTypes: projectTypes.length > 0 ? projectTypes : undefined,
+      publishPlatforms: publishPlatforms.length > 0 ? publishPlatforms : undefined,
+      isPublished: combinedFiltersForBackend.hasPublishedProject ?? undefined,
+      minDownloadCount: toOptionalNumber(combinedFiltersForBackend.minProjectDownloadCount),
+      minTeamSize: toOptionalNumber(combinedFiltersForBackend.projectTeamSizeMin),
+      maxTeamSize: toOptionalNumber(combinedFiltersForBackend.projectTeamSizeMax),
+      projectStartFrom: toDateOnly(combinedFiltersForBackend.startDateStart),
+      projectStartTo: toDateOnly(combinedFiltersForBackend.startDateEnd),
+      achievementTypes: achievementTypes.length > 0 ? achievementTypes : undefined,
+      achievementName: combinedFiltersForBackend.achievementName.trim() || undefined,
+    }
+  }, [
+    combinedFiltersForBackend,
+    universityIdFromUrl,
+    certificationIssuersLookup,
+    degreesLookup,
+    majorsLookup,
+    countriesLookup,
+    clientLocationsLookup,
+  ])
+
   useEffect(() => {
     const ac = new AbortController()
     let ignore = false
@@ -239,16 +491,7 @@ export function CandidatesPageClient() {
       setListLoading(true)
       setListError(null)
       try {
-        const listOpts =
-          certificationIdFromUrl != null || universityIdFromUrl != null
-            ? {
-                ...(certificationIdFromUrl != null && {
-                  certificationId: certificationIdFromUrl,
-                }),
-                ...(universityIdFromUrl != null && { universityId: universityIdFromUrl }),
-              }
-            : undefined
-        const res = await fetchCandidatesPage(pageNumber, pageSize, ac.signal, listOpts)
+        const res = await fetchCandidatesPage(pageNumber, pageSize, ac.signal, backendListOptions)
         if (ignore) return
         setCandidates(res.items.map((row) => candidateListItemDtoToCandidate(row)))
         setTotalCount(res.totalCount)
@@ -271,7 +514,7 @@ export function CandidatesPageClient() {
       ignore = true
       ac.abort()
     }
-  }, [pageNumber, pageSize, reloadToken, certificationIdFromUrl, universityIdFromUrl])
+  }, [pageNumber, pageSize, reloadToken, backendListOptions])
 
   const handleCreateTechStack = useCallback(async (name: string) => {
     try {
@@ -390,7 +633,7 @@ export function CandidatesPageClient() {
     }
   }, [searchParams])
 
-  const listFilterKey = `${certificationIdFromUrl ?? ""}|${universityIdFromUrl ?? ""}`
+  const listFilterKey = `${projectIdFromUrl ?? ""}|${employerIdFromUrl ?? ""}|${certificationIdFromUrl ?? ""}|${universityIdFromUrl ?? ""}`
   const prevListFilterKeyRef = useRef<string | null>(null)
   useEffect(() => {
     if (prevListFilterKeyRef.current === listFilterKey) return
@@ -402,19 +645,34 @@ export function CandidatesPageClient() {
     return {
       ...filters,
       projects: projectFilter
-        ? filters.projects.includes(projectFilter.name)
-          ? filters.projects
-          : [...filters.projects, projectFilter.name]
+        ? (() => {
+            const idStr = projectFilter.id.trim()
+            const entry = /^\d+$/.test(idStr) ? idStr : projectFilter.name
+            const has = filters.projects.some(
+              (e) => e === entry || e.toLowerCase() === projectFilter.name.toLowerCase()
+            )
+            return has ? filters.projects : [...filters.projects, entry]
+          })()
         : filters.projects,
       certificationNames: certificationFilter
-        ? filters.certificationNames.includes(certificationFilter.name)
-          ? filters.certificationNames
-          : [...filters.certificationNames, certificationFilter.name]
+        ? (() => {
+            const idStr = certificationFilter.id.trim()
+            const entry = /^\d+$/.test(idStr) ? idStr : certificationFilter.name
+            const has = filters.certificationNames.some(
+              (e) => e === entry || e.toLowerCase() === certificationFilter.name.toLowerCase()
+            )
+            return has ? filters.certificationNames : [...filters.certificationNames, entry]
+          })()
         : filters.certificationNames,
       employers: employerFilter
-        ? filters.employers.some((e) => e.toLowerCase() === employerFilter.name.toLowerCase())
-          ? filters.employers
-          : [...filters.employers, employerFilter.name]
+        ? (() => {
+            const idStr = employerFilter.id.trim()
+            const entry = /^\d+$/.test(idStr) ? idStr : employerFilter.name
+            const has = filters.employers.some(
+              (e) => e === entry || e.toLowerCase() === employerFilter.name.toLowerCase()
+            )
+            return has ? filters.employers : [...filters.employers, entry]
+          })()
         : filters.employers,
     }
   }, [filters, projectFilter, certificationFilter, employerFilter])
@@ -438,10 +696,12 @@ export function CandidatesPageClient() {
 
   const handleFiltersChange = (newFilters: CandidateFilters) => {
     setFilters(newFilters)
+    setPageNumber(1)
   }
 
   const handleClearFilters = () => {
     setFilters(initialFilters)
+    setPageNumber(1)
     setViewMode("table")
   }
 
@@ -559,6 +819,12 @@ export function CandidatesPageClient() {
             filters={filters}
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
+            timeSupportZones={timeSupportZonesLookup}
+            clientLocations={clientLocationsLookup}
+            countries={countriesLookup}
+            certificationIssuers={certificationIssuersLookup}
+            degrees={degreesLookup}
+            majors={majorsLookup}
           />
           <ResumeParserDialog onApplyToCreateCandidate={handleApplyResumeParse} />
           <Button

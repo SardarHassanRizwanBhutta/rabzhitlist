@@ -1,6 +1,7 @@
 /**
  * Employer API client: list (filtered, paginated), get by id, create, update, delete.
  * @see Employer-API-Reference.md
+ * @see EmployerApiReference.md (locations CRUD — not on PUT employer)
  */
 
 import type { Employer, EmployerLocation, Layoff } from "@/lib/types/employer"
@@ -9,7 +10,7 @@ import {
   type BenefitUnit,
   type EmployerBenefit,
 } from "@/lib/types/benefits"
-import type { EmployerFormData, LayoffFormData } from "@/components/employer-creation-dialog"
+import type { EmployerFormData, EmployerLocationFormData, LayoffFormData } from "@/components/employer-creation-dialog"
 import {
   EMPLOYER_TYPE_DB_LABELS,
   SALARY_POLICY_DB_LABELS,
@@ -305,6 +306,14 @@ export interface CreateEmployerLocationDto {
   isHeadquarters: boolean
 }
 
+/** Body for PUT /api/employers/{employerId}/locations/{id}. @see EmployerApiReference.md */
+export interface UpdateEmployerLocationDto {
+  countryId: number
+  city: string
+  address?: string | null
+  isHeadquarters: boolean
+}
+
 export interface CreateEmployerLayoffDto {
   layoffDate: string
   affectedEmployees: number
@@ -332,13 +341,22 @@ export interface UpdateEmployerDto {
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). */
   status?: number[] | null
   types?: number[] | null
+  /** Same as create body; replaces employer tag links when sent. */
+  tagIds?: number[] | null
+  timeSupportZoneIds?: number[] | null
   minEmployees?: number | null
   maxEmployees?: number | null
   salaryPolicy?: number | null
 }
 
 // --- List params (pagination + optional filters) ---
-/** Mirrors `EmployerFilterRequest` query binding for `GET /api/employers` (camelCase keys; arrays via repeated keys). */
+/**
+ * Mirrors `EmployerFilterRequest` query binding for `GET /api/employers`
+ * (camelCase keys; arrays via repeated keys). See `EmployerFilterIntegration.md`.
+ *
+ * **Employer-level:** `workModes`, `shiftTypes`, and `timeSupportZones` filter the employer row
+ * and `employer_time_support_zones` (not candidate work experience).
+ */
 export interface FetchEmployersParams {
   pageNumber: number
   pageSize: number
@@ -360,8 +378,11 @@ export interface FetchEmployersParams {
   minCitiesCount?: number
   employeeCity?: string
   benefits?: string[]
+  /** Employer `ShiftType` enum (ints); see `SHIFT_TYPE_TO_API`. */
   shiftTypes?: number[]
+  /** Employer `WorkMode` enum (ints); see `WORK_MODE_TO_API`. */
   workModes?: number[]
+  /** `time_support_zone_id` values on employer (server `long[]`). */
   timeSupportZones?: number[]
   avgJobTenureMin?: number
   avgJobTenureMax?: number
@@ -520,6 +541,28 @@ export async function deleteEmployer(id: number): Promise<void> {
   return del(`/api/employers/${id}`)
 }
 
+/** Create a location row. @see EmployerApiReference.md */
+export async function createEmployerLocation(
+  employerId: number,
+  body: CreateEmployerLocationDto
+): Promise<EmployerLocationDto> {
+  return post<EmployerLocationDto>(`/api/employers/${employerId}/locations`, body)
+}
+
+/** Update a location row by server location id. @see EmployerApiReference.md */
+export async function updateEmployerLocation(
+  employerId: number,
+  locationId: number,
+  body: UpdateEmployerLocationDto
+): Promise<EmployerLocationDto> {
+  return put<EmployerLocationDto>(`/api/employers/${employerId}/locations/${locationId}`, body)
+}
+
+/** Delete a location row. @see EmployerApiReference.md */
+export async function deleteEmployerLocation(employerId: number, locationId: number): Promise<void> {
+  return del(`/api/employers/${employerId}/locations/${locationId}`)
+}
+
 /** Add a layoff to an existing employer. Body must not include employerId. layoffDate and affectedEmployees required. */
 export async function addEmployerLayoff(
   employerId: number,
@@ -535,6 +578,109 @@ export async function addEmployerLayoff(
 export function isNewLayoffFormRow(id: string): boolean {
   const n = parseInt(id, 10)
   return Number.isNaN(n) || String(n) !== id
+}
+
+/** True when the location row was added in the form (id is UUID). False when from server (numeric id). */
+export function isNewLocationFormRow(id: string): boolean {
+  return isNewLayoffFormRow(id)
+}
+
+function locationFormRowHasPersistableOfficeData(loc: EmployerLocationFormData): boolean {
+  return Boolean(loc.country.trim() && loc.city.trim())
+}
+
+/** Build POST body for a new location from the form; null if the row is empty or incomplete. */
+export function buildCreateEmployerLocationDtoFromFormRow(
+  loc: EmployerLocationFormData,
+  getCountryId: (countryName: string) => number
+): CreateEmployerLocationDto | null {
+  if (!locationFormRowHasPersistableOfficeData(loc)) return null
+  return {
+    countryId: getCountryId(loc.country.trim()) || 0,
+    city: loc.city.trim(),
+    address: loc.address.trim() || null,
+    salaryPolicy: null,
+    minEmployees: null,
+    maxEmployees: null,
+    isHeadquarters: loc.isHeadquarters,
+  }
+}
+
+export function buildUpdateEmployerLocationDtoFromFormRow(
+  loc: EmployerLocationFormData,
+  getCountryId: (countryName: string) => number
+): UpdateEmployerLocationDto {
+  return {
+    countryId: getCountryId(loc.country.trim()) || 0,
+    city: loc.city.trim(),
+    address: loc.address.trim() || null,
+    isHeadquarters: loc.isHeadquarters,
+  }
+}
+
+function buildUpdateEmployerLocationDtoFromEmployer(
+  loc: EmployerLocation,
+  getCountryId: (countryName: string) => number
+): UpdateEmployerLocationDto {
+  const country = (loc.country ?? "").trim()
+  const city = (loc.city ?? "").trim()
+  return {
+    countryId: getCountryId(country) || 0,
+    city,
+    address: (loc.address ?? "").trim() || null,
+    isHeadquarters: loc.isHeadquarters,
+  }
+}
+
+function updateEmployerLocationDtosEqual(a: UpdateEmployerLocationDto, b: UpdateEmployerLocationDto): boolean {
+  return (
+    a.countryId === b.countryId &&
+    a.city === b.city &&
+    (a.address ?? "") === (b.address ?? "") &&
+    a.isHeadquarters === b.isHeadquarters
+  )
+}
+
+/**
+ * After PUT employer, persist location rows via locations sub-API. `UpdateEmployerDto` has no `locations`.
+ * Order: create new rows, update changed existing, delete removed (so replace flows keep a row when needed).
+ * @see EmployerApiReference.md
+ */
+export async function syncEmployerLocationsFromEditForm(
+  employerId: number,
+  formData: EmployerFormData,
+  originalEmployer: Employer,
+  getCountryId: (countryName: string) => number
+): Promise<void> {
+  const getId = getCountryId
+
+  for (const loc of formData.locations) {
+    if (!isNewLocationFormRow(loc.id)) continue
+    const body = buildCreateEmployerLocationDtoFromFormRow(loc, getId)
+    if (body) await createEmployerLocation(employerId, body)
+  }
+
+  for (const loc of formData.locations) {
+    if (isNewLocationFormRow(loc.id)) continue
+    const orig = originalEmployer.locations.find((o) => o.id === loc.id)
+    if (!orig) continue
+    const next = buildUpdateEmployerLocationDtoFromFormRow(loc, getId)
+    const prev = buildUpdateEmployerLocationDtoFromEmployer(orig, getId)
+    if (!updateEmployerLocationDtosEqual(next, prev)) {
+      const locationId = Number(loc.id)
+      if (Number.isNaN(locationId)) continue
+      await updateEmployerLocation(employerId, locationId, next)
+    }
+  }
+
+  for (const orig of originalEmployer.locations) {
+    if (!formData.locations.some((d) => d.id === orig.id)) {
+      const locationId = Number(orig.id)
+      if (!Number.isNaN(locationId)) {
+        await deleteEmployerLocation(employerId, locationId)
+      }
+    }
+  }
 }
 
 /** Build body for POST /api/employers/{id}/layoffs from a form row. Returns null if date or count invalid. */
@@ -729,6 +875,12 @@ export interface BuildCreateEmployerDtoOptions {
   getCountryId?: (countryName: string) => number
 }
 
+/** Lookups required to map tag / time zone names from the form to API ids on update. */
+export type BuildUpdateEmployerDtoOptions = Pick<
+  BuildCreateEmployerDtoOptions,
+  "tagsLookup" | "timeSupportZonesLookup"
+>
+
 const CURRENT_YEAR = new Date().getFullYear()
 
 export function buildCreateEmployerDto(
@@ -828,7 +980,19 @@ export function buildCreateEmployerDto(
   return dto
 }
 
-export function buildUpdateEmployerDto(formData: EmployerFormData): UpdateEmployerDto {
+export function buildUpdateEmployerDto(
+  formData: EmployerFormData,
+  options: BuildUpdateEmployerDtoOptions
+): UpdateEmployerDto {
+  const { tagsLookup, timeSupportZonesLookup } = options
+
+  const tagIds = formData.tags
+    .map((name) => tagsLookup.find((t) => t.name === name)?.id)
+    .filter((id): id is number => id != null)
+  const timeSupportZoneIds = formData.timeSupportZones
+    .map((name) => timeSupportZonesLookup.find((t) => t.name === name)?.id)
+    .filter((id): id is number => id != null)
+
   return {
     name: formData.name.trim(),
     websiteUrl: formData.websiteUrl.trim() || null,
@@ -844,6 +1008,8 @@ export function buildUpdateEmployerDto(formData: EmployerFormData): UpdateEmploy
     types: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
+    tagIds: tagIds.length ? tagIds : null,
+    timeSupportZoneIds: timeSupportZoneIds.length ? timeSupportZoneIds : null,
     minEmployees: formData.minEmployees.trim()
       ? parseInt(formData.minEmployees.trim(), 10)
       : null,

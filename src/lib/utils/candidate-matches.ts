@@ -1,10 +1,92 @@
 import type { Candidate } from "@/lib/types/candidate"
 import type { CandidateFilters } from "@/components/candidates-filter-dialog"
+import type { Project } from "@/lib/types/project"
+import {
+  CERTIFICATION_LEVEL_DB,
+  CERTIFICATION_LEVEL_LABELS_DB,
+  type CertificationLevelDb,
+} from "@/lib/constants/candidate-enums"
 import { normalizeSalaryPolicy } from "@/lib/types/employer"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
+
+/** Certification name filter: catalog id strings (preferred) or legacy certification name. */
+function certificationMatchesFilterEntry(
+  cert: { certificationId?: number | null; certificationName: string },
+  entry: string
+): boolean {
+  const t = entry.trim()
+  if (/^\d+$/.test(t)) {
+    return cert.certificationId != null && String(cert.certificationId) === t
+  }
+  return t.toLowerCase() === cert.certificationName.trim().toLowerCase()
+}
+
+/** Normalize API/UI certification level to a DB enum key (`foundation`, …). */
+function normalizeCertificationLevelToDb(
+  raw: string | null | undefined
+): CertificationLevelDb | null {
+  if (raw == null) return null
+  const s = String(raw).trim()
+  if (!s) return null
+  const lower = s.toLowerCase()
+  if ((CERTIFICATION_LEVEL_DB as readonly string[]).includes(lower)) {
+    return lower as CertificationLevelDb
+  }
+  for (const [db, label] of Object.entries(CERTIFICATION_LEVEL_LABELS_DB) as [
+    CertificationLevelDb,
+    string,
+  ][]) {
+    if (label.toLowerCase() === lower) return db
+  }
+  return null
+}
+
+/** Selected filter values are DB keys (preferred) or legacy Title Case labels. */
+function certificationLevelMatchesFilter(
+  certLevel: string | null | undefined,
+  selectedLevels: string[]
+): boolean {
+  if (selectedLevels.length === 0) return false
+  const certDb = normalizeCertificationLevelToDb(certLevel)
+  if (!certDb) return false
+  return selectedLevels.some((f) => normalizeCertificationLevelToDb(f) === certDb)
+}
+
+/** Project filter: API id strings (preferred) or legacy project name (case-insensitive vs `project.projectName`). */
+function projectMatchesFilterEntry(project: Project, entry: string): boolean {
+  const t = entry.trim()
+  if (/^\d+$/.test(t)) {
+    return String(project.id) === t
+  }
+  return t.toLowerCase() === project.projectName.trim().toLowerCase()
+}
+
+/** Employer filter values: numeric id strings from API search (preferred) or legacy employer name. */
+function workExperienceMatchesEmployerFilter(
+  we: { employerId?: number | null; employerName: string },
+  selectedEmployers: string[]
+): boolean {
+  if (selectedEmployers.length === 0) return false
+  const nameNorm = we.employerName.trim().toLowerCase()
+  return selectedEmployers.some((entry) => {
+    const t = entry.trim()
+    if (/^\d+$/.test(t) && we.employerId != null && Number.parseInt(t, 10) === we.employerId) {
+      return true
+    }
+    return t.toLowerCase() === nameNorm
+  })
+}
+
+/** True when candidate.city contains the filter text (case-insensitive). */
+function candidateCityContainsNeedle(candidate: Candidate, cityNeedle: string): boolean {
+  const needle = cityNeedle.trim().toLowerCase()
+  if (!needle) return false
+  const cand = (candidate.city ?? "").trim().toLowerCase()
+  return cand.includes(needle)
+}
 
 export interface MatchCriterion {
   type: string
@@ -38,10 +120,8 @@ export interface CandidateMatchContext {
  */
 export function hasActiveFilters(filters: CandidateFilters): boolean {
   return !!(
-    filters.basicInfoSearch ||
     filters.postingTitle ||
-    filters.cities.length > 0 ||
-    filters.status.length > 0 ||
+    filters.city.trim() ||
     filters.currentSalaryMin ||
     filters.currentSalaryMax ||
     filters.expectedSalaryMin ||
@@ -52,9 +132,9 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.projectTypes.length > 0 ||
     filters.techStacks.length > 0 ||
     filters.clientLocations.length > 0 ||
-    filters.minClientLocationCount ||
     filters.verticalDomains.length > 0 ||
     filters.horizontalDomains.length > 0 ||
+    filters.technicalDomains.length > 0 ||
     filters.technicalAspects.length > 0 ||
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
@@ -81,11 +161,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.minProjectDownloadCount ||
     filters.employerStatus.length > 0 ||
     filters.employerCountries.length > 0 ||
-    filters.employerCities.length > 0 ||
+    !!filters.employerCity.trim() ||
     filters.employerTypes.length > 0 ||
-    filters.careerTransitionFromType.length > 0 ||
-    filters.careerTransitionToType.length > 0 ||
-    filters.careerTransitionRequireCurrent ||
     filters.employerSalaryPolicies.length > 0 ||
     filters.employerSizeMin ||
     filters.employerSizeMax ||
@@ -100,9 +177,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.certificationIssuingBodies.length > 0 ||
     filters.certificationLevels.length > 0 ||
     (filters.achievementTypes && filters.achievementTypes.length > 0) ||
-    (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) ||
+    !!filters.achievementName.trim() ||
     filters.competitionPlatforms.length > 0 ||
-    filters.internationalBugBountyOnly ||
     filters.personalityTypes.length > 0 ||
     filters.source.length > 0
   )
@@ -283,6 +359,7 @@ export function getCandidateMatchContext(
     filters.techStacks.length > 0 ||
     filters.verticalDomains.length > 0 ||
     filters.horizontalDomains.length > 0 ||
+    filters.technicalDomains.length > 0 ||
     filters.technicalAspects.length > 0 ||
     filters.candidateTechStacks.length > 0 ||
     filters.candidateTechStacksRequireAll ||
@@ -298,8 +375,8 @@ export function getCandidateMatchContext(
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
 
-      // Project name match
-      if (filters.projects.some(p => p.toLowerCase() === project.projectName.toLowerCase())) {
+      // Project name / id match (debounced search stores ids)
+      if (filters.projects.some((p) => projectMatchesFilterEntry(project, p))) {
         matchedCriteria.push({
           type: 'project',
           label: 'Project Name',
@@ -363,6 +440,18 @@ export function getCandidateMatchContext(
           type: 'horizontalDomain',
           label: 'Horizontal Domain',
           values: matchingHorizontalDomains
+        })
+        hasMatch = true
+      }
+
+      const matchingTechnicalDomains = project.technicalDomains.filter((d) =>
+        filters.technicalDomains.includes(d)
+      )
+      if (matchingTechnicalDomains.length > 0) {
+        matchedCriteria.push({
+          type: 'technicalDomain',
+          label: 'Technical Domain',
+          values: matchingTechnicalDomains
         })
         hasMatch = true
       }
@@ -536,11 +625,8 @@ export function getCandidateMatchContext(
     filters.employers.length > 0 ||
     filters.employerStatus.length > 0 ||
     filters.employerCountries.length > 0 ||
-    filters.employerCities.length > 0 ||
+    !!filters.employerCity.trim() ||
     filters.employerTypes.length > 0 ||
-    filters.careerTransitionFromType.length > 0 ||
-    filters.careerTransitionToType.length > 0 ||
-    filters.careerTransitionRequireCurrent ||
     filters.employerSalaryPolicies.length > 0 ||
     filters.employerSizeMin ||
     filters.employerSizeMax ||
@@ -561,8 +647,8 @@ export function getCandidateMatchContext(
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
 
-      // Employer name match
-      if (filters.employers.some(emp => emp.toLowerCase() === we.employerName.toLowerCase())) {
+      // Employer match (id from debounced search or legacy name)
+      if (workExperienceMatchesEmployerFilter(we, filters.employers)) {
         matchedCriteria.push({
           type: 'employer',
           label: 'Employer',
@@ -604,18 +690,22 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
 
-        // Employer city match
-        const matchingCities = employer.locations
-          .map(loc => loc.city)
-          .filter((city): city is string => city !== null)
-          .filter(city => filters.employerCities.includes(city))
-        if (matchingCities.length > 0) {
-          matchedCriteria.push({
-            type: 'city',
-            label: 'City',
-            values: matchingCities
-          })
-          hasMatch = true
+        // Employer city match (free-text substring on location.city)
+        const cityNeedle = filters.employerCity.trim()
+        if (cityNeedle) {
+          const needleLower = cityNeedle.toLowerCase()
+          const matchingCities = employer.locations
+            .map((loc) => loc.city)
+            .filter((city): city is string => city != null && String(city).trim() !== "")
+            .filter((city) => city.toLowerCase().includes(needleLower))
+          if (matchingCities.length > 0) {
+            matchedCriteria.push({
+              type: "city",
+              label: "City",
+              values: matchingCities,
+            })
+            hasMatch = true
+          }
         }
 
         // Employer type match
@@ -690,95 +780,6 @@ export function getCandidateMatchContext(
         })
       }
     })
-
-    // Career Transition Match
-    if (filters.careerTransitionFromType.length > 0 && filters.careerTransitionToType.length > 0) {
-      if (candidate.workExperiences && candidate.workExperiences.length >= 2) {
-        // Sort work experiences by start date (oldest first)
-        const sortedExperiences = [...candidate.workExperiences]
-          .filter(we => we.startDate)
-          .sort((a, b) => {
-            const dateA = new Date(a.startDate!)
-            const dateB = new Date(b.startDate!)
-            return dateA.getTime() - dateB.getTime()
-          })
-
-        // Find employers for each work experience
-        const experiencesWithEmployerTypes: Array<{
-          workExperience: typeof sortedExperiences[0]
-          employerType: string | null
-          employerName: string
-          startDate: Date
-          endDate: Date | null
-        }> = []
-
-        sortedExperiences.forEach(we => {
-          const employer = sampleEmployers.find(emp =>
-            emp.name.toLowerCase() === we.employerName.toLowerCase()
-          )
-          if (employer) {
-            experiencesWithEmployerTypes.push({
-              workExperience: we,
-              employerType: employer.employerType,
-              employerName: we.employerName,
-              startDate: new Date(we.startDate!),
-              endDate: we.endDate ? new Date(we.endDate) : null
-            })
-          }
-        })
-
-        // Check if candidate worked at "from" type before "to" type
-        let foundFromType = false
-        let foundToType = false
-        let fromTypeExp: typeof experiencesWithEmployerTypes[0] | null = null
-        let toTypeExp: typeof experiencesWithEmployerTypes[0] | null = null
-
-        for (let i = 0; i < experiencesWithEmployerTypes.length; i++) {
-          const exp = experiencesWithEmployerTypes[i]
-          
-          // Check if this experience matches "from" type
-          if (!foundFromType && exp.employerType && filters.careerTransitionFromType.includes(exp.employerType)) {
-            foundFromType = true
-            fromTypeExp = exp
-          }
-          
-          // Check if this experience matches "to" type (must come after "from" type)
-          if (foundFromType && exp.employerType && filters.careerTransitionToType.includes(exp.employerType)) {
-            foundToType = true
-            toTypeExp = exp
-            break // Found the transition
-          }
-        }
-
-        if (foundFromType && foundToType && fromTypeExp && toTypeExp) {
-          // Create a career transition match item
-          const transitionItem: MatchItem = {
-            name: `Career Transition: ${fromTypeExp.employerType} → ${toTypeExp.employerType}`,
-            matchedCriteria: [
-              {
-                type: 'careerTransition',
-                label: 'Career Transition',
-                values: [`${fromTypeExp.employerName} → ${toTypeExp.employerName}`]
-              }
-            ],
-            context: {
-              fromEmployer: fromTypeExp.employerName,
-              fromType: fromTypeExp.employerType,
-              toEmployer: toTypeExp.employerName,
-              toType: toTypeExp.employerType,
-              fromStartDate: fromTypeExp.startDate,
-              fromEndDate: fromTypeExp.endDate,
-              toStartDate: toTypeExp.startDate,
-              toEndDate: toTypeExp.endDate,
-              requireCurrent: filters.careerTransitionRequireCurrent
-            }
-          }
-
-          // Add to employerItems or create a new category
-          employerItems.push(transitionItem)
-        }
-      }
-    }
 
     if (employerItems.length > 0) {
       categories.push({
@@ -937,34 +938,74 @@ export function getCandidateMatchContext(
   if (hasCertificationFilters) {
     const certificationItems: MatchItem[] = []
 
-    candidate.certifications?.forEach(cert => {
+    candidate.certifications?.forEach((cert) => {
       const matchedCriteria: MatchCriterion[] = []
-      let hasMatch = false
 
-      // Certification name match
-      if (filters.certificationNames.some(name => 
-        name.toLowerCase() === cert.certificationName.toLowerCase()
-      )) {
+      const needName = filters.certificationNames.length > 0
+      const needIssuer = filters.certificationIssuingBodies.length > 0
+      const needLevel = filters.certificationLevels.length > 0
+
+      const nameMatch = filters.certificationNames.some((e) =>
+        certificationMatchesFilterEntry(cert, e),
+      )
+      const issuerDisplay = (cert.certificationIssuerName ?? "").trim()
+      const issuerMatch =
+        !!issuerDisplay &&
+        filters.certificationIssuingBodies.some(
+          (ib) => ib.trim().toLowerCase() === issuerDisplay.toLowerCase(),
+        )
+      const levelMatch = certificationLevelMatchesFilter(
+        cert.certificationLevel as string | null | undefined,
+        filters.certificationLevels,
+      )
+
+      // Name vs. issuing body: legacy OR when both are active; level must match when filtered.
+      const nameIssuerOk =
+        !needName && !needIssuer
+          ? true
+          : needName && needIssuer
+            ? nameMatch || issuerMatch
+            : needName
+              ? nameMatch
+              : issuerMatch
+
+      const satisfies = nameIssuerOk && (!needLevel || levelMatch)
+
+      if (!satisfies) return
+
+      if (needName && nameMatch) {
         matchedCriteria.push({
-          type: 'certification',
-          label: 'Certification',
-          values: [cert.certificationName]
-        })
-        hasMatch = true
-      }
-
-      // TODO: Issuing body matching requires API lookup
-
-      if (hasMatch) {
-        certificationItems.push({
-          name: cert.certificationName,
-          matchedCriteria,
-          context: {
-            issueDate: cert.issueDate,
-            expiryDate: cert.expiryDate
-          }
+          type: "certification",
+          label: "Certification",
+          values: [cert.certificationName],
         })
       }
+      if (needIssuer && issuerMatch) {
+        matchedCriteria.push({
+          type: "issuingBody",
+          label: "Issuing Body",
+          values: [issuerDisplay],
+        })
+      }
+      if (needLevel && levelMatch) {
+        const db = normalizeCertificationLevelToDb(cert.certificationLevel as string | null | undefined)
+        const levelLabel =
+          db != null ? CERTIFICATION_LEVEL_LABELS_DB[db] : String(cert.certificationLevel ?? "").trim() || "—"
+        matchedCriteria.push({
+          type: "level",
+          label: "Certification Level",
+          values: [levelLabel],
+        })
+      }
+
+      certificationItems.push({
+        name: cert.certificationName,
+        matchedCriteria,
+        context: {
+          issueDate: cert.issueDate,
+          expiryDate: cert.expiryDate,
+        },
+      })
     })
 
     if (certificationItems.length > 0) {
@@ -980,23 +1021,10 @@ export function getCandidateMatchContext(
   }
 
   // Achievement Matches (includes Competitions)
-  const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
-    "HackerOne",
-    "Bugcrowd",
-    "Synack",
-    "Cobalt",
-    "Intigriti",
-    "YesWeHack",
-    "CVE",
-    "Immunefi",
-    "HackenProof",
-  ]
-
   const hasAchievementFilters = !!(
     filters.achievementTypes?.length > 0 ||
-    filters.achievementPlatforms?.length > 0 ||
-    filters.competitionPlatforms?.length > 0 ||
-    filters.internationalBugBountyOnly
+    !!filters.achievementName.trim() ||
+    filters.competitionPlatforms?.length > 0
   )
 
   if (hasAchievementFilters) {
@@ -1019,15 +1047,14 @@ export function getCandidateMatchContext(
         }
       }
 
-      // Achievement platform/name match
-      if (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) {
-        if (filters.achievementPlatforms.some(platform => 
-          achievement.name.toLowerCase().includes(platform.toLowerCase())
-        )) {
+      // Achievement name (substring; same semantics as creation form Name field)
+      const nameNeedle = filters.achievementName.trim()
+      if (nameNeedle) {
+        if (achievement.name.toLowerCase().includes(nameNeedle.toLowerCase())) {
           matchedCriteria.push({
-            type: 'achievementPlatform',
-            label: 'Achievement Platform',
-            values: [achievement.name]
+            type: "achievementName",
+            label: "Achievement Name",
+            values: [achievement.name],
           })
           hasMatch = true
         }
@@ -1041,21 +1068,6 @@ export function getCandidateMatchContext(
           matchedCriteria.push({
             type: 'competitionPlatform',
             label: 'Competition Platform',
-            values: [achievement.name]
-          })
-          hasMatch = true
-        }
-      }
-
-      // International bug bounty only filter
-      if (filters.internationalBugBountyOnly) {
-        const isInternationalPlatform = INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform =>
-          achievement.name.toLowerCase().includes(platform.toLowerCase())
-        )
-        if (isInternationalPlatform && achievement.achievementType === "competition") {
-          matchedCriteria.push({
-            type: 'internationalBugBounty',
-            label: 'International Bug Bounty',
             values: [achievement.name]
           })
           hasMatch = true
@@ -1095,30 +1107,13 @@ export function getCandidateMatchContext(
         }
       }
 
-      // Achievement platform match (check if legacy competition matches new filter)
-      if (filters.achievementPlatforms && filters.achievementPlatforms.length > 0) {
-        if (filters.achievementPlatforms.some(platform => 
-          comp.competitionName.toLowerCase().includes(platform.toLowerCase())
-        )) {
+      const legacyNameNeedle = filters.achievementName.trim()
+      if (legacyNameNeedle) {
+        if (comp.competitionName.toLowerCase().includes(legacyNameNeedle.toLowerCase())) {
           matchedCriteria.push({
-            type: 'achievementPlatform',
-            label: 'Achievement Platform',
-            values: [comp.competitionName]
-          })
-          hasMatch = true
-        }
-      }
-
-      // International bug bounty only filter
-      if (filters.internationalBugBountyOnly) {
-        const isInternationalPlatform = INTERNATIONAL_BUG_BOUNTY_PLATFORMS.some(platform =>
-          platform.toLowerCase() === comp.competitionName.toLowerCase()
-        )
-        if (isInternationalPlatform) {
-          matchedCriteria.push({
-            type: 'internationalBugBounty',
-            label: 'International Bug Bounty',
-            values: [comp.competitionName]
+            type: "achievementName",
+            label: "Achievement Name",
+            values: [comp.competitionName],
           })
           hasMatch = true
         }
@@ -1152,7 +1147,7 @@ export function getCandidateMatchContext(
 
   // Basic Information Matches
   const hasBasicFilters = !!(
-    filters.cities.length > 0 ||
+    filters.city.trim() ||
     filters.personalityTypes.length > 0 ||
     filters.currentSalaryMin ||
     filters.currentSalaryMax ||
@@ -1164,12 +1159,12 @@ export function getCandidateMatchContext(
     const basicItems: MatchItem[] = []
     const matchedCriteria: MatchCriterion[] = []
 
-    // City match
-    if (filters.cities.includes(candidate.city)) {
+    // City (free-text substring)
+    if (filters.city.trim() && candidateCityContainsNeedle(candidate, filters.city)) {
       matchedCriteria.push({
         type: 'city',
-        label: 'Location',
-        values: [candidate.city]
+        label: 'City',
+        values: [candidate.city ?? ""],
       })
     }
 
@@ -1474,10 +1469,7 @@ export function getCandidateMatchContext(
       candidate.workExperiences?.forEach(candidateWE => {
         // If employer filter is active, only check projects at matching employers
         if (filters.employers.length > 0) {
-          const candidateEmployerMatch = filters.employers.some(
-            emp => emp.toLowerCase().trim() === candidateWE.employerName.toLowerCase().trim()
-          )
-          if (!candidateEmployerMatch) return
+          if (!workExperienceMatchesEmployerFilter(candidateWE, filters.employers)) return
           // If tolerance is enabled, require startDate; if disabled, startDate is optional
           if (useTolerance && !candidateWE.startDate) return
         } else {
@@ -1494,10 +1486,7 @@ export function getCandidateMatchContext(
           topDev.workExperiences?.forEach(topDevWE => {
             // If employer filter is active, only check projects at matching employers
             if (filters.employers.length > 0) {
-              const topDevEmployerMatch = filters.employers.some(
-                emp => emp.toLowerCase().trim() === topDevWE.employerName.toLowerCase().trim()
-              )
-              if (!topDevEmployerMatch) return
+              if (!workExperienceMatchesEmployerFilter(topDevWE, filters.employers)) return
               // If tolerance is enabled, require startDate; if disabled, startDate is optional
               if (useTolerance && !topDevWE.startDate) return
             } else {

@@ -686,11 +686,81 @@ export async function fetchCandidatesPage(
   pageNumber = 1,
   pageSize = 20,
   signal?: AbortSignal,
-  options?: { certificationId?: number; universityId?: number }
+  options?: {
+    name?: string
+    postingTitle?: string
+    city?: string
+    personalityTypes?: string[]
+    source?: number
+    isTopDeveloper?: boolean
+    currentSalaryMin?: number
+    currentSalaryMax?: number
+    expectedSalaryMin?: number
+    expectedSalaryMax?: number
+    certificationId?: number
+    issuingBodyIds?: number[]
+    certificationLevels?: number[]
+    universityId?: number
+    degreeIds?: number[]
+    majorIds?: number[]
+    isTopper?: boolean
+    isMainCheetah?: boolean
+    graduateDateStart?: string
+    graduateDateEnd?: string
+    employerIds?: number[]
+    employerSalaryPolicies?: number[]
+    employerTypes?: number[]
+    employerCountries?: number[]
+    employerCity?: string
+    employerStatuses?: number[]
+    employerRankings?: number[]
+    employerSizeMin?: number
+    employerSizeMax?: number
+    projectIds?: number[]
+    verticalDomains?: number[]
+    horizontalDomains?: number[]
+    technicalDomains?: number[]
+    clientLocations?: number[]
+    projectStatus?: number[]
+    projectTypes?: number[]
+    publishPlatforms?: number[]
+    isPublished?: boolean
+    minDownloadCount?: number
+    minTeamSize?: number
+    maxTeamSize?: number
+    projectStartFrom?: string
+    projectStartTo?: string
+    achievementTypes?: number[]
+    achievementName?: string
+  }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
+
+  const appendNumberList = (key: string, values?: number[]) => {
+    if (!values?.length) return
+    values.forEach((v) => params.append(key, String(v)))
+  }
+
+  const appendStringList = (key: string, values?: string[]) => {
+    if (!values?.length) return
+    values.forEach((v) => {
+      const t = v.trim()
+      if (t) params.append(key, t)
+    })
+  }
+
   params.set("pageNumber", String(Math.max(1, pageNumber)))
   params.set("pageSize", String(Math.min(100, Math.max(1, pageSize))))
+  if (options?.name?.trim()) params.set("name", options.name.trim())
+  if (options?.postingTitle?.trim()) params.set("postingTitle", options.postingTitle.trim())
+  if (options?.city?.trim()) params.set("city", options.city.trim())
+  appendStringList("personalityTypes", options?.personalityTypes)
+  if (options?.source != null) params.set("source", String(options.source))
+  if (options?.isTopDeveloper != null) params.set("isTopDeveloper", String(options.isTopDeveloper))
+  if (options?.currentSalaryMin != null) params.set("currentSalaryMin", String(options.currentSalaryMin))
+  if (options?.currentSalaryMax != null) params.set("currentSalaryMax", String(options.currentSalaryMax))
+  if (options?.expectedSalaryMin != null) params.set("expectedSalaryMin", String(options.expectedSalaryMin))
+  if (options?.expectedSalaryMax != null) params.set("expectedSalaryMax", String(options.expectedSalaryMax))
   if (
     options?.certificationId != null &&
     Number.isFinite(options.certificationId) &&
@@ -698,6 +768,8 @@ export async function fetchCandidatesPage(
   ) {
     params.set("certificationId", String(Math.floor(options.certificationId)))
   }
+  appendNumberList("issuingBodyIds", options?.issuingBodyIds)
+  appendNumberList("certificationLevels", options?.certificationLevels)
   if (
     options?.universityId != null &&
     Number.isFinite(options.universityId) &&
@@ -705,6 +777,41 @@ export async function fetchCandidatesPage(
   ) {
     params.set("universityId", String(Math.floor(options.universityId)))
   }
+  appendNumberList("degreeIds", options?.degreeIds)
+  appendNumberList("majorIds", options?.majorIds)
+  if (options?.isTopper != null) params.set("isTopper", String(options.isTopper))
+  if (options?.isMainCheetah != null) params.set("isMainCheetah", String(options.isMainCheetah))
+  if (options?.graduateDateStart) params.set("graduateDateStart", options.graduateDateStart)
+  if (options?.graduateDateEnd) params.set("graduateDateEnd", options.graduateDateEnd)
+
+  appendNumberList("employerIds", options?.employerIds)
+  appendNumberList("employerSalaryPolicies", options?.employerSalaryPolicies)
+  appendNumberList("employerTypes", options?.employerTypes)
+  appendNumberList("employerCountries", options?.employerCountries)
+  if (options?.employerCity?.trim()) params.set("employerCity", options.employerCity.trim())
+  appendNumberList("employerStatuses", options?.employerStatuses)
+  appendNumberList("employerRankings", options?.employerRankings)
+  if (options?.employerSizeMin != null) params.set("employerSizeMin", String(options.employerSizeMin))
+  if (options?.employerSizeMax != null) params.set("employerSizeMax", String(options.employerSizeMax))
+
+  appendNumberList("projectIds", options?.projectIds)
+  appendNumberList("verticalDomains", options?.verticalDomains)
+  appendNumberList("horizontalDomains", options?.horizontalDomains)
+  appendNumberList("technicalDomains", options?.technicalDomains)
+  appendNumberList("clientLocations", options?.clientLocations)
+  appendNumberList("projectStatus", options?.projectStatus)
+  appendNumberList("projectTypes", options?.projectTypes)
+  appendNumberList("publishPlatforms", options?.publishPlatforms)
+  if (options?.isPublished != null) params.set("isPublished", String(options.isPublished))
+  if (options?.minDownloadCount != null) params.set("minDownloadCount", String(options.minDownloadCount))
+  if (options?.minTeamSize != null) params.set("minTeamSize", String(options.minTeamSize))
+  if (options?.maxTeamSize != null) params.set("maxTeamSize", String(options.maxTeamSize))
+  if (options?.projectStartFrom) params.set("projectStartFrom", options.projectStartFrom)
+  if (options?.projectStartTo) params.set("projectStartTo", options.projectStartTo)
+
+  appendNumberList("achievementTypes", options?.achievementTypes)
+  if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
+
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
   if (!res.ok) {

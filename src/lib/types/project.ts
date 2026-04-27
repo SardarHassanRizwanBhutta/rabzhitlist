@@ -1,5 +1,18 @@
 export type PublishPlatform = "App Store" | "Play Store" | "Web" | "Desktop"
 
+/**
+ * Filter and form multiselect options. `value` must match backend publish platform enum / `PUBLISH_PLATFORM_UI_TO_NUM` keys.
+ */
+export const PUBLISH_PLATFORM_FILTER_OPTIONS: ReadonlyArray<{
+  value: PublishPlatform
+  label: string
+}> = [
+  { value: "App Store", label: "App Store (iOS)" },
+  { value: "Play Store", label: "Play Store (Android)" },
+  { value: "Web", label: "Web" },
+  { value: "Desktop", label: "Desktop" },
+]
+
 export interface Project {
   id: string
   projectName: string
