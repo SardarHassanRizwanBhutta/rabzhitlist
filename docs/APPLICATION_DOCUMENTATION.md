@@ -258,6 +258,9 @@ This application is a comprehensive **Recruitment and HR Management System** des
 - **cities**: Filter by cities
 - **employerTypes**: Filter by employer types
 - **salaryPolicies**: Filter by salary policies
+- **workModes**: Filter by employer-level work mode (employer row)
+- **shiftTypes**: Filter by employer-level shift type (employer row)
+- **timeSupportZones**: Filter by employer time-support zone links (`employer_time_support_zones`)
 - **sizeMin/Max**: Filter by employer size
 - **rankings**: Filter by rankings
 - **tags**: Filter by tags
@@ -272,10 +275,7 @@ This application is a comprehensive **Recruitment and HR Management System** des
 #### Employee-Based Filters (Linked to Candidates):
 - **minApplicants**: Minimum number of applicants/employees
 - **employerTechStacks**: Filter by tech stacks used by employees
-- **benefits**: Filter by benefits offered
-- **shiftTypes**: Filter by shift types (with strict mode)
-- **workModes**: Filter by work modes (with strict mode)
-- **timeSupportZones**: Filter by time support zones
+- **benefits**: Filter by benefits (employer-level and/or candidate work-experience benefits per API)
 - **techStackMinCount**: Minimum count of developers with tech stacks
 
 #### Project-Based Filters (Linked to Projects):

@@ -23,7 +23,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { Candidate } from "@/lib/types/candidate"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -107,7 +107,7 @@ interface CandidatesTableProps {
 }
 
 type SortDirection = "asc" | "desc" | null
-type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "status" | "yearsOfExperience" | "avgTenure"
+type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "yearsOfExperience" | "avgTenure"
 
 const getJobTitle = (candidate: Candidate): string => {
   return candidate.postingTitle || "N/A"
@@ -213,11 +213,8 @@ const calculateCandidateAverageTenure = (candidate: Candidate): number => {
 }
 
 const defaultFilters: CandidateFilters = {
-  basicInfoSearch: "",
   postingTitle: "",
-  cities: [],
-  excludeCities: [],
-  status: [],
+  city: "",
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -228,9 +225,9 @@ const defaultFilters: CandidateFilters = {
   projectTypes: [],
   techStacks: [],
   clientLocations: [],
-  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   candidateTechStacks: [],
   candidateTechStacksRequireAll: false,
@@ -267,11 +264,8 @@ const defaultFilters: CandidateFilters = {
   minProjectDownloadCount: "",
   employerStatus: [],
   employerCountries: [],
-  employerCities: [],
+  employerCity: "",
   employerTypes: [],
-  careerTransitionFromType: [],
-  careerTransitionToType: [],
-  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
@@ -286,10 +280,9 @@ const defaultFilters: CandidateFilters = {
   certificationIssuingBodies: [],
   certificationLevels: [],
   competitionPlatforms: [],
-  internationalBugBountyOnly: false,
   personalityTypes: [],
   achievementTypes: [],
-  achievementPlatforms: [],
+  achievementName: "",
   source: [],
   startDateStart: null,
   startDateEnd: null,
@@ -447,7 +440,7 @@ export function CandidatesTable({
         aValue = calculateCandidateAverageTenure(a)
         bValue = calculateCandidateAverageTenure(b)
       } else {
-        const sortKey = sortColumn as "name" | "expectedSalary" | "city" | "status"
+        const sortKey = sortColumn as "name" | "expectedSalary" | "city"
         aValue = a[sortKey]
         bValue = b[sortKey]
       }
@@ -671,11 +664,6 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 Expected Salary
               </SortableHeader>
               
-              {/* Status - Always visible */}
-              <SortableHeader column="status">
-                Status
-              </SortableHeader>
-              
               {/* City - Hidden on mobile */}
               <SortableHeader column="city" className="hidden md:table-cell">
                 City
@@ -706,7 +694,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
             {sortedCandidates.length === 0 ? (
               <TableRow>
                 <TableCell 
-                  colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} 
+                  colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} 
                   className="h-32 text-center text-muted-foreground"
                 >
                   No candidates found.
@@ -789,16 +777,6 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     {candidate.expectedSalary !== null ? formatCurrency(candidate.expectedSalary) : "N/A"}
-                  </TableCell>
-                  
-                  {/* Status */}
-                  <TableCell onClick={() => setSelectedCandidate(candidate)}>
-                    <Badge 
-                      variant="outline"
-                      className={CANDIDATE_STATUS_COLORS[candidate.status]}
-                    >
-                      {CANDIDATE_STATUS_LABELS[candidate.status]}
-                    </Badge>
                   </TableCell>
                   
                   {/* City - Hidden on mobile */}

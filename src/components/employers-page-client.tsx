@@ -39,6 +39,7 @@ import {
   buildUpdateEmployerDto,
   buildAddEmployerLayoffDto,
   isNewLayoffFormRow,
+  syncEmployerLocationsFromEditForm,
   employerDtoToEmployer,
   employerListItemToEmployer,
   RANKING_TO_API,
@@ -429,8 +430,14 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       try {
         if (employerToEdit) {
           const id = Number(employerToEdit.id)
-          const dto = buildUpdateEmployerDto(data)
+          const dto = buildUpdateEmployerDto(data, {
+            tagsLookup,
+            timeSupportZonesLookup,
+          })
           await updateEmployer(id, dto)
+          await syncEmployerLocationsFromEditForm(id, data, employerToEdit, (name) => {
+            return countries.find((c) => c.name === name)?.id ?? 0
+          })
           const newLayoffs = (data.layoffs ?? []).filter((lay) => isNewLayoffFormRow(lay.id))
           for (const lay of newLayoffs) {
             const body = buildAddEmployerLayoffDto(lay)

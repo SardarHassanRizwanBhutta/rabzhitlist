@@ -63,8 +63,11 @@ export interface EmployerFilters {
   employeeCity: string
   // Employer-based filters
   benefits: string[]
+  /** DB keys (`ShiftTypeDb`) sent to API as ints via `SHIFT_TYPE_TO_API`. Employer row filter. */
   shiftTypes: string[]
+  /** DB keys (`WorkModeDb`) sent to API as ints via `WORK_MODE_TO_API`. Employer row filter. */
   workModes: string[]
+  /** Time zone names; page client maps to ids for `timeSupportZones` query (employer join). */
   timeSupportZones: string[]
   rankings: EmployerRanking[]  // Employer ranking filter
   tags: string[]  // Filter by tags like "Enterprise", "Startup" (DPL Competitive is now a separate boolean field)
@@ -157,23 +160,6 @@ const extractUniqueBenefits = (): string[] => {
   return Array.from(benefitsMap.values()).sort()
 }
 
-// Extract unique time support zones from candidates' work experiences
-const extractUniqueTimeSupportZones = (): string[] => {
-  const timeZonesSet = new Set<string>()
-  
-  sampleCandidates.forEach(candidate => {
-    candidate.workExperiences?.forEach(we => {
-      we.timeSupportZones?.forEach(zone => {
-        if (zone && zone.trim()) {
-          timeZonesSet.add(zone.trim())
-        }
-      })
-    })
-  })
-  
-  return Array.from(timeZonesSet).sort()
-}
-
 const extractUniqueVerticalDomains = (): string[] => {
   const domains = new Set<string>()
   sampleProjects.forEach(project => {
@@ -236,7 +222,7 @@ const benefitOptions: MultiSelectOption[] = extractUniqueBenefits().map(benefit 
   label: benefit
 }))
 
-/** Filter values are DB enum keys (employers.work_mode / employers.shift_type). */
+/** Filter values are DB enum keys; API applies them to employer `work_mode` / `shift_type`. */
 const shiftTypeDbOptions: MultiSelectOption[] = (
   Object.entries(SHIFT_TYPE_DB_LABELS) as [ShiftTypeDb, string][]
 ).map(([value, label]) => ({ value, label }))
@@ -311,15 +297,11 @@ export function EmployersFilterDialog({
   lookupOptions,
 }: EmployersFilterDialogProps) {
   const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
-  const timeSupportZoneSelectItems = useMemo(() => {
-    if (lookupOptions?.timeSupportZones?.length) {
-      return lookupOptions.timeSupportZones
-    }
-    return extractUniqueTimeSupportZones().map((zone) => ({
-      value: zone,
-      label: zone,
-    }))
-  }, [lookupOptions?.timeSupportZones])
+  /** Zone names from GET lookups only — filter matches `employer_time_support_zones` ids on the server. */
+  const timeSupportZoneSelectItems = useMemo(
+    () => lookupOptions?.timeSupportZones ?? [],
+    [lookupOptions?.timeSupportZones]
+  )
 
   const tagSelectItems = useMemo(() => {
     if (lookupOptions?.tags?.length) return lookupOptions.tags

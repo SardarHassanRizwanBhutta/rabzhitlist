@@ -18,40 +18,80 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Filter, CalendarIcon, X } from "lucide-react"
+import {
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Filter, CalendarIcon, X, ChevronsUpDown, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
-import { sampleEmployers } from "@/lib/sample-data/employers"
+import { searchEmployers, fetchEmployerById } from "@/lib/services/employers-api"
+import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import { useProjectSearch } from "@/hooks/useProjectSearch"
+import { useCertificationSearch } from "@/hooks/useCertificationSearch"
+import { fetchProjectById } from "@/lib/services/projects-lookup-api"
+import type { ProjectLookupDto } from "@/lib/services/projects-lookup-api"
+import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
+import type { CertificationLookupDto } from "@/lib/services/certifications-lookup-api"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
-import { PROJECT_STATUS_LABELS, ProjectStatus } from "@/lib/types/project"
+import {
+  VERTICAL_DOMAINS,
+  HORIZONTAL_DOMAINS,
+  TECHNICAL_DOMAIN_HUMAN_LABELS,
+} from "@/lib/services/projects-api"
+import {
+  PROJECT_STATUS_LABELS,
+  PROJECT_TYPES,
+  PUBLISH_PLATFORM_FILTER_OPTIONS,
+  ProjectStatus,
+} from "@/lib/types/project"
 import { EmployerStatus, EmployerRanking, EMPLOYER_STATUS_LABELS, SALARY_POLICY_LABELS, EMPLOYER_RANKING_LABELS, EMPLOYER_TYPE_LABELS } from "@/lib/types/employer"
+import {
+  CANDIDATE_SOURCE_DB,
+  CANDIDATE_SOURCE_LABELS,
+  type CandidateSourceDb,
+  MBTI_TYPES,
+  type MbtiType,
+  SHIFT_TYPE_DB,
+  SHIFT_TYPE_LABELS,
+  type ShiftTypeDb,
+  WORK_MODE_DB,
+  WORK_MODE_LABELS,
+  type WorkModeDb,
+  CERTIFICATION_LEVEL_DB,
+  CERTIFICATION_LEVEL_LABELS_DB,
+  type CertificationLevelDb,
+} from "@/lib/constants/candidate-enums"
+import type { LookupItem } from "@/lib/services/lookups-api"
+import type { CertificationIssuer } from "@/lib/types/certification"
 // Filter interfaces
 export interface CandidateFilters {
-  // Global search for basic info fields (name, email, phone, CNIC, etc.)
-  basicInfoSearch: string
   // Dedicated posting title filter
   postingTitle: string
-  cities: string[]
-  excludeCities: string[]  // Exclude candidates from major cities (for remote cities filter)
-  status: string[]  // Filter by candidate status (active, pending, interviewed, shortlisted, hired, rejected, withdrawn)
+  /** Free-text substring on candidate residence city (matches DB text; case-insensitive when applied). */
+  city: string
   currentSalaryMin: string
   currentSalaryMax: string
   expectedSalaryMin: string
   expectedSalaryMax: string
+  /** Employer id strings from debounced API search, or legacy employer names (see `workExperienceMatchesEmployerFilter`). */
   employers: string[]
+  /** Project id strings from debounced API search (`/api/projects/search`), or legacy project names. */
   projects: string[]
   // Project-related filters
   projectStatus: string[]
   projectTypes: string[]
   techStacks: string[]
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
-  minClientLocationCount: string  // Minimum number of unique client locations/countries (e.g., "2" for multi-country projects)
   verticalDomains: string[]
   horizontalDomains: string[]
+  /** Labels aligned with project `technicalDomains` (same catalog as `TECHNICAL_DOMAIN_HUMAN_LABELS` / API). */
+  technicalDomains: string[]
   technicalAspects: string[]
   // Start Date Range - filters by project startDate only
   startDateStart: Date | null
@@ -65,16 +105,16 @@ export interface CandidateFilters {
     techStacks: string[]
     minYears: string
   }
-  // Candidate work experience shift types
+  /** `ShiftTypeDb` keys (same as work experience shift type in CandidateCreationDialog). */
   shiftTypes: string[]
-  // Candidate work experience work modes
+  /** `WorkModeDb` keys (same as work experience work mode in CandidateCreationDialog). */
   workModes: string[]
   // Work mode minimum years of experience
   workModeMinYears: {
     workModes: string[]
     minYears: string
   }
-  // Candidate work experience time support zones
+  /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
   // Currently Working filter
   isCurrentlyWorking: boolean | null  // null = no filter, true = only currently working, false = only not currently working
@@ -108,12 +148,9 @@ export interface CandidateFilters {
   // Employer-related filters
   employerStatus: string[]
   employerCountries: string[]
-  employerCities: string[]
+  /** Substring match on employer office `city` (free text in Employer Locations, not a master list). */
+  employerCity: string
   employerTypes: string[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
-  // Career Transition filter - Find candidates who moved from one employer type to another
-  careerTransitionFromType: string[]  // Previous employer types (e.g., "Services Based")
-  careerTransitionToType: string[]  // Current/new employer types (e.g., "Product Based")
-  careerTransitionRequireCurrent: boolean  // If true, "to" type must be current/most recent employer
   employerSalaryPolicies: string[]
   employerSizeMin: string
   employerSizeMax: string
@@ -126,20 +163,21 @@ export interface CandidateFilters {
   // Graduation Date Range - filters by endMonth only
   educationEndDateStart: Date | null
   educationEndDateEnd: Date | null
-  // Certification-related filters
+  /** Certification catalog id strings from debounced search, or legacy certification names. */
   certificationNames: string[]
   certificationIssuingBodies: string[]
+  /** `CertificationLevelDb` keys (`foundation`, …) — same as create/edit certification level. */
   certificationLevels: string[]
-  // Personality type filter
-  personalityTypes: string[]  // Filter by personality types (e.g., ["ESTJ", "INTJ"])
-  // Source filter
-  source: string[]  // Filter by candidate source (e.g., ["Referral", "DPL Employee"])
+  /** Filter by MBTI — values are four-letter `MbtiType` codes (same as create/edit combobox). */
+  personalityTypes: string[]
+  /** Filter by candidate source — values are `CandidateSourceDb` keys (same as create/edit form). */
+  source: string[]
   // Achievement-related filters (renamed from competition-related)
   achievementTypes: string[]  // Filter by achievement type (e.g., ["Competition", "Open Source", "Award"])
-  achievementPlatforms: string[]  // Filter by achievement platform/name (e.g., ["HackerOne", "Kaggle", "React"])
-  internationalBugBountyOnly: boolean  // When true, only shows candidates with international bug bounty platforms
+  /** Substring match on achievement `name` (same free-text field as CandidateCreationDialog achievements). */
+  achievementName: string
   // Legacy filters (kept for backward compatibility)
-  competitionPlatforms: string[]  // DEPRECATED: Use achievementPlatforms instead
+  competitionPlatforms: string[]  // DEPRECATED: legacy multi-select; prefer achievementName text filter
   // Verification percentage filters
   verificationPercentageMin: string  // Minimum verification percentage (0-100)
   verificationPercentageMax: string  // Maximum verification percentage (0-100)
@@ -153,54 +191,23 @@ interface CandidatesFilterDialogProps {
   filters: CandidateFilters
   onFiltersChange: (filters: CandidateFilters) => void
   onClearFilters: () => void
+  /** Time support zone master data (same names as CandidateCreationDialog `lookups.timeSupportZones`). */
+  timeSupportZones?: LookupItem[]
+  /** Client location master data (same as ProjectsFilterDialog / GET client locations API). */
+  clientLocations?: LookupItem[]
+  /** Country names from GET /api/countries (same as EmployerCreationDialog / EmployersFilterDialog). */
+  countries?: LookupItem[]
+  /** Certification issuers from GET /api/CertificationIssuers (same catalog as certification forms). */
+  certificationIssuers?: CertificationIssuer[]
+  /** From GET /api/degrees — same catalog as CandidateCreationDialog education combobox. */
+  degrees?: LookupItem[]
+  /** From GET /api/majors — same catalog as CandidateCreationDialog education combobox. */
+  majors?: LookupItem[]
 }
 
 // Mock data for filter options (removed unused statusOptions)
 
 // Mock data for filter options
-const extractUniqueCities = () => {
-  const cities = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    if (candidate.city) {
-      cities.add(candidate.city)
-    }
-  })
-  return Array.from(cities).sort()
-}
-
-const extractUniqueEmployers = () => {
-  const employers = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    employers.add(employer.name)
-  })
-  return Array.from(employers).sort()
-}
-
-const extractUniqueProjects = () => {
-  const projects = new Set<string>()
-  sampleProjects.forEach(project => {
-    projects.add(project.projectName)
-  })
-  return Array.from(projects).sort()
-}
-
-// Extract unique project-related data for filters
-const extractUniqueProjectStatuses = () => {
-  const statuses = new Set<string>()
-  sampleProjects.forEach(project => {
-    statuses.add(project.status)
-  })
-  return Array.from(statuses).sort()
-}
-
-const extractUniqueProjectTypes = () => {
-  const types = new Set<string>()
-  sampleProjects.forEach(project => {
-    types.add(project.projectType)
-  })
-  return Array.from(types).sort()
-}
-
 // Extract tech stacks from projects (for Project Expertise filter)
 const extractUniqueProjectTechStacks = () => {
   const techStacks = new Set<string>()
@@ -262,137 +269,17 @@ const extractUniqueTechnicalAspects = () => {
   return Array.from(aspects).sort()
 }
 
-// Extract unique employer-related data for filters
-const extractUniqueEmployerStatuses = () => {
-  const statuses = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    if (employer.status != null) {
-      statuses.add(employer.status)
-    }
+// Project-related filter options (same DB-aligned enums as project creation / projects filter)
+const projectStatusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_LABELS).map(
+  ([value, label]) => ({
+    value: value as ProjectStatus,
+    label,
   })
-  return Array.from(statuses).sort()
-}
+)
 
-const extractUniqueEmployerCountries = () => {
-  const countries = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    employer.locations.forEach(location => {
-      if (location.country !== null) {
-        countries.add(location.country)
-      }
-    })
-  })
-  return Array.from(countries).sort()
-}
-
-const extractUniqueEmployerCities = () => {
-  const cities = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    employer.locations.forEach(location => {
-      if (location.city !== null) {
-        cities.add(location.city)
-      }
-    })
-  })
-  return Array.from(cities).sort()
-}
-
-// Extract unique education detail data for filters
-const extractUniqueDegreeNames = () => {
-  const degrees = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.educations?.forEach(education => {
-      if (education.degreeName) {
-        degrees.add(education.degreeName)
-      }
-    })
-  })
-  return Array.from(degrees).sort()
-}
-
-const extractUniqueMajorNames = () => {
-  const majors = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    candidate.educations?.forEach(education => {
-      if (education.majorName) {
-        majors.add(education.majorName)
-      }
-    })
-  })
-  return Array.from(majors).sort()
-}
-
-// TODO: Populate from API
-const extractUniqueCertificationNames = (): string[] => []
-
-const extractUniqueCertificationIssuingBodies = (): string[] => []
-
-const extractUniqueCertificationLevels = () => {
-  return ["Foundation", "Associate", "Professional", "Expert", "Master"]
-}
-
-// International bug bounty platforms list
-const INTERNATIONAL_BUG_BOUNTY_PLATFORMS = [
-  "HackerOne",
-  "Bugcrowd",
-  "Synack",
-  "Cobalt",
-  "Intigriti",
-  "YesWeHack",
-  "CVE",
-  "Immunefi",
-  "HackenProof",
-]
-
-// Extract unique achievement platforms/names from candidates
-const extractUniqueAchievementPlatforms = () => {
-  const platforms = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    // Extract from achievements (new structure)
-    candidate.achievements?.forEach(achievement => {
-      if (achievement.name) {
-        platforms.add(achievement.name)
-      }
-    })
-    // Extract from competitions (legacy structure)
-    candidate.competitions?.forEach(competition => {
-      if (competition.competitionName) {
-        platforms.add(competition.competitionName)
-      }
-    })
-  })
-  return Array.from(platforms).sort()
-}
-
-// Extract unique competition platforms from candidates (legacy - kept for backward compatibility)
-const extractUniqueCompetitionPlatforms = () => {
-  return extractUniqueAchievementPlatforms()
-}
-
-const cityOptions: MultiSelectOption[] = extractUniqueCities().map(city => ({
-  value: city,
-  label: city
-}))
-
-const employerOptions: MultiSelectOption[] = extractUniqueEmployers().map(employer => ({
-  value: employer,
-  label: employer
-}))
-
-const projectOptions: MultiSelectOption[] = extractUniqueProjects().map(project => ({
-  value: project,
-  label: project
-}))
-
-// Project-related filter options
-const projectStatusOptions: MultiSelectOption[] = extractUniqueProjectStatuses().map(status => ({
-  value: status,
-  label: PROJECT_STATUS_LABELS[status as ProjectStatus] || status
-}))
-
-const projectTypeOptions: MultiSelectOption[] = extractUniqueProjectTypes().map(type => ({
+const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   value: type,
-  label: type
+  label: type,
 }))
 
 // Project tech stacks (for Project Expertise section)
@@ -407,38 +294,22 @@ const candidateTechStackOptions: MultiSelectOption[] = extractUniqueCandidateTec
   label: tech
 }))
 
-// Candidate work experience shift types
-const shiftTypeOptions: MultiSelectOption[] = [
-  { value: "Morning", label: "Morning" },
-  { value: "Evening", label: "Evening" },
-  { value: "Night", label: "Night" },
-  { value: "Rotational", label: "Rotational" },
-  { value: "24x7", label: "24x7" },
-]
+/** Same shift type keys as work experience in CandidateCreationDialog (`shift_type_enum`). */
+const shiftTypeFilterOptions: MultiSelectOption[] = SHIFT_TYPE_DB.map((key: ShiftTypeDb) => ({
+  value: key,
+  label: SHIFT_TYPE_LABELS[key],
+}))
 
-// Candidate work experience work modes
-const workModeOptions: MultiSelectOption[] = [
-  { value: "Remote", label: "Remote" },
-  { value: "Onsite", label: "Onsite" },
-  { value: "Hybrid", label: "Hybrid" },
-]
+/** Same work mode keys as work experience in CandidateCreationDialog (`work_mode_enum`). */
+const workModeFilterOptions: MultiSelectOption[] = WORK_MODE_DB.map((key: WorkModeDb) => ({
+  value: key,
+  label: WORK_MODE_LABELS[key],
+}))
 
-// Candidate work experience time support zones
-const timeSupportZoneOptions: MultiSelectOption[] = [
-  { value: "US", label: "US" },
-  { value: "UK", label: "UK" },
-  { value: "EU", label: "EU" },
-  { value: "APAC", label: "APAC" },
-  { value: "MEA", label: "MEA" },
-]
-
-// Publish platform options
-const publishPlatformOptions: MultiSelectOption[] = [
-  { value: "App Store", label: "App Store (iOS)" },
-  { value: "Play Store", label: "Play Store (Android)" },
-  { value: "Web", label: "Web" },
-  { value: "Desktop", label: "Desktop" },
-]
+const publishPlatformFilterOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}))
 
 const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
   value: d.label,
@@ -450,31 +321,23 @@ const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) 
   label: d.label,
 }))
 
+const technicalDomainFilterOptions: MultiSelectOption[] = TECHNICAL_DOMAIN_HUMAN_LABELS.map((label) => ({
+  value: label,
+  label,
+}))
+
 const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
   value: aspect,
   label: aspect
 }))
 
-const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(location => ({
-  value: location,
-  label: location
-}))
-
-// Employer-related filter options
-const employerStatusOptions: MultiSelectOption[] = extractUniqueEmployerStatuses().map(status => ({
-  value: status,
-  label: EMPLOYER_STATUS_LABELS[status as EmployerStatus] || status
-}))
-
-const employerCountryOptions: MultiSelectOption[] = extractUniqueEmployerCountries().map(country => ({
-  value: country,
-  label: country
-}))
-
-const employerCityOptions: MultiSelectOption[] = extractUniqueEmployerCities().map(city => ({
-  value: city,
-  label: city
-}))
+// Employer-related filter options (same catalog as EmployersFilterDialog / employer `status` field)
+const employerStatusOptions: MultiSelectOption[] = Object.entries(EMPLOYER_STATUS_LABELS).map(
+  ([value, label]) => ({
+    value: value as EmployerStatus,
+    label,
+  }),
+)
 
 const employerSalaryPolicyOptions: MultiSelectOption[] = Object.entries(SALARY_POLICY_LABELS).map(([value, label]) => ({
   value,
@@ -486,32 +349,13 @@ const employerRankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANK
   label
 }))
 
-// Education detail filter options
-const degreeNameOptions: MultiSelectOption[] = extractUniqueDegreeNames().map(degree => ({
-  value: degree,
-  label: degree
-}))
-
-const majorNameOptions: MultiSelectOption[] = extractUniqueMajorNames().map(major => ({
-  value: major,
-  label: major
-}))
-
-// Certification-related filter options
-const certificationNameOptions: MultiSelectOption[] = extractUniqueCertificationNames().map(name => ({
-  value: name,
-  label: name
-}))
-
-const certificationIssuingBodyOptions: MultiSelectOption[] = extractUniqueCertificationIssuingBodies().map(body => ({
-  value: body,
-  label: body
-}))
-
-const certificationLevelOptions: MultiSelectOption[] = extractUniqueCertificationLevels().map(level => ({
-  value: level,
-  label: level
-}))
+// Certification level: same DB keys + labels as CandidateCreationDialog (`certification_level_enum`).
+const certificationLevelOptions: MultiSelectOption[] = CERTIFICATION_LEVEL_DB.map(
+  (key: CertificationLevelDb) => ({
+    value: key,
+    label: CERTIFICATION_LEVEL_LABELS_DB[key],
+  }),
+)
 
 // Achievement-related filter options
 const achievementTypeOptions: MultiSelectOption[] = [
@@ -525,61 +369,21 @@ const achievementTypeOptions: MultiSelectOption[] = [
   { value: "Other", label: "Other" },
 ]
 
-const achievementPlatformOptions: MultiSelectOption[] = extractUniqueAchievementPlatforms().map(platform => ({
-  value: platform,
-  label: platform
+/** Same MBTI list as personality combobox in CandidateCreationDialog (DB `mbti_type` four-letter codes). */
+const personalityTypeFilterOptions: MultiSelectOption[] = MBTI_TYPES.map((t: MbtiType) => ({
+  value: t,
+  label: t,
 }))
 
-// Competition-related filter options (legacy - kept for backward compatibility)
-// Note: Uses same data as achievementPlatformOptions for backward compatibility
-const competitionPlatformOptions: MultiSelectOption[] = achievementPlatformOptions
-
-// Personality type options (MBTI types)
-const personalityTypeOptions: MultiSelectOption[] = [
-  { value: "ESTJ", label: "ESTJ - Executive" },
-  { value: "ENTJ", label: "ENTJ - Commander" },
-  { value: "ESFJ", label: "ESFJ - Consul" },
-  { value: "ENFJ", label: "ENFJ - Protagonist" },
-  { value: "ISTJ", label: "ISTJ - Logistician" },
-  { value: "ISFJ", label: "ISFJ - Defender" },
-  { value: "INTJ", label: "INTJ - Architect" },
-  { value: "INFJ", label: "INFJ - Advocate" },
-  { value: "ESTP", label: "ESTP - Entrepreneur" },
-  { value: "ESFP", label: "ESFP - Entertainer" },
-  { value: "ENTP", label: "ENTP - Debater" },
-  { value: "ENFP", label: "ENFP - Campaigner" },
-  { value: "ISTP", label: "ISTP - Virtuoso" },
-  { value: "ISFP", label: "ISFP - Adventurer" },
-  { value: "INTP", label: "INTP - Thinker" },
-  { value: "INFP", label: "INFP - Mediator" },
-]
-
-// Extract unique source values from candidates
-const extractUniqueSources = (): string[] => {
-  const sources = new Set<string>()
-  sampleCandidates.forEach(candidate => {
-    if (candidate.source && candidate.source.trim()) {
-      sources.add(candidate.source.trim())
-    }
-  })
-  // Add common source options that might not be in sample data yet
-  const commonSources = ["Referral", "DPL Employee", "Job Portal", "LinkedIn", "Direct Application", "University", "Career Fair"]
-  commonSources.forEach(source => sources.add(source))
-  return Array.from(sources).sort()
-}
-
-const sourceOptions: MultiSelectOption[] = extractUniqueSources().map(source => ({
-  value: source,
-  label: source
+/** Same options as Source select in CandidateCreationDialog (DB enum keys + display labels). */
+const sourceFilterOptions: MultiSelectOption[] = CANDIDATE_SOURCE_DB.map((key: CandidateSourceDb) => ({
+  value: key,
+  label: CANDIDATE_SOURCE_LABELS[key],
 }))
 
 const initialFilters: CandidateFilters = {
-  // Global search for basic info fields
-  basicInfoSearch: "",
   postingTitle: "",
-  cities: [],
-  excludeCities: [],
-  status: [],
+  city: "",
   currentSalaryMin: "",
   currentSalaryMax: "",
   expectedSalaryMin: "",
@@ -591,9 +395,9 @@ const initialFilters: CandidateFilters = {
   projectTypes: [],
   techStacks: [],
   clientLocations: [],
-  minClientLocationCount: "",
   verticalDomains: [],
   horizontalDomains: [],
+  technicalDomains: [],
   technicalAspects: [],
   startDateStart: null,
   startDateEnd: null,
@@ -649,12 +453,8 @@ const initialFilters: CandidateFilters = {
   // Employer-related filters
   employerStatus: [],
   employerCountries: [],
-  employerCities: [],
+  employerCity: "",
   employerTypes: [],
-  // Career Transition filter
-  careerTransitionFromType: [],
-  careerTransitionToType: [],
-  careerTransitionRequireCurrent: false,
   employerSalaryPolicies: [],
   employerSizeMin: "",
   employerSizeMax: "",
@@ -675,8 +475,7 @@ const initialFilters: CandidateFilters = {
   source: [],
   // Achievement-related filters
   achievementTypes: [],
-  achievementPlatforms: [],
-  internationalBugBountyOnly: false,
+  achievementName: "",
   // Legacy filters (kept for backward compatibility during migration)
   competitionPlatforms: [],
   // Verification percentage filters
@@ -692,13 +491,311 @@ export function CandidatesFilterDialog({
   filters,
   onFiltersChange,
   onClearFilters,
+  timeSupportZones = [],
+  clientLocations = [],
+  countries = [],
+  certificationIssuers = [],
+  degrees = [],
+  majors = [],
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
+
+  const timeSupportZoneFilterOptions = useMemo<MultiSelectOption[]>(
+    () => timeSupportZones.map((z) => ({ value: z.name, label: z.name })),
+    [timeSupportZones]
+  )
+
+  /** Same pattern as ProjectsFilterDialog: API lookup names, fallback to sample project strings. */
+  const clientLocationFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    if (clientLocations.length > 0) {
+      return clientLocations.map((l) => ({ value: l.name, label: l.name }))
+    }
+    return extractUniqueClientLocations().map((location) => ({
+      value: location,
+      label: location,
+    }))
+  }, [clientLocations])
+
+  /** Same country catalog as EmployersFilterDialog (`GET /api/countries`). */
+  const employerCountryFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    if (countries.length > 0) {
+      return [...countries]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((c) => ({ value: c.name, label: c.name }))
+    }
+    return []
+  }, [countries])
+
+  /** Issuing body names from GET /api/CertificationIssuers; filter values match `certificationIssuerName` on candidates. */
+  const certificationIssuingBodyFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    return [...certificationIssuers]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((issuer) => ({ value: issuer.name, label: issuer.name }))
+  }, [certificationIssuers])
+
+  /** Same degree/major name lists as CandidateCreationDialog (`lookups.degrees` / `lookups.majors`). */
+  const degreeNameFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    return [...degrees]
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((d) => ({ value: d.name, label: d.name }))
+  }, [degrees])
+
+  const majorNameFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    return [...majors]
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((m) => ({ value: m.name, label: m.name }))
+  }, [majors])
+
+  // Projects: same debounced search as ProjectCombobox (`useProjectSearch` → `/api/projects/search`)
+  const {
+    query: projectSearchQuery,
+    setQuery: setProjectSearchQuery,
+    results: projectSearchResults,
+    isLoading: projectSearchLoading,
+    resetSearch: resetProjectSearch,
+  } = useProjectSearch()
+  const [projectComboboxOpen, setProjectComboboxOpen] = useState(false)
+  const [projectNameById, setProjectNameById] = useState<Record<string, string>>({})
+  const projectNameByIdRef = useRef<Record<string, string>>({})
+  projectNameByIdRef.current = projectNameById
+
+  // Certification names: same debounced search as CertificationCombobox (`useCertificationSearch`)
+  const {
+    query: certificationNameSearchQuery,
+    setQuery: setCertificationNameSearchQuery,
+    results: certificationNameSearchResults,
+    isLoading: certificationNameSearchLoading,
+    resetSearch: resetCertificationNameSearch,
+  } = useCertificationSearch()
+  const [certificationNameComboboxOpen, setCertificationNameComboboxOpen] = useState(false)
+  const [certificationNameById, setCertificationNameById] = useState<Record<string, string>>({})
+  const certificationNameByIdRef = useRef<Record<string, string>>({})
+  certificationNameByIdRef.current = certificationNameById
+
+  // Employers: debounced server search (same pattern as ProjectsFilterDialog / ProjectCreationDialog)
+  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
+  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
+  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
+  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
+  const [employerNameById, setEmployerNameById] = useState<Record<string, string>>({})
+  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const employerAbortRef = useRef<AbortController | null>(null)
+  const employerNameByIdRef = useRef<Record<string, string>>({})
+  employerNameByIdRef.current = employerNameById
+
   const [activeTab, setActiveTab] = useState("basic")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
-  
+
+  // Debounced employer search: min 2 chars, 300ms debounce, abort stale
+  useEffect(() => {
+    if (employerDebounceRef.current) {
+      clearTimeout(employerDebounceRef.current)
+      employerDebounceRef.current = null
+    }
+    if (employerSearchQuery.trim().length < 2) {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+        employerAbortRef.current = null
+      }
+      setEmployerSearchResults([])
+      setEmployerSearchLoading(false)
+      return
+    }
+    employerDebounceRef.current = setTimeout(() => {
+      employerDebounceRef.current = null
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+      const controller = new AbortController()
+      employerAbortRef.current = controller
+      setEmployerSearchLoading(true)
+      const query = employerSearchQuery.trim()
+      searchEmployers(query, 10, controller.signal)
+        .then((list) => {
+          if (employerAbortRef.current !== controller) return
+          setEmployerSearchResults(list)
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return
+          setEmployerSearchResults([])
+        })
+        .finally(() => {
+          if (employerAbortRef.current === controller) {
+            setEmployerSearchLoading(false)
+          }
+        })
+    }, 300)
+    return () => {
+      if (employerDebounceRef.current) {
+        clearTimeout(employerDebounceRef.current)
+      }
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [employerSearchQuery])
+
+  useEffect(() => {
+    return () => {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [])
+
+  // Resolve labels for employer ids restored from applied filters (e.g. after reopen dialog)
+  useEffect(() => {
+    const missing = tempFilters.employers.filter(
+      (id) => /^\d+$/.test(id.trim()) && !employerNameByIdRef.current[id]
+    )
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map((id) => {
+        const n = parseInt(id, 10)
+        if (Number.isNaN(n)) return Promise.resolve(null as { id: string; name: string } | null)
+        return fetchEmployerById(n)
+          .then((dto) => ({ id: String(dto.id), name: dto.name }))
+          .catch(() => null)
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setEmployerNameById((prev) => {
+        const next = { ...prev }
+        for (const r of results) {
+          if (r) next[r.id] = r.name
+        }
+        return next
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tempFilters.employers])
+
+  const toggleEmployerFromSearch = (emp: EmployerLookupDto) => {
+    const idStr = String(emp.id)
+    setEmployerNameById((prev) => ({ ...prev, [idStr]: emp.name }))
+    setTempFilters((prev) => {
+      const has = prev.employers.includes(idStr)
+      return {
+        ...prev,
+        employers: has ? prev.employers.filter((x) => x !== idStr) : [...prev.employers, idStr],
+      }
+    })
+  }
+
+  const removeEmployerId = (idStr: string) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      employers: prev.employers.filter((x) => x !== idStr),
+    }))
+  }
+
+  // Resolve labels for project ids restored from applied filters (e.g. after reopen dialog)
+  useEffect(() => {
+    const missing = tempFilters.projects.filter(
+      (id) => /^\d+$/.test(id.trim()) && !projectNameByIdRef.current[id]
+    )
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map((id) => {
+        const n = parseInt(id, 10)
+        if (Number.isNaN(n)) return Promise.resolve(null as { id: string; name: string } | null)
+        return fetchProjectById(n)
+          .then((dto) => ({ id: String(dto.id), name: dto.name }))
+          .catch(() => null)
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setProjectNameById((prev) => {
+        const next = { ...prev }
+        for (const r of results) {
+          if (r) next[r.id] = r.name
+        }
+        return next
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tempFilters.projects])
+
+  const toggleProjectFromSearch = (proj: ProjectLookupDto) => {
+    const idStr = String(proj.id)
+    setProjectNameById((prev) => ({ ...prev, [idStr]: proj.name }))
+    setTempFilters((prev) => {
+      const has = prev.projects.includes(idStr)
+      return {
+        ...prev,
+        projects: has ? prev.projects.filter((x) => x !== idStr) : [...prev.projects, idStr],
+      }
+    })
+  }
+
+  const removeProjectId = (idStr: string) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      projects: prev.projects.filter((x) => x !== idStr),
+    }))
+  }
+
+  // Resolve labels for certification catalog ids from applied filters (e.g. after reopen dialog)
+  useEffect(() => {
+    const missing = tempFilters.certificationNames.filter(
+      (id) => /^\d+$/.test(id.trim()) && !certificationNameByIdRef.current[id]
+    )
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map((id) => {
+        const n = parseInt(id, 10)
+        if (Number.isNaN(n)) return Promise.resolve(null as { id: string; name: string } | null)
+        return fetchCertificationById(n)
+          .then((dto) => ({ id: String(dto.id), name: dto.name }))
+          .catch(() => null)
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setCertificationNameById((prev) => {
+        const next = { ...prev }
+        for (const r of results) {
+          if (r) next[r.id] = r.name
+        }
+        return next
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tempFilters.certificationNames])
+
+  const toggleCertificationFromSearch = (c: CertificationLookupDto) => {
+    const idStr = String(c.id)
+    setCertificationNameById((prev) => ({ ...prev, [idStr]: c.name }))
+    setTempFilters((prev) => {
+      const has = prev.certificationNames.includes(idStr)
+      return {
+        ...prev,
+        certificationNames: has
+          ? prev.certificationNames.filter((x) => x !== idStr)
+          : [...prev.certificationNames, idStr],
+      }
+    })
+  }
+
+  const removeCertificationNameId = (idStr: string) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      certificationNames: prev.certificationNames.filter((x) => x !== idStr),
+    }))
+  }
+
   // Define sections for navigation
   const sections = [
     { id: "basic", sectionId: "filter-basic", label: "Basic" },
@@ -757,14 +854,27 @@ export function CandidatesFilterDialog({
 
   // Clear filters for a specific section
   const clearSectionFilters = (sectionId: string) => {
+    if (sectionId === "employers") {
+      setEmployerNameById({})
+      setEmployerSearchQuery("")
+      setEmployerSearchResults([])
+      setEmployerComboboxOpen(false)
+    }
+    if (sectionId === "projects") {
+      setProjectNameById({})
+      setProjectComboboxOpen(false)
+      resetProjectSearch()
+    }
+    if (sectionId === "certifications") {
+      setCertificationNameById({})
+      setCertificationNameComboboxOpen(false)
+      resetCertificationNameSearch()
+    }
     setTempFilters(prev => {
       const updated = { ...prev }
       switch (sectionId) {
         case "basic":
-          updated.basicInfoSearch = ""
-          updated.cities = []
-          updated.excludeCities = []
-          updated.status = []
+          updated.city = ""
           updated.personalityTypes = []
           updated.source = []
           updated.currentSalaryMin = ""
@@ -811,9 +921,9 @@ export function CandidatesFilterDialog({
           updated.projectTypes = []
           updated.techStacks = []
           updated.clientLocations = []
-          updated.minClientLocationCount = ""
           updated.verticalDomains = []
           updated.horizontalDomains = []
+          updated.technicalDomains = []
           updated.technicalAspects = []
           updated.startDateStart = null
           updated.startDateEnd = null
@@ -827,11 +937,8 @@ export function CandidatesFilterDialog({
           updated.employers = []
           updated.employerStatus = []
           updated.employerCountries = []
-          updated.employerCities = []
+          updated.employerCity = ""
           updated.employerTypes = []
-          updated.careerTransitionFromType = []
-          updated.careerTransitionToType = []
-          updated.careerTransitionRequireCurrent = false
           updated.employerSalaryPolicies = []
           updated.employerSizeMin = ""
           updated.employerSizeMax = ""
@@ -852,8 +959,7 @@ export function CandidatesFilterDialog({
           break
         case "competitions":
           updated.achievementTypes = []
-          updated.achievementPlatforms = []
-          updated.internationalBugBountyOnly = false
+          updated.achievementName = ""
           updated.competitionPlatforms = []
           break
       }
@@ -921,10 +1027,7 @@ export function CandidatesFilterDialog({
     switch (sectionId) {
       case "basic":
         return (
-          (tempFilters.basicInfoSearch ? 1 : 0) +
-          tempFilters.cities.length +
-          tempFilters.excludeCities.length +
-          tempFilters.status.length +
+          (tempFilters.city.trim() ? 1 : 0) +
           tempFilters.personalityTypes.length +
           tempFilters.source.length +
           (tempFilters.currentSalaryMin ? 1 : 0) +
@@ -962,9 +1065,9 @@ export function CandidatesFilterDialog({
           tempFilters.projectTypes.length +
           tempFilters.techStacks.length +
           tempFilters.clientLocations.length +
-          (tempFilters.minClientLocationCount ? 1 : 0) +
           tempFilters.verticalDomains.length +
           tempFilters.horizontalDomains.length +
+          tempFilters.technicalDomains.length +
           tempFilters.technicalAspects.length +
           (tempFilters.startDateStart ? 1 : 0) +
           (tempFilters.startDateEnd ? 1 : 0) +
@@ -979,11 +1082,8 @@ export function CandidatesFilterDialog({
           tempFilters.employers.length +
           tempFilters.employerStatus.length +
           tempFilters.employerCountries.length +
-          tempFilters.employerCities.length +
+          (tempFilters.employerCity.trim() ? 1 : 0) +
           tempFilters.employerTypes.length +
-          tempFilters.careerTransitionFromType.length +
-          tempFilters.careerTransitionToType.length +
-          (tempFilters.careerTransitionRequireCurrent ? 1 : 0) +
           tempFilters.employerSalaryPolicies.length +
           tempFilters.employerRankings.length +
           (tempFilters.employerSizeMin ? 1 : 0) +
@@ -1007,8 +1107,7 @@ export function CandidatesFilterDialog({
       case "competitions":
         return (
           tempFilters.achievementTypes.length +
-          tempFilters.achievementPlatforms.length +
-          (tempFilters.internationalBugBountyOnly ? 1 : 0) +
+          (tempFilters.achievementName.trim() ? 1 : 0) +
           (tempFilters.competitionPlatforms.length > 0 ? tempFilters.competitionPlatforms.length : 0)
         )
       default:
@@ -1052,6 +1151,16 @@ export function CandidatesFilterDialog({
   }
 
   const handleClearFilters = () => {
+    setEmployerNameById({})
+    setEmployerSearchQuery("")
+    setEmployerSearchResults([])
+    setEmployerComboboxOpen(false)
+    setProjectNameById({})
+    setProjectComboboxOpen(false)
+    resetProjectSearch()
+    setCertificationNameById({})
+    setCertificationNameComboboxOpen(false)
+    resetCertificationNameSearch()
     setTempFilters(initialFilters)
     onClearFilters()
     // Keep dialog open for user to see cleared state
@@ -1063,10 +1172,7 @@ export function CandidatesFilterDialog({
   }
 
   const hasAnyTempFilters = 
-    tempFilters.basicInfoSearch ||
-    tempFilters.cities.length > 0 ||
-    tempFilters.excludeCities.length > 0 ||
-    tempFilters.status.length > 0 ||
+    tempFilters.city.trim() ||
     tempFilters.personalityTypes.length > 0 ||
     tempFilters.source.length > 0 ||
     tempFilters.currentSalaryMin ||
@@ -1084,7 +1190,6 @@ export function CandidatesFilterDialog({
     tempFilters.projectTypes.length > 0 ||
     tempFilters.techStacks.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
-    tempFilters.minClientLocationCount ||
     tempFilters.candidateTechStacks.length > 0 ||
     (tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears) ||
     tempFilters.shiftTypes.length > 0 ||
@@ -1102,6 +1207,7 @@ export function CandidatesFilterDialog({
     tempFilters.joinedProjectFromStart !== null ||
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
+    tempFilters.technicalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
     tempFilters.startDateStart !== null ||
     tempFilters.startDateEnd !== null ||
@@ -1112,7 +1218,7 @@ export function CandidatesFilterDialog({
     tempFilters.minProjectDownloadCount ||
     tempFilters.employerStatus.length > 0 ||
     tempFilters.employerCountries.length > 0 ||
-    tempFilters.employerCities.length > 0 ||
+    !!tempFilters.employerCity.trim() ||
     tempFilters.employerTypes.length > 0 ||
     tempFilters.employerSalaryPolicies.length > 0 ||
     tempFilters.employerRankings.length > 0 ||
@@ -1128,8 +1234,7 @@ export function CandidatesFilterDialog({
     tempFilters.certificationIssuingBodies.length > 0 ||
     tempFilters.certificationLevels.length > 0 ||
     tempFilters.achievementTypes.length > 0 ||
-    tempFilters.achievementPlatforms.length > 0 ||
-    tempFilters.internationalBugBountyOnly ||
+    !!tempFilters.achievementName.trim() ||
     tempFilters.competitionPlatforms.length > 0
 
   // Validation for salary inputs
@@ -1225,21 +1330,6 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              {/* Global Search for Basic Info Fields */}
-              <div className="space-y-3">
-                <Label htmlFor="basicInfoSearch" className="text-sm font-semibold">Search Basic Info</Label>
-                <Input
-                  id="basicInfoSearch"
-                  type="text"
-                  placeholder="Search by name, email, phone, CNIC, source, status, LinkedIn, GitHub..."
-                  value={tempFilters.basicInfoSearch}
-                  onChange={(e) => handleFilterChange("basicInfoSearch", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Searches across: Full Name, Email, Mobile, CNIC, Source, Status, LinkedIn URL, GitHub URL
-                </p>
-              </div>
-
               {/* Posting Title Filter */}
               <div className="space-y-3">
                 <Label htmlFor="postingTitle" className="text-sm font-semibold">Posting Title</Label>
@@ -1255,44 +1345,20 @@ export function CandidatesFilterDialog({
                 </p>
               </div>
 
-              {/* Location Filter */}
+              {/* City (free text — same storage model as candidate profile city) */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold">Location</Label>
-                <MultiSelect
-                  items={cityOptions}
-                  selected={tempFilters.cities}
-                  onChange={(values) => handleFilterChange("cities", values)}
-                  placeholder="Filter by city..."
-                  searchPlaceholder="Search cities..."
-                  maxDisplay={3}
-                />
-
-                <MultiSelect
-                  items={cityOptions}
-                  selected={tempFilters.excludeCities}
-                  onChange={(values) => handleFilterChange("excludeCities", values)}
-                  placeholder="Exclude major cities..."
-                  searchPlaceholder="Search cities to exclude..."
-                  maxDisplay={3}
+                <Label htmlFor="filter-candidate-city" className="text-sm font-semibold">
+                  City
+                </Label>
+                <Input
+                  id="filter-candidate-city"
+                  type="text"
+                  placeholder="e.g. Karachi, New York"
+                  value={tempFilters.city}
+                  onChange={(e) => handleFilterChange("city", e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Exclude candidates from major cities to find talent from smaller/remote areas
-                </p>
-              </div>
-
-              {/* Status Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Status</Label>
-                <MultiSelect
-                  items={Object.entries(CANDIDATE_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-                  selected={tempFilters.status}
-                  onChange={(values) => handleFilterChange("status", values)}
-                  placeholder="Filter by status..."
-                  searchPlaceholder="Search statuses..."
-                  maxDisplay={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filter candidates by their application status
+                  Matches candidates whose city contains this text (case-insensitive).
                 </p>
               </div>
 
@@ -1401,7 +1467,7 @@ export function CandidatesFilterDialog({
               {/* Personality Type Filter */}
               <div className="space-y-3">
                 <MultiSelect
-                  items={personalityTypeOptions}
+                  items={personalityTypeFilterOptions}
                   selected={tempFilters.personalityTypes}
                   onChange={(values) => handleFilterChange("personalityTypes", values)}
                   placeholder="Filter by personality type..."
@@ -1410,14 +1476,14 @@ export function CandidatesFilterDialog({
                   maxDisplay={3}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Filter candidates by their MBTI personality type (e.g., ESTJ, INTJ, ENFP)
+                  Same sixteen MBTI codes as the create/edit form (four letters each).
                 </p>
               </div>
 
               {/* Source Filter */}
               <div className="space-y-3">
                 <MultiSelect
-                  items={sourceOptions}
+                  items={sourceFilterOptions}
                   selected={tempFilters.source}
                   onChange={(values) => handleFilterChange("source", values)}
                   placeholder="Filter by source..."
@@ -1426,7 +1492,7 @@ export function CandidatesFilterDialog({
                   maxDisplay={3}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Filter candidates by their source (e.g., Referral, DPL Employee, Job Portal)
+                  Uses the same candidate source values as the create/edit form (Headhunt, Zoho, Manual, Referral).
                 </p>
               </div>
 
@@ -1664,7 +1730,7 @@ export function CandidatesFilterDialog({
               </div>
               
               <MultiSelect
-                items={shiftTypeOptions}
+                items={shiftTypeFilterOptions}
                 selected={tempFilters.shiftTypes}
                 onChange={(values) => handleFilterChange("shiftTypes", values)}
                 placeholder="Filter by shift type..."
@@ -1674,7 +1740,7 @@ export function CandidatesFilterDialog({
               />
 
               <MultiSelect
-                items={workModeOptions}
+                items={workModeFilterOptions}
                 selected={tempFilters.workModes}
                 onChange={(values) => handleFilterChange("workModes", values)}
                 placeholder="Filter by work mode..."
@@ -1691,7 +1757,7 @@ export function CandidatesFilterDialog({
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Work Modes</Label>
                     <MultiSelect
-                      items={workModeOptions}
+                      items={workModeFilterOptions}
                       selected={tempFilters.workModeMinYears?.workModes || []}
                       onChange={(values) => {
                         handleFilterChange("workModeMinYears", {
@@ -1736,7 +1802,7 @@ export function CandidatesFilterDialog({
               </div>
 
               <MultiSelect
-                items={timeSupportZoneOptions}
+                items={timeSupportZoneFilterOptions}
                 selected={tempFilters.timeSupportZones}
                 onChange={(values) => handleFilterChange("timeSupportZones", values)}
                 placeholder="Filter by time support zone..."
@@ -1744,6 +1810,11 @@ export function CandidatesFilterDialog({
                 searchPlaceholder="Search time zones..."
                 maxDisplay={3}
               />
+              {timeSupportZoneFilterOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Time zone names load from the same master list as the candidate form once lookups are available.
+                </p>
+              )}
 
               {/* Currently Working Filter */}
               <div className="space-y-3 pt-2">
@@ -2090,15 +2161,133 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               
-              <MultiSelect
-                items={projectOptions}
-                selected={tempFilters.projects}
-                onChange={(values) => handleFilterChange("projects", values)}
-                placeholder="Filter by project..."
-                label="Projects"
-                searchPlaceholder="Search projects..."
-                maxDisplay={3}
-              />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Projects</Label>
+                <Popover
+                  open={projectComboboxOpen}
+                  onOpenChange={(nextOpen) => {
+                    setProjectComboboxOpen(nextOpen)
+                    if (!nextOpen) {
+                      resetProjectSearch()
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={projectComboboxOpen}
+                      className={cn(
+                        "w-full justify-between items-start gap-2 h-auto min-h-[2.5rem] px-3 py-2 font-normal text-left"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
+                        {tempFilters.projects.length === 0 && (
+                          <span className="text-muted-foreground">Search projects to add…</span>
+                        )}
+                        {tempFilters.projects.slice(0, 3).map((id) => (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="max-w-full shrink gap-0 pr-0.5 font-normal hover:bg-secondary/80 flex items-center"
+                          >
+                            <span className="truncate pl-1.5 py-0.5 max-w-[min(12rem,100%)]">
+                              {projectNameById[id] ?? (/^\d+$/.test(id.trim()) ? `Project #${id}` : id)}
+                            </span>
+                            <span
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm outline-none ring-offset-background hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  removeProjectId(id)
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                removeProjectId(id)
+                              }}
+                              aria-label={`Remove ${projectNameById[id] ?? id}`}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </span>
+                          </Badge>
+                        ))}
+                        {tempFilters.projects.length > 3 && (
+                          <Badge variant="secondary" className="font-normal">
+                            +{tempFilters.projects.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 mt-1" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search projects..."
+                        value={projectSearchQuery}
+                        onValueChange={setProjectSearchQuery}
+                        className="h-9"
+                      />
+                      <CommandList>
+                        {projectSearchLoading && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+                        )}
+                        {!projectSearchLoading && projectSearchQuery.trim().length < 2 && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                        )}
+                        {!projectSearchLoading &&
+                          projectSearchQuery.trim().length >= 2 &&
+                          projectSearchResults.length === 0 && (
+                            <CommandGroup>
+                              <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                                No projects found
+                              </div>
+                              <CommandItem
+                                value="__create_new_project__"
+                                onSelect={() => {
+                                  window.open("/projects", "_blank", "noopener,noreferrer")
+                                }}
+                                className="cursor-pointer font-medium text-primary"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                + Create New Project
+                              </CommandItem>
+                            </CommandGroup>
+                          )}
+                        {!projectSearchLoading && projectSearchResults.length > 0 && (
+                          <CommandGroup>
+                            {projectSearchResults.map((proj) => {
+                              const idStr = String(proj.id)
+                              const selected = tempFilters.projects.includes(idStr)
+                              return (
+                                <CommandItem
+                                  key={proj.id}
+                                  value={idStr}
+                                  onSelect={() => toggleProjectFromSearch(proj)}
+                                  className="cursor-pointer"
+                                >
+                                  {proj.name}
+                                  {selected ? <Check className="ml-auto h-4 w-4 opacity-100" /> : null}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
@@ -2153,6 +2342,16 @@ export function CandidatesFilterDialog({
               </div>
 
               <MultiSelect
+                items={technicalDomainFilterOptions}
+                selected={tempFilters.technicalDomains}
+                onChange={(values) => handleFilterChange("technicalDomains", values)}
+                placeholder="Filter by technical domain..."
+                label="Technical Domains"
+                searchPlaceholder="Search technical domains..."
+                maxDisplay={3}
+              />
+
+              <MultiSelect
                 items={technicalAspectOptions}
                 selected={tempFilters.technicalAspects}
                 onChange={(values) => handleFilterChange("technicalAspects", values)}
@@ -2163,7 +2362,7 @@ export function CandidatesFilterDialog({
               />
 
               <MultiSelect
-                items={clientLocationOptions}
+                items={clientLocationFilterOptions}
                 selected={tempFilters.clientLocations}
                 onChange={(values) => handleFilterChange("clientLocations", values)}
                 placeholder="Filter by client location..."
@@ -2171,24 +2370,6 @@ export function CandidatesFilterDialog({
                 searchPlaceholder="Search locations..."
                 maxDisplay={3}
               />
-
-              {/* Minimum Client Location Count Filter */}
-              <div className="space-y-3">
-                <Label htmlFor="minClientLocationCount" className="text-sm font-semibold">
-                  Minimum Client Locations/Countries
-                </Label>
-                <Input
-                  id="minClientLocationCount"
-                  type="number"
-                  placeholder="e.g., 2 (for multi-country projects)"
-                  min="1"
-                  value={tempFilters.minClientLocationCount}
-                  onChange={(e) => handleFilterChange("minClientLocationCount", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filter candidates who have worked on projects in at least this many different client locations/countries (e.g., 2 for multi-country projects)
-                </p>
-              </div>
 
               {/* Start Date Range Filter */}
               <div className="space-y-3">
@@ -2324,7 +2505,7 @@ export function CandidatesFilterDialog({
               {/* Publish Platforms */}
               <div className="space-y-2">
                 <MultiSelect
-                  items={publishPlatformOptions}
+                  items={publishPlatformFilterOptions}
                   selected={tempFilters.publishPlatforms}
                   onChange={(values) => handleFilterChange("publishPlatforms", values)}
                   placeholder="Select platforms"
@@ -2374,15 +2555,120 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MultiSelect
-                  items={employerOptions}
-                  selected={tempFilters.employers}
-                  onChange={(values) => handleFilterChange("employers", values)}
-                  placeholder="Filter by employer..."
-                  label="Employers"
-                  searchPlaceholder="Search employers..."
-                  maxDisplay={3}
-                />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Employers</Label>
+                  <Popover
+                    open={employerComboboxOpen}
+                    onOpenChange={(nextOpen) => {
+                      setEmployerComboboxOpen(nextOpen)
+                      if (!nextOpen) {
+                        setEmployerSearchQuery("")
+                        setEmployerSearchResults([])
+                      }
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={employerComboboxOpen}
+                        className={cn(
+                          "w-full justify-between items-start gap-2 h-auto min-h-[2.5rem] px-3 py-2 font-normal text-left"
+                        )}
+                      >
+                        <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
+                          {tempFilters.employers.length === 0 && (
+                            <span className="text-muted-foreground">Search employers to add…</span>
+                          )}
+                          {tempFilters.employers.slice(0, 3).map((id) => (
+                            <Badge
+                              key={id}
+                              variant="secondary"
+                              className="max-w-full shrink gap-0 pr-0.5 font-normal hover:bg-secondary/80 flex items-center"
+                            >
+                              <span className="truncate pl-1.5 py-0.5 max-w-[min(12rem,100%)]">
+                                {employerNameById[id] ?? (/^\d+$/.test(id.trim()) ? `Employer #${id}` : id)}
+                              </span>
+                              <span
+                                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm outline-none ring-offset-background hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    removeEmployerId(id)
+                                  }
+                                }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  removeEmployerId(id)
+                                }}
+                                aria-label={`Remove ${employerNameById[id] ?? id}`}
+                              >
+                                <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                              </span>
+                            </Badge>
+                          ))}
+                          {tempFilters.employers.length > 3 && (
+                            <Badge variant="secondary" className="font-normal">
+                              +{tempFilters.employers.length - 3} more
+                            </Badge>
+                          )}
+                        </div>
+                        <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 mt-1" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          placeholder="Search employers..."
+                          value={employerSearchQuery}
+                          onValueChange={setEmployerSearchQuery}
+                          className="h-9"
+                        />
+                        <CommandList>
+                          {employerSearchLoading && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+                          )}
+                          {!employerSearchLoading && employerSearchQuery.trim().length < 2 && (
+                            <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                          )}
+                          {!employerSearchLoading &&
+                            employerSearchQuery.trim().length >= 2 &&
+                            employerSearchResults.length === 0 && (
+                              <div className="py-6 text-center text-sm text-muted-foreground">No employers found</div>
+                            )}
+                          {!employerSearchLoading && employerSearchResults.length > 0 && (
+                            <CommandGroup>
+                              {employerSearchResults.map((emp) => {
+                                const idStr = String(emp.id)
+                                const selected = tempFilters.employers.includes(idStr)
+                                return (
+                                  <CommandItem
+                                    key={emp.id}
+                                    value={idStr}
+                                    onSelect={() => toggleEmployerFromSearch(emp)}
+                                    className="cursor-pointer"
+                                  >
+                                    {emp.name}
+                                    {selected ? <Check className="ml-auto h-4 w-4 opacity-100" /> : null}
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
                 <MultiSelect
                   items={employerStatusOptions}
@@ -2440,7 +2726,7 @@ export function CandidatesFilterDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
-                  items={employerCountryOptions}
+                  items={employerCountryFilterOptions}
                   selected={tempFilters.employerCountries}
                   onChange={(values) => handleFilterChange("employerCountries", values)}
                   placeholder="Filter by country..."
@@ -2449,15 +2735,21 @@ export function CandidatesFilterDialog({
                   maxDisplay={3}
                 />
 
-                <MultiSelect
-                  items={employerCityOptions}
-                  selected={tempFilters.employerCities}
-                  onChange={(values) => handleFilterChange("employerCities", values)}
-                  placeholder="Filter by city..."
-                  label="Employer Cities"
-                  searchPlaceholder="Search cities..."
-                  maxDisplay={3}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="employerCity" className="text-sm font-semibold">
+                    Employer city
+                  </Label>
+                  <Input
+                    id="employerCity"
+                    type="text"
+                    placeholder="Substring match on office city (e.g. Karachi)"
+                    value={tempFilters.employerCity}
+                    onChange={(e) => handleFilterChange("employerCity", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Cities are free text on employer locations; this filters by contained text (case-insensitive).
+                  </p>
+                </div>
                 
                 <MultiSelect
                   items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
@@ -2468,61 +2760,6 @@ export function CandidatesFilterDialog({
                   searchPlaceholder="Search types..."
                   maxDisplay={3}
                 />
-              </div>
-
-              {/* Career Transition Filter */}
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Career Transition</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Previous Employer Type</Label>
-                    <MultiSelect
-                      items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
-                      selected={tempFilters.careerTransitionFromType}
-                      onChange={(values) => handleFilterChange("careerTransitionFromType", values)}
-                      placeholder="Select previous type..."
-                      searchPlaceholder="Search types..."
-                      maxDisplay={3}
-                    />
-                  </div>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Current/New Employer Type</Label>
-                    <MultiSelect
-                      items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
-                      selected={tempFilters.careerTransitionToType}
-                      onChange={(values) => handleFilterChange("careerTransitionToType", values)}
-                      placeholder="Select new type..."
-                      searchPlaceholder="Search types..."
-                      maxDisplay={3}
-                    />
-                  </div>
-                </div>
-                
-                {(tempFilters.careerTransitionFromType.length > 0 || tempFilters.careerTransitionToType.length > 0) && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="careerTransitionRequireCurrent"
-                      checked={tempFilters.careerTransitionRequireCurrent}
-                      onCheckedChange={(checked) => {
-                        handleFilterChange("careerTransitionRequireCurrent", checked === true)
-                      }}
-                    />
-                    <Label
-                      htmlFor="careerTransitionRequireCurrent"
-                      className="text-sm font-normal cursor-pointer"
-                    >
-                      Require current/most recent employer
-                    </Label>
-                  </div>
-                )}
-                
-                {tempFilters.careerTransitionFromType.length > 0 && tempFilters.careerTransitionToType.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Find candidates who worked at {tempFilters.careerTransitionFromType.join(", ")} before {tempFilters.careerTransitionToType.join(", ")}.
-                    {tempFilters.careerTransitionRequireCurrent && " The new employer type must be current/most recent."}
-                  </p>
-                )}
               </div>
 
               <MultiSelect
@@ -2552,25 +2789,39 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               
-              <MultiSelect
-                items={degreeNameOptions}
-                selected={tempFilters.degreeNames}
-                onChange={(values) => handleFilterChange("degreeNames", values)}
-                placeholder="Filter by degree..."
-                label="Degree"
-                searchPlaceholder="Search degrees..."
-                maxDisplay={3}
-                />           
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <MultiSelect
-                  items={majorNameOptions}
-                  selected={tempFilters.majorNames}
-                  onChange={(values) => handleFilterChange("majorNames", values)}
-                  placeholder="Filter by major..."
-                  label="Major"
-                  searchPlaceholder="Search majors..."
+                  items={degreeNameFilterOptions}
+                  selected={tempFilters.degreeNames}
+                  onChange={(values) => handleFilterChange("degreeNames", values)}
+                  placeholder="Filter by degree..."
+                  label="Degree"
+                  searchPlaceholder="Search degrees..."
                   maxDisplay={3}
                 />
+                {degreeNameFilterOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Degree names load from GET /api/degrees (same as the candidate form) once lookups are available.
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <MultiSelect
+                    items={majorNameFilterOptions}
+                    selected={tempFilters.majorNames}
+                    onChange={(values) => handleFilterChange("majorNames", values)}
+                    placeholder="Filter by major..."
+                    label="Major"
+                    searchPlaceholder="Search majors..."
+                    maxDisplay={3}
+                  />
+                  {majorNameFilterOptions.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Major names load from GET /api/majors (same as the candidate form) once lookups are available.
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Graduation Date Range Filter */}
@@ -2704,26 +2955,165 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               
-              <MultiSelect
-                items={certificationNameOptions}
-                selected={tempFilters.certificationNames}
-                onChange={(values) => handleFilterChange("certificationNames", values)}
-                placeholder="Filter by certification..."
-                label="Certification Name"
-                searchPlaceholder="Search certifications..."
-                maxDisplay={3}
-              />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Certification Name</Label>
+                <Popover
+                  open={certificationNameComboboxOpen}
+                  onOpenChange={(nextOpen) => {
+                    setCertificationNameComboboxOpen(nextOpen)
+                    if (!nextOpen) {
+                      resetCertificationNameSearch()
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={certificationNameComboboxOpen}
+                      className={cn(
+                        "w-full justify-between items-start gap-2 h-auto min-h-[2.5rem] px-3 py-2 font-normal text-left"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
+                        {tempFilters.certificationNames.length === 0 && (
+                          <span className="text-muted-foreground">Search certifications to add…</span>
+                        )}
+                        {tempFilters.certificationNames.slice(0, 3).map((id) => (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="max-w-full shrink gap-0 pr-0.5 font-normal hover:bg-secondary/80 flex items-center"
+                          >
+                            <span className="truncate pl-1.5 py-0.5 max-w-[min(12rem,100%)]">
+                              {certificationNameById[id] ??
+                                (/^\d+$/.test(id.trim()) ? `Certification #${id}` : id)}
+                            </span>
+                            <span
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm outline-none ring-offset-background hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  removeCertificationNameId(id)
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                removeCertificationNameId(id)
+                              }}
+                              aria-label={`Remove ${certificationNameById[id] ?? id}`}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </span>
+                          </Badge>
+                        ))}
+                        {tempFilters.certificationNames.length > 3 && (
+                          <Badge variant="secondary" className="font-normal">
+                            +{tempFilters.certificationNames.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 mt-1" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[--radix-popover-trigger-width] min-w-[min(100vw-2rem,24rem)] p-0"
+                    align="start"
+                  >
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search certifications..."
+                        value={certificationNameSearchQuery}
+                        onValueChange={setCertificationNameSearchQuery}
+                        className="h-9"
+                      />
+                      <CommandList>
+                        {certificationNameSearchLoading && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+                        )}
+                        {!certificationNameSearchLoading && certificationNameSearchQuery.trim().length < 2 && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                        )}
+                        {!certificationNameSearchLoading &&
+                          certificationNameSearchQuery.trim().length >= 2 &&
+                          certificationNameSearchResults.length === 0 && (
+                            <CommandGroup>
+                              <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                                No certifications found
+                              </div>
+                              <CommandItem
+                                value="__create_new_certification__"
+                                onSelect={() => {
+                                  window.open("/certifications", "_blank", "noopener,noreferrer")
+                                }}
+                                className="cursor-pointer font-medium text-primary"
+                              >
+                                <Plus className="mr-2 h-4 w-4 shrink-0" />
+                                <span className="flex flex-col items-start leading-tight">
+                                  <span>+ Create New</span>
+                                  <span>Certification</span>
+                                </span>
+                              </CommandItem>
+                            </CommandGroup>
+                          )}
+                        {!certificationNameSearchLoading && certificationNameSearchResults.length > 0 && (
+                          <CommandGroup>
+                            {certificationNameSearchResults.map((c) => {
+                              const idStr = String(c.id)
+                              const selected = tempFilters.certificationNames.includes(idStr)
+                              return (
+                                <CommandItem
+                                  key={c.id}
+                                  value={idStr}
+                                  onSelect={() => toggleCertificationFromSearch(c)}
+                                  className="cursor-pointer items-start py-2"
+                                >
+                                  <div className="flex flex-1 flex-col gap-0.5 items-start min-w-0 pr-2">
+                                    <span className="font-medium leading-tight">{c.name}</span>
+                                    {c.issuerName ? (
+                                      <span className="text-xs text-muted-foreground leading-tight">
+                                        {c.issuerName}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  {selected ? <Check className="h-4 w-4 shrink-0 opacity-100 mt-0.5" /> : null}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MultiSelect
-                  items={certificationIssuingBodyOptions}
-                  selected={tempFilters.certificationIssuingBodies}
-                  onChange={(values) => handleFilterChange("certificationIssuingBodies", values)}
-                  placeholder="Filter by issuing body..."
-                  label="Issuing Body"
-                  searchPlaceholder="Search issuing bodies..."
-                  maxDisplay={3}
-                />
+                <div className="space-y-2">
+                  <MultiSelect
+                    items={certificationIssuingBodyFilterOptions}
+                    selected={tempFilters.certificationIssuingBodies}
+                    onChange={(values) => handleFilterChange("certificationIssuingBodies", values)}
+                    placeholder="Filter by issuing body..."
+                    label="Issuing Body"
+                    searchPlaceholder="Search issuing bodies..."
+                    maxDisplay={3}
+                  />
+                  {certificationIssuingBodyFilterOptions.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Issuing bodies load from the certification catalog once the issuers API is available.
+                    </p>
+                  )}
+                </div>
 
                 <MultiSelect
                   items={certificationLevelOptions}
@@ -2763,29 +3153,22 @@ export function CandidatesFilterDialog({
                 maxDisplay={3}
               />
 
-              <MultiSelect
-                items={achievementPlatformOptions}
-                selected={tempFilters.achievementPlatforms}
-                onChange={(values) => handleFilterChange("achievementPlatforms", values)}
-                placeholder="Filter by achievement/platform name..."
-                label="Achievement/Platform Name"
-                searchPlaceholder="Search achievements/platforms..."
-                maxDisplay={3}
-              />
-
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="internationalBugBountyOnly"
-                  checked={tempFilters.internationalBugBountyOnly}
-                  onCheckedChange={(checked) => handleFilterChange("internationalBugBountyOnly", !!checked)}
-                />
-                <Label htmlFor="internationalBugBountyOnly" className="text-sm font-normal cursor-pointer">
-                  International Bug Bounty Platforms Only
+              <div className="space-y-2">
+                <Label htmlFor="achievementName" className="text-sm font-semibold">
+                  Achievement Name
                 </Label>
+                <Input
+                  id="achievementName"
+                  type="text"
+                  placeholder="Substring match on achievement name (e.g. HackerOne)"
+                  value={tempFilters.achievementName}
+                  onChange={(e) => handleFilterChange("achievementName", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Same field as the Name input when creating or editing a candidate&apos;s achievements; match is
+                  case-insensitive.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                When enabled, only shows candidates with achievements from international bug bounty platforms (HackerOne, Bugcrowd, Synack, etc.)
-              </p>
             </section>
 
           </div>

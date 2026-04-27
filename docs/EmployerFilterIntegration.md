@@ -73,6 +73,9 @@ Display strings for enums (e.g. ranking tier labels) are **server-normalized** i
 | `employerTypes` | `EmployerType[]?` | Length > 0 | Has **at least one** of the listed employer types. |
 | `salaryPolicies` | `SalaryPolicy[]?` | Length > 0 | Employer-level `SalaryPolicy` is **not null** and is in the list. |
 | `rankings` | `Ranking[]?` | Length > 0 | `Ranking` is **not null** and is in the list. |
+| `workModes` | `WorkMode[]?` | Length > 0 | Employer row’s **`WorkMode`** is **not null** and is in the list (same idea as `rankings` / `salaryPolicies`). |
+| `shiftTypes` | `ShiftType[]?` | Length > 0 | Employer row’s **`ShiftType`** is **not null** and is in the list (same idea as `workModes`). |
+| `timeSupportZones` | `long[]?` | Length > 0 | Employer has **at least one** row in **`employer_time_support_zones`** whose `time_support_zone_id` is in the list. |
 | `tags` | `string[]?` | After trim, at least one non-empty entry | Employer has a tag whose name matches one of the patterns with `ILIike` **without** automatic `%` wrapping — in practice treat as **case-insensitive match to the literal string** unless the UI sends wildcards. |
 | `isDPLCompetitive` | `bool?` | Has value | Must equal employer `IsDplCompetitor`. |
 
@@ -83,6 +86,10 @@ Display strings for enums (e.g. ranking tier labels) are **server-normalized** i
 **`SalaryPolicy` values:** `GrossSalary`, `RemittanceSalary`, `NetSalary`, `FixedSalaryPlusCommissionOrMonthlyBonus`
 
 **`Ranking` values:** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`
+
+**`WorkMode` values (query / enum):** `Onsite`, `Remote`, `Hybrid` — repeated keys may use enum names or underlying integer (`0`, `1`, `2`) per ASP.NET binding.
+
+**`ShiftType` values:** `Day`, `Night`, `Evening`, `Rotational`, `Flexible`, `OnCall`
 
 ---
 
@@ -104,16 +111,8 @@ Data comes from **`CandidateWorkExperience`** rows linked to the employer (`Empl
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
 | `employeeCity` | `string?` | Non-whitespace after trim | At least one work experience whose candidate has a **non-null** city containing substring (case-insensitive). |
-| `employeeCountries` | `short[]?` | — | **Present on the request model and mapped in the application layer, but not applied in `EmployerRepository` today.** Sending it has **no effect** until implemented. |
 | `benefits` | `string[]?` | After trim, at least one non-empty | Employer-level benefit **or** any candidate work-experience benefit name matches one entry (same `ILIke` semantics as `tags`). |
-| `shiftTypes` | `ShiftType[]?` | Length > 0 | **Non-strict:** at least one work experience has a shift type in the list. **Strict** (`shiftTypesStrict=true`): there is **at least one** work experience **and every** work experience has a non-null shift type in the list. |
-| `workModes` | `WorkMode[]?` | Length > 0 | Same pattern as shift types, using `workModesStrict`. |
-| `timeSupportZones` | `long[]?` | Length > 0 | At least one work experience uses **any** of the listed time-zone IDs. |
 | `avgJobTenureMin` / `avgJobTenureMax` | `double?` | Either set | Per-employer **average** tenure in years over all that employer’s candidate work experiences (computed in SQL). Open-ended roles use “today” for end date in the average. |
-
-**`ShiftType` values:** `Day`, `Night`, `Evening`, `Rotational`, `Flexible`, `OnCall`
-
-**`WorkMode` values:** `Onsite`, `Remote`, `Hybrid`
 
 ---
 
@@ -172,9 +171,7 @@ For **`int[]`**, **`long[]`**, **`short[]`** you can usually pass numeric string
 1. **Pagination:** always send `pageNumber` and `pageSize`; read `totalCount` / `totalPages` for paging controls.
 2. **Clear filters:** omit parameters or send empty arrays where applicable; do not send placeholder strings for unused text filters.
 3. **Founded year:** multi-select sends multiple integers; employers without a founded year never match when this filter is active.
-4. **Strict modes:** `shiftTypesStrict` / `workModesStrict` are separate booleans; pair them with their respective enum arrays.
-5. **Layoffs:** combining date range with `minLayoffEmployees` uses the **sum inside the date window**, not all-time, when dates are present.
-6. **`employeeCountries`:** currently **no-op** on the server — hide or stub until backend support exists.
+4. **Layoffs:** combining date range with `minLayoffEmployees` uses the **sum inside the date window**, not all-time, when dates are present.
 
 ---
 
