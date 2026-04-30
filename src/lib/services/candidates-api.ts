@@ -224,14 +224,14 @@ function mapProjectExperience(raw: Record<string, unknown>, idx: number): Projec
   }
 }
 
-const API_TO_BENEFIT_UNIT: Record<number, BenefitUnit> = { 0: "PKR", 1: "days", 2: "count", 3: "percent" }
+const API_TO_BENEFIT_UNIT: Record<number, BenefitUnit> = { 0: "PKR", 1: "percent" }
 
 function mapBenefit(raw: Record<string, unknown>, idx: number): EmployerBenefit {
   const u = raw.unitType ?? raw.unit
   let unit: BenefitUnit | null = null
   if (typeof u === "number") {
     unit = API_TO_BENEFIT_UNIT[u] ?? null
-  } else if (u === "PKR" || u === "days" || u === "count" || u === "percent") {
+  } else if (u === "PKR" || u === "percent") {
     unit = u
   }
   const amt = raw.value ?? raw.amount

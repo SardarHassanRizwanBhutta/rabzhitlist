@@ -199,10 +199,6 @@ export function BenefitsSelector({
     switch (unit) {
       case "PKR":
         return "Amount (PKR)"
-      case "days":
-        return "Number of days"
-      case "count":
-        return "Count"
       case "percent":
         return "Percentage (%)"
       default:
@@ -214,10 +210,6 @@ export function BenefitsSelector({
     switch (unit) {
       case "PKR":
         return "e.g. 50000"
-      case "days":
-        return "e.g. 20"
-      case "count":
-        return "e.g. 3"
       case "percent":
         return "e.g. 10"
       default:
@@ -360,21 +352,19 @@ export function BenefitsSelector({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="PKR">PKR (Currency)</SelectItem>
-                      <SelectItem value="days">Days</SelectItem>
-                      <SelectItem value="count">Count/Number</SelectItem>
                       <SelectItem value="percent">Percentage (%)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="custom-amount">
-                    Value {customUnit === "PKR" ? "(PKR)" : customUnit === "days" ? "(days)" : customUnit === "percent" ? "(%)" : ""}
+                    Value {customUnit === "PKR" ? "(PKR)" : customUnit === "percent" ? "(%)" : ""}
                   </Label>
                   <Input
                     id="custom-amount"
                     type="number"
                     step="any"
-                    placeholder={customUnit === "days" ? "e.g., 20" : customUnit === "percent" ? "e.g., 10" : "e.g., 10000"}
+                    placeholder={customUnit === "percent" ? "e.g., 10" : "e.g., 10000"}
                     value={customAmount}
                     onChange={(e) => setCustomAmount(e.target.value)}
                   />
@@ -505,8 +495,6 @@ export function BenefitsSelector({
                           </SelectTrigger>
                           <SelectContent position="popper" className="z-[60]">
                             <SelectItem value="PKR">PKR — currency</SelectItem>
-                            <SelectItem value="days">Days</SelectItem>
-                            <SelectItem value="count">Count</SelectItem>
                             <SelectItem value="percent">Percentage (%)</SelectItem>
                           </SelectContent>
                         </Select>

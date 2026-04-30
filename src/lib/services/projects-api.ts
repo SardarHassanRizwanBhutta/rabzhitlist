@@ -159,6 +159,9 @@ export const PUBLISH_PLATFORM_UI_TO_NUM: Record<PublishPlatform, number> = {
   "Play Store": 1,
   Web: 2,
   Desktop: 3,
+  Cloud: 4,
+  IoT: 5,
+  Embedded: 6,
 }
 
 const PUBLISH_PLATFORM_NUM_TO_UI: Record<number, PublishPlatform> = {
@@ -166,6 +169,9 @@ const PUBLISH_PLATFORM_NUM_TO_UI: Record<number, PublishPlatform> = {
   1: "Play Store",
   2: "Web",
   3: "Desktop",
+  4: "Cloud",
+  5: "IoT",
+  6: "Embedded",
 }
 
 // --- Domain enum constants (backend serializes as integers) ---
@@ -179,6 +185,7 @@ export const VERTICAL_DOMAIN_LABELS: Record<number, string> = {
   14: "Government / Public Sector", 15: "Media & Entertainment",
   16: "Agriculture / AgriTech", 17: "Aviation",
   18: "Pharma / Life Sciences", 19: "Gaming",
+  20: "Legal", 21: "Fitness & Wellness", 22: "Sports",
 }
 
 export const HORIZONTAL_DOMAIN_LABELS: Record<number, string> = {
@@ -189,9 +196,6 @@ export const HORIZONTAL_DOMAIN_LABELS: Record<number, string> = {
   6: "Payment Processing", 7: "Analytics & Business Intelligence",
   8: "Marketing Automation", 9: "Customer Support / Helpdesk",
   10: "Notification Systems", 11: "Workflow / BPM",
-  12: "Cloud Computing", 13: "AI & Machine Learning",
-  14: "Internet of Things", 15: "Data Science & Big Data",
-  16: "Cybersecurity", 17: "Blockchain", 18: "DevOps",
 }
 
 export const VERTICAL_DOMAINS: Array<{ value: number; label: string }> =

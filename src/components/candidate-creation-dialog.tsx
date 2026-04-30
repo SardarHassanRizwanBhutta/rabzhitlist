@@ -145,7 +145,7 @@ export interface WorkExperienceBenefit {
   name: string
   hasValue: boolean
   amount: number | null
-  unit: "PKR" | "days" | "count" | "percent" | null
+  unit: "PKR" | "percent" | null
 }
 
 export interface WorkExperience {
