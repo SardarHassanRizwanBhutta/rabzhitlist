@@ -3,8 +3,6 @@ import type { BenefitUnit } from "@/lib/types/benefits"
 /** Unit display labels for benefit amounts */
 export const UNIT_LABELS: Record<BenefitUnit, string> = {
   PKR: "PKR",
-  days: "days",
-  count: "",
   percent: "%",
 }
 
@@ -27,12 +25,8 @@ export function formatBenefitAmount(
   switch (unit) {
     case "PKR":
       return `${formattedAmount} PKR`
-    case "days":
-      return `${amount} ${amount === 1 ? "day" : "days"}`
     case "percent":
       return `${amount}%`
-    case "count":
-      return formattedAmount
     default:
       return formattedAmount
   }

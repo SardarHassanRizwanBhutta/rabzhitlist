@@ -1,5 +1,5 @@
-// Unit type for benefit amounts (maps to backend BenefitUnit: Pkr, Days, Count, Percentage)
-export type BenefitUnit = "PKR" | "days" | "count" | "percent"
+// Unit type for benefit amounts (maps to backend BenefitUnit: Pkr = 0, Percentage = 1)
+export type BenefitUnit = "PKR" | "percent"
 
 /** Employer benefit: name + optional measured value (matches EmployerBenefitDto / UpsertEmployerBenefitDto). */
 export interface EmployerBenefit {
@@ -23,9 +23,7 @@ export interface BenefitTemplate {
 /** API numeric enum for BenefitUnit (backend order). */
 const BENEFIT_UNIT_API: Record<BenefitUnit, number> = {
   PKR: 0,
-  days: 1,
-  count: 2,
-  percent: 3,
+  percent: 1,
 }
 
 /** Coerce legacy or partial objects to a consistent `EmployerBenefit` (e.g. cached employer JSON). */

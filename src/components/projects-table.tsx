@@ -176,6 +176,9 @@ const publishPlatformOptions: MultiSelectOption[] = [
   { value: "Play Store", label: "Play Store (Android)" },
   { value: "Web", label: "Web" },
   { value: "Desktop", label: "Desktop" },
+  { value: "Cloud", label: "Cloud" },
+  { value: "IoT", label: "IoT" },
+  { value: "Embedded", label: "Embedded" },
 ]
 
 // Extract unique project types

@@ -73,9 +73,7 @@ export const LAYOFF_REASON_TO_API: Record<LayoffReasonDb, number> = {
 }
 export const BENEFIT_UNIT_TO_API: Record<BenefitUnit, number> = {
   PKR: 0,
-  days: 1,
-  count: 2,
-  percent: 3,
+  percent: 1,
 }
 /** EmployerStatus: Open = 0, Closed = 1, Flagged = 2 (employer_statuses). */
 export const EMPLOYER_STATUS_TO_API: Record<EmployerStatusDb, number> = {
@@ -122,9 +120,7 @@ const API_TO_LAYOFF_REASON: Record<number, LayoffReasonDb> = {
 }
 const API_TO_BENEFIT_UNIT: Record<number, BenefitUnit> = {
   0: "PKR",
-  1: "days",
-  2: "count",
-  3: "percent",
+  1: "percent",
 }
 
 /** List API returns display strings; map to DB for Employer type. */

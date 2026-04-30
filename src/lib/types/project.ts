@@ -1,4 +1,11 @@
-export type PublishPlatform = "App Store" | "Play Store" | "Web" | "Desktop"
+export type PublishPlatform =
+  | "App Store"
+  | "Play Store"
+  | "Web"
+  | "Desktop"
+  | "Cloud"
+  | "IoT"
+  | "Embedded"
 
 /**
  * Filter and form multiselect options. `value` must match backend publish platform enum / `PUBLISH_PLATFORM_UI_TO_NUM` keys.
@@ -11,6 +18,9 @@ export const PUBLISH_PLATFORM_FILTER_OPTIONS: ReadonlyArray<{
   { value: "Play Store", label: "Play Store (Android)" },
   { value: "Web", label: "Web" },
   { value: "Desktop", label: "Desktop" },
+  { value: "Cloud", label: "Cloud" },
+  { value: "IoT", label: "IoT" },
+  { value: "Embedded", label: "Embedded" },
 ]
 
 export interface Project {
@@ -41,7 +51,7 @@ export interface Project {
   projectLink: string | null
   projectType: ProjectType
   isPublished: boolean  // Is this project/app published on any platform?
-  publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop)
+  publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop, Cloud, IoT, Embedded)
   downloadCount?: number  // Download count (e.g., 150000 for 150K downloads)
   createdAt: Date
   updatedAt: Date
