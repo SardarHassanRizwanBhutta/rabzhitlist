@@ -38,6 +38,7 @@ import {
   fetchCandidatesPage,
   createCandidate,
   candidateFormDataToCreateDto,
+  prepareCandidateCreateLookups,
   candidateListItemDtoToCandidate,
 } from "@/lib/services/candidates-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
@@ -679,7 +680,9 @@ export function CandidatesPageClient() {
 
   const handleCandidateSubmit = async (data: CandidateFormData) => {
     try {
-      await createCandidate(candidateFormDataToCreateDto(data, candidateLookups))
+      const preparedLookups = await prepareCandidateCreateLookups(data, candidateLookups)
+      setTechStacksLookup(preparedLookups.techStacks ?? [])
+      await createCandidate(candidateFormDataToCreateDto(data, preparedLookups))
       toast.success("Candidate created successfully.")
       setPageNumber(1)
       refetchCandidates()
