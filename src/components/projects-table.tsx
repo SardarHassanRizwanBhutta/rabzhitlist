@@ -240,15 +240,6 @@ const extractUniqueHorizontalDomains = (): string[] => {
   return Array.from(domains).sort()
 }
 
-// Extract unique technical aspects
-const extractUniqueTechnicalAspects = (): string[] => {
-  const aspects = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.technicalAspects.forEach(aspect => aspects.add(aspect))
-  })
-  return Array.from(aspects).sort()
-}
-
 // Extract unique client locations (from clientLocations array or legacy clientLocation)
 const extractUniqueClientLocations = (): string[] => {
   const locations = new Set<string>()
@@ -275,11 +266,6 @@ const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => (
 const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
   value: d.label,
   label: d.label,
-}))
-
-const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
-  value: aspect,
-  label: aspect
 }))
 
 const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(loc => ({
@@ -410,7 +396,7 @@ export function ProjectsTable({
         project.verticalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.horizontalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.technicalDomains.some((domain) => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.technicalAspects.some(aspect => aspect.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        project.aspectTypeLabels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.isPublished && "published".includes(searchQuery.toLowerCase())) ||
         (project.publishPlatforms && project.publishPlatforms.some(platform => platform.toLowerCase().includes(searchQuery.toLowerCase())))
     )
@@ -622,7 +608,7 @@ export function ProjectsTable({
                   )}
                 </TableCell>
                 <TableCell>
-                  {renderTags(project.technicalAspects, 2, "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200")}
+                  {renderTags(project.aspectTypeLabels, 2, "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200")}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
@@ -2884,18 +2870,32 @@ function ProjectDetailDialog({
                 maxDisplay={4}
               />
 
-              <InlineEditableMultiSelect
-                label="Technical Aspects"
-                value={localProject.technicalAspects || []}
-                fieldName="technicalAspects"
-                options={technicalAspectOptions}
-                onSave={handleMultiSelectFieldSave}
-                getFieldVerification={getFieldVerification}
-                placeholder="Select technical aspects..."
-                searchPlaceholder="Search technical aspects..."
-                badgeColorClass="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                maxDisplay={4}
-              />
+              {/*
+                Technical Aspects is a server-derived, read-only summary of the
+                `TechnicalAspectType` rows whose tech stacks the project uses
+                (server projects `aspectTypeLabels`). It is not directly
+                editable: change the tech stacks above to change this list.
+              */}
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-muted-foreground">Technical Aspects</Label>
+                {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {localProject.aspectTypeLabels.map((label) => (
+                      <Badge
+                        key={label}
+                        variant="secondary"
+                        className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                      >
+                        {label}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    Derived from selected tech stacks.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

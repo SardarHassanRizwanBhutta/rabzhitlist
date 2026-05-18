@@ -489,6 +489,100 @@ export function ProjectCreationDialog({
       })
   }, [open, mode, projectData?.employerId])
 
+  // ---- Edit mode: prefill aspect-type ids and per-aspect tech stacks ----
+  //
+  // The Project DTO carries `aspectTypeLabels` (server-derived from tech
+  // stacks) but not the underlying catalog ids, and not the per-aspect-type
+  // tech-stack grouping the dialog needs. We reconstruct both client-side:
+  //
+  //   1. Reverse-map labels -> catalog ids using technicalAspectTypeOptions
+  //      (the dialog already loads this from /api/TechnicalAspectTypes).
+  //   2. The existing aspectTypeIdsKey effect then fetches the scoped stack
+  //      list for each derived id and stores it in scopedStacksByTypeId.
+  //   3. Once scoped stacks have loaded, intersect each list with the
+  //      project's techStacks to populate techStacksByAspectType so the
+  //      "Technologies by aspect type" sub-MultiSelects render with the
+  //      correct chips selected.
+  //
+  // We never overwrite formData.techStacks here -- the merge logic only runs
+  // through the change handlers, so prefill keeps the project's tech-stack
+  // list untouched (including any stack not linked to a known aspect type).
+  // A pair of refs guards against re-running after the user starts editing.
+  const aspectTypePrefillProjectIdRef = useRef<string | null>(null)
+  const stacksByAspectPrefillProjectIdRef = useRef<string | null>(null)
+
+  // Reset the prefill guards every time we (re)open the dialog for an edit.
+  useEffect(() => {
+    if (open && mode === "edit") {
+      aspectTypePrefillProjectIdRef.current = null
+      stacksByAspectPrefillProjectIdRef.current = null
+    }
+  }, [open, mode, projectData?.id])
+
+  // Step 1: derive technicalAspectTypeIds from aspectTypeLabels.
+  useEffect(() => {
+    if (!open || mode !== "edit" || !projectData) return
+    if (aspectTypePrefillProjectIdRef.current === projectData.id) return
+    if (technicalAspectTypeOptions.length === 0) return // wait for catalog
+    const labels = projectData.aspectTypeLabels ?? []
+    if (labels.length === 0) {
+      aspectTypePrefillProjectIdRef.current = projectData.id
+      return
+    }
+    const labelToId = new Map(technicalAspectTypeOptions.map((o) => [o.label, o.value]))
+    const ids = labels
+      .map((label) => labelToId.get(label))
+      .filter((id): id is string => Boolean(id))
+    if (ids.length === 0) {
+      aspectTypePrefillProjectIdRef.current = projectData.id
+      return
+    }
+    setFormData((prev) => {
+      // Preserve any user edits made before the catalog finished loading.
+      if (prev.technicalAspectTypeIds.length > 0) return prev
+      return { ...prev, technicalAspectTypeIds: ids }
+    })
+    aspectTypePrefillProjectIdRef.current = projectData.id
+  }, [open, mode, projectData, technicalAspectTypeOptions])
+
+  // Step 2: once scoped stack lists are loaded for the derived aspect-type
+  // ids, populate techStacksByAspectType by intersecting each list with the
+  // project's saved tech stacks.
+  useEffect(() => {
+    if (!open || mode !== "edit" || !projectData) return
+    if (stacksByAspectPrefillProjectIdRef.current === projectData.id) return
+    const ids = formData.technicalAspectTypeIds
+    if (ids.length === 0) return
+    // Wait until every derived id has an entry in scopedStacksByTypeId.
+    if (!ids.every((id) => scopedStacksByTypeId[id] !== undefined)) return
+
+    const projectStacks = new Set(
+      (projectData.techStacks ?? []).map((s) => s.toLowerCase())
+    )
+    const nextByAspect: Record<string, string[]> = {}
+    for (const idStr of ids) {
+      const scoped = scopedStacksByTypeId[idStr] ?? []
+      nextByAspect[idStr] = scoped
+        .filter((row) => projectStacks.has(row.name.toLowerCase()))
+        .map((row) => row.name)
+    }
+    setFormData((prev) => {
+      // If the user already started picking per-aspect stacks, don't overwrite.
+      const hasUserSelection = Object.values(prev.techStacksByAspectType).some(
+        (list) => list.length > 0
+      )
+      if (hasUserSelection) return prev
+      return { ...prev, techStacksByAspectType: nextByAspect }
+    })
+    stacksByAspectPrefillProjectIdRef.current = projectData.id
+  }, [
+    open,
+    mode,
+    projectData,
+    formData.technicalAspectTypeIds,
+    scopedStacksByTypeId,
+  ])
+
   // Debounced employer search: min 2 chars, 300ms debounce, abort stale
   useEffect(() => {
     if (employerDebounceRef.current) {
@@ -1493,20 +1587,6 @@ export function ProjectCreationDialog({
                         </div>
                       )}
 
-                      {formData.techStacks.length > 0 && (
-                        <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-                          <Label className="text-xs text-muted-foreground">
-                            Project technologies (deduplicated from selections above)
-                          </Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {formData.techStacks.map((name) => (
-                              <Badge key={name} variant="secondary" className="font-normal">
-                                {name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       <VerificationCheckbox fieldName="techStacks" />
                     </CardContent>
                   </CollapsibleContent>

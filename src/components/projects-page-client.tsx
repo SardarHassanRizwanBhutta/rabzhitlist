@@ -80,19 +80,25 @@ function labelsToInts(labels: string[], toInt: (label: string) => number | undef
   return labels.map(toInt).filter((v): v is number => v != null)
 }
 
-function aspectTypeIdStringsToInts(ids: string[]): number[] {
-  return ids.map((s) => parseInt(s, 10)).filter((n): n is number => !Number.isNaN(n))
-}
-
-/** PUT/POST body uses `technicalAspects` (enum ints per PROJECT-API-REFERENCE.md), not `technicalAspectIds`. */
+/**
+ * Resolve UI aspect names to `TechnicalAspect` enum ints for the project
+ * create/update body.
+ *
+ * NOTE: `data.technicalAspectTypeIds` (from GET /api/TechnicalAspectTypes) are
+ * deliberately NOT merged here. That catalog is a separate enum used purely to
+ * scope the tech-stack picker in the UI — it is not a persisted field on
+ * `Project`. Sending those ids in `technicalAspects` causes 500s when a catalog
+ * id falls outside the `TechnicalAspect` enum range (e.g. id 25 when the enum
+ * tops out at 24).
+ *
+ * The legacy lookup at GET /api/technicalaspects is the authoritative source
+ * for valid `TechnicalAspect` ints; `legacyLookup[i].id` IS the enum ordinal.
+ */
 function technicalAspectEnumsForProjectBody(
   legacyAspectNames: string[],
-  aspectTypeIdStrings: string[] | undefined,
   legacyLookup: LookupItem[]
 ): number[] {
-  const fromLegacy = namesToIds(legacyAspectNames, legacyLookup)
-  const fromTypes = aspectTypeIdStringsToInts(aspectTypeIdStrings ?? [])
-  return [...new Set([...fromTypes, ...fromLegacy])]
+  return [...new Set(namesToIds(legacyAspectNames, legacyLookup))]
 }
 
 export function ProjectsPageClient() {
@@ -115,11 +121,16 @@ export function ProjectsPageClient() {
   const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
   const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<MultiSelectOption[]>([])
 
-  // Resolve filter names/labels to IDs/integers for server-side filtering
+  // Resolve filter names/labels to IDs/integers for server-side filtering.
+  // `technicalAspectTypeIds` is NOT included here: it's a different enum
+  // (TechnicalAspectType catalog) used only to scope the tech-stack picker;
+  // GET /api/projects does not accept it, and merging its ids into
+  // `technicalAspects` causes 500s when an id falls outside the
+  // `TechnicalAspect` enum range.
   const filterIds = useMemo(() => {
-    const fromLegacyAspects = namesToIds(filters.technicalAspects, technicalAspectsLookup)
-    const fromAspectTypes = aspectTypeIdStringsToInts(filters.technicalAspectTypeIds)
-    const technicalAspectEnumValues = [...new Set([...fromAspectTypes, ...fromLegacyAspects])]
+    const technicalAspectEnumValues = [
+      ...new Set(namesToIds(filters.technicalAspects, technicalAspectsLookup)),
+    ]
     return {
       techStackIds: namesToIds(filters.techStacks, techStacksLookup),
       verticalDomains: labelsToInts(filters.verticalDomains, verticalDomainLabelToInt),
@@ -134,12 +145,27 @@ export function ProjectsPageClient() {
     filters.horizontalDomains,
     filters.technicalDomains,
     filters.technicalAspects,
-    filters.technicalAspectTypeIds,
     filters.clientLocations,
     techStacksLookup,
     technicalAspectsLookup,
     clientLocationsLookup,
   ])
+
+  // Client-side filter for `technicalAspectTypeIds`. Server doesn't support
+  // this query parameter, but the project DTO now ships server-derived
+  // `aspectTypeLabels`, so we filter the already-loaded page here. Pagination
+  // counts therefore reflect the server result, not the post-filter set --
+  // acceptable trade-off given this is a UI-only refinement.
+  const visibleProjects = useMemo(() => {
+    const ids = filters.technicalAspectTypeIds
+    if (!ids?.length) return projects
+    const idToLabel = new Map(technicalAspectTypeSelectOptions.map((o) => [o.value, o.label]))
+    const wantedLabels = new Set(
+      ids.map((id) => idToLabel.get(id)).filter((label): label is string => Boolean(label))
+    )
+    if (wantedLabels.size === 0) return projects
+    return projects.filter((p) => p.aspectTypeLabels.some((label) => wantedLabels.has(label)))
+  }, [projects, filters.technicalAspectTypeIds, technicalAspectTypeSelectOptions])
 
   // Fetch lookups once on mount (technical domains from GET /api/TechnicalDomains)
   useEffect(() => {
@@ -254,7 +280,6 @@ export function ProjectsPageClient() {
       technicalDomains: labelsToInts(data.technicalDomains, technicalDomainLabelToInt),
       technicalAspects: technicalAspectEnumsForProjectBody(
         data.technicalAspects,
-        data.technicalAspectTypeIds,
         technicalAspectsLookup
       ),
       clientLocationIds: namesToIds(data.clientLocations, clientLocationsLookup),
@@ -294,7 +319,6 @@ export function ProjectsPageClient() {
       technicalDomains: labelsToInts(formData.technicalDomains, technicalDomainLabelToInt),
       technicalAspects: technicalAspectEnumsForProjectBody(
         formData.technicalAspects,
-        formData.technicalAspectTypeIds,
         technicalAspectsLookup
       ),
       clientLocationIds: namesToIds(formData.clientLocations, clientLocationsLookup),
@@ -324,6 +348,7 @@ export function ProjectsPageClient() {
 
   const handleEdit = async (project: Project) => {
     try {
+      await ensureTechnicalDomainsCatalogLoaded()
       const dto = await fetchProjectById(Number(project.id))
       const full = projectDtoToProject(dto)
       setProjectToEdit(full)
@@ -336,6 +361,7 @@ export function ProjectsPageClient() {
 
   const handleVerify = async (project: Project) => {
     try {
+      await ensureTechnicalDomainsCatalogLoaded()
       const dto = await fetchProjectById(Number(project.id))
       const full = projectDtoToProject(dto)
       setProjectToVerify(full)
@@ -511,7 +537,7 @@ export function ProjectsPageClient() {
       )}
 
       <ProjectsTable
-        projects={projects}
+        projects={visibleProjects}
         isLoading={loading}
         totalCount={totalCount}
         pageNumber={pageNumber}
