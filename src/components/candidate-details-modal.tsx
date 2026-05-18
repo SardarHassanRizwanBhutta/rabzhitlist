@@ -44,6 +44,7 @@ import {
   updateCandidate,
   candidateFormDataToUpdateDto,
   syncCandidateSubResources,
+  prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
 import { fetchTechStacks } from "@/lib/services/lookups-api"
 import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
@@ -2845,8 +2846,9 @@ export function CandidateDetailsModal({
       return
     }
     try {
+      const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidate))
-      await syncCandidateSubResources(id, formData, candidate, editLookups)
+      await syncCandidateSubResources(id, formData, candidate, preparedLookups)
 
       const verifiedCount = verificationState?.verifiedFields.size || 0
       const modifiedCount = verificationState?.modifiedFields.size || 0

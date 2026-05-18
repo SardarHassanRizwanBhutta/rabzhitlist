@@ -45,6 +45,7 @@ import {
   updateCandidate,
   candidateFormDataToUpdateDto,
   syncCandidateSubResources,
+  prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
 
 const defaultFilters: CandidateFilters = {
@@ -375,8 +376,9 @@ export function CandidatesCardsView({
       return
     }
     try {
+      const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
-      await syncCandidateSubResources(id, formData, candidateToEdit, candidateLookups)
+      await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
       toast.success("Candidate updated successfully.")
       onCandidatesListChanged?.()
       setEditDialogOpen(false)

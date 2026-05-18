@@ -30,6 +30,7 @@ import {
 } from "@/lib/constants/candidate-enums"
 import { employerBenefitToApiValueFields, type BenefitUnit, type EmployerBenefit } from "@/lib/types/benefits"
 import { API_BASE_URL } from "@/lib/config/api"
+import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
 
 // --- API DTOs (aligned with Candidates-API-Reference.md) ---
 
@@ -523,6 +524,66 @@ function lookupIdByName(
 ): number | null {
   const lower = name.trim().toLowerCase()
   return lookups.find((l) => l.name.toLowerCase() === lower)?.id ?? null
+}
+
+/** All tech stack names on the form (candidate-level + each work experience). */
+export function collectTechStackNamesFromCandidateForm(data: CandidateFormData): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(trimmed)
+  }
+  for (const n of data.techStacks ?? []) add(n)
+  for (const we of data.workExperiences ?? []) {
+    for (const n of we.techStacks ?? []) add(n)
+  }
+  return out
+}
+
+/**
+ * For each name not in `lookups`, POST /api/TechStacks (idempotent when the name
+ * already exists). Returns an expanded catalog so name→id mapping on save does not
+ * drop resume-parsed or free-typed stacks.
+ */
+export async function ensureTechStacksInLookup(
+  names: readonly string[],
+  lookups: readonly LookupItem[],
+  create: (name: string) => Promise<LookupItem> = createTechStack
+): Promise<LookupItem[]> {
+  const byLower = new Map<string, LookupItem>()
+  for (const l of lookups) {
+    if (l?.name?.trim()) byLower.set(l.name.trim().toLowerCase(), l)
+  }
+  const result = [...lookups]
+  for (const name of names) {
+    const trimmed = name.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (byLower.has(key)) continue
+    const created = await create(trimmed)
+    byLower.set(key, created)
+    const idx = result.findIndex((r) => r.id === created.id)
+    if (idx >= 0) result[idx] = created
+    else result.push(created)
+  }
+  return result
+}
+
+/** Expand tech-stack lookup before create/update so every form name resolves to an id. */
+export async function prepareCandidateCreateLookups(
+  data: CandidateFormData,
+  lookups?: CandidateCreateLookups
+): Promise<CandidateCreateLookups> {
+  const techStacks = await ensureTechStacksInLookup(
+    collectTechStackNamesFromCandidateForm(data),
+    lookups?.techStacks ?? []
+  )
+  return { ...lookups, techStacks }
 }
 
 export interface CandidateCreateLookups {

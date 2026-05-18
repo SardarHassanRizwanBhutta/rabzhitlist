@@ -79,6 +79,7 @@ import {
   updateCandidate,
   candidateFormDataToUpdateDto,
   syncCandidateSubResources,
+  prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -354,8 +355,9 @@ export function CandidatesTable({
       return
     }
     try {
+      const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
-      await syncCandidateSubResources(id, formData, candidateToEdit, candidateLookups)
+      await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
       toast.success("Candidate updated successfully.")
       onCandidatesListChanged?.()
       setEditDialogOpen(false)
