@@ -1,20 +1,10 @@
 /**
- * Browser calls the resume parser directly at `{NEXT_PUBLIC_PARSER_API_URL}/api/parse-resume`.
- * Strip trailing slashes from the base URL so paths never double up (`/parser//api/...`).
+ * Browser posts to same-origin `/api/resume-parse`; the Next route proxies to
+ * `NEXT_PUBLIC_PARSER_API_URL` (or `RESUME_PARSER_URL`) server-side so CORS is not required on the parser.
  * Multipart field name is `resume` (see API_DOCUMENTATION.md / Flask API).
  */
 
-function parserParseResumeUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_PARSER_API_URL?.trim()
-  if (!raw) {
-    throw new Error(
-      "NEXT_PUBLIC_PARSER_API_URL is not set. Add it to .env.local (e.g. http://localhost:7000) and restart the dev server."
-    )
-  }
-  const base = raw.replace(/\/$/, "")
-  if (base.includes("/api/parse-resume")) return base
-  return `${base}/api/parse-resume`
-}
+const RESUME_PARSE_PROXY_PATH = "/api/resume-parse"
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -42,7 +32,7 @@ export async function parseResume(file: File): Promise<unknown> {
   const formData = new FormData()
   formData.append("resume", file)
 
-  const res = await fetch(parserParseResumeUrl(), {
+  const res = await fetch(RESUME_PARSE_PROXY_PATH, {
     method: "POST",
     body: formData,
   })
