@@ -30,6 +30,11 @@ export interface ProjectListItemDto {
   technicalDomains?: number[]
   /** `TechnicalAspect` enum values (numbers per PROJECT-API-REFERENCE.md). */
   technicalAspects?: number[]
+  /**
+   * Server-derived distinct `TechnicalAspectType.DisplayName` values from the
+   * project's tech stacks. Read-only on the wire (no corresponding write field).
+   */
+  aspectTypeLabels?: string[]
   publishPlatforms?: number[]
   clientLocations?: string[]
   createdAt?: string
@@ -68,6 +73,11 @@ export interface ProjectDto {
   technicalDomains: number[]
   /** `TechnicalAspect` enum values from API (numbers). */
   technicalAspects: number[]
+  /**
+   * Server-derived distinct `TechnicalAspectType.DisplayName` values from the
+   * project's tech stacks. Read-only on the wire (no corresponding write field).
+   */
+  aspectTypeLabels?: string[]
   publishPlatforms: number[]
   clientLocations: string[]
   createdAt: string
@@ -181,11 +191,16 @@ export const VERTICAL_DOMAIN_LABELS: Record<number, string> = {
   4: "Retail", 5: "E-commerce", 6: "Telecommunications", 7: "Manufacturing",
   8: "Automotive", 9: "Real Estate / Property Management",
   10: "Travel & Hospitality", 11: "Logistics & Supply Chain",
-  12: "Energy & Utilities", 13: "Education / EdTech",
+  12: "Energy & Utilities", 13: "Education",
   14: "Government / Public Sector", 15: "Media & Entertainment",
-  16: "Agriculture / AgriTech", 17: "Aviation",
+  16: "Agriculture", 17: "Aviation",
   18: "Pharma / Life Sciences", 19: "Gaming",
   20: "Legal", 21: "Fitness & Wellness", 22: "Sports",
+  23: "Facilities Management",
+  24: "Cross-Industry / Enterprise",
+  25: "Information Technology / Software",
+  26: "Transportation",
+  27: "Non-Profit & NGOs",
 }
 
 export const HORIZONTAL_DOMAIN_LABELS: Record<number, string> = {
@@ -499,6 +514,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     horizontalDomains: (dto.horizontalDomains ?? []).map(resolveHorizontalDomain),
     technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
     technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
+    aspectTypeLabels: dto.aspectTypeLabels ?? [],
     teamSize: formatTeamSize(dto.minTeamSize ?? null, dto.maxTeamSize ?? null),
     minTeamSize: dto.minTeamSize ?? undefined,
     maxTeamSize: dto.maxTeamSize ?? undefined,
@@ -534,6 +550,7 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     horizontalDomains: (dto.horizontalDomains ?? []).map(resolveHorizontalDomain),
     technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
     technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
+    aspectTypeLabels: dto.aspectTypeLabels ?? [],
     teamSize: formatTeamSize(dto.minTeamSize, dto.maxTeamSize),
     minTeamSize: dto.minTeamSize ?? undefined,
     maxTeamSize: dto.maxTeamSize ?? undefined,

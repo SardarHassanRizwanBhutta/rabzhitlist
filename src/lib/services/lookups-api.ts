@@ -94,10 +94,33 @@ export async function createTechStack(name: string, technicalAspectTypeIds?: num
 // These are now fixed enums on the backend (no CRUD).
 // Use VERTICAL_DOMAINS / HORIZONTAL_DOMAINS from projects-api.ts for dropdowns.
 
-// --- Technical Aspects (legacy lookup for project technicalAspectIds) ---
+// --- Technical Aspects (canonical TechnicalAspect enum from backend) ---
+//
+// The endpoint is the source of truth for the `TechnicalAspect` enum. It
+// historically returned `{ id, name }` (`LookupItem`) and now returns
+// `{ value, label }` (matching the C# enum ordinals 0..N). We accept both
+// shapes and normalize to `LookupItem` so that downstream callers can keep
+// using `name` for display while `id` is the canonical enum int sent on
+// project create/update payloads.
 
 export async function fetchTechnicalAspects(): Promise<LookupItem[]> {
-  return getList<LookupItem>("/api/technicalaspects")
+  const response = await fetch(`${API_BASE_URL}/api/technicalaspects`)
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Failed to fetch /api/technicalaspects: ${response.status} — ${text}`)
+  }
+  const data = (await response.json()) as unknown
+  if (!Array.isArray(data)) return []
+  return data
+    .map((row): LookupItem | null => {
+      if (!row || typeof row !== "object") return null
+      const r = row as Record<string, unknown>
+      const idCandidate = r.id ?? r.value
+      const nameCandidate = r.name ?? r.label
+      if (typeof idCandidate !== "number" || typeof nameCandidate !== "string") return null
+      return { id: idCandidate, name: nameCandidate }
+    })
+    .filter((row): row is LookupItem => row !== null)
 }
 
 export async function createTechnicalAspect(name: string): Promise<LookupItem> {
