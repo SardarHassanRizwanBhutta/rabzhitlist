@@ -31,6 +31,7 @@ import {
 import { employerBenefitToApiValueFields, type BenefitUnit, type EmployerBenefit } from "@/lib/types/benefits"
 import { API_BASE_URL } from "@/lib/config/api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
+import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 
 // --- API DTOs (aligned with Candidates-API-Reference.md) ---
 
@@ -65,6 +66,7 @@ export interface CandidateListItemDto {
   updatedAt: string
   /** Same as detail GET — for list badges/filters without an extra fetch. */
   isTopDeveloper?: boolean
+  dataProgressPercentage?: number | null
 }
 
 export interface CreateCandidateDto {
@@ -435,6 +437,12 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     techStacks: [],
     isTopDeveloper:
       typeof row.isTopDeveloper === "boolean" ? row.isTopDeveloper : false,
+    dataProgressPercentage:
+      typeof row.dataProgressPercentage === "number"
+        ? row.dataProgressPercentage
+        : row.dataProgressPercentage != null
+          ? Number(row.dataProgressPercentage)
+          : null,
   }
 }
 
@@ -502,6 +510,12 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     educations,
     techStacks,
     isTopDeveloper: typeof data.isTopDeveloper === "boolean" ? data.isTopDeveloper : false,
+    dataProgressPercentage:
+      typeof data.dataProgressPercentage === "number"
+        ? data.dataProgressPercentage
+        : data.dataProgressPercentage != null
+          ? Number(data.dataProgressPercentage)
+          : null,
     achievements,
     competitions: [],
   }
@@ -793,6 +807,8 @@ export async function fetchCandidatesPage(
     projectStartTo?: string
     achievementTypes?: number[]
     achievementName?: string
+    dataProgressMin?: number
+    dataProgressMax?: number
   }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
@@ -872,6 +888,8 @@ export async function fetchCandidatesPage(
 
   appendNumberList("achievementTypes", options?.achievementTypes)
   if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
+  if (options?.dataProgressMin != null) params.set("dataProgressMin", String(options.dataProgressMin))
+  if (options?.dataProgressMax != null) params.set("dataProgressMax", String(options.dataProgressMax))
 
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
@@ -880,6 +898,19 @@ export async function fetchCandidatesPage(
     throw new Error(`Candidates list ${path}: ${res.status} — ${text}`)
   }
   return res.json()
+}
+
+export async function fetchCandidateDataProgress(
+  candidateId: number,
+  signal?: AbortSignal,
+): Promise<CandidateDataProgressResponse> {
+  const path = `/api/candidates/${candidateId}/data-progress`
+  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Candidate data progress ${path}: ${res.status} — ${text}`)
+  }
+  return res.json() as Promise<CandidateDataProgressResponse>
 }
 
 export async function fetchCandidateById(id: number, signal?: AbortSignal): Promise<Candidate> {
