@@ -542,7 +542,7 @@ export function ProjectsTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>
+              <TableHead className="min-w-[120px] max-w-[240px] w-[240px]">
                 <SortButton column="projectName">Project Name</SortButton>
               </TableHead>
               <TableHead className="w-[140px]">
@@ -570,7 +570,11 @@ export function ProjectsTable({
                 className="hover:bg-muted/50 cursor-pointer"
                 onClick={() => setSelectedProject(project)}
               >
-                <TableCell className="font-medium">{project.projectName}</TableCell>
+                <TableCell className="font-medium max-w-[240px] w-[240px]">
+                  <div className="truncate" title={project.projectName}>
+                    {project.projectName}
+                  </div>
+                </TableCell>
                 <TableCell>
                   {project.employerName ? (
                     project.employerName

@@ -69,6 +69,7 @@ import {
   hasActiveFilters,
 } from "@/lib/utils/candidate-matches"
 
+import { getDataProgressBadgeClasses, normalizeProgress } from "@/lib/utils/candidate-data-progress"
 import { calculateDataCompletion } from "@/lib/utils/data-completion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -564,32 +565,10 @@ export function CandidatesTable({
 
   // Data Progress Badge Component
 const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
-  const summary = React.useMemo(() => 
-    calculateDataCompletion(candidate), 
-    [candidate]
-  )
-  
-  const percentage = summary.completionPercentage
-  
-  // Color based on percentage
-  const getProgressColor = () => {
-    if (percentage === 100) return 'text-green-600 dark:text-green-400'
-    if (percentage >= 70) return 'text-yellow-600 dark:text-yellow-400'
-    return 'text-red-500 dark:text-red-400'
-  }
-  
-  const getBgColor = () => {
-    if (percentage === 100) return 'bg-green-100 dark:bg-green-950/30'
-    if (percentage >= 70) return 'bg-yellow-100 dark:bg-yellow-950/30'
-    return 'bg-red-100 dark:bg-red-950/30'
-  }
-  
-  const getBorderColor = () => {
-    if (percentage === 100) return 'border-green-200 dark:border-green-800'
-    if (percentage >= 70) return 'border-yellow-200 dark:border-yellow-800'
-    return 'border-red-200 dark:border-red-800'
-  }
-  
+  const percentage = Math.round(normalizeProgress(candidate.dataProgressPercentage))
+  const summary = React.useMemo(() => calculateDataCompletion(candidate), [candidate])
+  const badgeColors = getDataProgressBadgeClasses(percentage)
+
   return (
     <TooltipProvider>
       <Tooltip delayDuration={200}>
@@ -600,9 +579,9 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
               "h-7 min-w-[44px] px-2 rounded-full",
               "text-xs font-semibold border",
               "cursor-default transition-colors",
-              getBgColor(),
-              getBorderColor(),
-              getProgressColor()
+              badgeColors.bg,
+              badgeColors.border,
+              badgeColors.text
             )}
           >
             {percentage}%
@@ -1085,6 +1064,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
             setSelectedCandidate(null)
           }
         }}
+        onCandidateUpdated={onCandidatesListChanged}
       />
 
       {/* Delete Confirmation Dialog */}

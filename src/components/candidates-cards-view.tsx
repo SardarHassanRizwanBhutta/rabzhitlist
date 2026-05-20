@@ -652,6 +652,7 @@ export function CandidatesCardsView({
             setSelectedCandidate(null)
           }
         }}
+        onCandidateUpdated={onCandidatesListChanged}
       />
 
       {/* Delete Confirmation Dialog */}

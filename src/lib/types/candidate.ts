@@ -133,6 +133,8 @@ export interface Candidate {
   updatedAt: Date
   /** From API list/detail (`totalExperienceYears`). */
   totalExperienceYears?: number | null
+  /** Backend-stored profile completion (`dataProgressPercentage`). */
+  dataProgressPercentage?: number | null
 }
 
 export type CandidateStatus =

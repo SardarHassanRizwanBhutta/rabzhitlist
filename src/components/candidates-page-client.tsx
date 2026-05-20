@@ -473,6 +473,8 @@ export function CandidatesPageClient() {
       projectStartTo: toDateOnly(combinedFiltersForBackend.startDateEnd),
       achievementTypes: achievementTypes.length > 0 ? achievementTypes : undefined,
       achievementName: combinedFiltersForBackend.achievementName.trim() || undefined,
+      dataProgressMin: toOptionalNumber(combinedFiltersForBackend.dataProgressMin),
+      dataProgressMax: toOptionalNumber(combinedFiltersForBackend.dataProgressMax),
     }
   }, [
     combinedFiltersForBackend,

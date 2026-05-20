@@ -45,7 +45,10 @@ import {
   candidateFormDataToUpdateDto,
   syncCandidateSubResources,
   prepareCandidateCreateLookups,
+  fetchCandidateDataProgress,
 } from "@/lib/services/candidates-api"
+import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
+import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks } from "@/lib/services/lookups-api"
 import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
 import { fetchBenefits } from "@/lib/services/benefits-api"
@@ -270,6 +273,8 @@ interface CandidateDetailsModalProps {
   candidate: Candidate | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Refetch candidates list after mutations so table progress stays in sync. */
+  onCandidateUpdated?: () => void
 }
 
 const normalizeKey = (value: string) => value.trim().toLowerCase()
@@ -2298,7 +2303,8 @@ const calculateYearsOfExperience = (candidate: Candidate): number => {
 export function CandidateDetailsModal({ 
   candidate, 
   open, 
-  onOpenChange 
+  onOpenChange,
+  onCandidateUpdated,
 }: CandidateDetailsModalProps) {
   const router = useRouter()
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "verification"]))
@@ -2333,6 +2339,10 @@ export function CandidateDetailsModal({
   const [pendingCertificationFieldName, setPendingCertificationFieldName] = useState<string | null>(null)
   
   // Delete confirmation dialog state
+  const [dataProgress, setDataProgress] = useState<CandidateDataProgressResponse | null>(null)
+  const [dataProgressLoading, setDataProgressLoading] = useState(false)
+  const [dataProgressError, setDataProgressError] = useState<string | null>(null)
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ 
     type: 'independent' | 'workExperience' | 'education' | 'certification' | 'workExperienceEntry' | 'achievement'
@@ -2838,6 +2848,33 @@ export function CandidateDetailsModal({
     }
   }
   
+  const loadDataProgress = React.useCallback(async () => {
+    if (!candidate) return
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) return
+    setDataProgressLoading(true)
+    setDataProgressError(null)
+    try {
+      const result = await fetchCandidateDataProgress(id)
+      setDataProgress(result)
+    } catch (e) {
+      setDataProgress(null)
+      setDataProgressError(e instanceof Error ? e.message : "Failed to load data progress")
+    } finally {
+      setDataProgressLoading(false)
+    }
+  }, [candidate])
+
+  useEffect(() => {
+    if (!open || !candidate) {
+      setDataProgress(null)
+      setDataProgressError(null)
+      setDataProgressLoading(false)
+      return
+    }
+    void loadDataProgress()
+  }, [open, candidate?.id, loadDataProgress])
+
   const handleEditSubmit = async (formData: CandidateFormData, verificationState?: VerificationState) => {
     if (!candidate) return
     const id = Number(candidate.id)
@@ -2857,6 +2894,8 @@ export function CandidateDetailsModal({
         { duration: 4000 }
       )
       setEditDialogOpen(false)
+      await loadDataProgress()
+      onCandidateUpdated?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
       throw err
@@ -3402,6 +3441,13 @@ export function CandidateDetailsModal({
               </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
+          <CandidateDataProgressPanel
+            progress={dataProgress}
+            loading={dataProgressLoading}
+            error={dataProgressError}
+            onRetry={() => void loadDataProgress()}
+          />
+
           {/* Verification Summary Bar */}
           {verificationSummary && verificationSummary.totalFields > 0 && (
             <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg border">
