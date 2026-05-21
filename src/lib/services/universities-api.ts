@@ -55,7 +55,7 @@ export interface FetchUniversitiesParams {
 
 export interface CreateUniversityDto {
   name: string
-  countryId: number
+  countryId?: number | null
   websiteUrl?: string | null
   linkedInUrl?: string | null
   ranking?: Ranking | null

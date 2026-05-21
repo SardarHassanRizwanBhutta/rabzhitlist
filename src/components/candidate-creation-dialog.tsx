@@ -92,6 +92,7 @@ import { fetchEmployerById, type BuildCreateEmployerDtoOptions } from "@/lib/ser
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
 import { ProjectCombobox, type SelectedProject } from "@/components/project-combobox"
+import type { ProjectLookups } from "@/components/project-creation-dialog"
 import {
   CertificationCombobox,
   type SelectedCertification,
@@ -243,6 +244,8 @@ interface ComboboxProps {
   createLabel?: string
   /** When value is empty (e.g. resume import with only a university name), show on trigger and seed list search on open. */
   parsedSearchHint?: string
+  /** API catalog only — used for create/exists checks so resume-prefilled names are not treated as catalog hits. */
+  catalogOptions?: ComboboxOption[]
 }
 
 function ReusableCombobox({
@@ -258,6 +261,7 @@ function ReusableCombobox({
   onCreateNew,
   createLabel,
   parsedSearchHint,
+  catalogOptions,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
@@ -277,21 +281,39 @@ function ReusableCombobox({
     )
   }, [options, searchValue])
 
-  // Check if search value already exists
+  const existenceSource = catalogOptions ?? options
+
+  const valueExistsInCatalog = React.useMemo(() => {
+    if (!value?.trim()) return false
+    const v = value.trim().toLowerCase()
+    return existenceSource.some(
+      (option) =>
+        option.value.toLowerCase() === v || option.label.toLowerCase() === v
+    )
+  }, [existenceSource, value])
+
+  // Check if search value already exists in catalog (or full options when catalogOptions omitted)
   const searchValueExists = React.useMemo(() => {
     if (!searchValue.trim()) return false
     const searchLower = searchValue.trim().toLowerCase()
-    return options.some(option => 
-      option.value.toLowerCase() === searchLower ||
-      option.label.toLowerCase() === searchLower
-    ) || value.toLowerCase() === searchLower
-  }, [options, value, searchValue])
+    const existsInSource = existenceSource.some(
+      (option) =>
+        option.value.toLowerCase() === searchLower ||
+        option.label.toLowerCase() === searchLower
+    )
+    if (catalogOptions) return existsInSource
+    return (
+      existsInSource ||
+      (!!value?.trim() && value.trim().toLowerCase() === searchLower)
+    )
+  }, [catalogOptions, existenceSource, value, searchValue])
 
-  // Check if we should show "Create" option
-  const shouldShowCreate = creatable && 
-    searchValue.trim().length >= 2 && 
-    !searchValueExists && 
-    filteredOptions.length === 0
+  // Show create when query has no exact catalog match (degree/major); legacy comboboxes also require empty filter list
+  const shouldShowCreate =
+    creatable &&
+    searchValue.trim().length >= 2 &&
+    !searchValueExists &&
+    (catalogOptions != null || filteredOptions.length === 0)
 
   const [createInProgress, setCreateInProgress] = React.useState(false)
   const handleCreateNew = async () => {
@@ -329,10 +351,12 @@ function ReusableCombobox({
       open={open}
       onOpenChange={(isOpen) => {
         setOpen(isOpen)
-        if (isOpen && parsedSearchHint?.trim() && !value?.trim()) {
-          setSearchValue(parsedSearchHint.trim())
-        }
-        if (!isOpen) {
+        if (isOpen) {
+          const hint = parsedSearchHint?.trim()
+          if (hint && (!value?.trim() || !valueExistsInCatalog)) {
+            setSearchValue(hint)
+          }
+        } else {
           setSearchValue("")
         }
       }}
@@ -366,30 +390,7 @@ function ReusableCombobox({
             onKeyDown={handleKeyDown}
           />
           <CommandList>
-            {shouldShowCreate ? (
-              <>
-                <CommandEmpty>
-                  <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                    {emptyMessage}
-                  </div>
-                </CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
-                    value={searchValue}
-                    onSelect={() => void handleCreateNew()}
-                    disabled={createInProgress}
-                    className="cursor-pointer font-medium text-primary border-t border-border"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    {createLabel 
-                      ? (searchValue.trim() ? `Create "${searchValue.trim()}"` : createLabel)
-                      : `Add "${searchValue.trim()}"`}
-                  </CommandItem>
-                </CommandGroup>
-              </>
-            ) : filteredOptions.length === 0 ? (
-              <CommandEmpty>{emptyMessage}</CommandEmpty>
-            ) : (
+            {filteredOptions.length > 0 && (
               <CommandGroup>
                 {filteredOptions.map((option) => (
                   <CommandItem
@@ -409,6 +410,33 @@ function ReusableCombobox({
                   </CommandItem>
                 ))}
               </CommandGroup>
+            )}
+            {shouldShowCreate && filteredOptions.length === 0 && (
+              <CommandEmpty>
+                <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                  {emptyMessage}
+                </div>
+              </CommandEmpty>
+            )}
+            {shouldShowCreate && (
+              <CommandGroup>
+                <CommandItem
+                  value={searchValue}
+                  onSelect={() => void handleCreateNew()}
+                  disabled={createInProgress}
+                  className={`cursor-pointer font-medium text-primary ${filteredOptions.length > 0 ? "border-t border-border" : ""}`}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {createLabel
+                    ? searchValue.trim()
+                      ? `Create "${searchValue.trim()}"`
+                      : createLabel
+                    : `Add "${searchValue.trim()}"`}
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {filteredOptions.length === 0 && !shouldShowCreate && (
+              <CommandEmpty>{emptyMessage}</CommandEmpty>
             )}
           </CommandList>
         </Command>
@@ -495,6 +523,8 @@ function WorkExperienceProjectCombobox({
   disabled,
   error,
   onLinkedProjectChange,
+  projectLookups,
+  onCreateTechStack,
 }: {
   experienceIndex: number
   project: ProjectExperience
@@ -502,6 +532,8 @@ function WorkExperienceProjectCombobox({
   disabled: boolean
   error: boolean
   onLinkedProjectChange: (expIdx: number, projIdx: number, sel: SelectedProject) => void
+  projectLookups?: ProjectLookups
+  onCreateTechStack?: (name: string) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
 
@@ -560,6 +592,14 @@ function WorkExperienceProjectCombobox({
       disabled={disabled}
       error={error}
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
+      projectLookups={projectLookups}
+      onCreateTechStack={
+        onCreateTechStack
+          ? async (name) => {
+              await onCreateTechStack(name)
+            }
+          : undefined
+      }
     />
   )
 }
@@ -570,12 +610,16 @@ function StandaloneProjectCombobox({
   disabled,
   error,
   onLinkedProjectChange,
+  projectLookups,
+  onCreateTechStack,
 }: {
   index: number
   project: CandidateStandaloneProject
   disabled: boolean
   error: boolean
   onLinkedProjectChange: (idx: number, sel: SelectedProject) => void
+  projectLookups?: ProjectLookups
+  onCreateTechStack?: (name: string) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
 
@@ -626,6 +670,14 @@ function StandaloneProjectCombobox({
       disabled={disabled}
       error={error}
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
+      projectLookups={projectLookups}
+      onCreateTechStack={
+        onCreateTechStack
+          ? async (name) => {
+              await onCreateTechStack(name)
+            }
+          : undefined
+      }
     />
   )
 }
@@ -1051,6 +1103,15 @@ export function CandidateCreationDialog({
     [lookups?.timeSupportZones]
   )
 
+  const projectCreateLookups: ProjectLookups = useMemo(
+    () => ({
+      techStacks: lookups?.techStacks ?? [],
+      technicalAspects: [],
+      clientLocations: [],
+    }),
+    [lookups?.techStacks]
+  )
+
   /** Tech stacks: API list + any values already on the candidate (edit) or newly selected. */
   const selectedTechStackNames = useMemo(() => {
     const names = new Set<string>()
@@ -1104,14 +1165,6 @@ export function CandidateCreationDialog({
     return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
   }, [lookups?.timeSupportZones, selectedTimeSupportZoneNames])
 
-  const selectedDegreeNames = useMemo(() => {
-    const names = new Set<string>()
-    formData.educations.forEach((e) => {
-      if (e.degreeName?.trim()) names.add(e.degreeName.trim())
-    })
-    return names
-  }, [formData.educations])
-
   const degreeOptions: ComboboxOption[] = useMemo(() => {
     const byValue = new Map<string, ComboboxOption>()
     for (const l of lookups?.degrees ?? []) {
@@ -1120,19 +1173,8 @@ export function CandidateCreationDialog({
         byValue.set(n, { value: n, label: n })
       }
     }
-    selectedDegreeNames.forEach((name) => {
-      if (!byValue.has(name)) byValue.set(name, { value: name, label: name })
-    })
     return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.degrees, selectedDegreeNames])
-
-  const selectedMajorNames = useMemo(() => {
-    const names = new Set<string>()
-    formData.educations.forEach((e) => {
-      if (e.majorName?.trim()) names.add(e.majorName.trim())
-    })
-    return names
-  }, [formData.educations])
+  }, [lookups?.degrees])
 
   const majorOptions: ComboboxOption[] = useMemo(() => {
     const byValue = new Map<string, ComboboxOption>()
@@ -1142,11 +1184,30 @@ export function CandidateCreationDialog({
         byValue.set(n, { value: n, label: n })
       }
     }
-    selectedMajorNames.forEach((name) => {
-      if (!byValue.has(name)) byValue.set(name, { value: name, label: name })
-    })
     return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.majors, selectedMajorNames])
+  }, [lookups?.majors])
+
+  const isDegreeInCatalog = useCallback(
+    (name: string) => {
+      const n = name.trim().toLowerCase()
+      if (!n) return false
+      return (lookups?.degrees ?? []).some(
+        (d) => d?.name?.trim().toLowerCase() === n
+      )
+    },
+    [lookups?.degrees]
+  )
+
+  const isMajorInCatalog = useCallback(
+    (name: string) => {
+      const n = name.trim().toLowerCase()
+      if (!n) return false
+      return (lookups?.majors ?? []).some(
+        (m) => m?.name?.trim().toLowerCase() === n
+      )
+    },
+    [lookups?.majors]
+  )
 
   const [errors, setErrors] = useState<{
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, string>>
@@ -2337,7 +2398,6 @@ export function CandidateCreationDialog({
     if (!formData.email.trim()) basicErrors.email = "Email is required"
     else if (!/\S+@\S+\.\S+/.test(formData.email)) basicErrors.email = "Invalid email format"
     if (!formData.contactNumber.trim()) basicErrors.contactNumber = "Contact number is required"
-    if (!formData.cnic.trim()) basicErrors.cnic = "CNIC is required"
     if (
       !formData.source ||
       !CANDIDATE_SOURCE_DB.includes(formData.source as CandidateSourceDb)
@@ -2454,7 +2514,6 @@ export function CandidateCreationDialog({
       if (hasAnyData) {
         if (!edu.universityLocationId) eduErrors.universityLocationId = "University is required"
         if (!edu.degreeName) eduErrors.degreeName = "Degree name is required"
-        if (!edu.majorName) eduErrors.majorName = "Major name is required"
       }
       
       if (Object.keys(eduErrors).length > 0) {
@@ -2857,7 +2916,7 @@ export function CandidateCreationDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cnic">CNIC *</Label>
+                <Label htmlFor="cnic">CNIC</Label>
                 <Input
                   id="cnic"
                   type="text"
@@ -2871,7 +2930,7 @@ export function CandidateCreationDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="postingTitle">Posting Title *</Label>
+                <Label htmlFor="postingTitle">Posting Title</Label>
                 <Input
                   id="postingTitle"
                   type="text"
@@ -3389,6 +3448,8 @@ export function CandidateCreationDialog({
                                   disabled={isLoading}
                                   error={!!errors.workExperiences?.[index]?.projects?.[projectIndex]?.projectId}
                                   onLinkedProjectChange={handleWorkExperienceLinkedProjectChange}
+                                  projectLookups={projectCreateLookups}
+                                  onCreateTechStack={onCreateTechStack}
                                 />
                                 {errors.workExperiences?.[index]?.projects?.[projectIndex]?.projectId && (
                                   <p className="text-sm text-red-500">
@@ -3626,6 +3687,8 @@ export function CandidateCreationDialog({
                         disabled={isLoading}
                         error={!!errors.projects?.[index]?.projectId}
                         onLinkedProjectChange={handleStandaloneLinkedProjectChange}
+                        projectLookups={projectCreateLookups}
+                        onCreateTechStack={onCreateTechStack}
                       />
                       {errors.projects?.[index]?.projectId && (
                         <p className="text-sm text-red-500">{errors.projects[index].projectId}</p>
@@ -3785,6 +3848,7 @@ export function CandidateCreationDialog({
                           <Label htmlFor={`degreeName-${index}`}>Degree Name *</Label>
                           <ReusableCombobox
                             options={degreeOptions}
+                            catalogOptions={degreeOptions}
                             value={education.degreeName}
                             onValueChange={(value) => handleEducationChange(index, "degreeName", value)}
                             placeholder="Select degree..."
@@ -3793,6 +3857,12 @@ export function CandidateCreationDialog({
                             disabled={degreesMajorsLoading}
                             creatable={true}
                             createLabel="Add New Degree"
+                            parsedSearchHint={
+                              education.degreeName?.trim() &&
+                              !isDegreeInCatalog(education.degreeName)
+                                ? education.degreeName.trim()
+                                : undefined
+                            }
                             onCreateNew={
                               onCreateDegree
                                 ? async (name) => {
@@ -3811,9 +3881,10 @@ export function CandidateCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor={`majorName-${index}`}>Major Name *</Label>
+                          <Label htmlFor={`majorName-${index}`}>Major Name</Label>
                           <ReusableCombobox
                             options={majorOptions}
+                            catalogOptions={majorOptions}
                             value={education.majorName}
                             onValueChange={(value) => handleEducationChange(index, "majorName", value)}
                             placeholder="Select major..."
@@ -3822,6 +3893,12 @@ export function CandidateCreationDialog({
                             disabled={degreesMajorsLoading}
                             creatable={true}
                             createLabel="Add New Major"
+                            parsedSearchHint={
+                              education.majorName?.trim() &&
+                              !isMajorInCatalog(education.majorName)
+                                ? education.majorName.trim()
+                                : undefined
+                            }
                             onCreateNew={
                               onCreateMajor
                                 ? async (name) => {
