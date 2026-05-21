@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,13 @@ import {
 } from "@/lib/services/projects-api"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
+import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import { toast } from "sonner"
+
+function countStacksInAspectMap(byAspect: Record<string, string[]> | undefined): number {
+  if (!byAspect) return 0
+  return Object.values(byAspect).reduce((sum, arr) => sum + arr.length, 0)
+}
 
 export type ProjectFilters = ProjectsListFilterInput
 
@@ -135,6 +142,7 @@ const initialFilters: ProjectFilters = {
   technicalDomains: [],
   technicalAspects: [],
   technicalAspectTypeIds: [],
+  techStacksByAspectType: {},
   techStacks: [],
   completionDateStart: null,
   completionDateEnd: null,
@@ -288,6 +296,98 @@ export function ProjectsFilterDialog({
   const useTechnicalAspectTypesFilter = technicalAspectTypeFilterOptions.length > 0
   const clientLocationOptions: MultiSelectOption[] = lookupOptions?.clientLocations ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc }))
 
+  const [scopedStacksByTypeId, setScopedStacksByTypeId] = useState<Record<string, LookupItem[]>>({})
+
+  const aspectTypeIdsKey = useMemo(
+    () => [...tempFilters.technicalAspectTypeIds].sort().join(","),
+    [tempFilters.technicalAspectTypeIds]
+  )
+
+  useEffect(() => {
+    if (!open || !useTechnicalAspectTypesFilter) return
+    const ids = tempFilters.technicalAspectTypeIds
+    if (ids.length === 0) {
+      setScopedStacksByTypeId({})
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const next: Record<string, LookupItem[]> = {}
+      await Promise.all(
+        ids.map(async (idStr) => {
+          const id = parseInt(idStr, 10)
+          if (Number.isNaN(id)) {
+            next[idStr] = []
+            return
+          }
+          try {
+            const list = await fetchTechStacks(id)
+            if (!cancelled) next[idStr] = list
+          } catch (e) {
+            if (!cancelled) {
+              next[idStr] = []
+              toast.error(
+                e instanceof Error ? e.message : `Failed to load technologies for aspect type ${idStr}`
+              )
+            }
+          }
+        })
+      )
+      if (!cancelled) setScopedStacksByTypeId(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, useTechnicalAspectTypesFilter, aspectTypeIdsKey, tempFilters.technicalAspectTypeIds])
+
+  const selectedAspectTypesSorted = useMemo(() => {
+    return [...tempFilters.technicalAspectTypeIds]
+      .map((idStr) => {
+        const opt = technicalAspectTypeFilterOptions.find((o) => o.value === idStr)
+        if (!opt) return null
+        const id = parseInt(idStr, 10)
+        if (Number.isNaN(id)) return null
+        return { id, label: opt.label }
+      })
+      .filter((t): t is { id: number; label: string } => t != null)
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [tempFilters.technicalAspectTypeIds, technicalAspectTypeFilterOptions])
+
+  const handleTechnicalAspectTypeIdsChange = (values: string[]) => {
+    setTempFilters((prev) => {
+      const byAspect = { ...(prev.techStacksByAspectType ?? {}) }
+      for (const key of Object.keys(byAspect)) {
+        if (!values.includes(key)) delete byAspect[key]
+      }
+      for (const id of values) {
+        if (byAspect[id] === undefined) byAspect[id] = []
+      }
+      return {
+        ...prev,
+        technicalAspectTypeIds: values,
+        techStacksByAspectType: byAspect,
+      }
+    })
+  }
+
+  const handleAspectStacksChange = (aspectIdStr: string, stackNames: string[]) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      techStacksByAspectType: {
+        ...(prev.techStacksByAspectType ?? {}),
+        [aspectIdStr]: stackNames,
+      },
+    }))
+  }
+
+  const appliedStackFilterCount = useTechnicalAspectTypesFilter
+    ? countStacksInAspectMap(filters.techStacksByAspectType) + filters.techStacks.length
+    : filters.techStacks.length
+
+  const tempStackFilterCount = useTechnicalAspectTypesFilter
+    ? countStacksInAspectMap(tempFilters.techStacksByAspectType) + tempFilters.techStacks.length
+    : tempFilters.techStacks.length
+
   // Calculate active filter count
   const activeFilterCount = 
     filters.status.length +
@@ -299,7 +399,7 @@ export function ProjectsFilterDialog({
     filters.technicalDomains.length +
     filters.technicalAspects.length +
     filters.technicalAspectTypeIds.length +
-    filters.techStacks.length +
+    appliedStackFilterCount +
     (filters.completionDateStart ? 1 : 0) +
     (filters.completionDateEnd ? 1 : 0) +
     (filters.startEndDateStart ? 1 : 0) +
@@ -315,7 +415,10 @@ export function ProjectsFilterDialog({
     (filters.minDownloadCount ? 1 : 0)
 
   React.useEffect(() => {
-    setTempFilters(filters)
+    setTempFilters({
+      ...filters,
+      techStacksByAspectType: filters.techStacksByAspectType ?? {},
+    })
   }, [filters])
 
   const handleFilterChange = (field: keyof ProjectFilters, value: string[] | Date | null | string | boolean) => {
@@ -362,12 +465,17 @@ export function ProjectsFilterDialog({
     if (dateRangeError || teamSizeError) {
       return // Don't apply if there are validation errors
     }
-    onFiltersChange(tempFilters)
+    const payload: ProjectFilters = {
+      ...tempFilters,
+      techStacksByAspectType: tempFilters.techStacksByAspectType ?? {},
+    }
+    onFiltersChange(payload)
     setOpen(false)
   }
 
   const handleClearFilters = () => {
     setTempFilters(initialFilters)
+    setScopedStacksByTypeId({})
     setEmployerNameById({})
     setEmployerSearchQuery("")
     setEmployerSearchResults([])
@@ -397,7 +505,7 @@ export function ProjectsFilterDialog({
     tempFilters.technicalDomains.length > 0 ||
     tempFilters.technicalAspects.length > 0 ||
     tempFilters.technicalAspectTypeIds.length > 0 ||
-    tempFilters.techStacks.length > 0 ||
+    tempStackFilterCount > 0 ||
     tempFilters.completionDateStart !== null ||
     tempFilters.completionDateEnd !== null ||
     tempFilters.startEndDateStart !== null ||
@@ -623,15 +731,84 @@ export function ProjectsFilterDialog({
             </div>
 
             <div className="space-y-4">
-              <MultiSelect
-                items={techStackOptions}
-                selected={tempFilters.techStacks}
-                onChange={(values) => handleFilterChange("techStacks", values)}
-                placeholder="Filter by technology..."
-                label="Technology Stack"
-                searchPlaceholder="Search technologies..."
-                maxDisplay={4}
-              />
+              {useTechnicalAspectTypesFilter ? (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Technical Aspects</Label>
+                    <MultiSelect
+                      items={technicalAspectTypeFilterOptions}
+                      selected={tempFilters.technicalAspectTypeIds}
+                      onChange={handleTechnicalAspectTypeIdsChange}
+                      placeholder="Select technical aspect types..."
+                      searchPlaceholder="Search technical aspects..."
+                      maxDisplay={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Select aspect types to filter projects. Optionally narrow each aspect with
+                      specific technologies in the sections below — stacks are not required.
+                    </p>
+                  </div>
+
+                  {selectedAspectTypesSorted.length > 0 && (
+                    <div className="space-y-3">
+                      {selectedAspectTypesSorted.map((aspectType) => {
+                        const idStr = String(aspectType.id)
+                        const rows = scopedStacksByTypeId[idStr]
+                        const items: MultiSelectOption[] = (rows ?? [])
+                          .map((r) => ({ value: r.name, label: r.name }))
+                          .sort((a, b) => a.label.localeCompare(b.label))
+                        return (
+                          <div
+                            key={aspectType.id}
+                            className="rounded-lg border bg-card/50 p-3 space-y-2 shadow-sm"
+                          >
+                            <Label className="text-sm font-medium">{aspectType.label}</Label>
+                            <MultiSelect
+                              items={items}
+                              selected={tempFilters.techStacksByAspectType?.[idStr] ?? []}
+                              onChange={(values) => handleAspectStacksChange(idStr, values)}
+                              placeholder={`Select technologies for ${aspectType.label}...`}
+                              searchPlaceholder="Search technologies..."
+                              maxDisplay={4}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  <MultiSelect
+                    items={techStackOptions}
+                    selected={tempFilters.techStacks}
+                    onChange={(values) => handleFilterChange("techStacks", values)}
+                    placeholder="Filter by technology..."
+                    label="Technology Stack"
+                    searchPlaceholder="Search technologies..."
+                    maxDisplay={4}
+                  />
+                </>
+              ) : (
+                <>
+                  <MultiSelect
+                    items={techStackOptions}
+                    selected={tempFilters.techStacks}
+                    onChange={(values) => handleFilterChange("techStacks", values)}
+                    placeholder="Filter by technology..."
+                    label="Technology Stack"
+                    searchPlaceholder="Search technologies..."
+                    maxDisplay={4}
+                  />
+                  <MultiSelect
+                    items={legacyTechnicalAspectOptions}
+                    selected={tempFilters.technicalAspects}
+                    onChange={(values) => handleFilterChange("technicalAspects", values)}
+                    placeholder="Filter by technical aspect..."
+                    label="Technical Aspects"
+                    searchPlaceholder="Search technical aspects..."
+                    maxDisplay={3}
+                  />
+                </>
+              )}
 
               <div className="space-y-4">
                 <MultiSelect
@@ -663,28 +840,6 @@ export function ProjectsFilterDialog({
                   searchPlaceholder="Search technical domains..."
                   maxDisplay={3}
                 />
-
-                {useTechnicalAspectTypesFilter ? (
-                  <MultiSelect
-                    items={technicalAspectTypeFilterOptions}
-                    selected={tempFilters.technicalAspectTypeIds}
-                    onChange={(values) => handleFilterChange("technicalAspectTypeIds", values)}
-                    placeholder="Filter by technical aspect..."
-                    label="Technical Aspects"
-                    searchPlaceholder="Search technical aspects..."
-                    maxDisplay={3}
-                  />
-                ) : (
-                  <MultiSelect
-                    items={legacyTechnicalAspectOptions}
-                    selected={tempFilters.technicalAspects}
-                    onChange={(values) => handleFilterChange("technicalAspects", values)}
-                    placeholder="Filter by technical aspect..."
-                    label="Technical Aspects"
-                    searchPlaceholder="Search technical aspects..."
-                    maxDisplay={3}
-                  />
-                )}
               </div>
             </div>
 

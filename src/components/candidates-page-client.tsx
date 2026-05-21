@@ -374,6 +374,12 @@ export function CandidatesPageClient() {
     const clientLocationIds = combinedFiltersForBackend.clientLocations
       .map((name) => clientLocationsLookup.find((l) => l.name === name)?.id)
       .filter((id): id is number => id != null)
+    const projectTechStackIds = combinedFiltersForBackend.techStacks
+      .map((name) => {
+        const key = name.trim().toLowerCase()
+        return techStacksLookup.find((l) => l.name.trim().toLowerCase() === key)?.id
+      })
+      .filter((id): id is number => id != null)
 
     const sourceRaw = combinedFiltersForBackend.source[0]
     const source =
@@ -458,6 +464,7 @@ export function CandidatesPageClient() {
       employerSizeMin: toOptionalNumber(combinedFiltersForBackend.employerSizeMin),
       employerSizeMax: toOptionalNumber(combinedFiltersForBackend.employerSizeMax),
       projectIds: projectIds.length > 0 ? projectIds : undefined,
+      techStackIds: projectTechStackIds.length > 0 ? projectTechStackIds : undefined,
       verticalDomains: verticalDomains.length > 0 ? verticalDomains : undefined,
       horizontalDomains: horizontalDomains.length > 0 ? horizontalDomains : undefined,
       technicalDomains: technicalDomains.length > 0 ? technicalDomains : undefined,
@@ -484,6 +491,7 @@ export function CandidatesPageClient() {
     majorsLookup,
     countriesLookup,
     clientLocationsLookup,
+    techStacksLookup,
   ])
 
   useEffect(() => {
@@ -830,6 +838,7 @@ export function CandidatesPageClient() {
             certificationIssuers={certificationIssuersLookup}
             degrees={degreesLookup}
             majors={majorsLookup}
+            techStacks={techStacksLookup}
           />
           <ResumeParserDialog onApplyToCreateCandidate={handleApplyResumeParse} />
           <Button

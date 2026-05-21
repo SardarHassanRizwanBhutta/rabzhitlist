@@ -54,6 +54,7 @@ const initialFilters: ProjectFilters = {
   technicalDomains: [],
   technicalAspects: [],
   technicalAspectTypeIds: [],
+  techStacksByAspectType: {},
   techStacks: [],
   completionDateStart: null,
   completionDateEnd: null,
@@ -131,8 +132,17 @@ export function ProjectsPageClient() {
     const technicalAspectEnumValues = [
       ...new Set(namesToIds(filters.technicalAspects, technicalAspectsLookup)),
     ]
+    const stackNamesFromAspects = filters.technicalAspectTypeIds.flatMap((id) =>
+      (filters.techStacksByAspectType?.[id] ?? []).map((n) => n.trim()).filter(Boolean)
+    )
+    const stackNamesForApi = [
+      ...new Set([
+        ...filters.techStacks.map((n) => n.trim()).filter(Boolean),
+        ...stackNamesFromAspects,
+      ]),
+    ]
     return {
-      techStackIds: namesToIds(filters.techStacks, techStacksLookup),
+      techStackIds: namesToIds(stackNamesForApi, techStacksLookup),
       verticalDomains: labelsToInts(filters.verticalDomains, verticalDomainLabelToInt),
       horizontalDomains: labelsToInts(filters.horizontalDomains, horizontalDomainLabelToInt),
       technicalDomains: labelsToInts(filters.technicalDomains, technicalDomainLabelToInt),
@@ -141,6 +151,8 @@ export function ProjectsPageClient() {
     }
   }, [
     filters.techStacks,
+    filters.techStacksByAspectType,
+    filters.technicalAspectTypeIds,
     filters.verticalDomains,
     filters.horizontalDomains,
     filters.technicalDomains,

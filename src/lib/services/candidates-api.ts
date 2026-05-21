@@ -792,6 +792,8 @@ export async function fetchCandidatesPage(
     employerSizeMin?: number
     employerSizeMax?: number
     projectIds?: number[]
+    /** OR match on linked project tech stacks (`GET ?techStackIds=1&techStackIds=5`). */
+    techStackIds?: number[]
     verticalDomains?: number[]
     horizontalDomains?: number[]
     technicalDomains?: number[]
@@ -872,6 +874,7 @@ export async function fetchCandidatesPage(
   if (options?.employerSizeMax != null) params.set("employerSizeMax", String(options.employerSizeMax))
 
   appendNumberList("projectIds", options?.projectIds)
+  appendNumberList("techStackIds", options?.techStackIds)
   appendNumberList("verticalDomains", options?.verticalDomains)
   appendNumberList("horizontalDomains", options?.horizontalDomains)
   appendNumberList("technicalDomains", options?.technicalDomains)
