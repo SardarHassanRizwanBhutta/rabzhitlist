@@ -14,8 +14,33 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
 import { useProjectSearch } from "@/hooks/useProjectSearch"
+import {
+  ProjectCreationDialog,
+  type ProjectFormData,
+  type ProjectLookups,
+} from "@/components/project-creation-dialog"
+import {
+  buildCreateProjectDto,
+  createProject,
+  horizontalDomainLabelToInt,
+  technicalDomainLabelToInt,
+  verticalDomainLabelToInt,
+  type CreateProjectOptions,
+} from "@/lib/services/projects-api"
+import type { LookupItem } from "@/lib/services/lookups-api"
+import { toast } from "sonner"
 
 export type SelectedProject = { id: number; name: string } | null
+
+function namesToIds(names: string[], lookup: LookupItem[]): number[] {
+  return names
+    .map((n) => lookup.find((l) => l.name === n)?.id)
+    .filter((id): id is number => id != null)
+}
+
+function labelsToInts(labels: string[], toInt: (label: string) => number | undefined): number[] {
+  return labels.map(toInt).filter((v): v is number => v != null)
+}
 
 export interface ProjectComboboxProps {
   id?: string
@@ -27,6 +52,11 @@ export interface ProjectComboboxProps {
   error?: boolean
   /** Resume import: seed search when opening with no linked project yet. */
   parsedNameHint?: string
+  /** Lookups for ProjectCreationDialog and create payload mapping. */
+  projectLookups?: ProjectLookups
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }
 
 export function ProjectCombobox({
@@ -38,8 +68,14 @@ export function ProjectCombobox({
   className,
   error = false,
   parsedNameHint,
+  projectLookups,
+  onCreateTechStack,
+  onCreateTechnicalAspect,
+  onCreateClientLocation,
 }: ProjectComboboxProps) {
   const [open, setOpen] = useState(false)
+  const [addProjectOpen, setAddProjectOpen] = useState(false)
+  const [addProjectInitialName, setAddProjectInitialName] = useState("")
   const { query, setQuery, results, isLoading, resetSearch } = useProjectSearch()
   const prevOpenRef = React.useRef(false)
 
@@ -67,8 +103,26 @@ export function ProjectCombobox({
     handleOpenChange(false)
   }
 
-  const openProjectsPage = () => {
-    window.open("/projects", "_blank", "noopener,noreferrer")
+  const handleCreateProjectSubmit = async (data: ProjectFormData) => {
+    const techStacks = projectLookups?.techStacks ?? []
+    const technicalAspects = projectLookups?.technicalAspects ?? []
+    const clientLocations = projectLookups?.clientLocations ?? []
+    const options: CreateProjectOptions = {
+      employerId: data.selectedEmployer?.id ?? null,
+      techStackIds: namesToIds(data.techStacks, techStacks),
+      verticalDomains: labelsToInts(data.verticalDomains, verticalDomainLabelToInt),
+      horizontalDomains: labelsToInts(data.horizontalDomains, horizontalDomainLabelToInt),
+      technicalDomains: labelsToInts(data.technicalDomains, technicalDomainLabelToInt),
+      technicalAspects: namesToIds(data.technicalAspects, technicalAspects),
+      clientLocationIds: namesToIds(data.clientLocations, clientLocations),
+    }
+    const body = buildCreateProjectDto(data, options)
+    const created = await createProject(body)
+    selectProject({ id: created.id, name: created.name })
+    setAddProjectOpen(false)
+    setAddProjectInitialName("")
+    resetSearch()
+    toast.success(`Project "${created.name}" created successfully.`)
   }
 
   return (
@@ -141,12 +195,14 @@ export function ProjectCombobox({
                     <CommandItem
                       value="__create_new_project__"
                       onSelect={() => {
-                        openProjectsPage()
+                        setAddProjectInitialName(query.trim())
+                        handleOpenChange(false)
+                        setAddProjectOpen(true)
                       }}
                       className="cursor-pointer font-medium text-primary"
                     >
                       <Plus className="mr-2 h-4 w-4" />
-                      + Create New Project
+                      Create New Project
                     </CommandItem>
                   </CommandGroup>
                 )}
@@ -170,6 +226,22 @@ export function ProjectCombobox({
           </PopoverContent>
         </Popover>
       )}
+
+      <ProjectCreationDialog
+        mode="create"
+        showVerification={false}
+        open={addProjectOpen}
+        onOpenChange={(next) => {
+          setAddProjectOpen(next)
+          if (!next) setAddProjectInitialName("")
+        }}
+        initialName={addProjectInitialName}
+        lookups={projectLookups}
+        onCreateTechStack={onCreateTechStack}
+        onCreateTechnicalAspect={onCreateTechnicalAspect}
+        onCreateClientLocation={onCreateClientLocation}
+        onSubmit={handleCreateProjectSubmit}
+      />
     </div>
   )
 }

@@ -180,7 +180,7 @@ export function UniversitiesPageClient() {
       if (universityToEdit) {
         await updateUniversity(universityToEdit.id, {
           name: data.name.trim(),
-          countryId: data.countryId!,
+          ...(data.countryId != null ? { countryId: data.countryId } : {}),
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:
@@ -220,20 +220,12 @@ export function UniversitiesPageClient() {
         setEditDialogOpen(false)
         setUniversityToEdit(null)
       } else {
-        if (data.countryId == null) {
-          toast.error("Country is required.")
-          return
-        }
         const locationsWithCity = data.locations.filter((loc) =>
           loc.city?.trim()
         )
-        if (locationsWithCity.length === 0) {
-          toast.error("At least one location with a city is required.")
-          return
-        }
         const university = await createUniversity({
           name: data.name.trim(),
-          countryId: data.countryId,
+          ...(data.countryId != null ? { countryId: data.countryId } : {}),
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:

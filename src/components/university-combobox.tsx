@@ -121,18 +121,10 @@ export function UniversityCombobox({
   }
 
   const handleCreateUniversitySubmit = async (data: UniversityFormData) => {
-    if (data.countryId == null) {
-      toast.error("Country is required.")
-      throw new Error("Validation failed")
-    }
     const locationsWithCity = data.locations.filter((loc) => loc.city?.trim())
-    if (locationsWithCity.length === 0) {
-      toast.error("At least one location with a city is required.")
-      throw new Error("Validation failed")
-    }
     const university = await createUniversity({
       name: data.name.trim(),
-      countryId: data.countryId,
+      ...(data.countryId != null ? { countryId: data.countryId } : {}),
       websiteUrl: data.websiteUrl?.trim() || null,
       linkedInUrl: data.linkedinUrl?.trim() || null,
       ranking:

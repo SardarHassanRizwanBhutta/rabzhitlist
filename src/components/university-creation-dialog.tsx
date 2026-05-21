@@ -106,7 +106,7 @@ const initialFormData: UniversityFormData = {
   linkedinUrl: "",
   countryId: null,
   ranking: "",
-  locations: [createEmptyLocation()], // Start with one location
+  locations: [],
 }
 
 // Ranking options
@@ -338,7 +338,7 @@ export function UniversityCreationDialog({
   }
 
   const removeLocation = (index: number) => {
-    if (formData.locations.length > 1) {
+    if (formData.locations.length > 0) {
       setFormData(prev => ({
         ...prev,
         locations: prev.locations.filter((_, i) => i !== index)
@@ -552,40 +552,15 @@ export function UniversityCreationDialog({
     const universityErrors: Partial<Record<keyof Omit<UniversityFormData, 'locations'>, string>> = {}
     const locationErrors: { [index: number]: Partial<Record<keyof UniversityLocationFormData, string>> } = {}
 
-    // University validation
     if (!formData.name.trim()) universityErrors.name = "University name is required"
-    if (formData.countryId == null || formData.countryId === 0) universityErrors.countryId = "Country is required"
-    if (!formData.ranking) universityErrors.ranking = "Ranking is required"
-    
-    // URL validations
-    if (!formData.websiteUrl.trim()) {
-      universityErrors.websiteUrl = "Website URL is required"
-    } else if (!formData.websiteUrl.startsWith('http')) {
+
+    const website = formData.websiteUrl.trim()
+    if (website && !website.startsWith("http")) {
       universityErrors.websiteUrl = "Website URL must start with http:// or https://"
     }
-    
-    if (formData.linkedinUrl && !formData.linkedinUrl.startsWith('http')) {
+
+    if (formData.linkedinUrl.trim() && !formData.linkedinUrl.startsWith("http")) {
       universityErrors.linkedinUrl = "LinkedIn URL must start with http:// or https://"
-    }
-
-    // Location validation
-    const hasMainCampus = formData.locations.some(loc => loc.isMainCampus)
-    
-    formData.locations.forEach((location, index) => {
-      const locErrors: Partial<Record<keyof UniversityLocationFormData, string>> = {}
-      
-      if (!location.city.trim()) locErrors.city = "City is required"
-      if (!location.address.trim()) locErrors.address = "Address is required"
-      
-      if (Object.keys(locErrors).length > 0) {
-        locationErrors[index] = locErrors
-      }
-    })
-
-    // Check for main campus requirement
-    if (!hasMainCampus && formData.locations.length > 0) {
-      if (!locationErrors[0]) locationErrors[0] = {}
-      locationErrors[0].isMainCampus = "At least one location must be designated as main campus"
     }
 
     const newErrors = {
@@ -779,7 +754,7 @@ export function UniversityCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Country *</Label>
+                          <Label>Country</Label>
                           <Popover open={countryPopoverOpen} onOpenChange={setCountryPopoverOpen}>
                             <PopoverTrigger asChild>
                               <Button
@@ -906,7 +881,7 @@ export function UniversityCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="ranking">Ranking *</Label>
+                          <Label htmlFor="ranking">Ranking</Label>
                           <Select
                             value={formData.ranking}
                             onValueChange={(value: UniversityRanking) => handleInputChange("ranking", value)}
@@ -927,7 +902,7 @@ export function UniversityCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="websiteUrl">Website URL *</Label>
+                          <Label htmlFor="websiteUrl">Website URL</Label>
                           <Input
                             id="websiteUrl"
                             type="url"
@@ -1038,7 +1013,7 @@ export function UniversityCreationDialog({
                         variant="ghost"
                         size="sm"
                         onClick={() => removeLocation(index)}
-                        disabled={formData.locations.length <= 1}
+                        disabled={formData.locations.length === 0}
                         className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1048,7 +1023,7 @@ export function UniversityCreationDialog({
                   <CardContent className="pt-0">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="space-y-2">
-                                <Label htmlFor={`city-${index}`}>City *</Label>
+                                <Label htmlFor={`city-${index}`}>City</Label>
                                 <Input
                                   id={`city-${index}`}
                                   type="text"
@@ -1081,7 +1056,7 @@ export function UniversityCreationDialog({
                               </div>
 
                               <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`address-${index}`}>Address *</Label>
+                                <Label htmlFor={`address-${index}`}>Office location</Label>
                                 <Input
                                   id={`address-${index}`}
                                   type="text"
