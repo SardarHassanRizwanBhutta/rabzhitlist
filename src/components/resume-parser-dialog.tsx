@@ -23,10 +23,13 @@ import {
   resumeJsonToPartialCandidateForm,
 } from "@/lib/candidate/resume-to-candidate-form"
 import type {
+  CandidateCertification,
   CandidateEducation,
   CandidateFormData,
   WorkExperience,
 } from "@/components/candidate-creation-dialog"
+import { CERTIFICATION_LEVEL_LABELS_DB } from "@/lib/constants/candidate-enums"
+import type { CertificationLevelDb } from "@/lib/constants/candidate-enums"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -57,6 +60,19 @@ function formatEducationYearRange(e: CandidateEducation): string | null {
   const endS = e.endMonth ? format(e.endMonth, "yyyy") : ""
   if (!startS && !endS) return null
   return `${startS || "—"} — ${endS || "—"}`
+}
+
+function formatCertificationDateRange(c: CandidateCertification): string | null {
+  const issueS = c.issueDate ? format(c.issueDate, "MMM yyyy") : ""
+  const expiryS = c.expiryDate ? format(c.expiryDate, "MMM yyyy") : ""
+  if (!issueS && !expiryS) return null
+  if (issueS && expiryS) return `${issueS} — ${expiryS}`
+  return issueS ? `Issued ${issueS}` : `Expires ${expiryS}`
+}
+
+function certificationLevelLabel(level: CandidateCertification["certificationLevel"]): string | null {
+  if (!level) return null
+  return CERTIFICATION_LEVEL_LABELS_DB[level as CertificationLevelDb] ?? level
 }
 
 function TabPanelState({
@@ -346,10 +362,28 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
                 <Award className="h-4 w-4" /> Certifications
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 pt-0 text-sm">
-              {partial.certifications!.map((c) => (
-                <div key={c.id}>{c.certificationName}</div>
-              ))}
+            <CardContent className="space-y-3 pt-0 text-sm">
+              {partial.certifications!.map((c) => {
+                const dateRange = formatCertificationDateRange(c)
+                const levelLabel = certificationLevelLabel(c.certificationLevel)
+                return (
+                  <div key={c.id} className="space-y-1 rounded-md border p-3">
+                    <p className="font-medium leading-snug text-foreground">{c.certificationName}</p>
+                    {c.certificationIssuerName ? (
+                      <p className="text-sm text-muted-foreground">{c.certificationIssuerName}</p>
+                    ) : null}
+                    {levelLabel ? (
+                      <p className="text-xs text-muted-foreground">Level: {levelLabel}</p>
+                    ) : null}
+                    {dateRange ? (
+                      <p className="text-xs text-muted-foreground">{dateRange}</p>
+                    ) : null}
+                    {c.certificationUrl ? (
+                      <p className="break-all text-xs text-muted-foreground">{c.certificationUrl}</p>
+                    ) : null}
+                  </div>
+                )
+              })}
             </CardContent>
           </Card>
         )}
