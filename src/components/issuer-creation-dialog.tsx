@@ -25,6 +25,7 @@ interface IssuerCreationDialogProps {
   onOpenChange: (open: boolean) => void
   onSubmit: (data: IssuerFormData) => Promise<void> | void
   initialName?: string
+  initialWebsiteUrl?: string
 }
 
 const initialFormData: IssuerFormData = {
@@ -37,6 +38,7 @@ export function IssuerCreationDialog({
   onOpenChange,
   onSubmit,
   initialName,
+  initialWebsiteUrl,
 }: IssuerCreationDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState<IssuerFormData>(initialFormData)
@@ -45,14 +47,19 @@ export function IssuerCreationDialog({
 
   useEffect(() => {
     if (open) {
-      const data = initialName
-        ? { ...initialFormData, name: initialName }
-        : initialFormData
+      const data =
+        initialName || initialWebsiteUrl
+          ? {
+              ...initialFormData,
+              ...(initialName ? { name: initialName } : {}),
+              ...(initialWebsiteUrl ? { websiteUrl: initialWebsiteUrl } : {}),
+            }
+          : initialFormData
       setFormData(data)
       setErrors({})
       setTimeout(() => nameInputRef.current?.focus(), 100)
     }
-  }, [open, initialName])
+  }, [open, initialName, initialWebsiteUrl])
 
   const handleInputChange = (field: keyof IssuerFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
