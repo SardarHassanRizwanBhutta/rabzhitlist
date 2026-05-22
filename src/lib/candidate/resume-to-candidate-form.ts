@@ -9,6 +9,7 @@ import type {
 import type { Achievement, AchievementType } from "@/lib/types/candidate"
 import type { CertificationLevelDb } from "@/lib/constants/candidate-enums"
 import { CERTIFICATION_LEVEL_DB } from "@/lib/constants/candidate-enums"
+import { unwrapResumeParsedRoot } from "@/lib/services/resume-parser-api"
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -254,18 +255,56 @@ function mapCertifications(raw: unknown): CandidateCertification[] {
   for (const item of raw) {
     const o = asRecord(item)
     if (!o) continue
-    const certificationName = str(pick(o, ["name", "certificationName", "title"])) || ""
+    const certificationName =
+      str(
+        pick(o, [
+          "certification_name",
+          "certificationName",
+          "name",
+          "title",
+          "certificate_name",
+          "certificateName",
+        ])
+      ) || ""
     if (!certificationName) continue
+    const certificationUrl = str(
+      pick(o, [
+        "certification_url",
+        "certificationUrl",
+        "url",
+        "link",
+        "credentialUrl",
+        "credential_url",
+      ])
+    )
+    const certificationIssuerWebsiteUrl =
+      str(pick(o, ["issuing_body_url", "issuingBodyUrl", "issuer_website_url"])) || null
     out.push({
       id: crypto.randomUUID(),
       certificationId: null,
       certificationName,
       certificationIssuerName:
-        str(pick(o, ["issuer", "issuerName", "organization", "issuing_body", "issuingBody"])) || null,
-      certificationLevel: mapCertLevel(pick(o, ["level", "certificationLevel"])),
-      issueDate: parseFlexibleDate(pick(o, ["issueDate", "issued", "date"])),
-      expiryDate: parseFlexibleDate(pick(o, ["expiryDate", "expirationDate", "expires"])),
-      certificationUrl: str(pick(o, ["url", "link", "credentialUrl"])),
+        str(
+          pick(o, [
+            "issuing_body",
+            "issuingBody",
+            "issuer",
+            "issuerName",
+            "organization",
+            "issuing_organization",
+          ])
+        ) || null,
+      certificationIssuerWebsiteUrl,
+      certificationLevel: mapCertLevel(
+        pick(o, ["certification_level", "certificationLevel", "level"])
+      ),
+      issueDate: parseFlexibleDate(
+        pick(o, ["issue_date", "issueDate", "issued", "date", "issued_date"])
+      ),
+      expiryDate: parseFlexibleDate(
+        pick(o, ["expiry_date", "expiryDate", "expirationDate", "expires", "expiration_date"])
+      ),
+      certificationUrl,
     })
   }
   return out
@@ -342,10 +381,7 @@ function mapTechStacks(raw: unknown): string[] {
  * Employer, project, and certification catalog IDs stay null — user links them in the UI.
  */
 export function resumeJsonToPartialCandidateForm(raw: unknown): Partial<CandidateFormData> {
-  const rootOuter = asRecord(raw)
-  const unwrapped =
-    rootOuter && rootOuter.openai_parsed != null ? rootOuter.openai_parsed : raw
-  const root = asRecord(unwrapped)
+  const root = unwrapResumeParsedRoot(raw)
   if (!root) return {}
 
   const basic =

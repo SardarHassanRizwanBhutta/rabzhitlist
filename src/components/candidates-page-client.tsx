@@ -867,6 +867,8 @@ export function CandidatesPageClient() {
             onCreateBenefit={handleCreateBenefit}
             onCreateDegree={handleCreateDegree}
             onCreateMajor={handleCreateMajor}
+            certificationIssuers={certificationIssuersLookup}
+            certificationIssuersLoading={lookupsLoading}
             techStacksLoading={lookupsLoading}
             timeSupportZonesLoading={lookupsLoading}
             benefitsLoading={lookupsLoading}

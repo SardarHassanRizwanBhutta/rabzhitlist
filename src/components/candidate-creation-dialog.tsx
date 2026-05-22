@@ -74,6 +74,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Candidate, Competition, Achievement, AchievementType } from "@/lib/types/candidate"
+import type { CertificationIssuer } from "@/lib/types/certification"
 import {
   SHIFT_TYPE_LABELS,
   WORK_MODE_LABELS,
@@ -170,6 +171,8 @@ export interface CandidateCertification {
   certificationId: number | null
   certificationName: string
   certificationIssuerName: string | null
+  /** Parser hint for issuer website when creating catalog issuer (not sent on candidate save). */
+  certificationIssuerWebsiteUrl?: string | null
   /** DB enum certification_level_enum (lowercase) */
   certificationLevel: CertificationLevelDb | ""
   issueDate: Date | undefined
@@ -689,12 +692,16 @@ function CandidateCertificationComboboxRow({
   disabled,
   error,
   onCertificationChange,
+  certificationIssuers,
+  certificationIssuersLoading,
 }: {
   index: number
   cert: CandidateCertification
   disabled: boolean
   error: boolean
   onCertificationChange: (idx: number, sel: SelectedCertification) => void
+  certificationIssuers?: CertificationIssuer[]
+  certificationIssuersLoading?: boolean
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
   const [preloadedIssuer, setPreloadedIssuer] = React.useState<string | null>(null)
@@ -765,6 +772,16 @@ function CandidateCertificationComboboxRow({
       parsedNameHint={
         cert.certificationId == null ? cert.certificationName?.trim() || undefined : undefined
       }
+      parsedIssuerHint={
+        cert.certificationId == null ? cert.certificationIssuerName?.trim() || undefined : undefined
+      }
+      parsedIssuerWebsiteHint={
+        cert.certificationId == null
+          ? cert.certificationIssuerWebsiteUrl?.trim() || undefined
+          : undefined
+      }
+      certificationIssuers={certificationIssuers}
+      certificationIssuersLoading={certificationIssuersLoading}
     />
   )
 }
@@ -805,6 +822,9 @@ interface CandidateCreationDialogProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Disable degree/major comboboxes while loading. */
   degreesMajorsLoading?: boolean
+  /** Issuers for inline CertificationCreationDialog from certification combobox. */
+  certificationIssuers?: CertificationIssuer[]
+  certificationIssuersLoading?: boolean
   /** When opening Create Candidate, merge this partial snapshot (e.g. resume parser). Parent should clear after `onCreatePrefillConsumed`. */
   createPrefill?: Partial<CandidateFormData> | null
   /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
@@ -1036,6 +1056,8 @@ export function CandidateCreationDialog({
   onCreateDegree,
   onCreateMajor,
   degreesMajorsLoading = false,
+  certificationIssuers = [],
+  certificationIssuersLoading = false,
   createPrefill = null,
   onCreatePrefillConsumed,
 }: CandidateCreationDialogProps) {
@@ -4127,6 +4149,8 @@ export function CandidateCreationDialog({
                             disabled={isLoading}
                             error={!!errors.certifications?.[index]?.certificationId}
                             onCertificationChange={handleCandidateCertificationSelect}
+                            certificationIssuers={certificationIssuers}
+                            certificationIssuersLoading={certificationIssuersLoading}
                           />
                           {errors.certifications?.[index]?.certificationId && (
                             <p className="text-sm text-red-500">

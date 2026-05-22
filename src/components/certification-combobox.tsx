@@ -14,7 +14,15 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
 import { useCertificationSearch } from "@/hooks/useCertificationSearch"
+import {
+  CertificationCreationDialog,
+  type CertificationFormData,
+} from "@/components/certification-creation-dialog"
+import { createCertification } from "@/lib/services/certifications-api"
+import { searchCertifications } from "@/lib/services/certifications-lookup-api"
+import type { CertificationIssuer } from "@/lib/types/certification"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
 export type SelectedCertification = {
   id: number
@@ -32,6 +40,13 @@ export interface CertificationComboboxProps {
   error?: boolean
   /** Resume import: seed certification search when opening with no linked catalog row yet. */
   parsedNameHint?: string
+  /** Resume import: prefill issuing body in Create New Certification dialog. */
+  parsedIssuerHint?: string
+  /** Resume import: prefill issuer website when creating a new issuer. */
+  parsedIssuerWebsiteHint?: string
+  /** Issuers for CertificationCreationDialog issuer picker. */
+  certificationIssuers?: CertificationIssuer[]
+  certificationIssuersLoading?: boolean
 }
 
 export function CertificationCombobox({
@@ -43,8 +58,17 @@ export function CertificationCombobox({
   className,
   error = false,
   parsedNameHint,
+  parsedIssuerHint,
+  parsedIssuerWebsiteHint,
+  certificationIssuers = [],
+  certificationIssuersLoading = false,
 }: CertificationComboboxProps) {
   const [open, setOpen] = useState(false)
+  const [addCertificationOpen, setAddCertificationOpen] = useState(false)
+  const [addCertificationInitialName, setAddCertificationInitialName] = useState("")
+  const [addCertificationInitialIssuer, setAddCertificationInitialIssuer] = useState("")
+  const [addCertificationInitialIssuerWebsite, setAddCertificationInitialIssuerWebsite] =
+    useState("")
   const { query, setQuery, results, isLoading, resetSearch } = useCertificationSearch()
   const prevOpenRef = React.useRef(false)
 
@@ -80,8 +104,44 @@ export function CertificationCombobox({
     handleOpenChange(false)
   }
 
-  const openCertificationsPage = () => {
-    window.open("/certifications", "_blank", "noopener,noreferrer")
+  const handleCreateCertificationSubmit = async (data: CertificationFormData) => {
+    const name = data.certificationName.trim()
+    if (!name) {
+      toast.error("Certification name is required.")
+      return
+    }
+    if (data.issuerId == null) {
+      toast.error("Issuing body is required.")
+      return
+    }
+
+    await createCertification({
+      name,
+      issuerId: data.issuerId,
+    })
+
+    const list = await searchCertifications(name, 20)
+    const normalized = name.toLowerCase()
+    const created =
+      list.find((c) => c.name.trim().toLowerCase() === normalized) ?? list[0]
+
+    if (!created) {
+      toast.success(`Certification "${name}" created. Search again to link it.`)
+      setAddCertificationOpen(false)
+      setAddCertificationInitialName("")
+      setAddCertificationInitialIssuer("")
+      setAddCertificationInitialIssuerWebsite("")
+      resetSearch()
+      return
+    }
+
+    selectCertification(created)
+    setAddCertificationOpen(false)
+    setAddCertificationInitialName("")
+    setAddCertificationInitialIssuer("")
+    setAddCertificationInitialIssuerWebsite("")
+    resetSearch()
+    toast.success(`Certification "${created.name}" created successfully.`)
   }
 
   return (
@@ -170,7 +230,15 @@ export function CertificationCombobox({
                     <CommandItem
                       value="__create_new_certification__"
                       onSelect={() => {
-                        openCertificationsPage()
+                        setAddCertificationInitialName(
+                          query.trim() || parsedNameHint?.trim() || ""
+                        )
+                        setAddCertificationInitialIssuer(parsedIssuerHint?.trim() || "")
+                        setAddCertificationInitialIssuerWebsite(
+                          parsedIssuerWebsiteHint?.trim() || ""
+                        )
+                        handleOpenChange(false)
+                        setAddCertificationOpen(true)
                       }}
                       className="cursor-pointer font-medium text-primary"
                     >
@@ -209,6 +277,26 @@ export function CertificationCombobox({
           </PopoverContent>
         </Popover>
       )}
+
+      <CertificationCreationDialog
+        mode="create"
+        showVerification={false}
+        open={addCertificationOpen}
+        onOpenChange={(next) => {
+          setAddCertificationOpen(next)
+          if (!next) {
+            setAddCertificationInitialName("")
+            setAddCertificationInitialIssuer("")
+            setAddCertificationInitialIssuerWebsite("")
+          }
+        }}
+        initialName={addCertificationInitialName}
+        initialIssuerName={addCertificationInitialIssuer}
+        initialIssuerWebsite={addCertificationInitialIssuerWebsite}
+        issuers={certificationIssuers}
+        issuersLoading={certificationIssuersLoading}
+        onSubmit={handleCreateCertificationSubmit}
+      />
     </div>
   )
 }

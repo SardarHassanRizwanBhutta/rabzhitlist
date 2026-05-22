@@ -66,6 +66,10 @@ interface CertificationCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string
+  /** Resume/parser: prefill issuing body (match catalog or show name + create-new flow). */
+  initialIssuerName?: string
+  /** Resume/parser: prefill website when opening Create New Issuer for `initialIssuerName`. */
+  initialIssuerWebsite?: string
   issuers?: CertificationIssuer[]
   issuersLoading?: boolean
 }
@@ -88,6 +92,19 @@ const CERTIFICATION_VERIFICATION_FIELDS = [
   'certificationName', 'issuerId'
 ]
 
+function resolveIssuerFromCatalog(
+  issuerName: string,
+  issuers: CertificationIssuer[]
+): { issuerId: number; issuerName: string } | { issuerName: string } | null {
+  const hint = issuerName.trim()
+  if (!hint) return null
+  const match = issuers.find(
+    (i) => i.name.trim().toLowerCase() === hint.toLowerCase()
+  )
+  if (match) return { issuerId: match.id, issuerName: match.name }
+  return { issuerName: hint }
+}
+
 export function CertificationCreationDialog({
   children,
   mode = "create",
@@ -97,6 +114,8 @@ export function CertificationCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  initialIssuerName,
+  initialIssuerWebsite,
   issuers = [],
   issuersLoading = false,
 }: CertificationCreationDialogProps) {
@@ -134,6 +153,7 @@ export function CertificationCreationDialog({
   // Issuer creation dialog state
   const [createIssuerDialogOpen, setCreateIssuerDialogOpen] = useState(false)
   const [pendingIssuerName, setPendingIssuerName] = useState("")
+  const [pendingIssuerWebsite, setPendingIssuerWebsite] = useState("")
 
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
   const setOpen = (newOpen: boolean) => {
@@ -150,9 +170,24 @@ export function CertificationCreationDialog({
         setFormData(formDataFromCertification)
         initialFormDataRef.current = formDataFromCertification
       } else {
-        const formDataToUse = initialName
+        let formDataToUse: CertificationFormData = initialName
           ? { ...initialFormData, certificationName: initialName }
-          : initialFormData
+          : { ...initialFormData }
+
+        const issuerResolved = initialIssuerName
+          ? resolveIssuerFromCatalog(initialIssuerName, issuers)
+          : null
+        if (issuerResolved) {
+          formDataToUse = { ...formDataToUse, ...issuerResolved }
+          if (!("issuerId" in issuerResolved)) {
+            setIssuerSearchQuery(initialIssuerName!.trim())
+          } else {
+            setIssuerSearchQuery("")
+          }
+        } else {
+          setIssuerSearchQuery("")
+        }
+
         setFormData(formDataToUse)
         initialFormDataRef.current = formDataToUse
       }
@@ -165,12 +200,29 @@ export function CertificationCreationDialog({
       setFormData(initialFormData)
       setErrors({})
       initialFormDataRef.current = null
+      setIssuerSearchQuery("")
       setModifiedFields(new Set())
       if (!showVerification) {
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, certificationData, showVerification, initialName])
+  }, [open, mode, certificationData, showVerification, initialName, initialIssuerName, issuerIdsKey])
+
+  /** Re-match issuing body when issuer catalog loads after dialog open. */
+  useEffect(() => {
+    if (!open || mode !== "create" || !initialIssuerName?.trim()) return
+    const resolved = resolveIssuerFromCatalog(initialIssuerName, issuers)
+    if (!resolved) return
+    setFormData((prev) => {
+      if (prev.issuerId != null) return prev
+      if ("issuerId" in resolved) return { ...prev, ...resolved }
+      if (!prev.issuerName?.trim()) return { ...prev, issuerName: resolved.issuerName }
+      return prev
+    })
+    if (!("issuerId" in resolved)) {
+      setIssuerSearchQuery(initialIssuerName.trim())
+    }
+  }, [open, mode, initialIssuerName, issuerIdsKey, issuers])
 
   const hasUnsavedChanges = useMemo(() => {
     if (!showVerification) return false
@@ -219,6 +271,12 @@ export function CertificationCreationDialog({
 
   const handleCreateIssuer = (name: string) => {
     setPendingIssuerName(name)
+    const websiteHint = initialIssuerWebsite?.trim() ?? ""
+    const useWebsiteHint =
+      websiteHint &&
+      initialIssuerName?.trim() &&
+      name.trim().toLowerCase() === initialIssuerName.trim().toLowerCase()
+    setPendingIssuerWebsite(useWebsiteHint ? websiteHint : "")
     setIssuerPopoverOpen(false)
     setCreateIssuerDialogOpen(true)
   }
@@ -251,6 +309,7 @@ export function CertificationCreationDialog({
     toast.success(`Issuer "${issuerData.name}" created successfully.`)
     setCreateIssuerDialogOpen(false)
     setPendingIssuerName("")
+    setPendingIssuerWebsite("")
   }
 
   const filteredIssuers = useMemo(() => {
@@ -748,9 +807,16 @@ export function CertificationCreationDialog({
       {/* Create Issuer Dialog */}
       <IssuerCreationDialog
         open={createIssuerDialogOpen}
-        onOpenChange={setCreateIssuerDialogOpen}
+        onOpenChange={(next) => {
+          setCreateIssuerDialogOpen(next)
+          if (!next) {
+            setPendingIssuerName("")
+            setPendingIssuerWebsite("")
+          }
+        }}
         onSubmit={handleIssuerCreated}
         initialName={pendingIssuerName}
+        initialWebsiteUrl={pendingIssuerWebsite}
       />
     </>
   )
