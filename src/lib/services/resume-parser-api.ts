@@ -6,8 +6,46 @@
 
 const RESUME_PARSE_PROXY_PATH = "/api/resume-parse"
 
+/** One certification row inside `openai_parsed.certifications` (Flask / LLM schema). */
+export interface ResumeParsedCertification {
+  certification_name: string | null
+  issue_date: string | null
+  expiry_date: string | null
+  certification_url: string | null
+  issuing_body: string | null
+  issuing_body_url: string | null
+  certification_level: string | null
+}
+
+/** Top-level keys under `openai_parsed` (subset used by the app). */
+export interface ResumeOpenAiParsed {
+  basic_information?: Record<string, unknown>
+  technical_skills?: string[]
+  work_experience?: unknown[]
+  standalone_projects?: unknown[]
+  education?: unknown[]
+  certifications?: ResumeParsedCertification[]
+  achievements?: unknown[]
+}
+
+/** Successful Flask parse body (see docs/API_DOCUMENTATION.md). */
+export interface ResumeParseSuccessBody {
+  success?: boolean
+  openai_parsed?: ResumeOpenAiParsed
+  openai_error?: string | null
+  error?: string
+  message?: string
+}
+
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
+}
+
+/** Returns the structured resume object (`openai_parsed` when present). */
+export function unwrapResumeParsedRoot(raw: unknown): Record<string, unknown> | null {
+  const rootOuter = asRecord(raw)
+  const unwrapped = rootOuter?.openai_parsed != null ? rootOuter.openai_parsed : raw
+  return asRecord(unwrapped)
 }
 
 /** Throws if the Flask parser returned a JSON error body (including HTTP 200 + success: false). */
