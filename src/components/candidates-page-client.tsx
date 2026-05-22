@@ -594,9 +594,24 @@ export function CandidatesPageClient() {
       benefits: benefitsLookup,
       degrees: degreesLookup,
       majors: majorsLookup,
+      certificationIssuers: certificationIssuersLookup,
     }),
-    [techStacksLookup, timeSupportZonesLookup, benefitsLookup, degreesLookup, majorsLookup]
+    [
+      techStacksLookup,
+      timeSupportZonesLookup,
+      benefitsLookup,
+      degreesLookup,
+      majorsLookup,
+      certificationIssuersLookup,
+    ]
   )
+
+  const handleCertificationIssuerCreated = useCallback((issuer: CertificationIssuer) => {
+    setCertificationIssuersLookup((prev) => {
+      if (prev.some((i) => i.id === issuer.id)) return prev
+      return [...prev, issuer].sort((a, b) => a.name.localeCompare(b.name))
+    })
+  }, [])
 
   useEffect(() => {
     const projectFilterName = searchParams.get("projectFilter")
@@ -867,10 +882,12 @@ export function CandidatesPageClient() {
             onCreateBenefit={handleCreateBenefit}
             onCreateDegree={handleCreateDegree}
             onCreateMajor={handleCreateMajor}
+            onCertificationIssuerCreated={handleCertificationIssuerCreated}
             techStacksLoading={lookupsLoading}
             timeSupportZonesLoading={lookupsLoading}
             benefitsLoading={lookupsLoading}
             degreesMajorsLoading={lookupsLoading}
+            certificationIssuersLoading={lookupsLoading}
           />
         </div>
       </div>

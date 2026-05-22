@@ -267,18 +267,19 @@ function mapCertifications(raw: unknown): CandidateCertification[] {
         ])
       ) || ""
     if (!certificationName) continue
-    const certificationUrl =
-      str(
-        pick(o, [
-          "certification_url",
-          "certificationUrl",
-          "url",
-          "link",
-          "credentialUrl",
-          "credential_url",
-        ])
-      ) ||
-      str(pick(o, ["issuing_body_url", "issuingBodyUrl"]))
+    const certificationUrl = str(
+      pick(o, [
+        "certification_url",
+        "certificationUrl",
+        "url",
+        "link",
+        "credentialUrl",
+        "credential_url",
+      ])
+    )
+    const certificationIssuerWebsiteUrl =
+      str(pick(o, ["issuing_body_url", "issuingBodyUrl", "issuer_website_url", "issuerWebsiteUrl"])) ||
+      null
     out.push({
       id: crypto.randomUUID(),
       certificationId: null,
@@ -294,6 +295,7 @@ function mapCertifications(raw: unknown): CandidateCertification[] {
             "issuing_organization",
           ])
         ) || null,
+      certificationIssuerWebsiteUrl,
       certificationLevel: mapCertLevel(
         pick(o, ["certification_level", "certificationLevel", "level"])
       ),

@@ -107,6 +107,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { LookupItem } from "@/lib/services/lookups-api"
+import type { CertificationIssuer } from "@/lib/types/certification"
 
 /** Lookups from backend for candidate form dropdowns (aligned with employer/project dialogs). */
 export interface CandidateLookups {
@@ -119,6 +120,8 @@ export interface CandidateLookups {
   degrees?: LookupItem[]
   /** From `/api/majors` — education combobox. */
   majors?: LookupItem[]
+  /** From GET `/api/CertificationIssuers` — certification create / issuing body. */
+  certificationIssuers?: CertificationIssuer[]
 }
 
 // Option interface for comboboxes
@@ -170,6 +173,8 @@ export interface CandidateCertification {
   certificationId: number | null
   certificationName: string
   certificationIssuerName: string | null
+  /** Resume parser: prefill Issuing Body / Create Issuer website when linking catalog. */
+  certificationIssuerWebsiteUrl?: string | null
   /** DB enum certification_level_enum (lowercase) */
   certificationLevel: CertificationLevelDb | ""
   issueDate: Date | undefined
@@ -689,12 +694,18 @@ function CandidateCertificationComboboxRow({
   disabled,
   error,
   onCertificationChange,
+  certificationIssuers,
+  certificationIssuersLoading,
+  onCertificationIssuerCreated,
 }: {
   index: number
   cert: CandidateCertification
   disabled: boolean
   error: boolean
   onCertificationChange: (idx: number, sel: SelectedCertification) => void
+  certificationIssuers?: CertificationIssuer[]
+  certificationIssuersLoading?: boolean
+  onCertificationIssuerCreated?: (issuer: CertificationIssuer) => void
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
   const [preloadedIssuer, setPreloadedIssuer] = React.useState<string | null>(null)
@@ -765,6 +776,17 @@ function CandidateCertificationComboboxRow({
       parsedNameHint={
         cert.certificationId == null ? cert.certificationName?.trim() || undefined : undefined
       }
+      parsedIssuerHint={
+        cert.certificationId == null ? cert.certificationIssuerName?.trim() || undefined : undefined
+      }
+      parsedIssuerWebsiteHint={
+        cert.certificationId == null
+          ? cert.certificationIssuerWebsiteUrl?.trim() || undefined
+          : undefined
+      }
+      issuers={certificationIssuers}
+      issuersLoading={certificationIssuersLoading}
+      onIssuerCreated={onCertificationIssuerCreated}
     />
   )
 }
@@ -803,8 +825,12 @@ interface CandidateCreationDialogProps {
   onCreateDegree?: (name: string) => Promise<void>
   /** Create major via POST `/api/majors`; parent refreshes `lookups.majors`. */
   onCreateMajor?: (name: string) => Promise<void>
+  /** After inline Create Issuer from certification combobox; parent refreshes issuer lookup. */
+  onCertificationIssuerCreated?: (issuer: CertificationIssuer) => void
   /** Disable degree/major comboboxes while loading. */
   degreesMajorsLoading?: boolean
+  /** Disable certification create / issuer pickers while issuers load. */
+  certificationIssuersLoading?: boolean
   /** When opening Create Candidate, merge this partial snapshot (e.g. resume parser). Parent should clear after `onCreatePrefillConsumed`. */
   createPrefill?: Partial<CandidateFormData> | null
   /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
@@ -838,6 +864,7 @@ const createEmptyCertification = (): CandidateCertification => ({
   certificationId: null,
   certificationName: "",
   certificationIssuerName: null,
+  certificationIssuerWebsiteUrl: null,
   certificationLevel: "" as CertificationLevelDb | "",
   issueDate: undefined,
   expiryDate: undefined,
@@ -1035,7 +1062,9 @@ export function CandidateCreationDialog({
   benefitsLoading = false,
   onCreateDegree,
   onCreateMajor,
+  onCertificationIssuerCreated,
   degreesMajorsLoading = false,
+  certificationIssuersLoading = false,
   createPrefill = null,
   onCreatePrefillConsumed,
 }: CandidateCreationDialogProps) {
@@ -4127,6 +4156,9 @@ export function CandidateCreationDialog({
                             disabled={isLoading}
                             error={!!errors.certifications?.[index]?.certificationId}
                             onCertificationChange={handleCandidateCertificationSelect}
+                            certificationIssuers={lookups?.certificationIssuers}
+                            certificationIssuersLoading={certificationIssuersLoading}
+                            onCertificationIssuerCreated={onCertificationIssuerCreated}
                           />
                           {errors.certifications?.[index]?.certificationId && (
                             <p className="text-sm text-red-500">
