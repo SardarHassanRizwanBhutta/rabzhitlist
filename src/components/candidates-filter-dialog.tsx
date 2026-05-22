@@ -86,6 +86,7 @@ export interface CandidateFilters {
   // Project-related filters
   projectStatus: string[]
   projectTypes: string[]
+  /** Project tech stack names → `techStackIds` on GET /api/candidates (OR on linked project stacks only). */
   techStacks: string[]
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   verticalDomains: string[]
@@ -203,6 +204,8 @@ interface CandidatesFilterDialogProps {
   degrees?: LookupItem[]
   /** From GET /api/majors — same catalog as CandidateCreationDialog education combobox. */
   majors?: LookupItem[]
+  /** From GET /api/techstacks — project expertise + candidate tech stack filters. */
+  techStacks?: LookupItem[]
 }
 
 // Mock data for filter options (removed unused statusOptions)
@@ -280,18 +283,6 @@ const projectStatusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_
 const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   value: type,
   label: type,
-}))
-
-// Project tech stacks (for Project Expertise section)
-const techStackOptions: MultiSelectOption[] = extractUniqueProjectTechStacks().map(tech => ({
-  value: tech,
-  label: tech
-}))
-
-// Candidate work experience tech stacks (for separate filter)
-const candidateTechStackOptions: MultiSelectOption[] = extractUniqueCandidateTechStacks().map(tech => ({
-  value: tech,
-  label: tech
 }))
 
 /** Same shift type keys as work experience in CandidateCreationDialog (`shift_type_enum`). */
@@ -497,6 +488,7 @@ export function CandidatesFilterDialog({
   certificationIssuers = [],
   degrees = [],
   majors = [],
+  techStacks = [],
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
@@ -548,6 +540,32 @@ export function CandidatesFilterDialog({
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((m) => ({ value: m.name, label: m.name }))
   }, [majors])
+
+  /** Project Expertise technology stack filter — API catalog, fallback to sample projects. */
+  const projectTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    if (techStacks.length > 0) {
+      return [...techStacks]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((l) => ({ value: l.name, label: l.name }))
+    }
+    return extractUniqueProjectTechStacks().map((tech) => ({
+      value: tech,
+      label: tech,
+    }))
+  }, [techStacks])
+
+  /** Candidate work-experience tech stacks — same master list as creation dialog. */
+  const candidateTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    if (techStacks.length > 0) {
+      return [...techStacks]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((l) => ({ value: l.name, label: l.name }))
+    }
+    return extractUniqueCandidateTechStacks().map((tech) => ({
+      value: tech,
+      label: tech,
+    }))
+  }, [techStacks])
 
   // Projects: same debounced search as ProjectCombobox (`useProjectSearch` → `/api/projects/search`)
   const {
@@ -1628,7 +1646,7 @@ export function CandidatesFilterDialog({
               {/* Candidate Work Experience Tech Stacks */}
               <div className="space-y-2">
                 <MultiSelect
-                  items={candidateTechStackOptions}
+                  items={candidateTechStackFilterOptions}
                   selected={tempFilters.candidateTechStacks}
                   onChange={(values) => handleFilterChange("candidateTechStacks", values)}
                   placeholder="Filter by technology stack..."
@@ -1685,7 +1703,7 @@ export function CandidatesFilterDialog({
                   <div className="space-y-1">
                     <Label className="text-xs text-muted-foreground">Technologies</Label>
                     <MultiSelect
-                      items={candidateTechStackOptions}
+                      items={candidateTechStackFilterOptions}
                       selected={tempFilters.techStackMinYears?.techStacks || []}
                       onChange={(values) => {
                         handleFilterChange("techStackMinYears", {
@@ -2309,15 +2327,21 @@ export function CandidatesFilterDialog({
                 />
               </div>
 
-              <MultiSelect
-                items={techStackOptions}
-                selected={tempFilters.techStacks}
-                onChange={(values) => handleFilterChange("techStacks", values)}
-                placeholder="Filter by technology..."
-                label="Technology Stack"
-                searchPlaceholder="Search technologies..."
-                maxDisplay={4}
-              />
+              <div className="space-y-2">
+                <MultiSelect
+                  items={projectTechStackFilterOptions}
+                  selected={tempFilters.techStacks}
+                  onChange={(values) => handleFilterChange("techStacks", values)}
+                  placeholder="Filter by technology..."
+                  label="Technology Stack"
+                  searchPlaceholder="Search technologies..."
+                  maxDisplay={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Matches candidates with linked projects that use any selected stack (OR). Does not filter on
+                  candidate-level or work-experience-only tech stacks.
+                </p>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect

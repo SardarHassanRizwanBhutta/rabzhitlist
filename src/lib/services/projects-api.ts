@@ -351,8 +351,11 @@ export interface ProjectsListFilterInput {
   technicalDomains: string[]
   /** Legacy lookup names → resolved to enum ints in page client. */
   technicalAspects: string[]
-  /** Catalog type id strings → merged into `technicalAspects` query. */
+  /** Catalog type id strings (client-side aspect label filter until API supports type ids). */
   technicalAspectTypeIds: string[]
+  /** Per aspect-type id: selected stack names for scoped pickers (union → `techStacks` on apply). */
+  techStacksByAspectType: Record<string, string[]>
+  /** Flat stack names: legacy mode, or derived union when aspect types are selected. */
   techStacks: string[]
   completionDateStart: Date | null
   completionDateEnd: Date | null
