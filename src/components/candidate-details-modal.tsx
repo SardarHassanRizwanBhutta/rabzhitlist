@@ -45,8 +45,6 @@ import {
   CandidateCertification,
   ProjectExperience,
   WorkExperience,
-  CANDIDATE_STATUS_COLORS,
-  CANDIDATE_STATUS_LABELS,
 } from "@/lib/types/candidate"
 import type { CertificationIssuer } from "@/lib/types/certification"
 import {
@@ -99,7 +97,7 @@ import {
   candidateFormDataToUpdateDto,
   syncCandidateSubResources,
   prepareCandidateCreateLookups,
-  fetchCandidateDataProgress,
+  // fetchCandidateDataProgress,
   fetchCandidateById,
   upsertCandidateCertification,
   updateCandidateEducation,
@@ -113,8 +111,8 @@ import {
   upsertWeProject,
   removeWeProject,
 } from "@/lib/services/candidates-api"
-import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
-import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
+// import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
+// import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
 import { fetchTimeSupportZones, createTimeSupportZone, fetchTags } from "@/lib/services/tags-timesupportzones-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
@@ -795,7 +793,29 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
 
   // Display mode
   if (!displayText) {
-    return null
+    return (
+      <div className={cn("flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+        <div className="flex-1 min-w-0">
+          {label ? (
+            <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
+          ) : null}
+          <span className="text-sm text-muted-foreground italic block">N/A</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {verificationIndicator}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleEdit}
+            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            type="button"
+            title={label ? `Edit ${label.toLowerCase()}` : "Edit"}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -2009,6 +2029,311 @@ const validateName = (name: string): string | null => {
   return null
 }
 
+function isInlineFieldValueEmpty(value: string | number | null | undefined): boolean {
+  if (value === null || value === undefined) return true
+  return String(value).trim() === ''
+}
+
+function formatInlineFieldDisplayValue(value: string | number | null | undefined): string {
+  if (isInlineFieldValueEmpty(value)) return 'N/A'
+  return String(value)
+}
+
+const RESUME_FILE_ACCEPT = ".pdf,.doc,.docx"
+
+function getResumeFileName(resumeUrl: string | null | undefined): string | null {
+  if (!resumeUrl?.trim()) return null
+  try {
+    const pathname = new URL(resumeUrl, "https://placeholder.local").pathname
+    const name = pathname.split("/").filter(Boolean).pop()
+    return name ? decodeURIComponent(name) : resumeUrl.trim()
+  } catch {
+    const name = resumeUrl.split(/[/\\]/).filter(Boolean).pop()
+    return name ? decodeURIComponent(name) : resumeUrl.trim()
+  }
+}
+
+interface InlineEditableResumeProps {
+  label?: string
+  resumeUrl: string | null | undefined
+  fieldName: string
+  onSave: (payload: { file: File | null; clearExisting: boolean; shouldVerify: boolean }) => Promise<void>
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  className?: string
+}
+
+const InlineEditableResume: React.FC<InlineEditableResumeProps> = ({
+  label = "Resume",
+  resumeUrl,
+  fieldName,
+  onSave,
+  verificationIndicator,
+  getFieldVerification,
+  className = "",
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [existingRemoved, setExistingRemoved] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === 'verified'
+  const existingFileName = getResumeFileName(resumeUrl)
+  const hasExistingResume = !!existingFileName && !existingRemoved
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const resetEditState = () => {
+    setResumeFile(null)
+    setExistingRemoved(false)
+    setError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleEdit = () => {
+    resetEditState()
+    setWillVerify(isCurrentlyVerified)
+    setIsEditing(true)
+  }
+
+  const handleCancel = () => {
+    resetEditState()
+    setWillVerify(isCurrentlyVerified)
+    setIsEditing(false)
+  }
+
+  const handleSave = async () => {
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const hasNewFile = resumeFile != null
+    const clearedExisting = existingRemoved && !!existingFileName
+
+    if (!hasNewFile && !clearedExisting && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    if (!hasNewFile && !clearedExisting && !existingFileName && verificationChanged) {
+      setError("Select a resume file to upload.")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave({
+        file: resumeFile,
+        clearExisting: clearedExisting,
+        shouldVerify: willVerify,
+      })
+      setIsEditing(false)
+      resetEditState()
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRemoveSelectedFile = () => {
+    setResumeFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleRemoveExistingResume = () => {
+    setExistingRemoved(true)
+    setResumeFile(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-2 py-2 px-3 rounded-md", className)}>
+        <Label htmlFor={`${fieldName}-resume-upload`} className="text-sm font-medium text-muted-foreground">
+          {label}
+        </Label>
+        {resumeFile ? (
+          <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate" title={resumeFile.name}>
+                {resumeFile.name}
+              </span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                ({(resumeFile.size / 1024).toFixed(1)} KB)
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRemoveSelectedFile}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+              title="Remove file"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : hasExistingResume ? (
+          <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
+            <div className="flex-1 flex items-center gap-2 min-w-0">
+              <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium truncate" title={existingFileName ?? undefined}>
+                {existingFileName}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleRemoveExistingResume}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+              title="Remove file"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Input
+              id={`${fieldName}-resume-upload`}
+              type="file"
+              ref={fileInputRef}
+              accept={RESUME_FILE_ACCEPT}
+              disabled={isSaving}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  setResumeFile(file)
+                  setError(null)
+                }
+              }}
+              className="cursor-pointer"
+            />
+            <p className="text-xs text-muted-foreground">
+              Accepted formats: PDF, DOC, DOCX
+            </p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="h-8 w-8 p-0"
+            title={willVerify ? "Save & Verify" : "Save"}
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="h-8 w-8 p-0"
+            title="Cancel"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 pl-1">
+          <Checkbox
+            id={`verify-${fieldName}`}
+            checked={willVerify}
+            onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+            disabled={isSaving}
+            className="h-4 w-4"
+          />
+          <Label
+            htmlFor={`verify-${fieldName}`}
+            className={cn(
+              "text-xs cursor-pointer",
+              willVerify ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+            )}
+          >
+            {willVerify ? '✓ Verified' : 'Mark as verified'}
+          </Label>
+        </div>
+        {error && (
+          <p className="text-xs text-red-500">{error}</p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className={cn("flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
+        {existingFileName ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
+            {resumeUrl?.trim() ? (
+              <a
+                href={resumeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary hover:underline truncate"
+                title={existingFileName}
+              >
+                {existingFileName}
+              </a>
+            ) : (
+              <span className="text-sm truncate">{existingFileName}</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground italic block">N/A</span>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {verificationIndicator}
+        {resumeUrl?.trim() ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            asChild
+            className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <a href={resumeUrl} target="_blank" rel="noopener noreferrer" title="Download resume">
+              <Download className="w-3.5 h-3.5" />
+            </a>
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleEdit}
+          className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          type="button"
+          title="Edit resume"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // InlineEditableField component with edit + verification
 interface InlineEditableFieldProps {
   label: string
@@ -2115,9 +2440,9 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
     }
   }
 
-  const displayValue = formatDisplay 
-    ? formatDisplay(value) 
-    : (value !== null && value !== undefined ? String(value) : 'N/A')
+  const displayValue = formatDisplay
+    ? (isInlineFieldValueEmpty(value) ? 'N/A' : formatDisplay(value))
+    : formatInlineFieldDisplayValue(value)
 
   return (
     <div className={cn("flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
@@ -2186,7 +2511,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
           <div className="flex items-center justify-between group w-full">
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
-              <span className={`text-sm block ${value === null || value === undefined ? 'text-muted-foreground italic' : ''}`}>
+              <span className={`text-sm block ${isInlineFieldValueEmpty(value) ? 'text-muted-foreground italic' : ''}`}>
                 {displayValue}
               </span>
             </div>
@@ -3739,9 +4064,9 @@ export function CandidateDetailsModal({
   const [pendingCertificationFieldName, setPendingCertificationFieldName] = useState<string | null>(null)
   
   // Delete confirmation dialog state
-  const [dataProgress, setDataProgress] = useState<CandidateDataProgressResponse | null>(null)
-  const [dataProgressLoading, setDataProgressLoading] = useState(false)
-  const [dataProgressError, setDataProgressError] = useState<string | null>(null)
+  // const [dataProgress, setDataProgress] = useState<CandidateDataProgressResponse | null>(null)
+  // const [dataProgressLoading, setDataProgressLoading] = useState(false)
+  // const [dataProgressError, setDataProgressError] = useState<string | null>(null)
 
   const [certificationIssuers, setCertificationIssuers] = useState<CertificationIssuer[]>([])
   const [certificationIssuersLoading, setCertificationIssuersLoading] = useState(false)
@@ -4094,6 +4419,33 @@ export function CandidateDetailsModal({
     }
   }, [interactionMode])
   
+  const handleResumeSave = async (payload: {
+    file: File | null
+    clearExisting: boolean
+    shouldVerify: boolean
+  }) => {
+    if (!candidate) return
+
+    try {
+      if (payload.file) {
+        const message = payload.shouldVerify
+          ? "Resume updated and verified ✓"
+          : "Resume updated"
+        toast.success(message)
+      } else if (payload.clearExisting) {
+        const message = payload.shouldVerify
+          ? "Resume removed and verified ✓"
+          : "Resume removed"
+        toast.success(message)
+      } else if (payload.shouldVerify) {
+        toast.success("Resume verified ✓")
+      }
+    } catch (error) {
+      toast.error("Failed to save. Please try again.")
+      throw error
+    }
+  }
+
   // Handle inline field save with verification
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
@@ -5006,32 +5358,32 @@ export function CandidateDetailsModal({
     }
   }
   
-  const loadDataProgress = React.useCallback(async () => {
-    if (!candidate) return
-    const id = Number(candidate.id)
-    if (!Number.isFinite(id)) return
-    setDataProgressLoading(true)
-    setDataProgressError(null)
-    try {
-      const result = await fetchCandidateDataProgress(id)
-      setDataProgress(result)
-    } catch (e) {
-      setDataProgress(null)
-      setDataProgressError(e instanceof Error ? e.message : "Failed to load data progress")
-    } finally {
-      setDataProgressLoading(false)
-    }
-  }, [candidate])
+  // const loadDataProgress = React.useCallback(async () => {
+  //   if (!candidate) return
+  //   const id = Number(candidate.id)
+  //   if (!Number.isFinite(id)) return
+  //   setDataProgressLoading(true)
+  //   setDataProgressError(null)
+  //   try {
+  //     const result = await fetchCandidateDataProgress(id)
+  //     setDataProgress(result)
+  //   } catch (e) {
+  //     setDataProgress(null)
+  //     setDataProgressError(e instanceof Error ? e.message : "Failed to load data progress")
+  //   } finally {
+  //     setDataProgressLoading(false)
+  //   }
+  // }, [candidate])
 
-  useEffect(() => {
-    if (!open || !candidate) {
-      setDataProgress(null)
-      setDataProgressError(null)
-      setDataProgressLoading(false)
-      return
-    }
-    void loadDataProgress()
-  }, [open, candidate?.id, loadDataProgress])
+  // useEffect(() => {
+  //   if (!open || !candidate) {
+  //     setDataProgress(null)
+  //     setDataProgressError(null)
+  //     setDataProgressLoading(false)
+  //     return
+  //   }
+  //   void loadDataProgress()
+  // }, [open, candidate?.id, loadDataProgress])
 
   const refreshFullCandidate = React.useCallback(async () => {
     if (!candidate?.id) return
@@ -5097,7 +5449,7 @@ export function CandidateDetailsModal({
         { duration: 4000 }
       )
       setEditDialogOpen(false)
-      await loadDataProgress()
+      // await loadDataProgress()
       await refreshFullCandidate()
       onCandidateUpdated?.()
     } catch (err) {
@@ -5381,7 +5733,7 @@ export function CandidateDetailsModal({
   }
 
   const formatDate = (date: Date | undefined) => {
-    if (!date) return "Present"
+    if (!date) return "N/A"
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short', 
@@ -5390,7 +5742,7 @@ export function CandidateDetailsModal({
   }
 
   const formatMonth = (date: Date | undefined) => {
-    if (!date) return "Present"
+    if (!date) return "N/A"
     return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short'
@@ -5490,9 +5842,6 @@ export function CandidateDetailsModal({
                   {viewCandidate.name}
           </DialogTitle>
                 <p className="text-sm text-muted-foreground mb-2">{getJobTitle(viewCandidate)}</p>
-            <Badge className={CANDIDATE_STATUS_COLORS[viewCandidate.status]}>
-              {CANDIDATE_STATUS_LABELS[viewCandidate.status]}
-            </Badge>
               </div>
             </div>
             <div className="flex gap-2 mr-12">
@@ -5622,12 +5971,12 @@ export function CandidateDetailsModal({
               </div>
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
-          <CandidateDataProgressPanel
+          {/* <CandidateDataProgressPanel
             progress={dataProgress}
             loading={dataProgressLoading}
             error={dataProgressError}
             onRetry={() => void loadDataProgress()}
-          />
+          /> */}
 
           {/* Verification Summary Bar */}
           {verificationSummary && verificationSummary.totalFields > 0 && (
@@ -5798,42 +6147,34 @@ export function CandidateDetailsModal({
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-muted-foreground">Links & Resources</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                      {viewCandidate.linkedinUrl && (
-                        <InlineEditableField 
-                          label="LinkedIn URL" 
-                          value={viewCandidate.linkedinUrl} 
-                          fieldName="linkedinUrl"
+                      <InlineEditableField 
+                        label="LinkedIn URL" 
+                        value={viewCandidate.linkedinUrl ?? ''} 
+                        fieldName="linkedinUrl"
                           fieldType="url"
                           validation={validateLinkedInURL}
                           onSave={handleFieldSave}
                           verificationIndicator={<VerificationIndicator fieldName="linkedinUrl" />}
                           getFieldVerification={getFieldVerification}
-                        />
-                      )}
-                      {viewCandidate.githubUrl && (
-                        <InlineEditableField 
-                          label="GitHub URL" 
-                          value={viewCandidate.githubUrl} 
-                          fieldName="githubUrl"
+                      />
+                      <InlineEditableField 
+                        label="GitHub URL" 
+                        value={viewCandidate.githubUrl ?? ''} 
+                        fieldName="githubUrl"
                           fieldType="url"
                           validation={validateGitHubURL}
                           onSave={handleFieldSave}
                           verificationIndicator={<VerificationIndicator fieldName="githubUrl" />}
                           getFieldVerification={getFieldVerification}
-                        />
-                      )}
-                      {viewCandidate.resume && (
-                        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/30">
-                          <Button variant="outline" size="sm" asChild className="h-8">
-                            <a href={viewCandidate.resume} target="_blank" rel="noopener noreferrer">
-                              <Download className="size-4" />
-                              Resume
-                              <ExternalLink className="size-3" />
-                            </a>
-                          </Button>
-                          <VerificationIndicator fieldName="resume" />
-                        </div>
-                      )}
+                      />
+                      <InlineEditableResume
+                        label="Resume"
+                        resumeUrl={viewCandidate.resume}
+                        fieldName="resume"
+                        onSave={handleResumeSave}
+                        verificationIndicator={<VerificationIndicator fieldName="resume" />}
+                        getFieldVerification={getFieldVerification}
+                      />
                     </div>
                   </div>
 
@@ -6136,18 +6477,16 @@ export function CandidateDetailsModal({
                                             {...getProjectDetails(project.projectName)}
                                           />
                                         )}
-                                        {project.contributionNotes && (
-                                          <InlineEditableTextarea
-                                            value={project.contributionNotes}
-                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
-                                            onSave={handleFieldSave}
-                                            maxLength={100}
-                                            verificationIndicator={
-                                              <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
-                                            }
-                                            getFieldVerification={getFieldVerification}
-                                          />
-                                        )}
+                                        <InlineEditableTextarea
+                                          value={project.contributionNotes ?? ''}
+                                          fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
+                                          onSave={handleFieldSave}
+                                          maxLength={100}
+                                          verificationIndicator={
+                                            <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
+                                          }
+                                          getFieldVerification={getFieldVerification}
+                                        />
                                       </div>
                                       <Button
                                         type="button"
@@ -6210,35 +6549,7 @@ export function CandidateDetailsModal({
               <CollapsibleContent>
                 <CardContent className="space-y-6">
                   {!viewCandidate.techStacks || viewCandidate.techStacks.length === 0 ? (
-                    <div className="space-y-4">
-                      <InlineEditableMultiSelect
-                        label="Technical Skills"
-                        value={[]}
-                        fieldName="techStacks"
-                        options={techStackOptions}
-                        onSave={handleMultiSelectFieldSave}
-                        verificationIndicator={<VerificationIndicator fieldName="techStacks" />}
-                        getFieldVerification={getFieldVerification}
-                        placeholder="Select technologies..."
-                        searchPlaceholder="Search technologies..."
-                        badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                        maxDisplay={6}
-                        creatable={true}
-                        createLabel="Create Tech Stack"
-                        onCreateNew={(newTechStack) => {
-                          const newOption = { label: newTechStack, value: newTechStack }
-                          setExtraTechStackOptions((prev) => {
-                            const updated = [...prev, newOption]
-                            return updated.sort((a, b) => a.label.localeCompare(b.label))
-                          })
-                          // Add to current selection
-                          const currentValue: string[] = []
-                          if (!currentValue.includes(newTechStack)) {
-                            handleMultiSelectFieldSave("techStacks", [...currentValue, newTechStack], false)
-                          }
-                        }}
-                      />
-                    </div>
+                    <p className="text-base text-muted-foreground text-center py-6">No tech stacks recorded</p>
                   ) : (
                     <div className="space-y-4">
                       <InlineEditableMultiSelect
@@ -6343,19 +6654,17 @@ export function CandidateDetailsModal({
                                   {...getProjectDetails(project.projectName)}
                                 />
                               )}
-                              {project.contributionNotes && (
-                                <InlineEditableTextarea
-                                  value={project.contributionNotes}
-                                  fieldName={`projects[${idx}].contributionNotes`}
-                                  onSave={handleFieldSave}
-                                  maxLength={100}
-                                  className="mt-2"
-                                  verificationIndicator={
-                                    <VerificationIndicator fieldName={`projects[${idx}].contributionNotes`} />
-                                  }
-                                  getFieldVerification={getFieldVerification}
-                                />
-                              )}
+                              <InlineEditableTextarea
+                                value={project.contributionNotes ?? ''}
+                                fieldName={`projects[${idx}].contributionNotes`}
+                                onSave={handleFieldSave}
+                                maxLength={100}
+                                className="mt-2"
+                                verificationIndicator={
+                                  <VerificationIndicator fieldName={`projects[${idx}].contributionNotes`} />
+                                }
+                                getFieldVerification={getFieldVerification}
+                              />
                             </div>
                             <Button
                               type="button"
@@ -6479,10 +6788,9 @@ export function CandidateDetailsModal({
                                     }
                                   }}
                                 />
-                                {education.majorName && (
-                                  <InlineEditableCombobox
-                                    label="Major Name"
-                                    value={education.majorName}
+                                <InlineEditableCombobox
+                                  label="Major Name"
+                                  value={education.majorName ?? ''}
                                     fieldName={`educations[${idx}].majorName`}
                                     options={majorOptions}
                                     catalogOptions={majorCatalogOptions}
@@ -6514,20 +6822,17 @@ export function CandidateDetailsModal({
                                           err instanceof Error ? err.message : "Failed to add major."
                                         )
                                       }
-                                    }}
-                                  />
-                                )}
-                                {education.grades && (
-                                  <InlineEditableField 
-                                    label="Grades" 
-                                    value={education.grades} 
+                                  }}
+                                />
+                                <InlineEditableField 
+                                  label="Grades" 
+                                  value={education.grades ?? ''}
                                     fieldName={`educations[${idx}].grades`}
                                     fieldType="text"
                                     onSave={handleFieldSave}
                                     verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].grades`} />}
                                     getFieldVerification={getFieldVerification}
                                   />
-                                )}
                               </div>
                             </div>
                             <div className="flex flex-col items-end gap-3">
@@ -6674,28 +6979,24 @@ export function CandidateDetailsModal({
                               />
                               {/* Dates */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {cert.issueDate && (
-                                  <InlineEditableDate
-                                    label="Issue Date"
-                                    value={cert.issueDate}
-                                    fieldName={`certifications[${idx}].issueDate`}
-                                    onSave={handleFieldSave}
-                                    formatDisplay={(date) => date ? formatDate(date) : 'N/A'}
-                                    verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].issueDate`} />}
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                )}
-                                {cert.expiryDate && (
-                                  <InlineEditableDate
-                                    label="Expiry Date"
-                                    value={cert.expiryDate}
-                                    fieldName={`certifications[${idx}].expiryDate`}
-                                    onSave={handleFieldSave}
-                                    formatDisplay={(date) => date ? formatDate(date) : 'N/A'}
-                                    verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].expiryDate`} />}
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                )}
+                                <InlineEditableDate
+                                  label="Issue Date"
+                                  value={cert.issueDate}
+                                  fieldName={`certifications[${idx}].issueDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
+                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].issueDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="Expiry Date"
+                                  value={cert.expiryDate}
+                                  fieldName={`certifications[${idx}].expiryDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
+                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].expiryDate`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
                               </div>
                             </div>
                             <Button
@@ -6710,18 +7011,16 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Certificate Link */}
-                          {cert.certificationUrl && (
-                            <InlineEditableField 
-                              label="Certification URL" 
-                              value={cert.certificationUrl} 
-                              fieldName={`certifications[${idx}].certificationUrl`}
-                              fieldType="url"
-                              validation={validateURL}
-                              onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
-                              getFieldVerification={getFieldVerification}
-                            />
-                          )}
+                          <InlineEditableField 
+                            label="Certification URL" 
+                            value={cert.certificationUrl ?? ''} 
+                            fieldName={`certifications[${idx}].certificationUrl`}
+                            fieldType="url"
+                            validation={validateURL}
+                            onSave={handleFieldSave}
+                            verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
+                            getFieldVerification={getFieldVerification}
+                          />
                         </div>
                       </div>
                     ))
@@ -6800,31 +7099,27 @@ export function CandidateDetailsModal({
                               </div>
                               {/* Ranking and Year */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                {ach.ranking && (
-                                  <InlineEditableField
-                                    label="Ranking"
-                                    value={ach.ranking}
-                                    fieldName={`achievements[${idx}].ranking`}
-                                    fieldType="text"
-                                    onSave={handleFieldSave}
-                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].ranking`} />}
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                )}
-                                {ach.year && (
-                                  <InlineEditableField
-                                    label="Year"
-                                    value={ach.year.toString()}
-                                    fieldName={`achievements[${idx}].year`}
-                                    fieldType="number"
-                                    onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
-                                      const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
-                                      await handleFieldSave(fieldName, yearValue, shouldVerify)
-                                    }}
-                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].year`} />}
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                )}
+                                <InlineEditableField
+                                  label="Ranking"
+                                  value={ach.ranking ?? ''}
+                                  fieldName={`achievements[${idx}].ranking`}
+                                  fieldType="text"
+                                  onSave={handleFieldSave}
+                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].ranking`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableField
+                                  label="Year"
+                                  value={ach.year != null ? ach.year.toString() : ''}
+                                  fieldName={`achievements[${idx}].year`}
+                                  fieldType="number"
+                                  onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
+                                    const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
+                                    await handleFieldSave(fieldName, yearValue, shouldVerify)
+                                  }}
+                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].year`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
                               </div>
                             </div>
                             <Button
@@ -6839,30 +7134,26 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Achievement URL */}
-                          {ach.url && (
-                            <InlineEditableField 
-                              label="URL" 
-                              value={ach.url} 
-                              fieldName={`achievements[${idx}].url`}
-                              fieldType="url"
-                              validation={validateURL}
-                              onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
-                              getFieldVerification={getFieldVerification}
-                            />
-                          )}
+                          <InlineEditableField 
+                            label="URL" 
+                            value={ach.url ?? ''} 
+                            fieldName={`achievements[${idx}].url`}
+                            fieldType="url"
+                            validation={validateURL}
+                            onSave={handleFieldSave}
+                            verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
+                            getFieldVerification={getFieldVerification}
+                          />
                           {/* Description */}
-                          {ach.description && (
-                            <InlineEditableField 
-                              label="Description" 
-                              value={ach.description} 
-                              fieldName={`achievements[${idx}].description`}
-                              fieldType="text"
-                              onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
-                              getFieldVerification={getFieldVerification}
-                            />
-                          )}
+                          <InlineEditableField 
+                            label="Description" 
+                            value={ach.description ?? ''} 
+                            fieldName={`achievements[${idx}].description`}
+                            fieldType="text"
+                            onSave={handleFieldSave}
+                            verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
+                            getFieldVerification={getFieldVerification}
+                          />
                         </div>
                       </div>
                     ))

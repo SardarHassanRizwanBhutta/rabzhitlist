@@ -31,7 +31,7 @@ import {
 import { employerBenefitToApiValueFields, type BenefitUnit, type EmployerBenefit } from "@/lib/types/benefits"
 import { API_BASE_URL } from "@/lib/config/api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
-import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
+// import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 
 // --- API DTOs (aligned with Candidates-API-Reference.md) ---
 
@@ -813,8 +813,8 @@ export async function fetchCandidatesPage(
     projectStartTo?: string
     achievementTypes?: number[]
     achievementName?: string
-    dataProgressMin?: number
-    dataProgressMax?: number
+    // dataProgressMin?: number
+    // dataProgressMax?: number
   }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
@@ -895,8 +895,8 @@ export async function fetchCandidatesPage(
 
   appendNumberList("achievementTypes", options?.achievementTypes)
   if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
-  if (options?.dataProgressMin != null) params.set("dataProgressMin", String(options.dataProgressMin))
-  if (options?.dataProgressMax != null) params.set("dataProgressMax", String(options.dataProgressMax))
+  // if (options?.dataProgressMin != null) params.set("dataProgressMin", String(options.dataProgressMin))
+  // if (options?.dataProgressMax != null) params.set("dataProgressMax", String(options.dataProgressMax))
 
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
@@ -907,18 +907,18 @@ export async function fetchCandidatesPage(
   return res.json()
 }
 
-export async function fetchCandidateDataProgress(
-  candidateId: number,
-  signal?: AbortSignal,
-): Promise<CandidateDataProgressResponse> {
-  const path = `/api/candidates/${candidateId}/data-progress`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Candidate data progress ${path}: ${res.status} — ${text}`)
-  }
-  return res.json() as Promise<CandidateDataProgressResponse>
-}
+// export async function fetchCandidateDataProgress(
+//   candidateId: number,
+//   signal?: AbortSignal,
+// ): Promise<CandidateDataProgressResponse> {
+//   const path = `/api/candidates/${candidateId}/data-progress`
+//   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+//   if (!res.ok) {
+//     const text = await res.text()
+//     throw new Error(`Candidate data progress ${path}: ${res.status} — ${text}`)
+//   }
+//   return res.json() as Promise<CandidateDataProgressResponse>
+// }
 
 export async function fetchCandidateById(id: number, signal?: AbortSignal): Promise<Candidate> {
   const path = `/api/candidates/${id}`

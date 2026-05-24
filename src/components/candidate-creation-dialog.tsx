@@ -3094,7 +3094,7 @@ export function CandidateCreationDialog({
                 <VerificationCheckbox fieldPath="isTopDeveloper" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="resume">Upload Resume</Label>
+                <Label htmlFor="resume">Resume</Label>
                 {!resumeFile ? (
                   <div className="space-y-2">
                     <Input 
