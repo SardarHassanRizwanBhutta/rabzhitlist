@@ -252,7 +252,11 @@ export function BenefitsSelector({
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[300px] p-0" align="start">
+          <PopoverContent
+            className="w-[300px] p-0"
+            align="start"
+            onWheel={(e) => e.stopPropagation()}
+          >
             <Command shouldFilter={false}>
               <CommandInput 
                 placeholder="Search benefits..." 
@@ -471,6 +475,7 @@ export function BenefitsSelector({
                     side="bottom"
                     sideOffset={6}
                     className="w-[min(100vw-1.5rem,20rem)] overflow-hidden p-0 shadow-lg"
+                    onWheel={(e) => e.stopPropagation()}
                   >
                     <div className="border-b bg-gradient-to-br from-muted/80 to-muted/40 px-3 py-2.5">
                       <p className="text-sm font-semibold leading-tight">{benefit.name}</p>

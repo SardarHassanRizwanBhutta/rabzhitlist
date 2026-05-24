@@ -134,7 +134,7 @@ export function ProjectCombobox({
       ) : null}
       {value ? (
         <div
-          className={`flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9 ${error ? "border-red-500" : ""}`}
+          className={`flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9 w-full ${error ? "border-red-500" : ""}`}
         >
           <span className="flex-1 truncate">{value.name}</span>
           <Button

@@ -375,13 +375,17 @@ function mapCertification(raw: Record<string, unknown>, idx: number): CandidateC
 }
 
 function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEducation {
-  const ulid = raw.universityLocationId ?? raw.universityId
+  const university = asRecord(raw.university)
+  const ulid = raw.universityLocationId ?? raw.universityId ?? university?.id
+  const universityName =
+    raw.universityLocationName ??
+    raw.universityName ??
+    (typeof raw.university === "string" ? raw.university : null) ??
+    university?.name
   return {
     id: String(raw.id ?? `edu-${idx}`),
     universityLocationId: ulid != null ? String(ulid) : "",
-    universityLocationName: String(
-      raw.universityLocationName ?? raw.universityName ?? raw.university ?? ""
-    ),
+    universityLocationName: String(universityName ?? ""),
     degreeName: String(raw.degreeName ?? ""),
     majorName: String(raw.majorName ?? ""),
     startMonth: parseIsoDate(raw.startMonth ?? raw.startDate),
@@ -475,7 +479,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
   const certifications = Array.isArray(certRaw)
     ? certRaw.map((c, i) => mapCertification(asRecord(c) ?? {}, i))
     : []
-  const eduRaw = data.educations
+  const eduRaw = data.educations ?? data.education
   const educations = Array.isArray(eduRaw)
     ? eduRaw.map((e, i) => mapEducation(asRecord(e) ?? {}, i))
     : []

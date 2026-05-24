@@ -82,6 +82,9 @@ const initialFormData: CertificationFormData = {
   issuerName: "",
 }
 
+/** Stable default — inline `= []` creates a new reference every render and retriggers effects. */
+const EMPTY_ISSUERS: CertificationIssuer[] = []
+
 const certificationToFormData = (certification: Certification): CertificationFormData => {
   return {
     certificationName: certification.name || "",
@@ -105,7 +108,7 @@ export function CertificationCreationDialog({
   initialName,
   initialIssuerName,
   initialIssuerWebsiteUrl,
-  issuers = [],
+  issuers = EMPTY_ISSUERS,
   issuersLoading = false,
   onIssuerCreated,
 }: CertificationCreationDialogProps) {
@@ -153,7 +156,12 @@ export function CertificationCreationDialog({
     onOpenChange?.(newOpen)
   }
 
+  const prevOpenRef = useRef(open)
+
   useEffect(() => {
+    const wasOpen = prevOpenRef.current
+    prevOpenRef.current = open
+
     if (open) {
       if (mode === "edit" && certificationData) {
         const formDataFromCertification = certificationToFormData(certificationData)
@@ -186,7 +194,7 @@ export function CertificationCreationDialog({
       if (!showVerification) {
         setVerifiedFields(new Set())
       }
-    } else {
+    } else if (wasOpen) {
       setFormData(initialFormData)
       setIssuerSearchQuery("")
       setPendingIssuerWebsiteUrl("")
@@ -197,6 +205,7 @@ export function CertificationCreationDialog({
         setVerifiedFields(new Set())
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- issuers read when open/issuerIdsKey changes
   }, [
     open,
     mode,
@@ -205,7 +214,7 @@ export function CertificationCreationDialog({
     initialName,
     initialIssuerName,
     initialIssuerWebsiteUrl,
-    issuers,
+    issuerIdsKey,
   ])
 
   const hasUnsavedChanges = useMemo(() => {

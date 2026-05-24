@@ -36,7 +36,61 @@ import {
   MessageCircle
 } from "lucide-react"
 
-import { Candidate, Competition, Achievement, AchievementType, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import {
+  Candidate,
+  Competition,
+  Achievement,
+  AchievementType,
+  CandidateEducation,
+  CandidateCertification,
+  ProjectExperience,
+  WorkExperience,
+  CANDIDATE_STATUS_COLORS,
+  CANDIDATE_STATUS_LABELS,
+} from "@/lib/types/candidate"
+import type { CertificationIssuer } from "@/lib/types/certification"
+import {
+  CertificationCombobox,
+  type SelectedCertification,
+} from "@/components/certification-combobox"
+import {
+  ProjectCombobox,
+  type SelectedProject,
+} from "@/components/project-combobox"
+import {
+  UniversityCombobox,
+  type SelectedUniversity,
+} from "@/components/university-combobox"
+import {
+  EmployerCombobox,
+  type SelectedEmployer,
+} from "@/components/employer-combobox"
+import type { BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
+import { fetchEmployerById } from "@/lib/services/employers-api"
+import type { ProjectLookups } from "@/components/project-creation-dialog"
+import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
+import { fetchProjectById } from "@/lib/services/projects-lookup-api"
+import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
+import {
+  ACHIEVEMENT_TYPE_DB,
+  ACHIEVEMENT_TYPE_LABELS,
+  CERTIFICATION_LEVEL_DB,
+  CERTIFICATION_LEVEL_LABELS_DB,
+  SHIFT_TYPE_DB,
+  SHIFT_TYPE_LABELS,
+  WORK_MODE_DB,
+  WORK_MODE_LABELS,
+  CANDIDATE_SOURCE_DB,
+  CANDIDATE_SOURCE_LABELS,
+  MBTI_TYPES,
+  parseCandidateSource,
+  type AchievementTypeDb,
+  type CandidateSourceDb,
+  type CertificationLevelDb,
+  type MbtiType,
+  type ShiftTypeDb,
+  type WorkModeDb,
+} from "@/lib/constants/candidate-enums"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups } from "@/components/candidate-creation-dialog"
@@ -46,13 +100,32 @@ import {
   syncCandidateSubResources,
   prepareCandidateCreateLookups,
   fetchCandidateDataProgress,
+  fetchCandidateById,
+  upsertCandidateCertification,
+  updateCandidateEducation,
+  updateCandidateWorkExperience,
+  addWeTimeSupportZone,
+  removeWeTimeSupportZone,
+  upsertWeBenefit,
+  removeWeBenefit,
+  upsertCandidateProject,
+  removeCandidateProject,
+  upsertWeProject,
+  removeWeProject,
 } from "@/lib/services/candidates-api"
 import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
 import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
-import { fetchTechStacks } from "@/lib/services/lookups-api"
-import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
-import { fetchBenefits } from "@/lib/services/benefits-api"
-import { fetchDegrees, fetchMajors } from "@/lib/services/majors-degrees-api"
+import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import { fetchTimeSupportZones, createTimeSupportZone, fetchTags } from "@/lib/services/tags-timesupportzones-api"
+import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
+import {
+  fetchDegrees,
+  fetchMajors,
+  createDegree,
+  createMajor,
+  type DegreeDto,
+  type MajorDto,
+} from "@/lib/services/majors-degrees-api"
 import { 
   getVerificationsForCandidate,
   calculateVerificationSummary,
@@ -60,9 +133,7 @@ import {
   sampleVerificationUsers,
 } from "@/lib/sample-data/verification"
 import { toast } from "sonner"
-import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
-import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
 import { ColdCallerDialog } from "@/components/cold-caller"
 import type { InteractionMode } from "@/types/cold-caller"
@@ -95,8 +166,6 @@ import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Progress } from "@/components/ui/progress"
-import { sampleEmployers } from "@/lib/sample-data/employers"
-import { sampleUniversities } from "@/lib/sample-data/universities"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
@@ -122,7 +191,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { EmployerBenefit } from "@/lib/types/benefits"
+import { EmployerBenefit, employerBenefitToApiValueFields } from "@/lib/types/benefits"
 
 // Option interfaces and data for comboboxes
 interface ComboboxOption {
@@ -130,50 +199,134 @@ interface ComboboxOption {
   label: string
 }
 
-// Shift type options
-const shiftTypeOptions: ComboboxOption[] = [
-  { label: "Morning", value: "Morning" },
-  { label: "Evening", value: "Evening" },
-  { label: "Night", value: "Night" },
-  { label: "Rotational", value: "Rotational" },
-  { label: "24x7", value: "24x7" },
-]
+// Shift type and work mode options (DB enum keys + display labels)
+const shiftTypeSelectOptions: ComboboxOption[] = (
+  Object.entries(SHIFT_TYPE_LABELS) as [ShiftTypeDb, string][]
+).map(([value, label]) => ({ value, label }))
 
-// Work mode options
-const workModeOptions: ComboboxOption[] = [
-  { label: "Remote", value: "Remote" },
-  { label: "Onsite", value: "Onsite" },
-  { label: "Hybrid", value: "Hybrid" },
-]
+const workModeSelectOptions: ComboboxOption[] = (
+  Object.entries(WORK_MODE_LABELS) as [WorkModeDb, string][]
+).map(([value, label]) => ({ value, label }))
 
-// Personality type options (MBTI types)
-const personalityTypeOptions: ComboboxOption[] = [
-  { value: "ESTJ", label: "ESTJ - Executive" },
-  { value: "ENTJ", label: "ENTJ - Commander" },
-  { value: "ESFJ", label: "ESFJ - Consul" },
-  { value: "ENFJ", label: "ENFJ - Protagonist" },
-  { value: "ISTJ", label: "ISTJ - Logistician" },
-  { value: "ISFJ", label: "ISFJ - Defender" },
-  { value: "INTJ", label: "INTJ - Architect" },
-  { value: "INFJ", label: "INFJ - Advocate" },
-  { value: "ESTP", label: "ESTP - Entrepreneur" },
-  { value: "ESFP", label: "ESFP - Entertainer" },
-  { value: "ENTP", label: "ENTP - Debater" },
-  { value: "ENFP", label: "ENFP - Campaigner" },
-  { value: "ISTP", label: "ISTP - Virtuoso" },
-  { value: "ISFP", label: "ISFP - Adventurer" },
-  { value: "INTP", label: "INTP - Thinker" },
-  { value: "INFP", label: "INFP - Mediator" },
-]
+function enumIndex<T extends string>(arr: readonly T[], val: string): number | null {
+  const i = arr.indexOf(val as T)
+  return i >= 0 ? i : null
+}
 
-// Time support zone options
-const timeSupportZoneOptions: MultiSelectOption[] = [
-  { label: "US", value: "US" },
-  { label: "UK", value: "UK" },
-  { label: "EU", value: "EU" },
-  { label: "APAC", value: "APAC" },
-  { label: "MEA", value: "MEA" },
-]
+function shiftTypeToSelectValue(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ""
+  const normalized = raw.trim().toLowerCase().replace(/[\s_-]/g, "")
+  for (const t of SHIFT_TYPE_DB) {
+    if (t.toLowerCase() === normalized) return t
+  }
+  const legacy: Record<string, ShiftTypeDb> = {
+    morning: "day",
+    day: "day",
+    evening: "evening",
+    night: "night",
+    rotational: "rotational",
+    "24x7": "flexible",
+    flexible: "flexible",
+    oncall: "onCall",
+  }
+  if (normalized in legacy) return legacy[normalized]
+  for (const [value, label] of Object.entries(SHIFT_TYPE_LABELS) as [ShiftTypeDb, string][]) {
+    if (label.toLowerCase().replace(/\s/g, "") === normalized) return value
+  }
+  return ""
+}
+
+function shiftTypeDisplayLabel(raw: string | null | undefined): string {
+  const value = shiftTypeToSelectValue(raw)
+  return value ? SHIFT_TYPE_LABELS[value as ShiftTypeDb] : "N/A"
+}
+
+function workModeToSelectValue(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ""
+  const normalized = raw.trim().toLowerCase().replace(/[\s_-]/g, "")
+  for (const t of WORK_MODE_DB) {
+    if (t.toLowerCase() === normalized) return t
+  }
+  for (const [value, label] of Object.entries(WORK_MODE_LABELS) as [WorkModeDb, string][]) {
+    if (label.toLowerCase() === normalized) return value
+  }
+  return ""
+}
+
+function workModeDisplayLabel(raw: string | null | undefined): string {
+  const value = workModeToSelectValue(raw)
+  return value ? WORK_MODE_LABELS[value as WorkModeDb] : "N/A"
+}
+
+const candidateSourceSelectOptions: ComboboxOption[] = CANDIDATE_SOURCE_DB.map((key) => ({
+  value: key,
+  label: CANDIDATE_SOURCE_LABELS[key],
+}))
+
+/** Labels match DB enum `mbti_type` (four-letter codes only). */
+const personalityTypeSelectOptions: ComboboxOption[] = MBTI_TYPES.map((t) => ({
+  value: t,
+  label: t,
+}))
+
+function candidateSourceToSelectValue(raw: string | null | undefined): string {
+  return parseCandidateSource(raw ?? undefined)
+}
+
+function candidateSourceDisplayLabel(raw: string | null | undefined): string {
+  const value = candidateSourceToSelectValue(raw)
+  return value ? CANDIDATE_SOURCE_LABELS[value as CandidateSourceDb] : "N/A"
+}
+
+function personalityTypeToSelectValue(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ""
+  const upper = raw.trim().toUpperCase()
+  return MBTI_TYPES.includes(upper as MbtiType) ? upper : ""
+}
+
+const achievementTypeSelectOptions: ComboboxOption[] = (
+  Object.entries(ACHIEVEMENT_TYPE_LABELS) as [AchievementTypeDb, string][]
+).map(([value, label]) => ({ value, label }))
+
+function achievementTypeToSelectValue(raw: string | undefined): AchievementType {
+  if (!raw) return "competition"
+  const normalized = raw.toLowerCase().replace(/[-_\s]/g, "")
+  for (const t of ACHIEVEMENT_TYPE_DB) {
+    if (t.toLowerCase() === normalized) return t
+  }
+  for (const [value, label] of Object.entries(ACHIEVEMENT_TYPE_LABELS) as [AchievementTypeDb, string][]) {
+    if (label.toLowerCase().replace(/\s/g, "") === normalized) return value
+  }
+  return "other"
+}
+
+function achievementTypeDisplayLabel(raw: string | undefined): string {
+  return ACHIEVEMENT_TYPE_LABELS[achievementTypeToSelectValue(raw)]
+}
+
+const certificationLevelSelectOptions: ComboboxOption[] = (
+  Object.entries(CERTIFICATION_LEVEL_LABELS_DB) as [CertificationLevelDb, string][]
+).map(([value, label]) => ({ value, label }))
+
+function certificationLevelToSelectValue(raw: string | null | undefined): string {
+  if (!raw) return ""
+  const normalized = raw.toLowerCase()
+  for (const t of CERTIFICATION_LEVEL_DB) {
+    if (t.toLowerCase() === normalized) return t
+  }
+  for (const [value, label] of Object.entries(CERTIFICATION_LEVEL_LABELS_DB) as [
+    CertificationLevelDb,
+    string,
+  ][]) {
+    if (label.toLowerCase() === normalized) return value
+  }
+  return ""
+}
+
+function certificationLevelDisplayLabel(raw: string | null | undefined): string {
+  const value = certificationLevelToSelectValue(raw)
+  return value ? CERTIFICATION_LEVEL_LABELS_DB[value as CertificationLevelDb] : "N/A"
+}
 
 // Extract unique degree names from sample candidates
 const extractUniqueDegreeNames = (): ComboboxOption[] => {
@@ -207,29 +360,37 @@ const extractUniqueMajorNames = (): ComboboxOption[] => {
   }))
 }
 
+function mergeNamedComboboxOptions(
+  catalog: { name: string }[],
+  fallbackOptions: ComboboxOption[],
+  selectedNames: Iterable<string>
+): ComboboxOption[] {
+  const byKey = new Map<string, ComboboxOption>()
+  for (const item of catalog) {
+    const n = item.name?.trim()
+    if (!n) continue
+    byKey.set(n.toLowerCase(), { value: n, label: n })
+  }
+  for (const option of fallbackOptions) {
+    byKey.set(option.value.toLowerCase(), option)
+  }
+  for (const raw of selectedNames) {
+    const n = raw?.trim()
+    if (!n) continue
+    const key = n.toLowerCase()
+    if (!byKey.has(key)) byKey.set(key, { value: n, label: n })
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label))
+}
 // Base options (extracted from sample data)
 const baseDegreeOptions: ComboboxOption[] = extractUniqueDegreeNames()
 const baseMajorOptions: ComboboxOption[] = extractUniqueMajorNames()
-
-// Base employer options
-const baseEmployerOptions: ComboboxOption[] = sampleEmployers.map(employer => ({
-  label: employer.name,
-  value: employer.name
-}))
 
 // Base project options
 const baseProjectOptions: ComboboxOption[] = sampleProjects.map(project => ({
   label: project.projectName,
   value: project.projectName
 }))
-
-// Base university location options
-const baseUniversityLocationOptions: ComboboxOption[] = sampleUniversities.flatMap(university =>
-  university.locations.map(location => ({
-    label: `${university.name} - ${location.city}`,
-    value: String(location.id),
-  }))
-)
 
 // TODO: Populate from API
 const baseCertificationOptions: ComboboxOption[] = []
@@ -252,6 +413,92 @@ const extractUniqueTechStacks = (): MultiSelectOption[] => {
     value: tech,
     label: tech
   }))
+}
+
+function normalizeMultiSelectKey(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function findMultiSelectOptionMatch(
+  name: string,
+  options: MultiSelectOption[]
+): MultiSelectOption | undefined {
+  const key = normalizeMultiSelectKey(name)
+  return options.find(
+    (o) =>
+      normalizeMultiSelectKey(o.value) === key ||
+      normalizeMultiSelectKey(o.label) === key
+  )
+}
+
+/** Union catalog options with names already on the candidate so MultiSelect can show them as selected. */
+function mergeMultiSelectOptions(
+  options: MultiSelectOption[],
+  selectedNames: Iterable<string>
+): MultiSelectOption[] {
+  const byKey = new Map<string, MultiSelectOption>()
+  for (const o of options) {
+    const k = normalizeMultiSelectKey(o.value)
+    if (k) byKey.set(k, o)
+  }
+  for (const raw of selectedNames) {
+    const trimmed = raw?.trim()
+    if (!trimmed) continue
+    const key = normalizeMultiSelectKey(trimmed)
+    if (byKey.has(key)) continue
+    const existing = findMultiSelectOptionMatch(trimmed, options)
+    if (existing) {
+      byKey.set(normalizeMultiSelectKey(existing.value), existing)
+      continue
+    }
+    byKey.set(key, { value: trimmed, label: trimmed })
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/** Map stored names to option `value` strings so MultiSelect pre-selects correctly. */
+function resolveMultiSelectValues(
+  selected: string[],
+  options: MultiSelectOption[]
+): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const raw of selected) {
+    const trimmed = raw?.trim()
+    if (!trimmed) continue
+    const match = findMultiSelectOptionMatch(trimmed, options)
+    const resolved = match?.value ?? trimmed
+    const key = normalizeMultiSelectKey(resolved)
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(resolved)
+  }
+  return result
+}
+
+function collectCandidateTechStackNames(candidate: Candidate | null | undefined): string[] {
+  const names = new Set<string>()
+  candidate?.techStacks?.forEach((t) => {
+    if (t?.trim()) names.add(t.trim())
+  })
+  candidate?.workExperiences?.forEach((we) => {
+    we.techStacks?.forEach((t) => {
+      if (t?.trim()) names.add(t.trim())
+    })
+  })
+  return Array.from(names)
+}
+
+function collectWorkExperienceTimeSupportZoneNames(
+  candidate: Candidate | null | undefined
+): string[] {
+  const names = new Set<string>()
+  candidate?.workExperiences?.forEach((we) => {
+    we.timeSupportZones?.forEach((z) => {
+      if (z?.trim()) names.add(z.trim())
+    })
+  })
+  return Array.from(names)
 }
 
 // Extract unique horizontal domains from sample projects
@@ -602,6 +849,8 @@ interface InlineEditableComboboxProps {
   createLabel?: string
   onCreateNew?: (searchValue: string) => void
   onCreateDialog?: (searchValue: string) => void
+  catalogOptions?: ComboboxOption[]
+  optionsLoading?: boolean
 }
 
 const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
@@ -620,7 +869,9 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   creatable = false,
   createLabel,
   onCreateNew,
-  onCreateDialog
+  onCreateDialog,
+  catalogOptions,
+  optionsLoading = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
@@ -704,21 +955,28 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
     )
   }, [options, searchValue])
 
-  // Check if search value already exists
+  const existenceSource = catalogOptions ?? options
+
+  // Check if search value already exists in catalog
   const searchValueExists = useMemo(() => {
     if (!searchValue.trim()) return false
     const searchLower = searchValue.trim().toLowerCase()
-    return options.some(option => 
+    const existsInSource = existenceSource.some(option => 
       option.value.toLowerCase() === searchLower ||
       option.label.toLowerCase() === searchLower
-    ) || value.toLowerCase() === searchLower
-  }, [options, value, searchValue])
+    )
+    if (catalogOptions) return existsInSource
+    return (
+      existsInSource ||
+      (!!value?.trim() && value.trim().toLowerCase() === searchLower)
+    )
+  }, [catalogOptions, existenceSource, value, searchValue])
 
   // Check if we should show "Create" option
   const shouldShowCreate = creatable && 
     searchValue.trim().length >= 2 && 
     !searchValueExists && 
-    filteredOptions.length === 0
+    (catalogOptions != null || filteredOptions.length === 0)
 
   const handleCreateNew = () => {
     if (onCreateNew) {
@@ -772,7 +1030,9 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
         <div className="space-y-2">
           <Popover open={open} onOpenChange={(isOpen) => {
             setOpen(isOpen)
-            if (!isOpen) {
+            if (isOpen && editValue?.trim() && !options.some((o) => o.value === editValue)) {
+              setSearchValue(editValue.trim())
+            } else if (!isOpen) {
               setSearchValue("")
             }
           }}>
@@ -782,15 +1042,18 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                 role="combobox"
                 aria-expanded={open}
                 className="w-full justify-between"
-                disabled={isSaving}
+                disabled={isSaving || optionsLoading}
               >
                 {editValue
-                  ? options.find((option) => option.value === editValue)?.label
+                  ? (options.find((option) => option.value === editValue)?.label ?? editValue)
                   : placeholder}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+            <PopoverContent
+              className="w-[--radix-popover-trigger-width] p-0"
+              onWheel={(e) => e.stopPropagation()}
+            >
               <Command shouldFilter={false}>
                 <CommandInput 
                   placeholder={searchPlaceholder} 
@@ -826,7 +1089,9 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                       </CommandGroup>
                     </>
                   ) : filteredOptions.length === 0 ? (
-                    <CommandEmpty>{emptyMessage}</CommandEmpty>
+                    <CommandEmpty>
+                      {optionsLoading ? "Loading options…" : emptyMessage}
+                    </CommandEmpty>
                   ) : (
                     <CommandGroup>
                       {filteredOptions.map((option) => (
@@ -1185,6 +1450,16 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   const [willVerify, setWillVerify] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
 
+  const mergedOptions = useMemo(
+    () => mergeMultiSelectOptions(options, value ?? []),
+    [options, value]
+  )
+
+  const resolvedValue = useMemo(
+    () => resolveMultiSelectValues(value ?? [], mergedOptions),
+    [value, mergedOptions]
+  )
+
   // Get current verification status
   const verification = getFieldVerification(fieldName)
   const isCurrentlyVerified = verification?.status === 'verified'
@@ -1192,9 +1467,9 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   // Update editValue when value prop changes (but not when editing)
   useEffect(() => {
     if (!isEditing) {
-      setEditValue(value || [])
+      setEditValue(resolvedValue)
     }
-  }, [value, isEditing])
+  }, [resolvedValue, isEditing])
 
   // Initialize willVerify based on current verification status when entering edit mode
   useEffect(() => {
@@ -1205,24 +1480,29 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
 
   const handleEdit = () => {
     setIsEditing(true)
-    setEditValue(value || [])
+    setEditValue(resolveMultiSelectValues(value ?? [], mergedOptions))
     setWillVerify(isCurrentlyVerified)
     setError(null)
   }
 
   const handleCancel = () => {
     setIsEditing(false)
-    setEditValue(value || [])
+    setEditValue(resolvedValue)
     setWillVerify(isCurrentlyVerified)
     setError(null)
   }
 
   const handleSave = async () => {
     // No change check
-    const currentValue = value || []
     const verificationChanged = willVerify !== isCurrentlyVerified
-    const arraysEqual = currentValue.length === editValue.length && 
-      currentValue.every((val, idx) => val === editValue[idx])
+    const currentResolved = resolveMultiSelectValues(value ?? [], mergedOptions)
+    const arraysEqual =
+      currentResolved.length === editValue.length &&
+      currentResolved.every((val) =>
+        editValue.some(
+          (e) => normalizeMultiSelectKey(e) === normalizeMultiSelectKey(val)
+        )
+      )
     
     if (arraysEqual && !verificationChanged) {
       setIsEditing(false)
@@ -1260,7 +1540,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
         <div className="space-y-3">
           <div className="w-full">
             <MultiSelect
-              items={options}
+              items={mergedOptions}
               selected={editValue}
               onChange={(values) => setEditValue(values)}
               placeholder={placeholder}
@@ -1407,6 +1687,9 @@ interface InlineEditableBenefitsProps {
   onSave: (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => Promise<void>
   verificationIndicator: React.ReactNode
   getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  benefitOptions?: { id: number; name: string }[]
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
+  benefitsLoading?: boolean
   className?: string
   maxDisplay?: number
 }
@@ -1418,6 +1701,9 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
   onSave,
   verificationIndicator,
   getFieldVerification,
+  benefitOptions = [],
+  onCreateBenefit,
+  benefitsLoading = false,
   className = "",
   maxDisplay = 4
 }) => {
@@ -1511,6 +1797,9 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
             <BenefitsSelector
               benefits={editValue}
               onChange={(benefits) => setEditValue(benefits)}
+              benefitOptions={benefitOptions}
+              onCreateBenefit={onCreateBenefit}
+              disabled={isSaving || benefitsLoading}
             />
           </div>
           
@@ -1710,15 +1999,6 @@ const validateSalary = (salary: string): string | null => {
   if (isNaN(num)) return 'Must be a valid number'
   if (num < 0) return 'Salary cannot be negative'
   if (num > 10000000) return 'Salary seems too high'
-  return null
-}
-
-const validateYearsOfExperience = (years: string): string | null => {
-  if (!years || years.trim() === '') return null // Optional field
-  const num = Number(years)
-  if (isNaN(num)) return 'Must be a valid number'
-  if (num < 0) return 'Years cannot be negative'
-  if (num > 100) return 'Years seems too high'
   return null
 }
 
@@ -1927,6 +2207,1167 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+interface InlineEditableSelectProps {
+  label: string
+  value: string | null | undefined
+  fieldName: string
+  options: ComboboxOption[]
+  onSave: (fieldName: string, newValue: string, shouldVerify: boolean) => Promise<void>
+  normalizeValue?: (raw: string | undefined) => string
+  formatDisplay?: (value: string | null | undefined) => string
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  className?: string
+}
+
+const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
+  label,
+  value,
+  fieldName,
+  options,
+  onSave,
+  normalizeValue = (raw) => raw ?? "",
+  formatDisplay,
+  verificationIndicator,
+  getFieldVerification,
+  className = "",
+}) => {
+  const resolvedValue = normalizeValue(value ?? undefined)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(resolvedValue)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === "verified"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(normalizeValue(value ?? undefined))
+    }
+  }, [value, isEditing, normalizeValue])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(normalizeValue(value ?? undefined))
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(normalizeValue(value ?? undefined))
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    const currentValue = normalizeValue(value ?? undefined)
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    if (editValue === currentValue && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const displayValue = formatDisplay
+    ? formatDisplay(value ?? undefined)
+    : (options.find((opt) => opt.value === resolvedValue)?.label ?? resolvedValue) || "N/A"
+
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors w-full min-w-0",
+        className
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        {isEditing ? (
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                value={editValue}
+                onValueChange={setEditValue}
+                disabled={isSaving}
+              >
+                <SelectTrigger className="text-sm flex-1 min-w-0">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                className="h-8 w-8 p-0 shrink-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0 shrink-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 pl-1">
+              <Checkbox
+                id={`verify-${fieldName}`}
+                checked={willVerify}
+                onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                disabled={isSaving}
+                className="h-4 w-4"
+              />
+              <Label
+                htmlFor={`verify-${fieldName}`}
+                className={cn(
+                  "text-xs cursor-pointer",
+                  willVerify
+                    ? "text-green-600 dark:text-green-400 font-medium"
+                    : "text-muted-foreground"
+                )}
+              >
+                {willVerify ? "✓ Verified" : "Mark as verified"}
+              </Label>
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between group w-full">
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
+              <span
+                className={`text-sm block ${!value ? "text-muted-foreground italic" : ""}`}
+              >
+                {displayValue}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {verificationIndicator}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleEdit}
+                className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                type="button"
+                title="Edit field"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function formatCertDateForApi(d: Date | undefined): string | null {
+  if (!d || Number.isNaN(d.getTime())) return null
+  return d.toISOString().slice(0, 10)
+}
+
+function lookupIdByName<T extends { id: number; name: string }>(
+  items: T[],
+  name: string | undefined
+): number | null {
+  if (!name?.trim()) return null
+  const key = name.trim().toLowerCase()
+  const match = items.find((item) => item.name.trim().toLowerCase() === key)
+  return match?.id ?? null
+}
+
+function resolveWorkExperienceBenefitId(
+  benefit: EmployerBenefit,
+  benefitsLookup: LookupItem[]
+): number | null {
+  const byName = lookupIdByName(benefitsLookup, benefit.name)
+  if (byName != null) return byName
+  const parsed = Number(benefit.id)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
+function universitySelectionsEqual(
+  a: SelectedUniversity,
+  b: SelectedUniversity | null
+): boolean {
+  if (!a || !b) return !a && !b
+  return a.id === b.id && a.name === b.name
+}
+
+function educationLinkedUniversity(education: CandidateEducation): SelectedUniversity {
+  const name = education.universityLocationName?.trim()
+  if (!name) return null
+  const uid = education.universityLocationId?.trim()
+  if (!uid) return null
+  const idNum = Number(uid)
+  if (!Number.isFinite(idNum)) return null
+  return { id: idNum, name }
+}
+
+interface InlineEditableUniversityProps {
+  education: CandidateEducation
+  eduIndex: number
+  onSave: (
+    eduIndex: number,
+    selection: SelectedUniversity,
+    shouldVerify: boolean
+  ) => Promise<void>
+  onUniversityClick: (universityId: number, universityName: string) => void
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  className?: string
+}
+
+const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
+  education,
+  eduIndex,
+  onSave,
+  onUniversityClick,
+  verificationIndicator,
+  getFieldVerification,
+  className = "",
+}) => {
+  const fieldName = `educations[${eduIndex}].universityLocationName`
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<SelectedUniversity>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === "verified"
+
+  const linkedUniversity = useMemo(
+    () => educationLinkedUniversity(education),
+    [education.universityLocationId, education.universityLocationName]
+  )
+  const universityName = education.universityLocationName?.trim() || "N/A"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(linkedUniversity)
+    }
+  }, [education, linkedUniversity, isEditing])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(linkedUniversity)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(linkedUniversity)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!editValue?.id) {
+      setError("Select a university")
+      return
+    }
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const selectionChanged =
+      !linkedUniversity || !universitySelectionsEqual(editValue, linkedUniversity)
+    if (!selectionChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(eduIndex, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-2 py-2 px-3 rounded-md", className)}>
+        <div className="space-y-2">
+          <UniversityCombobox
+            id={`details-education-university-${eduIndex}`}
+            label="University"
+            value={editValue}
+            onChange={setEditValue}
+            disabled={isSaving}
+            parsedNameHint={
+              !linkedUniversity ? education.universityLocationName?.trim() || undefined : undefined
+            }
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title={willVerify ? "Save & Verify" : "Save"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 pl-1">
+            <Checkbox
+              id={`verify-${fieldName}`}
+              checked={willVerify}
+              onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+              disabled={isSaving}
+              className="h-4 w-4"
+            />
+            <Label
+              htmlFor={`verify-${fieldName}`}
+              className={cn(
+                "text-xs cursor-pointer",
+                willVerify
+                  ? "text-green-600 dark:text-green-400 font-medium"
+                  : "text-muted-foreground"
+              )}
+            >
+              {willVerify ? "✓ Verified" : "Mark as verified"}
+            </Label>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors w-full min-w-0",
+        className
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        {linkedUniversity?.id != null ? (
+          <button
+            type="button"
+            onClick={() => onUniversityClick(linkedUniversity.id, universityName)}
+            className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+            title={`View ${universityName} details`}
+          >
+            {universityName}
+          </button>
+        ) : (
+          <span className="font-semibold text-lg block">{universityName}</span>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {verificationIndicator}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleEdit}
+          className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          type="button"
+          title="Edit university"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function employerSelectionsEqual(
+  a: SelectedEmployer,
+  b: SelectedEmployer | null
+): boolean {
+  if (!a || !b) return !a && !b
+  return a.id === b.id && a.name === b.name
+}
+
+function workExperienceToSelectedEmployer(
+  experience: WorkExperience,
+  preloadedName: string | null
+): SelectedEmployer {
+  if (experience.employerId == null) return null
+  const name = experience.employerName?.trim() || preloadedName
+  if (!name) return null
+  return { id: experience.employerId, name }
+}
+
+interface InlineEditableEmployerProps {
+  experience: WorkExperience
+  weIndex: number
+  candidate: Candidate | null
+  onSave: (
+    weIndex: number,
+    selection: SelectedEmployer,
+    shouldVerify: boolean
+  ) => Promise<void>
+  onEmployerClick: (employerId: number, employerName: string) => void
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  createEmployerLookups?: BuildCreateEmployerDtoOptions
+  className?: string
+}
+
+const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
+  experience,
+  weIndex,
+  candidate,
+  onSave,
+  onEmployerClick,
+  verificationIndicator,
+  getFieldVerification,
+  createEmployerLookups,
+  className = "",
+}) => {
+  const fieldName = `workExperiences[${weIndex}].employerName`
+  const [preloadedName, setPreloadedName] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<SelectedEmployer>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === "verified"
+
+  useEffect(() => {
+    setPreloadedName(null)
+    if (experience.employerId == null) return
+    if (experience.employerName?.trim()) return
+    let cancelled = false
+    fetchEmployerById(experience.employerId)
+      .then((e) => {
+        if (!cancelled) setPreloadedName(e.name)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [experience.id, experience.employerId, experience.employerName])
+
+  const linkedEmployer = useMemo(
+    () => workExperienceToSelectedEmployer(experience, preloadedName),
+    [experience.employerId, experience.employerName, preloadedName]
+  )
+  const employerName =
+    linkedEmployer?.name || experience.employerName?.trim() || "N/A"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(linkedEmployer)
+    }
+  }, [linkedEmployer, isEditing])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(linkedEmployer)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(linkedEmployer)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!editValue?.id) {
+      setError("Select an employer")
+      return
+    }
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const selectionChanged =
+      !linkedEmployer || !employerSelectionsEqual(editValue, linkedEmployer)
+    if (!selectionChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(weIndex, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const promotions =
+    candidate && employerName !== "N/A"
+      ? calculateEmployerPromotions(candidate, employerName)
+      : 0
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-2 w-full min-w-0", className)}>
+        <EmployerCombobox
+          id={`details-work-experience-employer-${weIndex}`}
+          label=""
+          value={editValue}
+          onChange={setEditValue}
+          disabled={isSaving}
+          createEmployerLookups={createEmployerLookups}
+          parsedNameHint={
+            !linkedEmployer ? experience.employerName?.trim() || undefined : undefined
+          }
+        />
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="h-8 w-8 p-0 shrink-0"
+            title={willVerify ? "Save & Verify" : "Save"}
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="h-8 w-8 p-0 shrink-0"
+            title="Cancel"
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2 pl-1">
+          <Checkbox
+            id={`verify-${fieldName}`}
+            checked={willVerify}
+            onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+            disabled={isSaving}
+            className="h-4 w-4"
+          />
+          <Label
+            htmlFor={`verify-${fieldName}`}
+            className={cn(
+              "text-xs cursor-pointer",
+              willVerify
+                ? "text-green-600 dark:text-green-400 font-medium"
+                : "text-muted-foreground"
+            )}
+          >
+            {willVerify ? "✓ Verified" : "Mark as verified"}
+          </Label>
+        </div>
+        {error && <p className="text-xs text-red-500">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-2 w-full min-w-0",
+        className
+      )}
+    >
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {linkedEmployer?.id != null ? (
+          <button
+            type="button"
+            onClick={() => onEmployerClick(linkedEmployer.id, employerName)}
+            className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer leading-tight truncate"
+            title={`View ${employerName} details`}
+          >
+            {employerName}
+          </button>
+        ) : (
+          <span className="font-semibold text-lg block truncate">{employerName}</span>
+        )}
+        {promotions > 0 ? (
+          <Badge variant="secondary" className="shrink-0">
+            {promotions} promotion{promotions !== 1 ? "s" : ""}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {verificationIndicator}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleEdit}
+          className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          type="button"
+          title="Edit employer"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function certificationLevelToApiIndex(
+  level: CandidateCertification["certificationLevel"]
+): number | null {
+  if (!level) return null
+  const idx = CERTIFICATION_LEVEL_DB.indexOf(level as CertificationLevelDb)
+  return idx >= 0 ? idx : null
+}
+
+function certificationSelectionsEqual(
+  a: SelectedCertification,
+  b: SelectedCertification | null
+): boolean {
+  if (!a || !b) return !a && !b
+  return a.id === b.id && a.name === b.name && (a.issuerName ?? null) === (b.issuerName ?? null)
+}
+
+function certificationToSelected(
+  cert: CandidateCertification,
+  preloadedName: string | null,
+  preloadedIssuer: string | null
+): SelectedCertification {
+  if (cert.certificationId == null) return null
+  const displayName = cert.certificationName?.trim() || preloadedName
+  if (!displayName) return null
+  const issuerName = cert.certificationName?.trim()
+    ? cert.certificationIssuerName ?? null
+    : preloadedIssuer
+  return {
+    id: cert.certificationId,
+    name: displayName,
+    issuerName: issuerName ?? null,
+  }
+}
+
+interface InlineEditableCertificationProps {
+  cert: CandidateCertification
+  certIndex: number
+  onSave: (index: number, selection: SelectedCertification, shouldVerify: boolean) => Promise<void>
+  onCertificationClick: (certificationId: string, certificationName: string) => void
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  certificationIssuers: CertificationIssuer[]
+  certificationIssuersLoading: boolean
+  onIssuerCreated: (issuer: CertificationIssuer) => void
+  className?: string
+}
+
+const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = ({
+  cert,
+  certIndex,
+  onSave,
+  onCertificationClick,
+  verificationIndicator,
+  getFieldVerification,
+  certificationIssuers,
+  certificationIssuersLoading,
+  onIssuerCreated,
+  className = "",
+}) => {
+  const fieldName = `certifications[${certIndex}].certificationId`
+  const [preloadedName, setPreloadedName] = useState<string | null>(null)
+  const [preloadedIssuer, setPreloadedIssuer] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<SelectedCertification>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === "verified"
+
+  useEffect(() => {
+    setPreloadedName(null)
+    setPreloadedIssuer(null)
+    if (cert.certificationId == null) return
+    if (cert.certificationName?.trim()) return
+    let cancelled = false
+    fetchCertificationById(cert.certificationId)
+      .then((c) => {
+        if (!cancelled) {
+          setPreloadedName(c.name)
+          setPreloadedIssuer(c.issuerName)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [cert.id, cert.certificationId, cert.certificationName])
+
+  const displaySelection = certificationToSelected(cert, preloadedName, preloadedIssuer)
+  const displayName =
+    displaySelection?.name || cert.certificationName?.trim() || "N/A"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(certificationToSelected(cert, preloadedName, preloadedIssuer))
+    }
+  }, [cert, preloadedName, preloadedIssuer, isEditing])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(displaySelection)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(displaySelection)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!editValue?.id) {
+      setError("Select a certification")
+      return
+    }
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const selectionChanged =
+      !displaySelection ||
+      !certificationSelectionsEqual(editValue, displaySelection)
+    if (!selectionChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(certIndex, editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div className={cn("space-y-2 py-2 px-3 rounded-md", className)}>
+        <div className="space-y-2">
+          <CertificationCombobox
+            id={`details-certification-${certIndex}`}
+            label="Certification"
+            value={editValue}
+            onChange={setEditValue}
+            disabled={isSaving || certificationIssuersLoading}
+            issuers={certificationIssuers}
+            issuersLoading={certificationIssuersLoading}
+            onIssuerCreated={onIssuerCreated}
+            parsedNameHint={
+              cert.certificationId == null ? cert.certificationName?.trim() || undefined : undefined
+            }
+            parsedIssuerHint={
+              cert.certificationId == null ? cert.certificationIssuerName?.trim() || undefined : undefined
+            }
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title={willVerify ? "Save & Verify" : "Save"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 pl-1">
+            <Checkbox
+              id={`verify-${fieldName}`}
+              checked={willVerify}
+              onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+              disabled={isSaving}
+              className="h-4 w-4"
+            />
+            <Label
+              htmlFor={`verify-${fieldName}`}
+              className={cn(
+                "text-xs cursor-pointer",
+                willVerify
+                  ? "text-green-600 dark:text-green-400 font-medium"
+                  : "text-muted-foreground"
+              )}
+            >
+              {willVerify ? "✓ Verified" : "Mark as verified"}
+            </Label>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors w-full min-w-0",
+        className
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-muted-foreground block mb-0.5">
+          Certification
+        </span>
+        {cert.certificationId != null ? (
+          <button
+            type="button"
+            onClick={() =>
+              onCertificationClick(String(cert.certificationId), displayName)
+            }
+            className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
+            title={`View ${displayName} details`}
+          >
+            {displayName}
+          </button>
+        ) : (
+          <span className="font-semibold text-lg block">{displayName}</span>
+        )}
+        {displaySelection?.issuerName && (
+          <span className="text-sm text-muted-foreground block mt-0.5">
+            {displaySelection.issuerName}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {verificationIndicator}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleEdit}
+          className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          type="button"
+          title="Edit certification"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function projectToSelected(
+  project: ProjectExperience,
+  preloadedName: string | null
+): SelectedProject {
+  if (project.projectId == null) return null
+  const name = project.projectName?.trim() || preloadedName
+  if (!name) return null
+  return { id: project.projectId, name }
+}
+
+function projectSelectionsEqual(a: SelectedProject, b: SelectedProject | null): boolean {
+  if (!a || !b) return !a && !b
+  return a.id === b.id && a.name === b.name
+}
+
+interface InlineEditableProjectProps {
+  project: ProjectExperience
+  comboboxId: string
+  fieldName: string
+  onSave: (selection: SelectedProject, shouldVerify: boolean) => Promise<void>
+  onProjectClick: (projectId: number | null, projectName: string) => void
+  verificationIndicator: React.ReactNode
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  projectLookups?: ProjectLookups
+  titleClassName?: string
+  className?: string
+}
+
+const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
+  project,
+  comboboxId,
+  fieldName,
+  onSave,
+  onProjectClick,
+  verificationIndicator,
+  getFieldVerification,
+  projectLookups,
+  titleClassName = "font-semibold text-lg",
+  className = "",
+}) => {
+  const [preloadedName, setPreloadedName] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<SelectedProject>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [willVerify, setWillVerify] = useState(false)
+
+  const verification = getFieldVerification(fieldName)
+  const isCurrentlyVerified = verification?.status === "verified"
+
+  useEffect(() => {
+    setPreloadedName(null)
+    if (project.projectId == null) return
+    if (project.projectName?.trim()) return
+    let cancelled = false
+    fetchProjectById(project.projectId)
+      .then((p) => {
+        if (!cancelled) setPreloadedName(p.name)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [project.id, project.projectId, project.projectName])
+
+  const displaySelection = projectToSelected(project, preloadedName)
+  const displayName =
+    displaySelection?.name || project.projectName?.trim() || "Unnamed Project"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditValue(projectToSelected(project, preloadedName))
+    }
+  }, [project, preloadedName, isEditing])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(displaySelection)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(displaySelection)
+    setWillVerify(isCurrentlyVerified)
+    setError(null)
+  }
+
+  const handleSave = async () => {
+    if (!editValue?.id) {
+      setError("Select a project")
+      return
+    }
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    const selectionChanged =
+      !displaySelection || !projectSelectionsEqual(editValue, displaySelection)
+    if (!selectionChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(editValue, willVerify)
+      setIsEditing(false)
+      setError(null)
+    } catch {
+      setError("Failed to save. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div
+        className={cn(
+          "space-y-3 py-3 px-3 rounded-md bg-muted/30 border w-full min-w-0",
+          className
+        )}
+      >
+        <div className="space-y-2 w-full min-w-0">
+          <ProjectCombobox
+            id={comboboxId}
+            label="Project"
+            value={editValue}
+            onChange={setEditValue}
+            disabled={isSaving}
+            projectLookups={projectLookups}
+            className="w-full"
+            parsedNameHint={
+              project.projectId == null ? project.projectName?.trim() || undefined : undefined
+            }
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title={willVerify ? "Save & Verify" : "Save"}
+            >
+              {isSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-8 w-8 p-0 shrink-0"
+              title="Cancel"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-2 pl-1">
+            <Checkbox
+              id={`verify-${fieldName}`}
+              checked={willVerify}
+              onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+              disabled={isSaving}
+              className="h-4 w-4"
+            />
+            <Label
+              htmlFor={`verify-${fieldName}`}
+              className={cn(
+                "text-xs cursor-pointer",
+                willVerify
+                  ? "text-green-600 dark:text-green-400 font-medium"
+                  : "text-muted-foreground"
+              )}
+            >
+              {willVerify ? "✓ Verified" : "Mark as verified"}
+            </Label>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors w-full min-w-0",
+        className
+      )}
+    >
+      <div className="flex-1 min-w-0 w-full">
+        <span className="text-sm font-medium text-muted-foreground block mb-0.5">Project</span>
+        <button
+          type="button"
+          onClick={() => onProjectClick(project.projectId, displayName)}
+          className={cn(
+            titleClassName,
+            "hover:text-primary hover:underline transition-colors text-left cursor-pointer block w-full break-words"
+          )}
+          title={`View ${displayName} details`}
+        >
+          {displayName}
+        </button>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {verificationIndicator}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleEdit}
+          className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          type="button"
+          title="Edit project"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
       </div>
     </div>
   )
@@ -2266,40 +3707,6 @@ const calculateEmployerPromotions = (candidate: Candidate, employerName: string)
   return uniqueTitles.size - 1
 }
 
-// Helper function to calculate total years of experience from work experiences
-const calculateYearsOfExperience = (candidate: Candidate): number => {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0
-  }
-
-  const today = new Date()
-  let totalMonths = 0
-
-  candidate.workExperiences.forEach(we => {
-    if (!we.startDate) return
-
-    const startDate = new Date(we.startDate)
-    const endDate = we.endDate ? new Date(we.endDate) : today
-
-    // Calculate months between start and end
-    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
-    const monthsDiff = endDate.getMonth() - startDate.getMonth()
-    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
-
-    // Add days for more precision (approximate)
-    const daysDiff = endDate.getDate() - startDate.getDate()
-    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
-
-    if (approximateMonths > 0) {
-      totalMonths += approximateMonths
-    }
-  })
-
-  // Convert to years (with 1 decimal place precision)
-  const totalYears = totalMonths / 12
-  return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
-}
-
 export function CandidateDetailsModal({ 
   candidate, 
   open, 
@@ -2307,32 +3714,25 @@ export function CandidateDetailsModal({
   onCandidateUpdated,
 }: CandidateDetailsModalProps) {
   const router = useRouter()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "competitions", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
   
   // Options state (for creatable functionality)
-  const [employerOptions, setEmployerOptions] = useState<ComboboxOption[]>(baseEmployerOptions)
   const [projectOptions, setProjectOptions] = useState<ComboboxOption[]>(baseProjectOptions)
-  const [universityLocationOptions, setUniversityLocationOptions] = useState<ComboboxOption[]>(baseUniversityLocationOptions)
   const [certificationOptions, setCertificationOptions] = useState<ComboboxOption[]>(baseCertificationOptions)
-  const [degreeOptions, setDegreeOptions] = useState<ComboboxOption[]>(baseDegreeOptions)
-  const [majorOptions, setMajorOptions] = useState<ComboboxOption[]>(baseMajorOptions)
-  const [techStackOptions, setTechStackOptions] = useState<MultiSelectOption[]>(baseTechStackOptions)
+  const [apiTechStacks, setApiTechStacks] = useState<LookupItem[]>([])
+  const [apiTimeSupportZones, setApiTimeSupportZones] = useState<LookupItem[]>([])
+  const [apiBenefits, setApiBenefits] = useState<LookupItem[]>([])
+  const [benefitsCatalogLoading, setBenefitsCatalogLoading] = useState(false)
+  const [apiTags, setApiTags] = useState<LookupItem[]>([])
+  const [extraTechStackOptions, setExtraTechStackOptions] = useState<MultiSelectOption[]>([])
   
   // Creation dialog state
-  const [createEmployerDialogOpen, setCreateEmployerDialogOpen] = useState(false)
-  const [pendingEmployerName, setPendingEmployerName] = useState<string>("")
-  const [pendingEmployerFieldName, setPendingEmployerFieldName] = useState<string | null>(null)
-  
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false)
   const [pendingProjectName, setPendingProjectName] = useState<string>("")
   const [pendingProjectFieldName, setPendingProjectFieldName] = useState<string | null>(null)
-  
-  const [createUniversityDialogOpen, setCreateUniversityDialogOpen] = useState(false)
-  const [pendingUniversityName, setPendingUniversityName] = useState<string>("")
-  const [pendingUniversityFieldName, setPendingUniversityFieldName] = useState<string | null>(null)
   
   const [createCertificationDialogOpen, setCreateCertificationDialogOpen] = useState(false)
   const [pendingCertificationName, setPendingCertificationName] = useState<string>("")
@@ -2342,6 +3742,91 @@ export function CandidateDetailsModal({
   const [dataProgress, setDataProgress] = useState<CandidateDataProgressResponse | null>(null)
   const [dataProgressLoading, setDataProgressLoading] = useState(false)
   const [dataProgressError, setDataProgressError] = useState<string | null>(null)
+
+  const [certificationIssuers, setCertificationIssuers] = useState<CertificationIssuer[]>([])
+  const [certificationIssuersLoading, setCertificationIssuersLoading] = useState(false)
+  const [degreeMajorLookups, setDegreeMajorLookups] = useState<{
+    degrees: DegreeDto[]
+    majors: MajorDto[]
+  }>({ degrees: [], majors: [] })
+  const [degreesMajorsLoading, setDegreesMajorsLoading] = useState(false)
+
+  /** Full candidate from GET /api/candidates/{id} (list rows omit nested educations, etc.). */
+  const [fullCandidate, setFullCandidate] = useState<Candidate | null>(null)
+  const [fullCandidateLoading, setFullCandidateLoading] = useState(false)
+  const resolvedCandidate = fullCandidate ?? candidate
+
+  const degreeCatalogOptions = useMemo(
+    () => mergeNamedComboboxOptions(degreeMajorLookups.degrees, [], []),
+    [degreeMajorLookups.degrees]
+  )
+
+  const majorCatalogOptions = useMemo(
+    () => mergeNamedComboboxOptions(degreeMajorLookups.majors, [], []),
+    [degreeMajorLookups.majors]
+  )
+
+  const degreeOptions = useMemo(
+    () =>
+      mergeNamedComboboxOptions(
+        degreeMajorLookups.degrees,
+        baseDegreeOptions,
+        (resolvedCandidate?.educations ?? []).map((e) => e.degreeName)
+      ),
+    [degreeMajorLookups.degrees, resolvedCandidate?.educations]
+  )
+
+  const majorOptions = useMemo(
+    () =>
+      mergeNamedComboboxOptions(
+        degreeMajorLookups.majors,
+        baseMajorOptions,
+        (resolvedCandidate?.educations ?? []).map((e) => e.majorName)
+      ),
+    [degreeMajorLookups.majors, resolvedCandidate?.educations]
+  )
+
+  const techStackOptions = useMemo(() => {
+    const catalogOptions: MultiSelectOption[] = apiTechStacks
+      .filter((l) => l?.name?.trim())
+      .map((l) => {
+        const n = l.name.trim()
+        return { value: n, label: n }
+      })
+    const selectedNames = collectCandidateTechStackNames(resolvedCandidate)
+    return mergeMultiSelectOptions(
+      [...baseTechStackOptions, ...catalogOptions, ...extraTechStackOptions],
+      selectedNames
+    )
+  }, [apiTechStacks, extraTechStackOptions, resolvedCandidate])
+
+  const timeSupportZoneOptions = useMemo(() => {
+    const catalogOptions: MultiSelectOption[] = apiTimeSupportZones
+      .filter((l) => l?.name?.trim())
+      .map((l) => {
+        const n = l.name.trim()
+        return { value: n, label: n }
+      })
+    const selectedNames = collectWorkExperienceTimeSupportZoneNames(resolvedCandidate)
+    return mergeMultiSelectOptions(catalogOptions, selectedNames)
+  }, [apiTimeSupportZones, resolvedCandidate])
+
+  const employerCreateLookups = useMemo<BuildCreateEmployerDtoOptions>(
+    () => ({
+      tagsLookup: apiTags,
+      timeSupportZonesLookup: apiTimeSupportZones,
+    }),
+    [apiTags, apiTimeSupportZones]
+  )
+
+  const projectLookups = useMemo<ProjectLookups>(
+    () => ({
+      techStacks: apiTechStacks,
+      technicalAspects: [],
+      clientLocations: [],
+    }),
+    [apiTechStacks]
+  )
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ 
@@ -2516,6 +4001,80 @@ export function CandidateDetailsModal({
     })
   }, [editDialogOpen])
 
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setBenefitsCatalogLoading(true)
+    Promise.all([
+      fetchTechStacks().catch(() => []),
+      fetchTimeSupportZones().catch(() => []),
+      fetchTags().catch(() => []),
+      fetchBenefits().catch(() => []),
+    ])
+      .then(([stacks, zones, tags, benefits]) => {
+        if (!cancelled) {
+          setApiTechStacks(Array.isArray(stacks) ? stacks : [])
+          setApiTimeSupportZones(Array.isArray(zones) ? zones : [])
+          setApiTags(Array.isArray(tags) ? tags : [])
+          setApiBenefits(Array.isArray(benefits) ? benefits : [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiTechStacks([])
+          setApiTimeSupportZones([])
+          setApiTags([])
+          setApiBenefits([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBenefitsCatalogLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setDegreesMajorsLoading(true)
+    Promise.all([fetchDegrees().catch(() => []), fetchMajors().catch(() => [])])
+      .then(([degrees, majors]) => {
+        if (!cancelled) {
+          setDegreeMajorLookups({
+            degrees: Array.isArray(degrees) ? degrees : [],
+            majors: Array.isArray(majors) ? majors : [],
+          })
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDegreesMajorsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setCertificationIssuersLoading(true)
+    fetchCertificationIssuers()
+      .then((issuers) => {
+        if (!cancelled) setCertificationIssuers(Array.isArray(issuers) ? issuers : [])
+      })
+      .catch(() => {
+        if (!cancelled) setCertificationIssuers([])
+      })
+      .finally(() => {
+        if (!cancelled) setCertificationIssuersLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   // State for Interaction Mode dialog
   const [interactionMode, setInteractionMode] = useState<InteractionMode | null>(null)
   const [interactionDialogOpen, setInteractionDialogOpen] = useState(false)
@@ -2568,17 +4127,33 @@ export function CandidateDetailsModal({
   const handleMultiSelectFieldSave = async (fieldName: string, newValue: string[], shouldVerify: boolean) => {
     await handleFieldSave(fieldName, newValue, shouldVerify)
   }
-  
-  // Wrapper for benefits field save
-  const handleBenefitsFieldSave = async (fieldName: string, newValue: EmployerBenefit[], shouldVerify: boolean) => {
-    await handleFieldSave(fieldName, newValue, shouldVerify)
-  }
+
+  const handleCreateBenefit = React.useCallback(async (name: string): Promise<EmployerBenefit | null> => {
+    try {
+      const created = await createBenefit(name)
+      setApiBenefits((prev) =>
+        [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created].sort(
+          (a, b) => a.name.localeCompare(b.name)
+        )
+      )
+      return {
+        id: String(created.id),
+        name: created.name,
+        hasValue: false,
+        amount: null,
+        unit: null,
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add benefit")
+      return null
+    }
+  }, [])
 
   // Handle independent project deletion - show confirmation dialog
   const handleDeleteProject = (projectIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const project = candidate.projects?.[projectIndex]
+    const project = resolvedCandidate.projects?.[projectIndex]
     if (!project) return
     
     // Set project to delete and open confirmation dialog
@@ -2592,9 +4167,9 @@ export function CandidateDetailsModal({
 
   // Handle work experience project deletion - show confirmation dialog
   const handleDeleteWorkExperienceProject = (workExperienceIndex: number, projectIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const workExperience = candidate.workExperiences?.[workExperienceIndex]
+    const workExperience = resolvedCandidate.workExperiences?.[workExperienceIndex]
     const project = workExperience?.projects?.[projectIndex]
     if (!project) return
     
@@ -2610,9 +4185,9 @@ export function CandidateDetailsModal({
 
   // Handle education entry deletion - show confirmation dialog
   const handleDeleteEducation = (educationIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const education = candidate.educations?.[educationIndex]
+    const education = resolvedCandidate.educations?.[educationIndex]
     if (!education) return
     
     // Create a descriptive name for the education entry
@@ -2630,9 +4205,9 @@ export function CandidateDetailsModal({
 
   // Handle certification deletion - show confirmation dialog
   const handleDeleteCertification = (certificationIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const certification = candidate.certifications?.[certificationIndex]
+    const certification = resolvedCandidate.certifications?.[certificationIndex]
     if (!certification) return
     
     setItemToDelete({
@@ -2645,9 +4220,9 @@ export function CandidateDetailsModal({
 
   // Handle work experience entry deletion - show confirmation dialog
   const handleDeleteWorkExperience = (workExperienceIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const workExperience = candidate.workExperiences?.[workExperienceIndex]
+    const workExperience = resolvedCandidate.workExperiences?.[workExperienceIndex]
     if (!workExperience) return
     
     // Create a descriptive name for the work experience entry
@@ -2665,9 +4240,9 @@ export function CandidateDetailsModal({
 
   // Handle achievement deletion - show confirmation dialog
   const handleDeleteAchievement = (achievementIndex: number) => {
-    if (!candidate) return
+    if (!resolvedCandidate) return
     
-    const achievements = candidate.achievements || candidate.competitions?.map(comp => ({
+    const achievements = resolvedCandidate.achievements || resolvedCandidate.competitions?.map(comp => ({
       id: comp.id,
       name: comp.competitionName,
       achievementType: 'Competition',
@@ -2738,38 +4313,6 @@ export function CandidateDetailsModal({
     setItemToDelete(null)
   }
 
-  // Handle employer creation
-  const handleEmployerCreated = async (employerData: EmployerFormData) => {
-    try {
-      const newEmployerName = employerData.name.trim()
-      
-      if (!newEmployerName) {
-        toast.error("Employer name is required")
-        return
-      }
-
-      // Add new employer to options
-      const newOption = { label: newEmployerName, value: newEmployerName }
-      setEmployerOptions(prev => {
-        const updated = [...prev, newOption]
-        return updated.sort((a, b) => a.label.localeCompare(b.label))
-      })
-
-      // Auto-select the newly created employer if we have a pending field
-      if (pendingEmployerFieldName) {
-        await handleFieldSave(pendingEmployerFieldName, newEmployerName, false)
-      }
-
-      toast.success(`Employer "${newEmployerName}" has been created successfully.`)
-      setCreateEmployerDialogOpen(false)
-      setPendingEmployerName("")
-      setPendingEmployerFieldName(null)
-    } catch (error) {
-      console.error("Error creating employer:", error)
-      toast.error("Failed to create employer. Please try again.")
-    }
-  }
-
   // Handle project creation
   const handleProjectCreated = async (projectData: ProjectFormData) => {
     try {
@@ -2802,12 +4345,627 @@ export function CandidateDetailsModal({
     }
   }
 
-  // Handle university creation - backend API integration pending
-  const handleUniversityCreated = async (_universityData: UniversityFormData) => {
-    setCreateUniversityDialogOpen(false)
-    setPendingUniversityName("")
-    setPendingUniversityFieldName(null)
-    toast.info("University creation will be available when backend API is integrated.")
+  const handleCertificationIssuerCreated = (issuer: CertificationIssuer) => {
+    setCertificationIssuers((prev) => {
+      if (prev.some((i) => i.id === issuer.id)) return prev
+      return [...prev, issuer].sort((a, b) => a.name.localeCompare(b.name))
+    })
+  }
+
+  const persistEducationUniversity = async (
+    eduIndex: number,
+    selection: SelectedUniversity,
+    shouldVerify: boolean
+  ) => {
+    if (!candidate || !selection?.id) return
+    const candidateId = Number(candidate.id)
+    if (!Number.isFinite(candidateId)) {
+      toast.error("Invalid candidate id.")
+      throw new Error("Invalid candidate id")
+    }
+    const edu = (fullCandidate ?? candidate).educations?.[eduIndex]
+    if (!edu) return
+    const educationId = Number(edu.id)
+    if (!Number.isFinite(educationId)) {
+      toast.error("Cannot update education without a valid id.")
+      throw new Error("Invalid education id")
+    }
+
+    await updateCandidateEducation(candidateId, educationId, {
+      universityId: selection.id,
+      degreeId: lookupIdByName(degreeMajorLookups.degrees, edu.degreeName),
+      majorId: lookupIdByName(degreeMajorLookups.majors, edu.majorName),
+      startMonth: formatCertDateForApi(edu.startMonth),
+      endMonth: formatCertDateForApi(edu.endMonth),
+      grades: edu.grades ?? null,
+      isTopper: edu.isTopper ?? false,
+      isMainCheetah: edu.isCheetah ?? false,
+    })
+
+    setFullCandidate((prev) => {
+      const base = prev ?? candidate
+      if (!base.educations?.[eduIndex]) return prev ?? base
+      const nextEducations = [...base.educations]
+      nextEducations[eduIndex] = {
+        ...nextEducations[eduIndex],
+        universityLocationId: String(selection.id),
+        universityLocationName: selection.name,
+      }
+      return { ...base, educations: nextEducations }
+    })
+
+    const message = shouldVerify
+      ? "University updated and verified ✓"
+      : "University updated"
+    toast.success(message)
+    await refreshFullCandidate()
+    onCandidateUpdated?.()
+  }
+
+  const handleEducationUniversitySave = async (
+    eduIndex: number,
+    selection: SelectedUniversity,
+    shouldVerify: boolean
+  ) => {
+    if (!selection?.id) return
+    try {
+      await persistEducationUniversity(eduIndex, selection, shouldVerify)
+    } catch (err) {
+      if (err instanceof Error && err.message === "Invalid education id") return
+      toast.error(err instanceof Error ? err.message : "Failed to update university.")
+      throw err
+    }
+  }
+
+  const persistWorkExperienceRow = async (
+    weIndex: number,
+    patch: {
+      shiftType?: string
+      workMode?: string
+      employerId?: number
+      employerName?: string
+    },
+    shouldVerify: boolean,
+    successLabel: string
+  ) => {
+    if (!candidate) return
+    const candidateId = Number(candidate.id)
+    if (!Number.isFinite(candidateId)) {
+      toast.error("Invalid candidate id.")
+      throw new Error("Invalid candidate id")
+    }
+    const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    if (!we) return
+    const weId = Number(we.id)
+    if (!Number.isFinite(weId)) {
+      toast.error("Cannot update work experience without a valid id.")
+      throw new Error("Invalid work experience id")
+    }
+    const employerId = patch.employerId ?? we.employerId
+    if (employerId == null) {
+      toast.error("Link an employer before updating this field.")
+      throw new Error("Employer not linked")
+    }
+
+    const nextShiftType =
+      patch.shiftType !== undefined
+        ? shiftTypeToSelectValue(patch.shiftType)
+        : shiftTypeToSelectValue(we.shiftType ?? "")
+    const nextWorkMode =
+      patch.workMode !== undefined
+        ? workModeToSelectValue(patch.workMode)
+        : workModeToSelectValue(we.workMode ?? "")
+
+    await updateCandidateWorkExperience(candidateId, weId, {
+      employerId,
+      jobTitle: we.jobTitle,
+      startDate: formatCertDateForApi(we.startDate),
+      endDate: formatCertDateForApi(we.endDate),
+      shiftType: nextShiftType ? enumIndex(SHIFT_TYPE_DB, nextShiftType) : null,
+      workMode: nextWorkMode ? enumIndex(WORK_MODE_DB, nextWorkMode) : null,
+    })
+
+    setFullCandidate((prev) => {
+      const base = prev ?? candidate
+      if (!base.workExperiences?.[weIndex]) return prev ?? base
+      const nextWorkExperiences = [...base.workExperiences]
+      nextWorkExperiences[weIndex] = {
+        ...nextWorkExperiences[weIndex],
+        ...(patch.shiftType !== undefined
+          ? { shiftType: (nextShiftType || "") as WorkExperience["shiftType"] }
+          : {}),
+        ...(patch.workMode !== undefined
+          ? { workMode: (nextWorkMode || "") as WorkExperience["workMode"] }
+          : {}),
+        ...(patch.employerId !== undefined ? { employerId: patch.employerId } : {}),
+        ...(patch.employerName !== undefined ? { employerName: patch.employerName } : {}),
+      }
+      return { ...base, workExperiences: nextWorkExperiences }
+    })
+
+    const message = shouldVerify
+      ? `${successLabel} updated and verified ✓`
+      : `${successLabel} updated`
+    toast.success(message)
+    await refreshFullCandidate()
+    onCandidateUpdated?.()
+  }
+
+  const handleWorkExperienceEmployerSave = async (
+    weIndex: number,
+    selection: SelectedEmployer,
+    shouldVerify: boolean
+  ) => {
+    if (!selection?.id) return
+    try {
+      await persistWorkExperienceRow(
+        weIndex,
+        { employerId: selection.id, employerName: selection.name },
+        shouldVerify,
+        "Employer"
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid work experience id" ||
+          err.message === "Employer not linked")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update employer.")
+      throw err
+    }
+  }
+
+  const handleWorkExperienceShiftTypeSave = async (
+    weIndex: number,
+    shiftTypeValue: string,
+    shouldVerify: boolean
+  ) => {
+    if (!shiftTypeValue) {
+      toast.error("Select a shift type.")
+      throw new Error("Shift type required")
+    }
+    try {
+      await persistWorkExperienceRow(
+        weIndex,
+        { shiftType: shiftTypeValue },
+        shouldVerify,
+        "Shift type"
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid work experience id" ||
+          err.message === "Employer not linked" ||
+          err.message === "Shift type required")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update shift type.")
+      throw err
+    }
+  }
+
+  const handleWorkExperienceWorkModeSave = async (
+    weIndex: number,
+    workModeValue: string,
+    shouldVerify: boolean
+  ) => {
+    if (!workModeValue) {
+      toast.error("Select a work mode.")
+      throw new Error("Work mode required")
+    }
+    try {
+      await persistWorkExperienceRow(
+        weIndex,
+        { workMode: workModeValue },
+        shouldVerify,
+        "Work mode"
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid work experience id" ||
+          err.message === "Employer not linked" ||
+          err.message === "Work mode required")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update work mode.")
+      throw err
+    }
+  }
+
+  const handleWorkExperienceTimeSupportZonesSave = async (
+    weIndex: number,
+    zoneNames: string[],
+    shouldVerify: boolean
+  ) => {
+    try {
+      if (!candidate) return
+      const candidateId = Number(candidate.id)
+      if (!Number.isFinite(candidateId)) {
+        toast.error("Invalid candidate id.")
+        throw new Error("Invalid candidate id")
+      }
+      const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+      if (!we) return
+      const weId = Number(we.id)
+      if (!Number.isFinite(weId)) {
+        toast.error("Cannot update work experience without a valid id.")
+        throw new Error("Invalid work experience id")
+      }
+
+      const tszLookup = apiTimeSupportZones
+      const oldZones = we.timeSupportZones ?? []
+      const oldIds = new Set<number>()
+      for (const name of oldZones) {
+        const id = lookupIdByName(tszLookup, name)
+        if (id != null) oldIds.add(id)
+      }
+
+      const newIds = new Set<number>()
+      for (const name of zoneNames) {
+        const id = lookupIdByName(tszLookup, name)
+        if (id == null) {
+          toast.error(`Unknown time support zone: ${name}`)
+          throw new Error("Unknown time support zone")
+        }
+        newIds.add(id)
+      }
+
+      const ops: Promise<unknown>[] = []
+      for (const id of newIds) {
+        if (!oldIds.has(id)) ops.push(addWeTimeSupportZone(candidateId, weId, id))
+      }
+      for (const id of oldIds) {
+        if (!newIds.has(id)) ops.push(removeWeTimeSupportZone(candidateId, weId, id))
+      }
+      await Promise.all(ops)
+
+      setFullCandidate((prev) => {
+        const base = prev ?? candidate
+        if (!base.workExperiences?.[weIndex]) return prev ?? base
+        const nextWorkExperiences = [...base.workExperiences]
+        nextWorkExperiences[weIndex] = {
+          ...nextWorkExperiences[weIndex],
+          timeSupportZones: zoneNames,
+        }
+        return { ...base, workExperiences: nextWorkExperiences }
+      })
+
+      const message = shouldVerify
+        ? "Time support zones updated and verified ✓"
+        : "Time support zones updated"
+      toast.success(message)
+      await refreshFullCandidate()
+      onCandidateUpdated?.()
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid candidate id" ||
+          err.message === "Invalid work experience id" ||
+          err.message === "Unknown time support zone")
+      ) {
+        return
+      }
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update time support zones."
+      )
+      throw err
+    }
+  }
+
+  const handleWorkExperienceBenefitsSave = async (
+    weIndex: number,
+    benefits: EmployerBenefit[],
+    shouldVerify: boolean
+  ) => {
+    try {
+      if (!candidate) return
+      const candidateId = Number(candidate.id)
+      if (!Number.isFinite(candidateId)) {
+        toast.error("Invalid candidate id.")
+        throw new Error("Invalid candidate id")
+      }
+      const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+      if (!we) return
+      const weId = Number(we.id)
+      if (!Number.isFinite(weId)) {
+        toast.error("Cannot update work experience without a valid id.")
+        throw new Error("Invalid work experience id")
+      }
+
+      const benefitsLookup = apiBenefits
+      const oldBenefits = we.benefits ?? []
+
+      const oldIds = new Set<number>()
+      for (const b of oldBenefits) {
+        const id = resolveWorkExperienceBenefitId(b, benefitsLookup)
+        if (id != null) oldIds.add(id)
+      }
+
+      const newIds = new Set<number>()
+      const upsertOps: Promise<unknown>[] = []
+      for (const b of benefits) {
+        const benefitId = resolveWorkExperienceBenefitId(b, benefitsLookup)
+        if (benefitId == null) {
+          toast.error(`Unknown benefit: ${b.name}`)
+          throw new Error("Unknown benefit")
+        }
+        newIds.add(benefitId)
+        upsertOps.push(
+          upsertWeBenefit(candidateId, weId, {
+            benefitId,
+            ...employerBenefitToApiValueFields(b),
+          })
+        )
+      }
+
+      const removeOps: Promise<unknown>[] = []
+      for (const id of oldIds) {
+        if (!newIds.has(id)) {
+          removeOps.push(removeWeBenefit(candidateId, weId, id))
+        }
+      }
+
+      await Promise.all([...upsertOps, ...removeOps])
+
+      setFullCandidate((prev) => {
+        const base = prev ?? candidate
+        if (!base.workExperiences?.[weIndex]) return prev ?? base
+        const nextWorkExperiences = [...base.workExperiences]
+        nextWorkExperiences[weIndex] = {
+          ...nextWorkExperiences[weIndex],
+          benefits,
+        }
+        return { ...base, workExperiences: nextWorkExperiences }
+      })
+
+      const message = shouldVerify
+        ? "Benefits updated and verified ✓"
+        : "Benefits updated"
+      toast.success(message)
+      await refreshFullCandidate()
+      onCandidateUpdated?.()
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid candidate id" ||
+          err.message === "Invalid work experience id" ||
+          err.message === "Unknown benefit")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update benefits.")
+      throw err
+    }
+  }
+
+  const persistCertificationRow = async (
+    certIndex: number,
+    patch: {
+      certificationId?: number
+      certificationLevel?: CandidateCertification["certificationLevel"]
+      certificationName?: string
+      certificationIssuerName?: string | null
+    },
+    shouldVerify: boolean,
+    successLabel: string
+  ) => {
+    if (!candidate) return
+    const candidateId = Number(candidate.id)
+    if (!Number.isFinite(candidateId)) {
+      toast.error("Invalid candidate id.")
+      throw new Error("Invalid candidate id")
+    }
+    const cert = (fullCandidate ?? candidate).certifications?.[certIndex]
+    if (!cert) return
+
+    const certificationId = patch.certificationId ?? cert.certificationId
+    if (certificationId == null) {
+      toast.error("Link a certification before updating this field.")
+      throw new Error("Certification not linked")
+    }
+
+    const nextLevel = patch.certificationLevel ?? cert.certificationLevel
+
+    await upsertCandidateCertification(candidateId, {
+      certificationId,
+      issueDate: formatCertDateForApi(cert.issueDate),
+      expiryDate: formatCertDateForApi(cert.expiryDate),
+      url: cert.certificationUrl ?? null,
+      level: certificationLevelToApiIndex(nextLevel),
+    })
+
+    setFullCandidate((prev) => {
+      const base = prev ?? candidate
+      if (!base.certifications?.[certIndex]) return prev ?? base
+      const nextCerts = [...base.certifications]
+      nextCerts[certIndex] = {
+        ...nextCerts[certIndex],
+        ...(patch.certificationId != null ? { certificationId: patch.certificationId } : {}),
+        ...(patch.certificationName != null
+          ? { certificationName: patch.certificationName }
+          : {}),
+        ...(patch.certificationIssuerName !== undefined
+          ? { certificationIssuerName: patch.certificationIssuerName }
+          : {}),
+        ...(patch.certificationLevel !== undefined
+          ? { certificationLevel: patch.certificationLevel }
+          : {}),
+      }
+      return { ...base, certifications: nextCerts }
+    })
+
+    const message = shouldVerify
+      ? `${successLabel} updated and verified ✓`
+      : `${successLabel} updated`
+    toast.success(message)
+    await refreshFullCandidate()
+    onCandidateUpdated?.()
+  }
+
+  const handleCertificationLinkSave = async (
+    certIndex: number,
+    selection: SelectedCertification,
+    shouldVerify: boolean
+  ) => {
+    if (!selection?.id) return
+    try {
+      await persistCertificationRow(
+        certIndex,
+        {
+          certificationId: selection.id,
+          certificationName: selection.name,
+          certificationIssuerName: selection.issuerName ?? null,
+        },
+        shouldVerify,
+        "Certification"
+      )
+    } catch (err) {
+      if (err instanceof Error && err.message === "Certification not linked") return
+      toast.error(err instanceof Error ? err.message : "Failed to update certification.")
+      throw err
+    }
+  }
+
+  const handleCertificationLevelSave = async (
+    certIndex: number,
+    levelValue: string,
+    shouldVerify: boolean
+  ) => {
+    const level = certificationLevelToSelectValue(levelValue) as CertificationLevelDb
+    if (!level) {
+      toast.error("Select a certification level.")
+      throw new Error("Level required")
+    }
+    try {
+      await persistCertificationRow(
+        certIndex,
+        {
+          certificationLevel: level as CandidateCertification["certificationLevel"],
+        },
+        shouldVerify,
+        "Certification level"
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Certification not linked" || err.message === "Level required")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update certification level.")
+      throw err
+    }
+  }
+
+  const handleStandaloneProjectLinkSave = async (
+    projectIndex: number,
+    selection: SelectedProject,
+    shouldVerify: boolean
+  ) => {
+    if (!selection?.id || !candidate) return
+    const candidateId = Number(candidate.id)
+    if (!Number.isFinite(candidateId)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    const proj = (fullCandidate ?? candidate).projects?.[projectIndex]
+    if (!proj) return
+
+    try {
+      const oldProjectId = proj.projectId
+      const contribution = proj.contributionNotes ?? null
+
+      if (oldProjectId != null && oldProjectId !== selection.id) {
+        await removeCandidateProject(candidateId, oldProjectId)
+      }
+      await upsertCandidateProject(candidateId, selection.id, contribution)
+
+      setFullCandidate((prev) => {
+        const base = prev ?? candidate
+        if (!base.projects?.[projectIndex]) return prev ?? base
+        const nextProjects = [...base.projects]
+        nextProjects[projectIndex] = {
+          ...nextProjects[projectIndex],
+          projectId: selection.id,
+          projectName: selection.name,
+        }
+        return { ...base, projects: nextProjects }
+      })
+
+      toast.success(
+        shouldVerify ? "Project updated and verified ✓" : "Project updated"
+      )
+      await refreshFullCandidate()
+      onCandidateUpdated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update project.")
+      throw err
+    }
+  }
+
+  const handleWorkExperienceProjectLinkSave = async (
+    weIndex: number,
+    projectIndex: number,
+    selection: SelectedProject,
+    shouldVerify: boolean
+  ) => {
+    if (!selection?.id || !candidate) return
+    const candidateId = Number(candidate.id)
+    if (!Number.isFinite(candidateId)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    const proj = we?.projects?.[projectIndex]
+    if (!we || !proj) return
+
+    const weId = Number(we.id)
+    if (!Number.isFinite(weId)) {
+      toast.error("Invalid work experience id.")
+      return
+    }
+
+    try {
+      const oldProjectId = proj.projectId
+      const contribution = proj.contributionNotes ?? null
+
+      if (oldProjectId != null && oldProjectId !== selection.id) {
+        await removeWeProject(candidateId, weId, oldProjectId)
+      }
+      await upsertWeProject(candidateId, weId, selection.id, contribution)
+
+      setFullCandidate((prev) => {
+        const base = prev ?? candidate
+        const workExperiences = base.workExperiences
+        if (!workExperiences?.[weIndex]?.projects?.[projectIndex]) return prev ?? base
+        const nextWorkExperiences = [...workExperiences]
+        const nextProjects = [...nextWorkExperiences[weIndex].projects]
+        nextProjects[projectIndex] = {
+          ...nextProjects[projectIndex],
+          projectId: selection.id,
+          projectName: selection.name,
+        }
+        nextWorkExperiences[weIndex] = {
+          ...nextWorkExperiences[weIndex],
+          projects: nextProjects,
+        }
+        return { ...base, workExperiences: nextWorkExperiences }
+      })
+
+      toast.success(
+        shouldVerify ? "Project updated and verified ✓" : "Project updated"
+      )
+      await refreshFullCandidate()
+      onCandidateUpdated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update project.")
+      throw err
+    }
   }
 
   // Handle certification creation
@@ -2875,6 +5033,50 @@ export function CandidateDetailsModal({
     void loadDataProgress()
   }, [open, candidate?.id, loadDataProgress])
 
+  const refreshFullCandidate = React.useCallback(async () => {
+    if (!candidate?.id) return
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) return
+    try {
+      const full = await fetchCandidateById(id)
+      setFullCandidate(full)
+    } catch {
+      // Keep prior fullCandidate on refresh failure
+    }
+  }, [candidate?.id])
+
+  useEffect(() => {
+    if (!open || !candidate?.id) {
+      setFullCandidate(null)
+      setFullCandidateLoading(false)
+      return
+    }
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) return
+
+    let cancelled = false
+    setFullCandidateLoading(true)
+    fetchCandidateById(id)
+      .then((full) => {
+        if (!cancelled) setFullCandidate(full)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toast.error(
+            err instanceof Error ? err.message : "Failed to load candidate details."
+          )
+          setFullCandidate(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setFullCandidateLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, candidate?.id])
+
   const handleEditSubmit = async (formData: CandidateFormData, verificationState?: VerificationState) => {
     if (!candidate) return
     const id = Number(candidate.id)
@@ -2882,10 +5084,11 @@ export function CandidateDetailsModal({
       toast.error("Invalid candidate id.")
       return
     }
+    const existing = fullCandidate ?? candidate
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
-      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidate))
-      await syncCandidateSubResources(id, formData, candidate, preparedLookups)
+      await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
+      await syncCandidateSubResources(id, formData, existing, preparedLookups)
 
       const verifiedCount = verificationState?.verifiedFields.size || 0
       const modifiedCount = verificationState?.modifiedFields.size || 0
@@ -2895,6 +5098,7 @@ export function CandidateDetailsModal({
       )
       setEditDialogOpen(false)
       await loadDataProgress()
+      await refreshFullCandidate()
       onCandidateUpdated?.()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
@@ -2985,16 +5189,16 @@ export function CandidateDetailsModal({
   ]
   const basicInfoProgress = useMemo(() => 
     calculateSectionProgress(basicInfoFields),
-    [verifications, candidate]
+    [verifications, resolvedCandidate]
   )
 
   const workExperienceProgress = useMemo(() => {
-    if (!candidate?.workExperiences || candidate.workExperiences.length === 0) {
+    if (!resolvedCandidate?.workExperiences || resolvedCandidate.workExperiences.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     
     const fields: string[] = []
-    candidate.workExperiences.forEach((exp, idx) => {
+    resolvedCandidate.workExperiences.forEach((exp, idx) => {
       fields.push(`workExperiences[${idx}].employerName`)
       fields.push(`workExperiences[${idx}].jobTitle`)
       fields.push(`workExperiences[${idx}].dates`)
@@ -3003,42 +5207,42 @@ export function CandidateDetailsModal({
       fields.push(`workExperiences[${idx}].timeSupportZones`)
       fields.push(`workExperiences[${idx}].techStacks`)
       exp.projects.forEach((proj, projIdx) => {
-        fields.push(`workExperiences[${idx}].projects[${projIdx}].projectName`)
+        fields.push(`workExperiences[${idx}].projects[${projIdx}].projectId`)
         fields.push(`workExperiences[${idx}].projects[${projIdx}].contributionNotes`)
       })
     })
     
     return calculateSectionProgress(fields)
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
   const techStacksProgress = useMemo(() => {
-    if (!candidate?.techStacks || candidate.techStacks.length === 0) {
+    if (!resolvedCandidate?.techStacks || resolvedCandidate.techStacks.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     return calculateSectionProgress(['techStacks'])
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
   const independentProjectsProgress = useMemo(() => {
-    if (!candidate?.projects || candidate.projects.length === 0) {
+    if (!resolvedCandidate?.projects || resolvedCandidate.projects.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     
     const fields: string[] = []
-    candidate.projects.forEach((proj, idx) => {
-      fields.push(`projects[${idx}].projectName`)
+    resolvedCandidate.projects.forEach((proj, idx) => {
+      fields.push(`projects[${idx}].projectId`)
       fields.push(`projects[${idx}].contributionNotes`)
     })
     
     return calculateSectionProgress(fields)
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
   const educationProgress = useMemo(() => {
-    if (!candidate?.educations || candidate.educations.length === 0) {
+    if (!resolvedCandidate?.educations || resolvedCandidate.educations.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     
     const fields: string[] = []
-    candidate.educations.forEach((edu, idx) => {
+    resolvedCandidate.educations.forEach((edu, idx) => {
       fields.push(`educations[${idx}].universityLocationName`)
       fields.push(`educations[${idx}].degreeName`)
       fields.push(`educations[${idx}].majorName`)
@@ -3049,26 +5253,28 @@ export function CandidateDetailsModal({
     })
     
     return calculateSectionProgress(fields)
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
   const certificationsProgress = useMemo(() => {
-    if (!candidate?.certifications || candidate.certifications.length === 0) {
+    if (!resolvedCandidate?.certifications || resolvedCandidate.certifications.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
     }
     
     const fields: string[] = []
-    candidate.certifications.forEach((cert, idx) => {
+    resolvedCandidate.certifications.forEach((cert, idx) => {
+      fields.push(`certifications[${idx}].certificationId`)
       fields.push(`certifications[${idx}].certificationName`)
+      fields.push(`certifications[${idx}].certificationLevel`)
       fields.push(`certifications[${idx}].issueDate`)
       fields.push(`certifications[${idx}].expiryDate`)
       fields.push(`certifications[${idx}].certificationUrl`)
     })
     
     return calculateSectionProgress(fields)
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
   const achievementsProgress = useMemo(() => {
-    const achievements = candidate?.achievements || candidate?.competitions?.map(comp => ({
+    const achievements = resolvedCandidate?.achievements || resolvedCandidate?.competitions?.map(comp => ({
       id: comp.id,
       name: comp.competitionName,
       achievementType: "Competition" as const,
@@ -3093,7 +5299,7 @@ export function CandidateDetailsModal({
     })
     
     return calculateSectionProgress(fields)
-  }, [verifications, candidate])
+  }, [verifications, resolvedCandidate])
 
 
   // Helper function to get progress for a section by sectionId
@@ -3130,6 +5336,8 @@ export function CandidateDetailsModal({
   }
 
   if (!candidate) return null
+
+  const viewCandidate: Candidate = fullCandidate ?? candidate
   
   // Verification indicator component - shows badge and history together
   const VerificationIndicator = ({ 
@@ -3160,31 +5368,6 @@ export function CandidateDetailsModal({
             history={history}
           />
         )}
-      </div>
-    )
-  }
-
-  // Display field component with verification badge and history (always visible)
-  const DisplayField = ({ 
-    label, 
-    value, 
-    fieldName 
-  }: { 
-    label: string
-    value: string | number | null | undefined
-    fieldName: string
-  }) => {
-    const displayValue = value !== null && value !== undefined ? String(value) : 'N/A'
-    
-    return (
-      <div className="flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors">
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium text-muted-foreground block mb-0.5">{label}</span>
-          <span className={`text-sm block ${value === null || value === undefined ? 'text-muted-foreground italic' : ''}`}>
-            {displayValue}
-          </span>
-        </div>
-        <VerificationIndicator fieldName={fieldName} />
       </div>
     )
   }
@@ -3226,34 +5409,24 @@ export function CandidateDetailsModal({
     })
   }
 
-  const handleEmployerClick = (employerName: string) => {
-    // Find employer by name
-    const employer = sampleEmployers.find(emp => 
-      emp.name.trim().toLowerCase() === employerName.trim().toLowerCase()
-    )
-    if (employer) {
-      const params = new URLSearchParams({
-        employerFilter: employer.name,
-        employerId: employer.id
-      })
-      router.push(`/employers?${params.toString()}`)
-      onOpenChange(false) // Close modal after navigation
-    }
+  const handleEmployerClick = (employerId: number, employerName: string) => {
+    const params = new URLSearchParams({
+      employerFilter: employerName,
+      employerId: String(employerId),
+    })
+    router.push(`/employers?${params.toString()}`)
+    onOpenChange(false)
   }
 
-  const handleUniversityClick = (universityLocationId: string) => {
-    // Find university by location ID
-    const university = sampleUniversities.find(uni =>
-      uni.locations.some(loc => String(loc.id) === universityLocationId)
-    )
-    if (university) {
-      const params = new URLSearchParams({
-        universityFilter: university.name,
-        universityId: String(university.id),
-      })
-      router.push(`/universities?${params.toString()}`)
-      onOpenChange(false) // Close modal after navigation
-    }
+  const handleUniversityClick = (universityId: string, universityName: string) => {
+    const idNum = Number(universityId)
+    if (!Number.isFinite(idNum)) return
+    const params = new URLSearchParams({
+      universityFilter: universityName,
+      universityId: String(idNum),
+    })
+    router.push(`/universities?${params.toString()}`)
+    onOpenChange(false)
   }
 
   const handleCertificationClick = (certificationId: string, certificationName: string) => {
@@ -3265,27 +5438,35 @@ export function CandidateDetailsModal({
     onOpenChange(false)
   }
 
-  const handleProjectClick = (projectName: string) => {
-    // Find project by name
-    const project = sampleProjects.find(proj => 
-      proj.projectName.trim().toLowerCase() === projectName.trim().toLowerCase()
+  const handleProjectClick = (projectId: number | null, projectName: string) => {
+    if (projectId != null && Number.isFinite(projectId)) {
+      const params = new URLSearchParams({
+        projectFilter: projectName,
+        projectId: String(projectId),
+      })
+      router.push(`/projects?${params.toString()}`)
+      onOpenChange(false)
+      return
+    }
+    const project = sampleProjects.find(
+      (proj) => proj.projectName.trim().toLowerCase() === projectName.trim().toLowerCase()
     )
     if (project) {
       const params = new URLSearchParams({
         projectFilter: project.projectName,
-        projectId: project.id
+        projectId: project.id,
       })
       router.push(`/projects?${params.toString()}`)
-      onOpenChange(false) // Close modal after navigation
+      onOpenChange(false)
     }
   }
 
-  const workExperiences = candidate.workExperiences || []
-  const independentProjects = candidate.projects || []
-  const educations = candidate.educations || []
-  const certifications = candidate.certifications || []
+  const workExperiences = viewCandidate.workExperiences || []
+  const independentProjects = viewCandidate.projects || []
+  const educations = viewCandidate.educations || []
+  const certifications = viewCandidate.certifications || []
   // Use achievements if available, otherwise fall back to competitions (legacy)
-  const achievements = candidate?.achievements || candidate?.competitions?.map(comp => ({
+  const achievements = viewCandidate.achievements || viewCandidate.competitions?.map(comp => ({
     id: comp.id,
     name: comp.competitionName,
     achievementType: "Competition" as const,
@@ -3306,11 +5487,11 @@ export function CandidateDetailsModal({
             </div>
             <div>
                 <DialogTitle className="text-2xl font-semibold mb-1">
-                  {candidate.name}
+                  {viewCandidate.name}
           </DialogTitle>
-                <p className="text-sm text-muted-foreground mb-2">{getJobTitle(candidate)}</p>
-            <Badge className={CANDIDATE_STATUS_COLORS[candidate.status]}>
-              {CANDIDATE_STATUS_LABELS[candidate.status]}
+                <p className="text-sm text-muted-foreground mb-2">{getJobTitle(viewCandidate)}</p>
+            <Badge className={CANDIDATE_STATUS_COLORS[viewCandidate.status]}>
+              {CANDIDATE_STATUS_LABELS[viewCandidate.status]}
             </Badge>
               </div>
             </div>
@@ -3372,16 +5553,16 @@ export function CandidateDetailsModal({
                 </SelectContent>
               </Select>
               
-              {candidate.email && (
+              {viewCandidate.email && (
               <Button variant="outline" size="sm" asChild>
-                <a href={`mailto:${candidate.email}`}>
+                <a href={`mailto:${viewCandidate.email}`}>
                   <Mail className="size-4" />
                 </a>
               </Button>
               )}
-              {candidate.mobileNo && (
+              {viewCandidate.mobileNo && (
               <Button variant="outline" size="sm" asChild>
-                <a href={`tel:${candidate.mobileNo}`}>
+                <a href={`tel:${viewCandidate.mobileNo}`}>
                   <Phone className="size-4" />
                 </a>
               </Button>
@@ -3501,7 +5682,7 @@ export function CandidateDetailsModal({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                     <InlineEditableField 
                       label="Full Name" 
-                      value={candidate.name} 
+                      value={viewCandidate.name} 
                       fieldName="name"
                       fieldType="text"
                       validation={validateName}
@@ -3511,7 +5692,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="City" 
-                      value={candidate.city} 
+                      value={viewCandidate.city} 
                       fieldName="city"
                       fieldType="text"
                       onSave={handleFieldSave}
@@ -3520,7 +5701,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="Email Address" 
-                      value={candidate.email} 
+                      value={viewCandidate.email} 
                       fieldName="email"
                       fieldType="email"
                       validation={validateEmail}
@@ -3530,7 +5711,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="Mobile Number" 
-                      value={candidate.mobileNo} 
+                      value={viewCandidate.mobileNo} 
                       fieldName="mobileNo"
                       fieldType="text"
                       validation={validatePhone}
@@ -3540,7 +5721,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="CNIC" 
-                      value={candidate.cnic} 
+                      value={viewCandidate.cnic} 
                       fieldName="cnic"
                       fieldType="text"
                       validation={validateCNIC}
@@ -3550,7 +5731,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="Posting Title" 
-                      value={candidate.postingTitle} 
+                      value={viewCandidate.postingTitle} 
                       fieldName="postingTitle"
                       fieldType="text"
                       onSave={handleFieldSave}
@@ -3559,7 +5740,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="Current Salary" 
-                      value={candidate.currentSalary} 
+                      value={viewCandidate.currentSalary} 
                       fieldName="currentSalary"
                       fieldType="number"
                       validation={validateSalary}
@@ -3570,7 +5751,7 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableField 
                       label="Expected Salary" 
-                      value={candidate.expectedSalary} 
+                      value={viewCandidate.expectedSalary} 
                       fieldName="expectedSalary"
                       fieldType="number"
                       validation={validateSalary}
@@ -3579,18 +5760,20 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="expectedSalary" />}
                       getFieldVerification={getFieldVerification}
                     />
-                    <InlineEditableField
+                    <InlineEditableSelect
                       label="Source"
-                      value={candidate.source}
+                      value={viewCandidate.source}
                       fieldName="source"
-                      fieldType="text"
+                      options={candidateSourceSelectOptions}
+                      normalizeValue={candidateSourceToSelectValue}
+                      formatDisplay={candidateSourceDisplayLabel}
                       onSave={handleFieldSave}
                       verificationIndicator={<VerificationIndicator fieldName="source" />}
                       getFieldVerification={getFieldVerification}
                     />
                     <InlineEditableCheckbox
                       label="Top Developer"
-                      value={candidate.isTopDeveloper === true}
+                      value={viewCandidate.isTopDeveloper === true}
                       fieldName="isTopDeveloper"
                       onSave={async (fieldName, newValue, verify) => {
                         await handleFieldSave(fieldName, newValue, verify)
@@ -3599,46 +5782,15 @@ export function CandidateDetailsModal({
                     />
                     <InlineEditableCombobox
                       label="Personality Type"
-                      value={candidate.personalityType || ''}
+                      value={personalityTypeToSelectValue(viewCandidate.personalityType)}
                       fieldName="personalityType"
-                      options={personalityTypeOptions}
+                      options={personalityTypeSelectOptions}
                       onSave={handleFieldSave}
                       verificationIndicator={<VerificationIndicator fieldName="personalityType" />}
                       getFieldVerification={getFieldVerification}
                       placeholder="Select personality type..."
                       searchPlaceholder="Search personality types..."
                       emptyMessage="No personality type found."
-                      renderDisplay={(displayValue) => {
-                        const option = personalityTypeOptions.find(opt => opt.value === displayValue)
-                        return (
-                          <span className={`text-sm block ${!displayValue ? 'text-muted-foreground italic' : ''}`}>
-                            {option ? option.label : displayValue || 'N/A'}
-                          </span>
-                        )
-                      }}
-                    />
-                    <InlineEditableField 
-                      label="Years of Experience" 
-                      value={(() => {
-                        // Use manual value if exists, otherwise calculate from work experiences
-                        const manualValue = (candidate as Candidate & { yearsOfExperience?: number | null }).yearsOfExperience
-                        if (manualValue !== null && manualValue !== undefined) {
-                          return manualValue
-                        }
-                        return calculateYearsOfExperience(candidate)
-                      })()} 
-                      fieldName="yearsOfExperience"
-                      fieldType="number"
-                      validation={validateYearsOfExperience}
-                      onSave={handleFieldSave}
-                      formatDisplay={(val) => {
-                        if (val === null || val === undefined || val === '') return 'N/A'
-                        const years = Number(val)
-                        if (isNaN(years) || years <= 0) return 'N/A'
-                        return `${years} ${years === 1 ? 'year' : 'years'}`
-                      }}
-                      verificationIndicator={<VerificationIndicator fieldName="yearsOfExperience" />}
-                      getFieldVerification={getFieldVerification}
                     />
           </div>
 
@@ -3646,10 +5798,10 @@ export function CandidateDetailsModal({
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-muted-foreground">Links & Resources</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                      {candidate.linkedinUrl && (
+                      {viewCandidate.linkedinUrl && (
                         <InlineEditableField 
                           label="LinkedIn URL" 
-                          value={candidate.linkedinUrl} 
+                          value={viewCandidate.linkedinUrl} 
                           fieldName="linkedinUrl"
                           fieldType="url"
                           validation={validateLinkedInURL}
@@ -3658,10 +5810,10 @@ export function CandidateDetailsModal({
                           getFieldVerification={getFieldVerification}
                         />
                       )}
-                      {candidate.githubUrl && (
+                      {viewCandidate.githubUrl && (
                         <InlineEditableField 
                           label="GitHub URL" 
-                          value={candidate.githubUrl} 
+                          value={viewCandidate.githubUrl} 
                           fieldName="githubUrl"
                           fieldType="url"
                           validation={validateGitHubURL}
@@ -3670,10 +5822,10 @@ export function CandidateDetailsModal({
                           getFieldVerification={getFieldVerification}
                         />
                       )}
-                      {candidate.resume && (
+                      {viewCandidate.resume && (
                         <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/30">
                           <Button variant="outline" size="sm" asChild className="h-8">
-                            <a href={candidate.resume} target="_blank" rel="noopener noreferrer">
+                            <a href={viewCandidate.resume} target="_blank" rel="noopener noreferrer">
                               <Download className="size-4" />
                               Resume
                               <ExternalLink className="size-3" />
@@ -3685,11 +5837,6 @@ export function CandidateDetailsModal({
                     </div>
                   </div>
 
-          <Separator />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                    <DisplayField label="Applied On" value={formatDate(candidate.createdAt)} fieldName="createdAt" />
-                    <DisplayField label="Last Updated" value={formatDate(candidate.updatedAt)} fieldName="updatedAt" />
-                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
@@ -3718,7 +5865,7 @@ export function CandidateDetailsModal({
                             variant="outline"
                             className="ml-1 h-5 px-1.5 text-xs font-medium border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300"
                           >
-                            Avg {calculateCandidateAverageTenure(candidate).toFixed(1)}y tenure
+                            Avg {calculateCandidateAverageTenure(viewCandidate).toFixed(1)}y tenure
                           </Badge>
                         </>
                       )}
@@ -3751,42 +5898,19 @@ export function CandidateDetailsModal({
                               <div className="flex items-center gap-2 mb-2">
                                 <Building2 className="size-5 text-muted-foreground" />
                                 <div className="flex-1 min-w-0">
-                                  <InlineEditableCombobox
-                                    label=""
-                                    value={experience.employerName}
-                                    fieldName={`workExperiences[${idx}].employerName`}
-                                    options={employerOptions}
-                                    onSave={handleFieldSave}
-                                    placeholder="Select employer..."
-                                    searchPlaceholder="Search employers..."
-                                    verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].employerName`} />}
+                                  <InlineEditableEmployer
+                                    experience={experience}
+                                    weIndex={idx}
+                                    candidate={viewCandidate}
+                                    onSave={handleWorkExperienceEmployerSave}
+                                    onEmployerClick={handleEmployerClick}
+                                    createEmployerLookups={employerCreateLookups}
+                                    verificationIndicator={
+                                      <VerificationIndicator
+                                        fieldName={`workExperiences[${idx}].employerName`}
+                                      />
+                                    }
                                     getFieldVerification={getFieldVerification}
-                                    creatable={true}
-                                    createLabel="Add New Employer"
-                                    onCreateDialog={(searchValue) => {
-                                      setPendingEmployerName(searchValue)
-                                      setPendingEmployerFieldName(`workExperiences[${idx}].employerName`)
-                                      setCreateEmployerDialogOpen(true)
-                                    }}
-                                    renderDisplay={(displayValue, value) => (
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={() => handleEmployerClick(experience.employerName)}
-                                          className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer leading-tight"
-                                          title={`View ${displayValue} details`}
-                                        >
-                                          {displayValue}
-                                        </button>
-                                        {(() => {
-                                          const promotions = calculateEmployerPromotions(candidate, experience.employerName)
-                                          return promotions > 0 ? (
-                                            <Badge variant="secondary" className="shrink-0">
-                                              {promotions} promotion{promotions !== 1 ? 's' : ''}
-                                            </Badge>
-                                          ) : null
-                                        })()}
-                                      </div>
-                                    )}
                                   />
                                 </div>
                               </div>
@@ -3838,32 +5962,36 @@ export function CandidateDetailsModal({
 
                           {/* Work Details Grid */}
                           <div className="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {experience.shiftType && (
-                              <InlineEditableCombobox
-                                label="Shift Type"
-                                value={experience.shiftType}
-                                fieldName={`workExperiences[${idx}].shiftType`}
-                                options={shiftTypeOptions}
-                                onSave={handleFieldSave}
-                                placeholder="Select shift type..."
-                                searchPlaceholder="Search shift types..."
-                                verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].shiftType`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                            )}
-                            {experience.workMode && (
-                              <InlineEditableCombobox
-                                label="Work Mode"
-                                value={experience.workMode}
-                                fieldName={`workExperiences[${idx}].workMode`}
-                                options={workModeOptions}
-                                onSave={handleFieldSave}
-                                placeholder="Select work mode..."
-                                searchPlaceholder="Search work modes..."
-                                verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].workMode`} />}
-                                getFieldVerification={getFieldVerification}
-                              />
-                            )}
+                            <InlineEditableSelect
+                              label="Shift Type"
+                              value={experience.shiftType}
+                              fieldName={`workExperiences[${idx}].shiftType`}
+                              options={shiftTypeSelectOptions}
+                              normalizeValue={shiftTypeToSelectValue}
+                              formatDisplay={shiftTypeDisplayLabel}
+                              onSave={async (_fieldName, newValue, shouldVerify) => {
+                                await handleWorkExperienceShiftTypeSave(idx, newValue, shouldVerify)
+                              }}
+                              verificationIndicator={
+                                <VerificationIndicator fieldName={`workExperiences[${idx}].shiftType`} />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
+                            <InlineEditableSelect
+                              label="Work Mode"
+                              value={experience.workMode}
+                              fieldName={`workExperiences[${idx}].workMode`}
+                              options={workModeSelectOptions}
+                              normalizeValue={workModeToSelectValue}
+                              formatDisplay={workModeDisplayLabel}
+                              onSave={async (_fieldName, newValue, shouldVerify) => {
+                                await handleWorkExperienceWorkModeSave(idx, newValue, shouldVerify)
+                              }}
+                              verificationIndicator={
+                                <VerificationIndicator fieldName={`workExperiences[${idx}].workMode`} />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
                           </div>
 
                           {/* Time Support Zones */}
@@ -3873,13 +6001,48 @@ export function CandidateDetailsModal({
                               value={experience.timeSupportZones || []}
                               fieldName={`workExperiences[${idx}].timeSupportZones`}
                               options={timeSupportZoneOptions}
-                              onSave={handleMultiSelectFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].timeSupportZones`} />}
+                              onSave={async (_fieldName, newValue, shouldVerify) => {
+                                await handleWorkExperienceTimeSupportZonesSave(
+                                  idx,
+                                  newValue,
+                                  shouldVerify
+                                )
+                              }}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].timeSupportZones`}
+                                />
+                              }
                               getFieldVerification={getFieldVerification}
                               placeholder="Select time zones..."
                               searchPlaceholder="Search time zones..."
                               badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                               maxDisplay={5}
+                              creatable={true}
+                              createLabel="Add Time Zone"
+                              onCreateNew={async (newZone) => {
+                                try {
+                                  const created = await createTimeSupportZone(newZone)
+                                  setApiTimeSupportZones((prev) => [
+                                    ...prev.filter((z) => z.id !== created.id),
+                                    created,
+                                  ])
+                                  const currentValue = experience.timeSupportZones || []
+                                  if (!currentValue.includes(created.name)) {
+                                    await handleWorkExperienceTimeSupportZonesSave(
+                                      idx,
+                                      [...currentValue, created.name],
+                                      false
+                                    )
+                                  }
+                                } catch (err) {
+                                  toast.error(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Failed to add time support zone."
+                                  )
+                                }
+                              }}
                             />
                           </div>
 
@@ -3901,7 +6064,7 @@ export function CandidateDetailsModal({
                               createLabel="Create Tech Stack"
                               onCreateNew={(newTechStack) => {
                                 const newOption = { label: newTechStack, value: newTechStack }
-                                setTechStackOptions(prev => {
+                                setExtraTechStackOptions((prev) => {
                                   const updated = [...prev, newOption]
                                   return updated.sort((a, b) => a.label.localeCompare(b.label))
                                 })
@@ -3919,7 +6082,12 @@ export function CandidateDetailsModal({
                               label="Benefits"
                               value={experience.benefits || []}
                               fieldName={`workExperiences[${idx}].benefits`}
-                              onSave={handleBenefitsFieldSave}
+                              benefitOptions={apiBenefits}
+                              onCreateBenefit={handleCreateBenefit}
+                              benefitsLoading={benefitsCatalogLoading}
+                              onSave={async (_fieldName, newValue, shouldVerify) => {
+                                await handleWorkExperienceBenefitsSave(idx, newValue, shouldVerify)
+                              }}
                               verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].benefits`} />}
                               getFieldVerification={getFieldVerification}
                               maxDisplay={4}
@@ -3938,33 +6106,28 @@ export function CandidateDetailsModal({
                                   <div key={project.id} className="border rounded-md p-4 bg-muted/30">
                                     <div className="flex items-start justify-between gap-4">
                                       <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <InlineEditableCombobox
-                                            label=""
-                                            value={project.projectName || ""}
-                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`}
-                                            options={projectOptions}
-                                            onSave={handleFieldSave}
-                                            placeholder="Select project..."
-                                            searchPlaceholder="Search projects..."
-                                            verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].projectName`} />}
+                                        <div className="mb-2 w-full min-w-0">
+                                          <InlineEditableProject
+                                            project={project}
+                                            comboboxId={`work-exp-project-${idx}-${projIdx}`}
+                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].projectId`}
+                                            onSave={(selection, shouldVerify) =>
+                                              handleWorkExperienceProjectLinkSave(
+                                                idx,
+                                                projIdx,
+                                                selection,
+                                                shouldVerify
+                                              )
+                                            }
+                                            onProjectClick={handleProjectClick}
+                                            verificationIndicator={
+                                              <VerificationIndicator
+                                                fieldName={`workExperiences[${idx}].projects[${projIdx}].projectId`}
+                                              />
+                                            }
                                             getFieldVerification={getFieldVerification}
-                                            creatable={true}
-                                            createLabel="Add New Project"
-                                            onCreateDialog={(searchValue) => {
-                                              setPendingProjectName(searchValue)
-                                              setPendingProjectFieldName(`workExperiences[${idx}].projects[${projIdx}].projectName`)
-                                              setCreateProjectDialogOpen(true)
-                                            }}
-                                            renderDisplay={(displayValue, value) => (
-                                              <button
-                                                onClick={() => handleProjectClick(project.projectName)}
-                                                className="text-base font-medium hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                                title={`View ${displayValue || "Unnamed Project"} details`}
-                                              >
-                                                {displayValue || "Unnamed Project"}
-                                              </button>
-                                            )}
+                                            projectLookups={projectLookups}
+                                            titleClassName="text-base font-medium"
                                           />
                                         </div>
                                         {project.projectName && (
@@ -4025,9 +6188,9 @@ export function CandidateDetailsModal({
                     <CardTitle className="flex items-center gap-2">
                       <Code className="size-5" />
                       Tech Stacks
-                      {candidate.techStacks && candidate.techStacks.length > 0 && (
+                      {viewCandidate.techStacks && viewCandidate.techStacks.length > 0 && (
                         <Badge variant="secondary" className="ml-2">
-                          {candidate.techStacks.length}
+                          {viewCandidate.techStacks.length}
                         </Badge>
                       )}
                       <SectionProgressBadge 
@@ -4046,7 +6209,7 @@ export function CandidateDetailsModal({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-6">
-                  {!candidate.techStacks || candidate.techStacks.length === 0 ? (
+                  {!viewCandidate.techStacks || viewCandidate.techStacks.length === 0 ? (
                     <div className="space-y-4">
                       <InlineEditableMultiSelect
                         label="Technical Skills"
@@ -4064,7 +6227,7 @@ export function CandidateDetailsModal({
                         createLabel="Create Tech Stack"
                         onCreateNew={(newTechStack) => {
                           const newOption = { label: newTechStack, value: newTechStack }
-                          setTechStackOptions(prev => {
+                          setExtraTechStackOptions((prev) => {
                             const updated = [...prev, newOption]
                             return updated.sort((a, b) => a.label.localeCompare(b.label))
                           })
@@ -4080,7 +6243,7 @@ export function CandidateDetailsModal({
                     <div className="space-y-4">
                       <InlineEditableMultiSelect
                         label="Technical Skills"
-                        value={candidate.techStacks}
+                        value={viewCandidate.techStacks}
                         fieldName="techStacks"
                         options={techStackOptions}
                         onSave={handleMultiSelectFieldSave}
@@ -4094,12 +6257,12 @@ export function CandidateDetailsModal({
                         createLabel="Create Tech Stack"
                         onCreateNew={(newTechStack) => {
                           const newOption = { label: newTechStack, value: newTechStack }
-                          setTechStackOptions(prev => {
+                          setExtraTechStackOptions((prev) => {
                             const updated = [...prev, newOption]
                             return updated.sort((a, b) => a.label.localeCompare(b.label))
                           })
                           // Add to current selection
-                          const currentValue = candidate.techStacks || []
+                          const currentValue = viewCandidate.techStacks || []
                           if (!currentValue.includes(newTechStack)) {
                             handleMultiSelectFieldSave("techStacks", [...currentValue, newTechStack], false)
                           }
@@ -4156,33 +6319,22 @@ export function CandidateDetailsModal({
                         <div className="space-y-3">
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <InlineEditableCombobox
-                                  label=""
-                                  value={project.projectName || ""}
-                                  fieldName={`projects[${idx}].projectName`}
-                                  options={projectOptions}
-                                  onSave={handleFieldSave}
-                                  placeholder="Select project..."
-                                  searchPlaceholder="Search projects..."
-                                  verificationIndicator={<VerificationIndicator fieldName={`projects[${idx}].projectName`} />}
+                              <div className="mb-2 w-full min-w-0">
+                                <InlineEditableProject
+                                  project={project}
+                                  comboboxId={`standalone-project-${idx}`}
+                                  fieldName={`projects[${idx}].projectId`}
+                                  onSave={(selection, shouldVerify) =>
+                                    handleStandaloneProjectLinkSave(idx, selection, shouldVerify)
+                                  }
+                                  onProjectClick={handleProjectClick}
+                                  verificationIndicator={
+                                    <VerificationIndicator
+                                      fieldName={`projects[${idx}].projectId`}
+                                    />
+                                  }
                                   getFieldVerification={getFieldVerification}
-                                  creatable={true}
-                                  createLabel="Add New Project"
-                                  onCreateDialog={(searchValue) => {
-                                    setPendingProjectName(searchValue)
-                                    setPendingProjectFieldName(`projects[${idx}].projectName`)
-                                    setCreateProjectDialogOpen(true)
-                                  }}
-                                  renderDisplay={(displayValue, value) => (
-                                    <button
-                                      onClick={() => handleProjectClick(project.projectName)}
-                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                      title={`View ${displayValue || "Unnamed Project"} details`}
-                                    >
-                                      {displayValue || "Unnamed Project"}
-                                    </button>
-                                  )}
+                                  projectLookups={projectLookups}
                                 />
                               </div>
                               {project.projectName && (
@@ -4260,7 +6412,12 @@ export function CandidateDetailsModal({
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent className="space-y-6">
-                  {educations.length === 0 ? (
+                  {fullCandidateLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+                      <Loader2 className="size-4 animate-spin" aria-hidden />
+                      <span className="text-base">Loading education…</span>
+                    </div>
+                  ) : educations.length === 0 ? (
                     <p className="text-base text-muted-foreground text-center py-6">No education records</p>
                   ) : (
                     educations.map((education, idx) => (
@@ -4270,48 +6427,20 @@ export function CandidateDetailsModal({
                           {/* University Name */}
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <InlineEditableCombobox
-                                  label=""
-                                  value={education.universityLocationId}
-                                  fieldName={`educations[${idx}].universityLocationId`}
-                                  options={universityLocationOptions}
-                                  onSave={async (fieldName, newValue, shouldVerify) => {
-                                    // When university location ID changes, we need to update both the ID and the name
-                                    await handleFieldSave(fieldName, newValue, shouldVerify)
-                                    // Find the university location name from the selected ID
-                                    const selectedLocation = sampleUniversities
-                                      .flatMap(uni => uni.locations)
-                                      .find(loc => String(loc.id) === newValue)
-                                    const selectedUniversity = sampleUniversities.find(uni =>
-                                      uni.locations.some(loc => String(loc.id) === newValue)
-                                    )
-                                    if (selectedLocation && selectedUniversity) {
-                                      await handleFieldSave(`educations[${idx}].universityLocationName`, `${selectedUniversity.name} - ${selectedLocation.city}`, shouldVerify)
-                                    }
-                                  }}
-                                  placeholder="Select university..."
-                                  searchPlaceholder="Search universities..."
-                                  verificationIndicator={<VerificationIndicator fieldName={`educations[${idx}].universityLocationName`} />}
-                                  getFieldVerification={getFieldVerification}
-                                  creatable={true}
-                                  createLabel="Add New University"
-                                  onCreateDialog={(searchValue) => {
-                                    setPendingUniversityName(searchValue)
-                                    setPendingUniversityFieldName(`educations[${idx}].universityLocationId`)
-                                    setCreateUniversityDialogOpen(true)
-                                  }}
-                                  renderDisplay={(displayValue, value) => (
-                                    <button
-                                      onClick={() => handleUniversityClick(education.universityLocationId)}
-                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                      title={`View ${displayValue} details`}
-                                    >
-                                      {displayValue}
-                                    </button>
-                                  )}
-                                />
-                              </div>
+                              <InlineEditableUniversity
+                                education={education}
+                                eduIndex={idx}
+                                onSave={handleEducationUniversitySave}
+                                onUniversityClick={(universityId, universityName) =>
+                                  handleUniversityClick(String(universityId), universityName)
+                                }
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`educations[${idx}].universityLocationName`}
+                                  />
+                                }
+                                getFieldVerification={getFieldVerification}
+                              />
                               {/* Degree, Major, and Grades - Same size and spacing */}
                               <div className="space-y-2">
                                 <InlineEditableCombobox
@@ -4319,6 +6448,8 @@ export function CandidateDetailsModal({
                                   value={education.degreeName}
                                   fieldName={`educations[${idx}].degreeName`}
                                   options={degreeOptions}
+                                  catalogOptions={degreeCatalogOptions}
+                                  optionsLoading={degreesMajorsLoading}
                                   onSave={handleFieldSave}
                                   placeholder="Select degree..."
                                   searchPlaceholder="Search degrees..."
@@ -4326,15 +6457,26 @@ export function CandidateDetailsModal({
                                   getFieldVerification={getFieldVerification}
                                   creatable={true}
                                   createLabel="Add New Degree"
-                                  onCreateNew={(newDegree) => {
-                                    // Add the new degree to options
-                                    const newOption = { label: newDegree, value: newDegree }
-                                    setDegreeOptions(prev => {
-                                      const updated = [...prev, newOption]
-                                      return updated.sort((a, b) => a.label.localeCompare(b.label))
-                                    })
-                                    // Auto-select the newly added degree
-                                    handleFieldSave(`educations[${idx}].degreeName`, newDegree, false)
+                                  onCreateNew={async (newDegree) => {
+                                    try {
+                                      const created = await createDegree(newDegree)
+                                      setDegreeMajorLookups((prev) => ({
+                                        ...prev,
+                                        degrees: [
+                                          ...prev.degrees.filter((d) => d.id !== created.id),
+                                          created,
+                                        ].sort((a, b) => a.name.localeCompare(b.name)),
+                                      }))
+                                      await handleFieldSave(
+                                        `educations[${idx}].degreeName`,
+                                        created.name,
+                                        false
+                                      )
+                                    } catch (err) {
+                                      toast.error(
+                                        err instanceof Error ? err.message : "Failed to add degree."
+                                      )
+                                    }
                                   }}
                                 />
                                 {education.majorName && (
@@ -4343,6 +6485,8 @@ export function CandidateDetailsModal({
                                     value={education.majorName}
                                     fieldName={`educations[${idx}].majorName`}
                                     options={majorOptions}
+                                    catalogOptions={majorCatalogOptions}
+                                    optionsLoading={degreesMajorsLoading}
                                     onSave={handleFieldSave}
                                     placeholder="Select major..."
                                     searchPlaceholder="Search majors..."
@@ -4350,15 +6494,26 @@ export function CandidateDetailsModal({
                                     getFieldVerification={getFieldVerification}
                                     creatable={true}
                                     createLabel="Add New Major"
-                                    onCreateNew={(newMajor) => {
-                                      // Add the new major to options
-                                      const newOption = { label: newMajor, value: newMajor }
-                                      setMajorOptions(prev => {
-                                        const updated = [...prev, newOption]
-                                        return updated.sort((a, b) => a.label.localeCompare(b.label))
-                                      })
-                                      // Auto-select the newly added major
-                                      handleFieldSave(`educations[${idx}].majorName`, newMajor, false)
+                                    onCreateNew={async (newMajor) => {
+                                      try {
+                                        const created = await createMajor(newMajor)
+                                        setDegreeMajorLookups((prev) => ({
+                                          ...prev,
+                                          majors: [
+                                            ...prev.majors.filter((m) => m.id !== created.id),
+                                            created,
+                                          ].sort((a, b) => a.name.localeCompare(b.name)),
+                                        }))
+                                        await handleFieldSave(
+                                          `educations[${idx}].majorName`,
+                                          created.name,
+                                          false
+                                        )
+                                      } catch (err) {
+                                        toast.error(
+                                          err instanceof Error ? err.message : "Failed to add major."
+                                        )
+                                      }
                                     }}
                                   />
                                 )}
@@ -4483,49 +6638,40 @@ export function CandidateDetailsModal({
                       <div key={cert.id}>
                         {idx > 0 && <Separator className="my-6" />}
                         <div className="space-y-3">
-                          {/* Certification Name */}
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <InlineEditableCombobox
-                                  label=""
-                                  value={cert.certificationId != null ? String(cert.certificationId) : ""}
-                                  fieldName={`certifications[${idx}].certificationId`}
-                                  options={certificationOptions}
-                                  onSave={async (fieldName, newValue, shouldVerify) => {
-                                    await handleFieldSave(fieldName, newValue, shouldVerify)
-                                    const selectedOption = certificationOptions.find(c => c.value === newValue)
-                                    if (selectedOption) {
-                                      await handleFieldSave(`certifications[${idx}].certificationName`, selectedOption.label, shouldVerify)
-                                    }
-                                  }}
-                                  placeholder="Select certification..."
-                                  searchPlaceholder="Search certifications..."
-                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationName`} />}
-                                  getFieldVerification={getFieldVerification}
-                                  creatable={true}
-                                  createLabel="Add New Certification"
-                                  onCreateDialog={(searchValue) => {
-                                    setPendingCertificationName(searchValue)
-                                    setPendingCertificationFieldName(`certifications[${idx}].certificationId`)
-                                    setCreateCertificationDialogOpen(true)
-                                  }}
-                                  renderDisplay={(displayValue, value) => (
-                                    <button
-                                      onClick={() =>
-                                        handleCertificationClick(
-                                          cert.certificationId != null ? String(cert.certificationId) : "",
-                                          cert.certificationName
-                                        )
-                                      }
-                                      className="font-semibold text-lg hover:text-primary hover:underline transition-colors text-left cursor-pointer"
-                                      title={`View ${displayValue} details`}
-                                    >
-                                      {displayValue}
-                                    </button>
-                                  )}
-                                />
-                              </div>
+                              <InlineEditableCertification
+                                cert={cert}
+                                certIndex={idx}
+                                onSave={handleCertificationLinkSave}
+                                onCertificationClick={handleCertificationClick}
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`certifications[${idx}].certificationId`}
+                                  />
+                                }
+                                getFieldVerification={getFieldVerification}
+                                certificationIssuers={certificationIssuers}
+                                certificationIssuersLoading={certificationIssuersLoading}
+                                onIssuerCreated={handleCertificationIssuerCreated}
+                              />
+                              <InlineEditableSelect
+                                label="Certification Level"
+                                value={cert.certificationLevel ?? ""}
+                                fieldName={`certifications[${idx}].certificationLevel`}
+                                options={certificationLevelSelectOptions}
+                                normalizeValue={certificationLevelToSelectValue}
+                                formatDisplay={(v) => certificationLevelDisplayLabel(v)}
+                                onSave={async (_fieldName, newValue, shouldVerify) => {
+                                  await handleCertificationLevelSave(idx, newValue, shouldVerify)
+                                }}
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`certifications[${idx}].certificationLevel`}
+                                  />
+                                }
+                                getFieldVerification={getFieldVerification}
+                              />
                               {/* Dates */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {cert.issueDate && (
@@ -4627,19 +6773,10 @@ export function CandidateDetailsModal({
                       <div key={ach.id}>
                         {idx > 0 && <Separator className="my-6" />}
                         <div className="space-y-3">
-                          {/* Achievement Type and Name */}
+                          {/* Name and Achievement Type */}
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <InlineEditableField
-                                  label="Achievement Type"
-                                  value={ach.achievementType}
-                                  fieldName={`achievements[${idx}].achievementType`}
-                                  fieldType="text"
-                                  onSave={handleFieldSave}
-                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].achievementType`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
                                 <InlineEditableField
                                   label="Name"
                                   value={ach.name}
@@ -4647,6 +6784,17 @@ export function CandidateDetailsModal({
                                   fieldType="text"
                                   onSave={handleFieldSave}
                                   verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].name`} />}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableSelect
+                                  label="Achievement Type"
+                                  value={ach.achievementType}
+                                  fieldName={`achievements[${idx}].achievementType`}
+                                  options={achievementTypeSelectOptions}
+                                  normalizeValue={achievementTypeToSelectValue}
+                                  formatDisplay={(v) => achievementTypeDisplayLabel(v ?? undefined)}
+                                  onSave={handleFieldSave}
+                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].achievementType`} />}
                                   getFieldVerification={getFieldVerification}
                                 />
                               </div>
@@ -4732,7 +6880,7 @@ export function CandidateDetailsModal({
       {candidate && (
         <CandidateCreationDialog
           mode="edit"
-          candidateData={candidate}
+          candidateData={viewCandidate}
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSubmit={handleEditSubmit}
@@ -4745,7 +6893,7 @@ export function CandidateDetailsModal({
         <ColdCallerDialog
           open={interactionDialogOpen}
           onOpenChange={setInteractionDialogOpen}
-          candidate={candidate}
+          candidate={viewCandidate}
           mode={interactionMode}
           onSaveField={async (fieldPath, value, verified) => {
             // Handle field save - this will update the candidate data
@@ -4759,25 +6907,6 @@ export function CandidateDetailsModal({
           }}
         />
       )}
-
-      {/* Create Employer Dialog */}
-      <EmployerCreationDialog
-        mode="create"
-        open={createEmployerDialogOpen}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            setCreateEmployerDialogOpen(false)
-            setPendingEmployerName("")
-            setPendingEmployerFieldName(null)
-          } else {
-            setCreateEmployerDialogOpen(isOpen)
-          }
-        }}
-        onSubmit={async (employerData: EmployerFormData) => {
-          await handleEmployerCreated(employerData)
-        }}
-        initialName={pendingEmployerName}
-      />
 
       {/* Create Project Dialog */}
       <ProjectCreationDialog
@@ -4796,25 +6925,6 @@ export function CandidateDetailsModal({
           await handleProjectCreated(projectData)
         }}
         initialName={pendingProjectName}
-      />
-
-      {/* Create University Dialog */}
-      <UniversityCreationDialog
-        mode="create"
-        open={createUniversityDialogOpen}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            setCreateUniversityDialogOpen(false)
-            setPendingUniversityName("")
-            setPendingUniversityFieldName(null)
-          } else {
-            setCreateUniversityDialogOpen(isOpen)
-          }
-        }}
-        onSubmit={async (universityData: UniversityFormData) => {
-          await handleUniversityCreated(universityData)
-        }}
-        initialName={pendingUniversityName}
       />
 
       {/* Create Certification Dialog */}
