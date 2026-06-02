@@ -70,6 +70,7 @@ import {
 } from "@/lib/utils/candidate-matches"
 
 import { getDataProgressBadgeClasses, normalizeProgress } from "@/lib/utils/candidate-data-progress"
+import { formatYearsOfExperience } from "@/lib/utils/candidate-experience"
 import { calculateDataCompletion } from "@/lib/utils/data-completion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -109,50 +110,11 @@ interface CandidatesTableProps {
 }
 
 type SortDirection = "asc" | "desc" | null
-type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "yearsOfExperience" | "avgTenure"
+type SortableColumn = "name" | "jobTitle" | "expectedSalary" | "city" | "avgTenure"
 
+// Backend-derived latest job title; no frontend calculation from work experiences.
 const getJobTitle = (candidate: Candidate): string => {
-  return candidate.postingTitle || "N/A"
-}
-
-// Helper function to calculate total years of experience from work experiences
-const calculateYearsOfExperience = (candidate: Candidate): number => {
-  if (
-    candidate.totalExperienceYears != null &&
-    Number.isFinite(candidate.totalExperienceYears)
-  ) {
-    return candidate.totalExperienceYears
-  }
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0
-  }
-
-  const today = new Date()
-  let totalMonths = 0
-
-  candidate.workExperiences.forEach(we => {
-    if (!we.startDate) return
-
-    const startDate = new Date(we.startDate)
-    const endDate = we.endDate ? new Date(we.endDate) : today
-
-    // Calculate months between start and end
-    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
-    const monthsDiff = endDate.getMonth() - startDate.getMonth()
-    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
-
-    // Add days for more precision (approximate)
-    const daysDiff = endDate.getDate() - startDate.getDate()
-    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
-
-    if (approximateMonths > 0) {
-      totalMonths += approximateMonths
-    }
-  })
-
-  // Convert to years (with 1 decimal place precision)
-  const totalYears = totalMonths / 12
-  return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
+  return candidate.latestJobTitle || "—"
 }
 
 // Helper function to calculate average job tenure across all employers
@@ -230,7 +192,7 @@ const defaultFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
-  technicalAspects: [],
+  technicalAspectTypeIds: [],
   candidateTechStacks: [],
   candidateTechStacksRequireAll: false,
   candidateTechStacksRequireInBoth: false,
@@ -432,13 +394,10 @@ export function CandidatesTable({
       let aValue: string | number | null
       let bValue: string | number | null
 
-      // Handle jobTitle, yearsOfExperience, and avgTenure separately since they're not direct properties
+      // Handle jobTitle and avgTenure separately since they're not direct properties
       if (sortColumn === "jobTitle") {
         aValue = getJobTitle(a)
         bValue = getJobTitle(b)
-      } else if (sortColumn === "yearsOfExperience") {
-        aValue = calculateYearsOfExperience(a)
-        bValue = calculateYearsOfExperience(b)
       } else if (sortColumn === "avgTenure") {
         aValue = calculateCandidateAverageTenure(a)
         bValue = calculateCandidateAverageTenure(b)
@@ -628,10 +587,10 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 Job Title
               </SortableHeader>
               
-              {/* Years of Experience - Hidden on mobile */}
-              <SortableHeader column="yearsOfExperience" className="hidden md:table-cell">
+              {/* Years of Experience — display only (server-side filter/sort via API) */}
+              <TableHead className="hidden md:table-cell">
                 Years of Experience
-              </SortableHeader>
+              </TableHead>
               
               {/* Avg Tenure - Only visible when filter is active */}
               {hasAvgTenureFilter && (
@@ -727,10 +686,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                   >
                     <div className="max-w-[150px]">
                       <div className="truncate">
-                        {(() => {
-                          const years = calculateYearsOfExperience(candidate)
-                          return years > 0 ? `${years} ${years === 1 ? 'year' : 'years'}` : 'N/A'
-                        })()}
+                        {formatYearsOfExperience(candidate)}
                       </div>
                     </div>
                   </TableCell>
@@ -936,9 +892,6 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                                       {/* Additional context */}
                                       {Object.keys(item.context).length > 0 && (
                                         <div className="text-xs text-muted-foreground ml-6 mt-1">
-                                          {typeof item.context.jobTitle === 'string' && item.context.jobTitle && (
-                                            <span>Role: {item.context.jobTitle}</span>
-                                          )}
                                           {typeof item.context.degreeName === 'string' && typeof item.context.majorName === 'string' && item.context.degreeName && item.context.majorName && (
                                             <span>{item.context.degreeName} in {item.context.majorName}</span>
                                           )}

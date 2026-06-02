@@ -167,6 +167,7 @@ import { Progress } from "@/components/ui/progress"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
+import { formatYearsOfExperience, getTotalExperienceYears } from "@/lib/utils/candidate-experience"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -2440,7 +2441,7 @@ const InlineEditableField: React.FC<InlineEditableFieldProps> = ({
     }
   }
 
-  const displayValue = formatDisplay
+  const displayValue = formatDisplay 
     ? (isInlineFieldValueEmpty(value) ? 'N/A' : formatDisplay(value))
     : formatInlineFieldDisplayValue(value)
 
@@ -3938,9 +3939,9 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   )
 }
 
-// Helper function to get job title from first work experience
+// Prefer backend-derived latest job title; fall back to latest work experience for detail-only display.
 const getJobTitle = (candidate: Candidate): string => {
-  return candidate.workExperiences?.[0]?.jobTitle || "N/A"
+  return candidate.latestJobTitle || candidate.workExperiences?.[0]?.jobTitle || "N/A"
 }
 
 // Helper function to calculate candidate's average tenure across all employers
@@ -4445,7 +4446,7 @@ export function CandidateDetailsModal({
       throw error
     }
   }
-
+  
   // Handle inline field save with verification
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
@@ -4479,7 +4480,7 @@ export function CandidateDetailsModal({
   const handleMultiSelectFieldSave = async (fieldName: string, newValue: string[], shouldVerify: boolean) => {
     await handleFieldSave(fieldName, newValue, shouldVerify)
   }
-
+  
   const handleCreateBenefit = React.useCallback(async (name: string): Promise<EmployerBenefit | null> => {
     try {
       const created = await createBenefit(name)
@@ -5428,7 +5429,7 @@ export function CandidateDetailsModal({
       cancelled = true
     }
   }, [open, candidate?.id])
-
+  
   const handleEditSubmit = async (formData: CandidateFormData, verificationState?: VerificationState) => {
     if (!candidate) return
     const id = Number(candidate.id)
@@ -5762,22 +5763,22 @@ export function CandidateDetailsModal({
   }
 
   const handleEmployerClick = (employerId: number, employerName: string) => {
-    const params = new URLSearchParams({
+      const params = new URLSearchParams({
       employerFilter: employerName,
       employerId: String(employerId),
-    })
-    router.push(`/employers?${params.toString()}`)
+      })
+      router.push(`/employers?${params.toString()}`)
     onOpenChange(false)
   }
 
   const handleUniversityClick = (universityId: string, universityName: string) => {
     const idNum = Number(universityId)
     if (!Number.isFinite(idNum)) return
-    const params = new URLSearchParams({
+      const params = new URLSearchParams({
       universityFilter: universityName,
       universityId: String(idNum),
-    })
-    router.push(`/universities?${params.toString()}`)
+      })
+      router.push(`/universities?${params.toString()}`)
     onOpenChange(false)
   }
 
@@ -6147,26 +6148,26 @@ export function CandidateDetailsModal({
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-muted-foreground">Links & Resources</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                      <InlineEditableField 
-                        label="LinkedIn URL" 
+                        <InlineEditableField 
+                          label="LinkedIn URL" 
                         value={viewCandidate.linkedinUrl ?? ''} 
-                        fieldName="linkedinUrl"
+                          fieldName="linkedinUrl"
                           fieldType="url"
                           validation={validateLinkedInURL}
                           onSave={handleFieldSave}
                           verificationIndicator={<VerificationIndicator fieldName="linkedinUrl" />}
                           getFieldVerification={getFieldVerification}
-                      />
-                      <InlineEditableField 
-                        label="GitHub URL" 
+                        />
+                        <InlineEditableField 
+                          label="GitHub URL" 
                         value={viewCandidate.githubUrl ?? ''} 
-                        fieldName="githubUrl"
+                          fieldName="githubUrl"
                           fieldType="url"
                           validation={validateGitHubURL}
                           onSave={handleFieldSave}
                           verificationIndicator={<VerificationIndicator fieldName="githubUrl" />}
                           getFieldVerification={getFieldVerification}
-                      />
+                        />
                       <InlineEditableResume
                         label="Resume"
                         resumeUrl={viewCandidate.resume}
@@ -6208,6 +6209,14 @@ export function CandidateDetailsModal({
                           >
                             Avg {calculateCandidateAverageTenure(viewCandidate).toFixed(1)}y tenure
                           </Badge>
+                          {getTotalExperienceYears(viewCandidate) != null && (
+                            <Badge
+                              variant="outline"
+                              className="ml-1 h-5 px-1.5 text-xs font-medium border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            >
+                              {formatYearsOfExperience(viewCandidate)} total
+                            </Badge>
+                          )}
                         </>
                       )}
                       <SectionProgressBadge
@@ -6248,7 +6257,7 @@ export function CandidateDetailsModal({
                                     createEmployerLookups={employerCreateLookups}
                                     verificationIndicator={
                                       <VerificationIndicator
-                                        fieldName={`workExperiences[${idx}].employerName`}
+                                    fieldName={`workExperiences[${idx}].employerName`}
                                       />
                                     }
                                     getFieldVerification={getFieldVerification}
@@ -6304,9 +6313,9 @@ export function CandidateDetailsModal({
                           {/* Work Details Grid */}
                           <div className="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <InlineEditableSelect
-                              label="Shift Type"
-                              value={experience.shiftType}
-                              fieldName={`workExperiences[${idx}].shiftType`}
+                                label="Shift Type"
+                                value={experience.shiftType}
+                                fieldName={`workExperiences[${idx}].shiftType`}
                               options={shiftTypeSelectOptions}
                               normalizeValue={shiftTypeToSelectValue}
                               formatDisplay={shiftTypeDisplayLabel}
@@ -6316,12 +6325,12 @@ export function CandidateDetailsModal({
                               verificationIndicator={
                                 <VerificationIndicator fieldName={`workExperiences[${idx}].shiftType`} />
                               }
-                              getFieldVerification={getFieldVerification}
-                            />
+                                getFieldVerification={getFieldVerification}
+                              />
                             <InlineEditableSelect
-                              label="Work Mode"
-                              value={experience.workMode}
-                              fieldName={`workExperiences[${idx}].workMode`}
+                                label="Work Mode"
+                                value={experience.workMode}
+                                fieldName={`workExperiences[${idx}].workMode`}
                               options={workModeSelectOptions}
                               normalizeValue={workModeToSelectValue}
                               formatDisplay={workModeDisplayLabel}
@@ -6331,8 +6340,8 @@ export function CandidateDetailsModal({
                               verificationIndicator={
                                 <VerificationIndicator fieldName={`workExperiences[${idx}].workMode`} />
                               }
-                              getFieldVerification={getFieldVerification}
-                            />
+                                getFieldVerification={getFieldVerification}
+                              />
                           </div>
 
                           {/* Time Support Zones */}
@@ -6477,16 +6486,16 @@ export function CandidateDetailsModal({
                                             {...getProjectDetails(project.projectName)}
                                           />
                                         )}
-                                        <InlineEditableTextarea
+                                          <InlineEditableTextarea
                                           value={project.contributionNotes ?? ''}
-                                          fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
-                                          onSave={handleFieldSave}
-                                          maxLength={100}
-                                          verificationIndicator={
-                                            <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
-                                          }
-                                          getFieldVerification={getFieldVerification}
-                                        />
+                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
+                                            onSave={handleFieldSave}
+                                            maxLength={100}
+                                            verificationIndicator={
+                                              <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
+                                            }
+                                            getFieldVerification={getFieldVerification}
+                                          />
                                       </div>
                                       <Button
                                         type="button"
@@ -6654,17 +6663,17 @@ export function CandidateDetailsModal({
                                   {...getProjectDetails(project.projectName)}
                                 />
                               )}
-                              <InlineEditableTextarea
+                                <InlineEditableTextarea
                                 value={project.contributionNotes ?? ''}
-                                fieldName={`projects[${idx}].contributionNotes`}
-                                onSave={handleFieldSave}
-                                maxLength={100}
-                                className="mt-2"
-                                verificationIndicator={
-                                  <VerificationIndicator fieldName={`projects[${idx}].contributionNotes`} />
-                                }
-                                getFieldVerification={getFieldVerification}
-                              />
+                                  fieldName={`projects[${idx}].contributionNotes`}
+                                  onSave={handleFieldSave}
+                                  maxLength={100}
+                                  className="mt-2"
+                                  verificationIndicator={
+                                    <VerificationIndicator fieldName={`projects[${idx}].contributionNotes`} />
+                                  }
+                                  getFieldVerification={getFieldVerification}
+                                />
                             </div>
                             <Button
                               type="button"
@@ -6748,7 +6757,7 @@ export function CandidateDetailsModal({
                                     fieldName={`educations[${idx}].universityLocationName`}
                                   />
                                 }
-                                getFieldVerification={getFieldVerification}
+                                  getFieldVerification={getFieldVerification}
                               />
                               {/* Degree, Major, and Grades - Same size and spacing */}
                               <div className="space-y-2">
@@ -6788,8 +6797,8 @@ export function CandidateDetailsModal({
                                     }
                                   }}
                                 />
-                                <InlineEditableCombobox
-                                  label="Major Name"
+                                  <InlineEditableCombobox
+                                    label="Major Name"
                                   value={education.majorName ?? ''}
                                     fieldName={`educations[${idx}].majorName`}
                                     options={majorOptions}
@@ -6824,8 +6833,8 @@ export function CandidateDetailsModal({
                                       }
                                   }}
                                 />
-                                <InlineEditableField 
-                                  label="Grades" 
+                                  <InlineEditableField 
+                                    label="Grades" 
                                   value={education.grades ?? ''}
                                     fieldName={`educations[${idx}].grades`}
                                     fieldType="text"
@@ -6952,10 +6961,10 @@ export function CandidateDetailsModal({
                                 onCertificationClick={handleCertificationClick}
                                 verificationIndicator={
                                   <VerificationIndicator
-                                    fieldName={`certifications[${idx}].certificationId`}
+                                  fieldName={`certifications[${idx}].certificationId`}
                                   />
                                 }
-                                getFieldVerification={getFieldVerification}
+                                  getFieldVerification={getFieldVerification}
                                 certificationIssuers={certificationIssuers}
                                 certificationIssuersLoading={certificationIssuersLoading}
                                 onIssuerCreated={handleCertificationIssuerCreated}
@@ -6979,24 +6988,24 @@ export function CandidateDetailsModal({
                               />
                               {/* Dates */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <InlineEditableDate
-                                  label="Issue Date"
-                                  value={cert.issueDate}
-                                  fieldName={`certifications[${idx}].issueDate`}
-                                  onSave={handleFieldSave}
+                                  <InlineEditableDate
+                                    label="Issue Date"
+                                    value={cert.issueDate}
+                                    fieldName={`certifications[${idx}].issueDate`}
+                                    onSave={handleFieldSave}
                                   formatDisplay={formatDate}
-                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].issueDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                                <InlineEditableDate
-                                  label="Expiry Date"
-                                  value={cert.expiryDate}
-                                  fieldName={`certifications[${idx}].expiryDate`}
-                                  onSave={handleFieldSave}
+                                    verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].issueDate`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                  <InlineEditableDate
+                                    label="Expiry Date"
+                                    value={cert.expiryDate}
+                                    fieldName={`certifications[${idx}].expiryDate`}
+                                    onSave={handleFieldSave}
                                   formatDisplay={formatDate}
-                                  verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].expiryDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
+                                    verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].expiryDate`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
                               </div>
                             </div>
                             <Button
@@ -7011,16 +7020,16 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Certificate Link */}
-                          <InlineEditableField 
-                            label="Certification URL" 
+                            <InlineEditableField 
+                              label="Certification URL" 
                             value={cert.certificationUrl ?? ''} 
-                            fieldName={`certifications[${idx}].certificationUrl`}
-                            fieldType="url"
-                            validation={validateURL}
-                            onSave={handleFieldSave}
-                            verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
-                            getFieldVerification={getFieldVerification}
-                          />
+                              fieldName={`certifications[${idx}].certificationUrl`}
+                              fieldType="url"
+                              validation={validateURL}
+                              onSave={handleFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
+                              getFieldVerification={getFieldVerification}
+                            />
                         </div>
                       </div>
                     ))
@@ -7099,27 +7108,27 @@ export function CandidateDetailsModal({
                               </div>
                               {/* Ranking and Year */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                                <InlineEditableField
-                                  label="Ranking"
+                                  <InlineEditableField
+                                    label="Ranking"
                                   value={ach.ranking ?? ''}
-                                  fieldName={`achievements[${idx}].ranking`}
-                                  fieldType="text"
-                                  onSave={handleFieldSave}
-                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].ranking`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                                <InlineEditableField
-                                  label="Year"
+                                    fieldName={`achievements[${idx}].ranking`}
+                                    fieldType="text"
+                                    onSave={handleFieldSave}
+                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].ranking`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                  <InlineEditableField
+                                    label="Year"
                                   value={ach.year != null ? ach.year.toString() : ''}
-                                  fieldName={`achievements[${idx}].year`}
-                                  fieldType="number"
-                                  onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
-                                    const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
-                                    await handleFieldSave(fieldName, yearValue, shouldVerify)
-                                  }}
-                                  verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].year`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
+                                    fieldName={`achievements[${idx}].year`}
+                                    fieldType="number"
+                                    onSave={async (fieldName: string, newValue: string | number, shouldVerify: boolean) => {
+                                      const yearValue: number | undefined = typeof newValue === 'string' ? (newValue ? parseInt(newValue, 10) : undefined) : newValue
+                                      await handleFieldSave(fieldName, yearValue, shouldVerify)
+                                    }}
+                                    verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].year`} />}
+                                    getFieldVerification={getFieldVerification}
+                                  />
                               </div>
                             </div>
                             <Button
@@ -7134,26 +7143,26 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Achievement URL */}
-                          <InlineEditableField 
-                            label="URL" 
+                            <InlineEditableField 
+                              label="URL" 
                             value={ach.url ?? ''} 
-                            fieldName={`achievements[${idx}].url`}
-                            fieldType="url"
-                            validation={validateURL}
-                            onSave={handleFieldSave}
-                            verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
-                            getFieldVerification={getFieldVerification}
-                          />
+                              fieldName={`achievements[${idx}].url`}
+                              fieldType="url"
+                              validation={validateURL}
+                              onSave={handleFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
+                              getFieldVerification={getFieldVerification}
+                            />
                           {/* Description */}
-                          <InlineEditableField 
-                            label="Description" 
+                            <InlineEditableField 
+                              label="Description" 
                             value={ach.description ?? ''} 
-                            fieldName={`achievements[${idx}].description`}
-                            fieldType="text"
-                            onSave={handleFieldSave}
-                            verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
-                            getFieldVerification={getFieldVerification}
-                          />
+                              fieldName={`achievements[${idx}].description`}
+                              fieldType="text"
+                              onSave={handleFieldSave}
+                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
+                              getFieldVerification={getFieldVerification}
+                            />
                         </div>
                       </div>
                     ))

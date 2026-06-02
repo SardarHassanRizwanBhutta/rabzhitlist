@@ -27,6 +27,7 @@ import { ResumeParserDialog } from "@/components/resume-parser-dialog"
 import {
   fetchTechStacks,
   fetchClientLocations,
+  fetchTechnicalAspectTypes,
   createTechStack,
   type LookupItem,
 } from "@/lib/services/lookups-api"
@@ -46,6 +47,7 @@ import type { CertificationIssuer } from "@/lib/types/certification"
 import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
 import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidates-filter-dialog"
+import type { MultiSelectOption } from "@/components/ui/multi-select"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import { hasActiveFilters } from "@/lib/utils/candidate-matches"
@@ -93,7 +95,7 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
-  technicalAspects: [],
+  technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,
   candidateTechStacks: [],
@@ -220,6 +222,9 @@ export function CandidatesPageClient() {
   const [degreesLookup, setDegreesLookup] = useState<NonNullable<CandidateLookups["degrees"]>>([])
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
+  const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<
+    MultiSelectOption[]
+  >([])
   const [countriesLookup, setCountriesLookup] = useState<LookupItem[]>([])
   const [certificationIssuersLookup, setCertificationIssuersLookup] = useState<CertificationIssuer[]>([])
   const [lookupsLoading, setLookupsLoading] = useState(true)
@@ -249,10 +254,11 @@ export function CandidatesPageClient() {
       fetchDegrees(),
       fetchMajors(),
       fetchClientLocations(),
+      fetchTechnicalAspectTypes(),
       fetchCountries(),
       fetchCertificationIssuers(),
     ])
-      .then(([techStacks, timeSupportZones, benefits, degrees, majors, clientLocs, countries, issuers]) => {
+      .then(([techStacks, timeSupportZones, benefits, degrees, majors, clientLocs, aspectTypes, countries, issuers]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
           setTimeSupportZonesLookup(timeSupportZones)
@@ -260,6 +266,9 @@ export function CandidatesPageClient() {
           setDegreesLookup(degrees)
           setMajorsLookup(majors)
           setClientLocationsLookup(clientLocs)
+          setTechnicalAspectTypeSelectOptions(
+            aspectTypes.map((a) => ({ value: String(a.value), label: a.label })),
+          )
           setCountriesLookup(
             Array.isArray(countries) ? countries.map((c) => ({ id: c.id, name: c.name })) : [],
           )
@@ -274,6 +283,7 @@ export function CandidatesPageClient() {
           setDegreesLookup([])
           setMajorsLookup([])
           setClientLocationsLookup([])
+          setTechnicalAspectTypeSelectOptions([])
           setCountriesLookup([])
           setCertificationIssuersLookup([])
           toast.error("Failed to load candidate form lookups.")
@@ -380,6 +390,9 @@ export function CandidatesPageClient() {
         return techStacksLookup.find((l) => l.name.trim().toLowerCase() === key)?.id
       })
       .filter((id): id is number => id != null)
+    const technicalAspectTypeIds = combinedFiltersForBackend.technicalAspectTypeIds
+      .map((id) => Number.parseInt(id, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
 
     const sourceRaw = combinedFiltersForBackend.source[0]
     const source =
@@ -432,6 +445,7 @@ export function CandidatesPageClient() {
 
     return {
       postingTitle: combinedFiltersForBackend.postingTitle.trim() || undefined,
+      jobTitle: combinedFiltersForBackend.jobTitle.trim() || undefined,
       city: combinedFiltersForBackend.city.trim() || undefined,
       personalityTypes:
         combinedFiltersForBackend.personalityTypes.length > 0
@@ -464,6 +478,8 @@ export function CandidatesPageClient() {
       employerSizeMin: toOptionalNumber(combinedFiltersForBackend.employerSizeMin),
       employerSizeMax: toOptionalNumber(combinedFiltersForBackend.employerSizeMax),
       projectIds: projectIds.length > 0 ? projectIds : undefined,
+      technicalAspectTypeIds:
+        technicalAspectTypeIds.length > 0 ? technicalAspectTypeIds : undefined,
       techStackIds: projectTechStackIds.length > 0 ? projectTechStackIds : undefined,
       verticalDomains: verticalDomains.length > 0 ? verticalDomains : undefined,
       horizontalDomains: horizontalDomains.length > 0 ? horizontalDomains : undefined,
@@ -482,6 +498,8 @@ export function CandidatesPageClient() {
       achievementName: combinedFiltersForBackend.achievementName.trim() || undefined,
       dataProgressMin: toOptionalNumber(combinedFiltersForBackend.dataProgressMin),
       dataProgressMax: toOptionalNumber(combinedFiltersForBackend.dataProgressMax),
+      minExperienceYears: toOptionalNumber(combinedFiltersForBackend.yearsOfExperienceMin),
+      maxExperienceYears: toOptionalNumber(combinedFiltersForBackend.yearsOfExperienceMax),
     }
   }, [
     combinedFiltersForBackend,
@@ -854,6 +872,7 @@ export function CandidatesPageClient() {
             degrees={degreesLookup}
             majors={majorsLookup}
             techStacks={techStacksLookup}
+            technicalAspectTypes={technicalAspectTypeSelectOptions}
           />
           <ResumeParserDialog onApplyToCreateCandidate={handleApplyResumeParse} />
           <Button

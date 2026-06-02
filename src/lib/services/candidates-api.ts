@@ -10,6 +10,9 @@ import type {
   CandidateCertification,
   CandidateEducation,
   CandidateStandaloneProject,
+  MatchedDomainDto,
+  MatchedProjectDto,
+  MatchedTeamSizeDto,
   ProjectExperience,
   WorkExperience,
 } from "@/lib/types/candidate"
@@ -51,11 +54,14 @@ export interface CandidateListItemDto {
   email: string | null
   phoneNumber: string | null
   postingTitle: string | null
+  /** Backend-derived job title from the candidate's latest work experience. */
+  latestJobTitle?: string | null
   cnic: string | null
   linkedInUrl: string | null
   githubUrl: string | null
   city: string | null
   totalExperienceYears: number | null
+  totalExperienceMonths?: number | null
   currentSalary: number | null
   expectedSalary: number | null
   personalityType: number | null
@@ -67,6 +73,8 @@ export interface CandidateListItemDto {
   /** Same as detail GET — for list badges/filters without an extra fetch. */
   isTopDeveloper?: boolean
   dataProgressPercentage?: number | null
+  /** Backend-computed project/domain matches when domain filters are active. */
+  matchedProjects?: MatchedProjectDto[]
 }
 
 export interface CreateCandidateDto {
@@ -413,6 +421,73 @@ function mapAchievement(raw: Record<string, unknown>, idx: number): Achievement 
   }
 }
 
+function mapMatchedDomain(raw: unknown): MatchedDomainDto | null {
+  if (raw == null || typeof raw !== "object") return null
+  const item = raw as Record<string, unknown>
+  const id = Number(item.id)
+  if (!Number.isFinite(id)) return null
+  return { id, label: String(item.label ?? "") }
+}
+
+function mapMatchedDomains(raw: unknown): MatchedDomainDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => ({
+      id: Number(item.id),
+      label: String(item.label ?? ""),
+    }))
+    .filter((item) => Number.isFinite(item.id))
+}
+
+function mapMatchedTeamSize(raw: unknown): MatchedTeamSizeDto | null {
+  if (raw == null || typeof raw !== "object") return null
+  const item = raw as Record<string, unknown>
+  const minTeamSize =
+    item.minTeamSize != null && Number.isFinite(Number(item.minTeamSize))
+      ? Number(item.minTeamSize)
+      : undefined
+  const maxTeamSize =
+    item.maxTeamSize != null && Number.isFinite(Number(item.maxTeamSize))
+      ? Number(item.maxTeamSize)
+      : undefined
+  if (minTeamSize == null && maxTeamSize == null) return null
+  return { minTeamSize, maxTeamSize }
+}
+
+function mapMatchedProjects(raw: unknown): MatchedProjectDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => ({
+      projectId: Number(item.projectId),
+      projectName: String(item.projectName ?? ""),
+      verticalDomains: mapMatchedDomains(item.verticalDomains),
+      horizontalDomains: mapMatchedDomains(item.horizontalDomains),
+      technicalDomains: mapMatchedDomains(item.technicalDomains),
+      techStacks: mapMatchedDomains(item.techStacks),
+      status: mapMatchedDomain(item.status),
+      projectType: mapMatchedDomain(item.projectType),
+      clientLocations: mapMatchedDomains(item.clientLocations),
+      publishPlatforms: mapMatchedDomains(item.publishPlatforms),
+      storeLink:
+        typeof item.storeLink === "string" && item.storeLink.trim()
+          ? item.storeLink.trim()
+          : null,
+      teamSize: mapMatchedTeamSize(item.teamSize),
+      downloadCount:
+        item.downloadCount != null && Number.isFinite(Number(item.downloadCount))
+          ? Number(item.downloadCount)
+          : null,
+      startDate:
+        typeof item.startDate === "string" && item.startDate.trim()
+          ? item.startDate.trim()
+          : null,
+      technicalAspectTypes: mapMatchedDomains(item.technicalAspectTypes),
+    }))
+    .filter((item) => Number.isFinite(item.projectId) && item.projectName.length > 0)
+}
+
 /** Map GET list row to UI {@link Candidate} (no nested graph). */
 export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Candidate {
   return {
@@ -421,6 +496,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     email: row.email ?? "",
     mobileNo: row.phoneNumber ?? "",
     postingTitle: row.postingTitle,
+    latestJobTitle: row.latestJobTitle ?? null,
     cnic: row.cnic,
     currentSalary: row.currentSalary,
     expectedSalary: row.expectedSalary,
@@ -431,6 +507,12 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     status: row.status as Candidate["status"],
     resume: row.resumeUrl,
     totalExperienceYears: row.totalExperienceYears,
+    totalExperienceMonths:
+      typeof row.totalExperienceMonths === "number"
+        ? row.totalExperienceMonths
+        : row.totalExperienceMonths != null
+          ? Number(row.totalExperienceMonths)
+          : null,
     personalityType: mbtiIndexToLabel(row.personalityType),
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
@@ -447,6 +529,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
         : row.dataProgressPercentage != null
           ? Number(row.dataProgressPercentage)
           : null,
+    matchedProjects: mapMatchedProjects(row.matchedProjects),
   }
 }
 
@@ -494,6 +577,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     email: data.email != null ? String(data.email) : "",
     mobileNo: data.phoneNumber != null ? String(data.phoneNumber) : "",
     postingTitle: data.postingTitle != null ? String(data.postingTitle) : null,
+    latestJobTitle: data.latestJobTitle != null ? String(data.latestJobTitle) : null,
     cnic: data.cnic != null ? String(data.cnic) : null,
     currentSalary: typeof data.currentSalary === "number" ? data.currentSalary : null,
     expectedSalary: typeof data.expectedSalary === "number" ? data.expectedSalary : null,
@@ -505,6 +589,12 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     resume: data.resumeUrl != null ? String(data.resumeUrl) : null,
     totalExperienceYears:
       typeof data.totalExperienceYears === "number" ? data.totalExperienceYears : null,
+    totalExperienceMonths:
+      typeof data.totalExperienceMonths === "number"
+        ? data.totalExperienceMonths
+        : data.totalExperienceMonths != null
+          ? Number(data.totalExperienceMonths)
+          : null,
     personalityType: mbtiIndexToLabel(Number.isFinite(pt as number) ? (pt as number) : null),
     createdAt: parseIsoDate(data.createdAt) ?? new Date(),
     updatedAt: parseIsoDate(data.updatedAt) ?? new Date(),
@@ -768,6 +858,8 @@ export async function fetchCandidatesPage(
   options?: {
     name?: string
     postingTitle?: string
+    /** Matches candidate's backend-derived latest job title (`latestJobTitle`). */
+    jobTitle?: string
     city?: string
     personalityTypes?: string[]
     source?: number
@@ -798,6 +890,8 @@ export async function fetchCandidatesPage(
     projectIds?: number[]
     /** OR match on linked project tech stacks (`GET ?techStackIds=1&techStackIds=5`). */
     techStackIds?: number[]
+    /** Catalog ids from GET /api/TechnicalAspectTypes — stack ↔ aspect type join on linked projects. */
+    technicalAspectTypeIds?: number[]
     verticalDomains?: number[]
     horizontalDomains?: number[]
     technicalDomains?: number[]
@@ -815,6 +909,8 @@ export async function fetchCandidatesPage(
     achievementName?: string
     // dataProgressMin?: number
     // dataProgressMax?: number
+    minExperienceYears?: number
+    maxExperienceYears?: number
   }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
@@ -836,6 +932,7 @@ export async function fetchCandidatesPage(
   params.set("pageSize", String(Math.min(100, Math.max(1, pageSize))))
   if (options?.name?.trim()) params.set("name", options.name.trim())
   if (options?.postingTitle?.trim()) params.set("postingTitle", options.postingTitle.trim())
+  if (options?.jobTitle?.trim()) params.set("jobTitle", options.jobTitle.trim())
   if (options?.city?.trim()) params.set("city", options.city.trim())
   appendStringList("personalityTypes", options?.personalityTypes)
   if (options?.source != null) params.set("source", String(options.source))
@@ -878,6 +975,7 @@ export async function fetchCandidatesPage(
   if (options?.employerSizeMax != null) params.set("employerSizeMax", String(options.employerSizeMax))
 
   appendNumberList("projectIds", options?.projectIds)
+  appendNumberList("technicalAspectTypeIds", options?.technicalAspectTypeIds)
   appendNumberList("techStackIds", options?.techStackIds)
   appendNumberList("verticalDomains", options?.verticalDomains)
   appendNumberList("horizontalDomains", options?.horizontalDomains)
@@ -897,6 +995,12 @@ export async function fetchCandidatesPage(
   if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
   // if (options?.dataProgressMin != null) params.set("dataProgressMin", String(options.dataProgressMin))
   // if (options?.dataProgressMax != null) params.set("dataProgressMax", String(options.dataProgressMax))
+  if (options?.minExperienceYears != null) {
+    params.set("minExperienceYears", String(options.minExperienceYears))
+  }
+  if (options?.maxExperienceYears != null) {
+    params.set("maxExperienceYears", String(options.maxExperienceYears))
+  }
 
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
