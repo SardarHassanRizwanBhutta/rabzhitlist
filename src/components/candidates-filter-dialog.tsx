@@ -93,7 +93,8 @@ export interface CandidateFilters {
   horizontalDomains: string[]
   /** Labels aligned with project `technicalDomains` (same catalog as `TECHNICAL_DOMAIN_HUMAN_LABELS` / API). */
   technicalDomains: string[]
-  technicalAspects: string[]
+  /** Catalog ids as strings from GET /api/TechnicalAspectTypes (`value`). Wired to API in Phase 2. */
+  technicalAspectTypeIds: string[]
   // Start Date Range - filters by project startDate only
   startDateStart: Date | null
   startDateEnd: Date | null
@@ -206,6 +207,8 @@ interface CandidatesFilterDialogProps {
   majors?: LookupItem[]
   /** From GET /api/techstacks — project expertise + candidate tech stack filters. */
   techStacks?: LookupItem[]
+  /** From GET /api/TechnicalAspectTypes — same catalog as Projects filter / creation dialog. */
+  technicalAspectTypes?: MultiSelectOption[]
 }
 
 // Mock data for filter options (removed unused statusOptions)
@@ -264,14 +267,6 @@ const extractUniqueClientLocations = () => {
   return Array.from(locations).sort()
 }
 
-const extractUniqueTechnicalAspects = () => {
-  const aspects = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.technicalAspects.forEach(aspect => aspects.add(aspect))
-  })
-  return Array.from(aspects).sort()
-}
-
 // Project-related filter options (same DB-aligned enums as project creation / projects filter)
 const projectStatusOptions: MultiSelectOption[] = Object.entries(PROJECT_STATUS_LABELS).map(
   ([value, label]) => ({
@@ -315,11 +310,6 @@ const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) 
 const technicalDomainFilterOptions: MultiSelectOption[] = TECHNICAL_DOMAIN_HUMAN_LABELS.map((label) => ({
   value: label,
   label,
-}))
-
-const technicalAspectOptions: MultiSelectOption[] = extractUniqueTechnicalAspects().map(aspect => ({
-  value: aspect,
-  label: aspect
 }))
 
 // Employer-related filter options (same catalog as EmployersFilterDialog / employer `status` field)
@@ -389,7 +379,7 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
-  technicalAspects: [],
+  technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,
   // Candidate work experience tech stacks
@@ -489,6 +479,7 @@ export function CandidatesFilterDialog({
   degrees = [],
   majors = [],
   techStacks = [],
+  technicalAspectTypes = [],
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
@@ -553,6 +544,12 @@ export function CandidatesFilterDialog({
       label: tech,
     }))
   }, [techStacks])
+
+  /** Same catalog as ProjectsFilterDialog when TechnicalAspectTypes API is available. */
+  const technicalAspectTypeFilterOptions = useMemo<MultiSelectOption[]>(
+    () => technicalAspectTypes,
+    [technicalAspectTypes],
+  )
 
   /** Candidate work-experience tech stacks — same master list as creation dialog. */
   const candidateTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
@@ -942,7 +939,7 @@ export function CandidatesFilterDialog({
           updated.verticalDomains = []
           updated.horizontalDomains = []
           updated.technicalDomains = []
-          updated.technicalAspects = []
+          updated.technicalAspectTypeIds = []
           updated.startDateStart = null
           updated.startDateEnd = null
           updated.projectTeamSizeMin = ""
@@ -1086,7 +1083,7 @@ export function CandidatesFilterDialog({
           tempFilters.verticalDomains.length +
           tempFilters.horizontalDomains.length +
           tempFilters.technicalDomains.length +
-          tempFilters.technicalAspects.length +
+          tempFilters.technicalAspectTypeIds.length +
           (tempFilters.startDateStart ? 1 : 0) +
           (tempFilters.startDateEnd ? 1 : 0) +
           (tempFilters.projectTeamSizeMin ? 1 : 0) +
@@ -1157,11 +1154,32 @@ export function CandidatesFilterDialog({
     return null
   }
 
+  const validateExperienceYears = (): string | null => {
+    const minRaw = tempFilters.yearsOfExperienceMin.trim()
+    const maxRaw = tempFilters.yearsOfExperienceMax.trim()
+    if (!minRaw && !maxRaw) return null
+
+    const min = minRaw ? parseFloat(minRaw) : null
+    const max = maxRaw ? parseFloat(maxRaw) : null
+
+    if (minRaw && (min == null || Number.isNaN(min) || min < 0)) {
+      return "Experience years cannot be negative."
+    }
+    if (maxRaw && (max == null || Number.isNaN(max) || max < 0)) {
+      return "Experience years cannot be negative."
+    }
+    if (min != null && max != null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      return "Maximum experience cannot be less than minimum experience."
+    }
+    return null
+  }
+
   const dateRangeError = validateDateRanges()
+  const experienceYearsError = validateExperienceYears()
 
   const handleApplyFilters = () => {
     // Validate before applying
-    if (dateRangeError) {
+    if (dateRangeError || experienceYearsError) {
       return // Don't apply if there are validation errors
     }
     onFiltersChange(tempFilters)
@@ -1226,7 +1244,7 @@ export function CandidatesFilterDialog({
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalDomains.length > 0 ||
-    tempFilters.technicalAspects.length > 0 ||
+    tempFilters.technicalAspectTypeIds.length > 0 ||
     tempFilters.startDateStart !== null ||
     tempFilters.startDateEnd !== null ||
     tempFilters.projectTeamSizeMin ||
@@ -1734,7 +1752,7 @@ export function CandidatesFilterDialog({
                         })
                       }}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                       disabled={!tempFilters.techStackMinYears?.techStacks || tempFilters.techStackMinYears.techStacks.length === 0}
                     />
                   </div>
@@ -1806,7 +1824,7 @@ export function CandidatesFilterDialog({
                         })
                       }}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                       disabled={!tempFilters.workModeMinYears?.workModes || tempFilters.workModeMinYears.workModes.length === 0}
                     />
                   </div>
@@ -1978,7 +1996,7 @@ export function CandidatesFilterDialog({
                       value={tempFilters.yearsOfExperienceMin}
                       onChange={(e) => handleFilterChange("yearsOfExperienceMin", e.target.value)}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1992,13 +2010,16 @@ export function CandidatesFilterDialog({
                       value={tempFilters.yearsOfExperienceMax}
                       onChange={(e) => handleFilterChange("yearsOfExperienceMax", e.target.value)}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                     />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Filter by total years of experience calculated from work history
+                  Filter by total years of experience (calculated on the server from work history)
                 </p>
+                {experienceYearsError && (
+                  <p className="text-xs text-red-500">{experienceYearsError}</p>
+                )}
               </div>
 
               {/* Average Job Tenure Range Filter */}
@@ -2016,7 +2037,7 @@ export function CandidatesFilterDialog({
                       value={tempFilters.avgJobTenureMin}
                       onChange={(e) => handleFilterChange("avgJobTenureMin", e.target.value)}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                     />
                   </div>
                   <div className="space-y-2">
@@ -2030,7 +2051,7 @@ export function CandidatesFilterDialog({
                       value={tempFilters.avgJobTenureMax}
                       onChange={(e) => handleFilterChange("avgJobTenureMax", e.target.value)}
                       min="0"
-                      step="0.1"
+                      step="0.5"
                     />
                   </div>
                 </div>
@@ -2376,12 +2397,12 @@ export function CandidatesFilterDialog({
               />
 
               <MultiSelect
-                items={technicalAspectOptions}
-                selected={tempFilters.technicalAspects}
-                onChange={(values) => handleFilterChange("technicalAspects", values)}
-                placeholder="Filter by technical aspects..."
+                items={technicalAspectTypeFilterOptions}
+                selected={tempFilters.technicalAspectTypeIds}
+                onChange={(values) => handleFilterChange("technicalAspectTypeIds", values)}
+                placeholder="Select technical aspect types..."
                 label="Technical Aspects"
-                searchPlaceholder="Search aspects..."
+                searchPlaceholder="Search technical aspects..."
                 maxDisplay={3}
               />
 

@@ -64,7 +64,7 @@ const defaultFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
-  technicalAspects: [],
+  technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,
   candidateTechStacks: [],
@@ -146,9 +146,9 @@ interface CandidatesCardsViewProps {
   onCandidatesListChanged?: () => void
 }
 
-// Helper function to get job title from first work experience
+// Backend-derived latest job title; no frontend calculation from work experiences.
 const getJobTitle = (candidate: Candidate): string => {
-  return candidate.workExperiences?.[0]?.jobTitle || "N/A"
+  return candidate.latestJobTitle || "—"
 }
 
 const getCategoryIcon = (type: string) => {
@@ -220,7 +220,14 @@ const getCriterionColor = (type: string): string => {
     'horizontalDomain': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',
     'technicalDomain': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
     'technicalAspect': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-700',
+    'clientLocation': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700',
+    'teamSize': 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 border-slate-300 dark:border-slate-700',
+    'downloadCount': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+    'projectStartDate': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
     
+    // Work Experience
+    'jobTitle': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
+
     // Employer Characteristics
     'employer': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700',
     'employerStatus': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',

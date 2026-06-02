@@ -11,6 +11,20 @@ import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
+import { getTotalExperienceYears } from "@/lib/utils/candidate-experience"
+import {
+  HORIZONTAL_DOMAIN_LABELS,
+  PROJECT_STATUS_UI_TO_NUM,
+  PUBLISH_PLATFORM_UI_TO_NUM,
+  TECHNICAL_DOMAIN_HUMAN_LABELS,
+  VERTICAL_DOMAIN_LABELS,
+} from "@/lib/services/projects-api"
+import type { ProjectStatus, ProjectType, PublishPlatform } from "@/lib/types/project"
+import type {
+  MatchedDomainDto,
+  MatchedProjectDto,
+  MatchedTeamSizeDto,
+} from "@/lib/types/candidate"
 
 /** Certification name filter: catalog id strings (preferred) or legacy certification name. */
 function certificationMatchesFilterEntry(
@@ -135,7 +149,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.verticalDomains.length > 0 ||
     filters.horizontalDomains.length > 0 ||
     filters.technicalDomains.length > 0 ||
-    filters.technicalAspects.length > 0 ||
+    filters.technicalAspectTypeIds.length > 0 ||
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
     filters.candidateTechStacks.length > 0 ||
@@ -283,6 +297,255 @@ function getCandidateProjects(candidate: Candidate) {
   )
 }
 
+function resolveVerticalDomainLabel(domain: MatchedDomainDto): string {
+  return VERTICAL_DOMAIN_LABELS[domain.id] ?? domain.label
+}
+
+function resolveHorizontalDomainLabel(domain: MatchedDomainDto): string {
+  return HORIZONTAL_DOMAIN_LABELS[domain.id] ?? domain.label
+}
+
+function resolveTechnicalDomainLabel(domain: MatchedDomainDto): string {
+  return TECHNICAL_DOMAIN_HUMAN_LABELS[domain.id] ?? domain.label
+}
+
+function resolveProjectStatusLabel(status: MatchedDomainDto): string {
+  for (const [uiLabel, num] of Object.entries(PROJECT_STATUS_UI_TO_NUM) as [
+    ProjectStatus,
+    number,
+  ][]) {
+    if (num === status.id) return uiLabel
+  }
+  return status.label
+}
+
+function resolveTechStackLabel(stack: MatchedDomainDto): string {
+  return stack.label.trim() || String(stack.id)
+}
+
+const PROJECT_TYPE_NUM_TO_UI: Record<number, ProjectType> = {
+  0: "Employer",
+  1: "Academic",
+  2: "Personal",
+  3: "Freelance",
+  4: "Open Source",
+}
+
+function resolveProjectTypeLabel(projectType: MatchedDomainDto): string {
+  return PROJECT_TYPE_NUM_TO_UI[projectType.id] ?? projectType.label
+}
+
+function resolvePublishPlatformLabel(platform: MatchedDomainDto): string {
+  for (const [uiLabel, num] of Object.entries(PUBLISH_PLATFORM_UI_TO_NUM) as [
+    PublishPlatform,
+    number,
+  ][]) {
+    if (num === platform.id) return uiLabel
+  }
+  return platform.label
+}
+
+function formatTeamSizeBadge(teamSize: MatchedTeamSizeDto): string {
+  const min = teamSize.minTeamSize
+  const max = teamSize.maxTeamSize
+  if (min != null && max != null) return `${min}-${max}`
+  if (min != null) return String(min)
+  if (max != null) return String(max)
+  return ""
+}
+
+function formatDownloadCountThreshold(filterValue: string): string {
+  const n = Number(filterValue.replace(/,/g, "").trim())
+  if (!Number.isFinite(n) || n <= 0) return `≥ ${filterValue.trim()}`
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000
+    return `≥ ${Number.isInteger(m) ? m : m.toFixed(1)}M`
+  }
+  if (n >= 1_000) {
+    const k = n / 1_000
+    return `≥ ${Number.isInteger(k) ? k : k.toFixed(1)}K`
+  }
+  return `≥ ${n.toLocaleString()}`
+}
+
+function formatProjectStartDateBadge(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+}
+
+function hasPublishRelatedFilter(filters: CandidateFilters): boolean {
+  return filters.hasPublishedProject === true || filters.publishPlatforms.length > 0
+}
+
+/** Active list filters that drive backend `matchedProjects` (Phases 1–3). */
+function hasBackendMatchedProjectFilterDrivers(filters: CandidateFilters): boolean {
+  return (
+    filters.verticalDomains.length > 0 ||
+    filters.horizontalDomains.length > 0 ||
+    filters.technicalDomains.length > 0 ||
+    filters.projectStatus.length > 0 ||
+    filters.techStacks.length > 0 ||
+    filters.projectTypes.length > 0 ||
+    filters.clientLocations.length > 0 ||
+    filters.publishPlatforms.length > 0 ||
+    filters.hasPublishedProject === true ||
+    !!filters.minProjectDownloadCount.trim() ||
+    !!filters.projectTeamSizeMin.trim() ||
+    !!filters.projectTeamSizeMax.trim() ||
+    filters.startDateStart !== null ||
+    filters.startDateEnd !== null ||
+    filters.technicalAspectTypeIds.length > 0
+  )
+}
+
+/** Build Project Expertise match items from backend list `matchedProjects`. */
+function appendBackendMatchedProjectItems(
+  candidate: Candidate,
+  filters: CandidateFilters,
+  projectItems: MatchItem[],
+): void {
+  if (!hasBackendMatchedProjectFilterDrivers(filters)) return
+
+  const matchedProjects = candidate.matchedProjects
+  if (!matchedProjects?.length) return
+
+  for (const mp of matchedProjects) {
+    appendBackendMatchedProjectItem(mp, filters, projectItems)
+  }
+}
+
+function appendBackendMatchedProjectItem(
+  mp: MatchedProjectDto,
+  filters: CandidateFilters,
+  projectItems: MatchItem[],
+): void {
+  const matchedCriteria: MatchCriterion[] = []
+
+  if (filters.verticalDomains.length > 0 && mp.verticalDomains.length > 0) {
+    matchedCriteria.push({
+      type: "verticalDomain",
+      label: "Vertical Domain",
+      values: mp.verticalDomains.map(resolveVerticalDomainLabel),
+    })
+  }
+
+  if (filters.horizontalDomains.length > 0 && mp.horizontalDomains.length > 0) {
+    matchedCriteria.push({
+      type: "horizontalDomain",
+      label: "Horizontal Domain",
+      values: mp.horizontalDomains.map(resolveHorizontalDomainLabel),
+    })
+  }
+
+  if (filters.technicalDomains.length > 0 && mp.technicalDomains.length > 0) {
+    matchedCriteria.push({
+      type: "technicalDomain",
+      label: "Technical Domain",
+      values: mp.technicalDomains.map(resolveTechnicalDomainLabel),
+    })
+  }
+
+  if (filters.projectStatus.length > 0 && mp.status != null) {
+    matchedCriteria.push({
+      type: "status",
+      label: "Project Status",
+      values: [resolveProjectStatusLabel(mp.status)],
+    })
+  }
+
+  if (filters.techStacks.length > 0 && mp.techStacks.length > 0) {
+    matchedCriteria.push({
+      type: "techStack",
+      label: "Tech Stack",
+      values: mp.techStacks.map(resolveTechStackLabel),
+    })
+  }
+
+  if (filters.technicalAspectTypeIds.length > 0 && mp.technicalAspectTypes.length > 0) {
+    matchedCriteria.push({
+      type: "technicalAspect",
+      label: "Technical Aspect",
+      values: mp.technicalAspectTypes.map((aspect) => aspect.label.trim() || String(aspect.id)),
+    })
+  }
+
+  if (filters.projectTypes.length > 0 && mp.projectType != null) {
+    matchedCriteria.push({
+      type: "type",
+      label: "Project Type",
+      values: [resolveProjectTypeLabel(mp.projectType)],
+    })
+  }
+
+  if (filters.clientLocations.length > 0 && mp.clientLocations.length > 0) {
+    matchedCriteria.push({
+      type: "clientLocation",
+      label: "Client Location",
+      values: mp.clientLocations.map((loc) => loc.label.trim() || String(loc.id)),
+    })
+  }
+
+  if (filters.publishPlatforms.length > 0 && mp.publishPlatforms.length > 0) {
+    matchedCriteria.push({
+      type: "publishedPlatform",
+      label: "Published On",
+      values: mp.publishPlatforms.map(resolvePublishPlatformLabel),
+    })
+  }
+
+  if (hasPublishRelatedFilter(filters) && mp.storeLink) {
+    matchedCriteria.push({
+      type: "storeLink",
+      label: "Store Link",
+      values: [mp.storeLink],
+    })
+  }
+
+  if (
+    (filters.projectTeamSizeMin.trim() || filters.projectTeamSizeMax.trim()) &&
+    mp.teamSize != null
+  ) {
+    const badge = formatTeamSizeBadge(mp.teamSize)
+    if (badge) {
+      matchedCriteria.push({
+        type: "teamSize",
+        label: "Team Size",
+        values: [badge],
+      })
+    }
+  }
+
+  if (filters.minProjectDownloadCount.trim() && mp.downloadCount != null) {
+    matchedCriteria.push({
+      type: "downloadCount",
+      label: "Downloads",
+      values: [formatDownloadCountThreshold(filters.minProjectDownloadCount)],
+    })
+  }
+
+  if (
+    (filters.startDateStart !== null || filters.startDateEnd !== null) &&
+    mp.startDate
+  ) {
+    matchedCriteria.push({
+      type: "projectStartDate",
+      label: "Start Date",
+      values: [formatProjectStartDateBadge(mp.startDate)],
+    })
+  }
+
+  if (matchedCriteria.length === 0) return
+
+  projectItems.push({
+    name: mp.projectName,
+    matchedCriteria,
+    context: {
+      projectId: mp.projectId,
+    },
+  })
+}
+
 /**
  * Count promotions (job title changes) in the last N years
  * Counts promotions across all companies, checking if the promotion occurred within the time window
@@ -360,7 +623,15 @@ export function getCandidateMatchContext(
     filters.verticalDomains.length > 0 ||
     filters.horizontalDomains.length > 0 ||
     filters.technicalDomains.length > 0 ||
-    filters.technicalAspects.length > 0 ||
+    filters.technicalAspectTypeIds.length > 0 ||
+    filters.clientLocations.length > 0 ||
+    filters.startDateStart !== null ||
+    filters.startDateEnd !== null ||
+    filters.projectTeamSizeMin ||
+    filters.projectTeamSizeMax ||
+    filters.hasPublishedProject === true ||
+    filters.publishPlatforms.length > 0 ||
+    filters.minProjectDownloadCount ||
     filters.candidateTechStacks.length > 0 ||
     filters.candidateTechStacksRequireAll ||
     filters.candidateTechStacksRequireInBoth
@@ -370,6 +641,11 @@ export function getCandidateMatchContext(
     const candidateProjects = getCandidateProjects(candidate)
     const projectItems: MatchItem[] = []
     const workExperienceItems: MatchItem[] = []
+    const useBackendMatchedProjects =
+      hasBackendMatchedProjectFilterDrivers(filters) &&
+      (candidate.matchedProjects?.length ?? 0) > 0
+
+    appendBackendMatchedProjectItems(candidate, filters, projectItems)
 
     candidateProjects.forEach(project => {
       const matchedCriteria: MatchCriterion[] = []
@@ -385,88 +661,73 @@ export function getCandidateMatchContext(
         hasMatch = true
       }
 
-      // Project status match
-      if (filters.projectStatus.includes(project.status)) {
-        matchedCriteria.push({
-          type: 'status',
-          label: 'Project Status',
-          values: [project.status]
-        })
-        hasMatch = true
-      }
+      // Project status, tech stacks, domains, type — skip mock path when backend matchedProjects is used
+      if (!useBackendMatchedProjects) {
+        if (filters.projectStatus.includes(project.status)) {
+          matchedCriteria.push({
+            type: 'status',
+            label: 'Project Status',
+            values: [project.status]
+          })
+          hasMatch = true
+        }
 
-      // Project type match
-      if (filters.projectTypes.includes(project.projectType)) {
-        matchedCriteria.push({
-          type: 'type',
-          label: 'Project Type',
-          values: [project.projectType]
-        })
-        hasMatch = true
-      }
+        const matchingTechStacks = project.techStacks.filter(tech =>
+          filters.techStacks.some(filterTech => filterTech.toLowerCase() === tech.toLowerCase())
+        )
+        if (matchingTechStacks.length > 0) {
+          matchedCriteria.push({
+            type: 'techStack',
+            label: 'Tech Stack',
+            values: matchingTechStacks
+          })
+          hasMatch = true
+        }
 
-      // Tech stacks match
-      const matchingTechStacks = project.techStacks.filter(tech =>
-        filters.techStacks.some(filterTech => filterTech.toLowerCase() === tech.toLowerCase())
-      )
-      if (matchingTechStacks.length > 0) {
-        matchedCriteria.push({
-          type: 'techStack',
-          label: 'Tech Stack',
-          values: matchingTechStacks
-        })
-        hasMatch = true
-      }
+        const matchingVerticalDomains = project.verticalDomains.filter(domain =>
+          filters.verticalDomains.includes(domain)
+        )
+        if (matchingVerticalDomains.length > 0) {
+          matchedCriteria.push({
+            type: 'verticalDomain',
+            label: 'Vertical Domain',
+            values: matchingVerticalDomains
+          })
+          hasMatch = true
+        }
 
-      // Vertical domains match
-      const matchingVerticalDomains = project.verticalDomains.filter(domain =>
-        filters.verticalDomains.includes(domain)
-      )
-      if (matchingVerticalDomains.length > 0) {
-        matchedCriteria.push({
-          type: 'verticalDomain',
-          label: 'Vertical Domain',
-          values: matchingVerticalDomains
-        })
-        hasMatch = true
-      }
+        const matchingHorizontalDomains = project.horizontalDomains.filter(domain =>
+          filters.horizontalDomains.includes(domain)
+        )
+        if (matchingHorizontalDomains.length > 0) {
+          matchedCriteria.push({
+            type: 'horizontalDomain',
+            label: 'Horizontal Domain',
+            values: matchingHorizontalDomains
+          })
+          hasMatch = true
+        }
 
-      // Horizontal domains match
-      const matchingHorizontalDomains = project.horizontalDomains.filter(domain =>
-        filters.horizontalDomains.includes(domain)
-      )
-      if (matchingHorizontalDomains.length > 0) {
-        matchedCriteria.push({
-          type: 'horizontalDomain',
-          label: 'Horizontal Domain',
-          values: matchingHorizontalDomains
-        })
-        hasMatch = true
-      }
+        const matchingTechnicalDomains = project.technicalDomains.filter((d) =>
+          filters.technicalDomains.includes(d)
+        )
+        if (matchingTechnicalDomains.length > 0) {
+          matchedCriteria.push({
+            type: 'technicalDomain',
+            label: 'Technical Domain',
+            values: matchingTechnicalDomains
+          })
+          hasMatch = true
+        }
 
-      const matchingTechnicalDomains = project.technicalDomains.filter((d) =>
-        filters.technicalDomains.includes(d)
-      )
-      if (matchingTechnicalDomains.length > 0) {
-        matchedCriteria.push({
-          type: 'technicalDomain',
-          label: 'Technical Domain',
-          values: matchingTechnicalDomains
-        })
-        hasMatch = true
-      }
-
-      // Technical aspects match
-      const matchingTechnicalAspects = project.technicalAspects.filter(aspect =>
-        filters.technicalAspects.includes(aspect)
-      )
-      if (matchingTechnicalAspects.length > 0) {
-        matchedCriteria.push({
-          type: 'technicalAspect',
-          label: 'Technical Aspect',
-          values: matchingTechnicalAspects
-        })
-        hasMatch = true
+        if (filters.projectTypes.includes(project.projectType)) {
+          matchedCriteria.push({
+            type: 'type',
+            label: 'Project Type',
+            values: [project.projectType]
+          })
+          hasMatch = true
+        }
       }
 
       if (hasMatch) {
@@ -1238,40 +1499,6 @@ export function getCandidateMatchContext(
 
   if (hasWorkExperienceFilters) {
     const workExperienceItems: MatchItem[] = []
-    
-    // Helper function to calculate years of experience
-    const calculateYearsOfExperience = (candidate: Candidate): number => {
-      if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-        return 0
-      }
-
-      const today = new Date()
-      let totalMonths = 0
-
-      candidate.workExperiences.forEach(we => {
-        if (!we.startDate) return
-
-        const startDate = new Date(we.startDate)
-        const endDate = we.endDate ? new Date(we.endDate) : today
-
-        // Calculate months between start and end
-        const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
-        const monthsDiff = endDate.getMonth() - startDate.getMonth()
-        const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
-
-        // Add days for more precision (approximate)
-        const daysDiff = endDate.getDate() - startDate.getDate()
-        const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
-
-        if (approximateMonths > 0) {
-          totalMonths += approximateMonths
-        }
-      })
-
-      // Convert to years (with 1 decimal place precision)
-      const totalYears = totalMonths / 12
-      return Math.round(totalYears * 10) / 10 // Round to 1 decimal place
-    }
 
     candidate.workExperiences?.forEach(we => {
       const matchedCriteria: MatchCriterion[] = []
@@ -1284,23 +1511,6 @@ export function getCandidateMatchContext(
       }
       if (filters.isCurrentlyWorking === false && (we.endDate === undefined || we.endDate === null)) {
         return // Skip current work experiences
-      }
-
-      // Job Title match
-      if (filters.jobTitle && filters.jobTitle.trim()) {
-        // Check all work experiences for job title match
-        const filterJobTitle = filters.jobTitle.trim().toLowerCase()
-        if (we.jobTitle && typeof we.jobTitle === 'string' && we.jobTitle.trim()) {
-          const jobTitleLower = we.jobTitle.trim().toLowerCase()
-          if (jobTitleLower.includes(filterJobTitle)) {
-            matchedCriteria.push({
-              type: 'jobTitle',
-              label: 'Job Title',
-              values: [we.jobTitle]
-            })
-            hasMatch = true
-          }
-        }
       }
 
       // Shift Type match
@@ -1382,10 +1592,32 @@ export function getCandidateMatchContext(
       }
     })
 
+    // Job Title match (candidate-level): backend matches only the latest job title,
+    // so compare against the backend-derived `latestJobTitle`, not historical roles.
+    if (filters.jobTitle && filters.jobTitle.trim()) {
+      const filterJobTitle = filters.jobTitle.trim().toLowerCase()
+      const latestJobTitle = candidate.latestJobTitle?.trim()
+      if (latestJobTitle && latestJobTitle.toLowerCase().includes(filterJobTitle)) {
+        workExperienceItems.push({
+          name: 'Latest Job Title',
+          matchedCriteria: [
+            {
+              type: 'jobTitle',
+              label: 'Job Title',
+              values: [latestJobTitle],
+            },
+          ],
+          context: {
+            jobTitle: latestJobTitle,
+          },
+        })
+      }
+    }
+
 
     // Years of Experience match (candidate-level, not per work experience)
     if (filters.yearsOfExperienceMin || filters.yearsOfExperienceMax) {
-      const candidateYearsOfExperience = calculateYearsOfExperience(candidate)
+      const candidateYearsOfExperience = getTotalExperienceYears(candidate) ?? 0
       let yearsMatch = false
       const matchedCriteria: MatchCriterion[] = []
 
@@ -1715,8 +1947,11 @@ export function getCandidateMatchContext(
     }
   }
 
-  // Published Projects Match Context
-  if (filters.hasPublishedProject === true) {
+  // Published Projects Match Context (mock fallback when backend matchedProjects unavailable)
+  const useBackendPublishMatches =
+    hasPublishRelatedFilter(filters) && (candidate.matchedProjects?.length ?? 0) > 0
+
+  if (filters.hasPublishedProject === true && !useBackendPublishMatches) {
     const publishedItems: MatchItem[] = []
     
     // Get candidate's projects

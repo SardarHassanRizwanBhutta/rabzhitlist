@@ -94,6 +94,48 @@ export interface Achievement {
   description?: string  // Optional description for additional context
 }
 
+/** Domain match from GET /api/candidates list (`matchedProjects[].verticalDomains` / `horizontalDomains`). */
+export interface MatchedDomainDto {
+  id: number
+  label: string
+}
+
+/** Team size on a matched project (`matchedProjects[].teamSize`). */
+export interface MatchedTeamSizeDto {
+  minTeamSize?: number
+  maxTeamSize?: number
+}
+
+/** Per-project match summary from GET /api/candidates list (`matchedProjects`). */
+export interface MatchedProjectDto {
+  projectId: number
+  projectName: string
+  verticalDomains: MatchedDomainDto[]
+  horizontalDomains: MatchedDomainDto[]
+  /** Intersection with requested `technicalDomains` filter (Phase 2). */
+  technicalDomains: MatchedDomainDto[]
+  /** Intersection with requested `techStackIds` filter (Phase 2). */
+  techStacks: MatchedDomainDto[]
+  /** Intersection with requested `projectStatus` filter; null when not applicable (Phase 2). */
+  status: MatchedDomainDto | null
+  /** Intersection with requested `projectTypes` filter (Phase 3). */
+  projectType: MatchedDomainDto | null
+  /** Intersection with requested `clientLocations` filter (Phase 3). */
+  clientLocations: MatchedDomainDto[]
+  /** Intersection with requested `publishPlatforms` filter (Phase 3). */
+  publishPlatforms: MatchedDomainDto[]
+  /** Project link URL when publish-related matching applies (`projects.link`, Phase 3). */
+  storeLink: string | null
+  /** Project team size when team size filter(s) satisfied (Phase 3). */
+  teamSize: MatchedTeamSizeDto | null
+  /** Actual download count when `minDownloadCount` filter satisfied (Phase 3). */
+  downloadCount: number | null
+  /** ISO DateOnly when start date range filter satisfied (Phase 3). */
+  startDate: string | null
+  /** Intersection with requested `technicalAspectTypeIds` filter (aspect type catalog). */
+  technicalAspectTypes: MatchedDomainDto[]
+}
+
 // Keep Competition interface for backward compatibility during migration
 export interface Competition {
   id: string
@@ -107,6 +149,8 @@ export interface Candidate {
   id: string
   name: string
   postingTitle: string | null
+  /** Backend-derived job title from the candidate's latest work experience (`latestJobTitle`). */
+  latestJobTitle?: string | null
   email: string
   mobileNo: string
   cnic: string | null
@@ -133,8 +177,12 @@ export interface Candidate {
   updatedAt: Date
   /** From API list/detail (`totalExperienceYears`). */
   totalExperienceYears?: number | null
+  /** From API list/detail (`totalExperienceMonths`). */
+  totalExperienceMonths?: number | null
   /** Backend-stored profile completion (`dataProgressPercentage`). */
   dataProgressPercentage?: number | null
+  /** List-only: backend-computed project/domain matches for Cards/Table match summary. */
+  matchedProjects?: MatchedProjectDto[]
 }
 
 export type CandidateStatus =
