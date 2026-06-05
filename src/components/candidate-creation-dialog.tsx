@@ -545,7 +545,7 @@ function WorkExperienceProjectCombobox({
   error: boolean
   onLinkedProjectChange: (expIdx: number, projIdx: number, sel: SelectedProject) => void
   projectLookups?: ProjectLookups
-  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
   const [preloadedEmployerName, setPreloadedEmployerName] = React.useState<string | null>(null)
@@ -634,13 +634,7 @@ function WorkExperienceProjectCombobox({
       createProjectInitialEmployer={createProjectInitialEmployer}
       createProjectEmployerNameHint={createProjectEmployerNameHint}
       projectLookups={projectLookups}
-      onCreateTechStack={
-        onCreateTechStack
-          ? async (name) => {
-              await onCreateTechStack(name)
-            }
-          : undefined
-      }
+      onCreateTechStack={onCreateTechStack}
     />
   )
 }
@@ -660,7 +654,7 @@ function StandaloneProjectCombobox({
   error: boolean
   onLinkedProjectChange: (idx: number, sel: SelectedProject) => void
   projectLookups?: ProjectLookups
-  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
 
@@ -712,13 +706,7 @@ function StandaloneProjectCombobox({
       error={error}
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
       projectLookups={projectLookups}
-      onCreateTechStack={
-        onCreateTechStack
-          ? async (name) => {
-              await onCreateTechStack(name)
-            }
-          : undefined
-      }
+      onCreateTechStack={onCreateTechStack}
     />
   )
 }
@@ -846,7 +834,7 @@ interface CandidateCreationDialogProps {
   /** Tech stacks from `/api/techstacks`; same pattern as employer/project dialogs. */
   lookups?: CandidateLookups
   /** When set, "+ Add" creates via API and parent should refresh `lookups.techStacks`. */
-  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   /** When set, "+ Add Time Zone" persists via API; parent should refresh `lookups.timeSupportZones`. */
   onCreateTimeSupportZone?: (name: string) => Promise<void>
   /** Disable tech stack multi-selects while lookups are loading. */

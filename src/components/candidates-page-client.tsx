@@ -570,15 +570,22 @@ export function CandidatesPageClient() {
     }
   }, [pageNumber, pageSize, reloadToken, backendListOptions])
 
-  const handleCreateTechStack = useCallback(async (name: string) => {
-    try {
-      const created = await createTechStack(name)
-      setTechStacksLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add technology")
-      throw e
-    }
-  }, [])
+  const handleCreateTechStack = useCallback(
+    async (name: string, context?: { aspectTypeId: number }) => {
+      try {
+        const ids = context?.aspectTypeId != null ? [context.aspectTypeId] : undefined
+        const created = await createTechStack(name, ids)
+        setTechStacksLookup((prev) => [
+          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+          created,
+        ])
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to add technology")
+        throw e
+      }
+    },
+    []
+  )
 
   const handleCreateTimeSupportZone = useCallback(async (name: string) => {
     try {

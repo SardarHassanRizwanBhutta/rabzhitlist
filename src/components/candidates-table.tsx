@@ -101,7 +101,7 @@ interface CandidatesTableProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
   /** Persist new tech stack via API; updates parent lookup list. */
-  onCreateTechStack?: (name: string) => Promise<void>
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
   onCreateDegree?: (name: string) => Promise<void>
