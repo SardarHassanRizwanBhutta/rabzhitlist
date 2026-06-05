@@ -134,6 +134,10 @@ interface ProjectCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string
+  /** Pre-select employer when opening create mode (e.g. from a work-experience project row). */
+  initialSelectedEmployer?: SelectedEmployer
+  /** Parsed employer name when parent row has no employerId yet; seeds employer search only. */
+  initialEmployerNameHint?: string
   /** When provided, Technologies, Domains, and Client Location dropdowns use these; "+ Add" calls the create handlers. */
   lookups?: ProjectLookups
   /** Optional `context.aspectTypeId` when adding from a scoped list (backend may use later). */
@@ -281,6 +285,8 @@ export function ProjectCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  initialSelectedEmployer = null,
+  initialEmployerNameHint,
   lookups,
   onCreateTechStack,
   onCreateTechnicalAspect,
@@ -308,6 +314,15 @@ export function ProjectCreationDialog({
   const [formData, setFormData] = useState<ProjectFormData>(initialFormData)
   const [errors, setErrors] = useState<Partial<Record<keyof ProjectFormData, string>>>({})
   const initialFormDataRef = useRef<ProjectFormData | null>(null)
+  // Employer combobox: server-driven search (no prefetch)
+  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
+  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
+  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
+  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
+  const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
+  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const employerAbortRef = useRef<AbortController | null>(null)
+  const employerComboboxPrevOpenRef = useRef(false)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   
   // Verification state
@@ -441,12 +456,17 @@ export function ProjectCreationDialog({
         setFormData(formDataFromProject)
         initialFormDataRef.current = formDataFromProject
       } else {
-        // In create mode, check for initialName prop
-        const formDataToUse = initialName 
-          ? { ...initialFormData, projectName: initialName }
-          : initialFormData
+        const formDataToUse: ProjectFormData = {
+          ...initialFormData,
+          projectName: initialName?.trim() ?? "",
+          selectedEmployer: initialSelectedEmployer ?? null,
+        }
         setFormData(formDataToUse)
         initialFormDataRef.current = formDataToUse
+        const employerHint = initialEmployerNameHint?.trim()
+        setEmployerSearchQuery(
+          !initialSelectedEmployer && employerHint ? employerHint : ""
+        )
       }
       setErrors({})
       setModifiedFields(new Set())
@@ -461,20 +481,34 @@ export function ProjectCreationDialog({
       setErrors({})
       initialFormDataRef.current = null
       setModifiedFields(new Set())
+      setEmployerSearchQuery("")
+      setEmployerSearchResults([])
       if (!showVerification) {
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, projectData, showVerification])
+  }, [
+    open,
+    mode,
+    projectData,
+    showVerification,
+    initialName,
+    initialSelectedEmployer,
+    initialEmployerNameHint,
+  ])
 
-  // Employer combobox: server-driven search (no prefetch)
-  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
-  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
-  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
-  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
-  const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
-  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const employerAbortRef = useRef<AbortController | null>(null)
+  // Seed employer search when opening combobox with a parsed name hint (no selection yet).
+  useEffect(() => {
+    if (
+      employerComboboxOpen &&
+      !employerComboboxPrevOpenRef.current &&
+      initialEmployerNameHint?.trim() &&
+      !formData.selectedEmployer
+    ) {
+      setEmployerSearchQuery(initialEmployerNameHint.trim())
+    }
+    employerComboboxPrevOpenRef.current = employerComboboxOpen
+  }, [employerComboboxOpen, initialEmployerNameHint, formData.selectedEmployer])
 
   // Edit mode: preload employer by ID when dialog opens (no search call)
   useEffect(() => {
@@ -1160,8 +1194,16 @@ export function ProjectCreationDialog({
                                   role="combobox"
                                   className={`w-full justify-between font-normal ${errors.selectedEmployer ? "border-red-500" : ""}`}
                                 >
-                                  <span className={employerSearchQuery ? "text-foreground" : "text-muted-foreground"}>
-                                    {employerSearchQuery || "Search employers..."}
+                                  <span
+                                    className={
+                                      employerSearchQuery || initialEmployerNameHint?.trim()
+                                        ? "text-foreground"
+                                        : "text-muted-foreground"
+                                    }
+                                  >
+                                    {employerSearchQuery ||
+                                      initialEmployerNameHint?.trim() ||
+                                      "Search employers..."}
                                   </span>
                                   <ChevronsUpDown className="opacity-50" />
                                 </Button>

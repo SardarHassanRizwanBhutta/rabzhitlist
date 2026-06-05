@@ -106,6 +106,44 @@ export interface MatchedTeamSizeDto {
   maxTeamSize?: number
 }
 
+/** Headcount range on a matched employer (`matchedEmployers[].size`). */
+export interface MatchedEmployerSizeDto {
+  minEmployees?: number
+  maxEmployees?: number
+}
+
+/** Per work-experience row match summary from GET /api/candidates list (`matchedWorkExperiences`). */
+export interface MatchedWorkExperienceDto {
+  workExperienceId: number
+  employerId: number
+  employerName: string
+  jobTitle: string | null
+  startDate: string | null
+  endDate: string | null
+  shiftType: MatchedDomainDto | null
+  workMode: MatchedDomainDto | null
+  timeSupportZones: MatchedDomainDto[]
+  techStacks: MatchedDomainDto[]
+}
+
+/** Per work-experience match summary from GET /api/candidates list (`matchedEmployers`). */
+export interface MatchedEmployerDto {
+  workExperienceId: number
+  employerId: number
+  employerName: string
+  jobTitle: string | null
+  startDate: string | null
+  endDate: string | null
+  matchedByEmployerId: boolean
+  statuses: MatchedDomainDto[]
+  countries: MatchedDomainDto[]
+  cities: string[]
+  employerTypes: MatchedDomainDto[]
+  salaryPolicy: MatchedDomainDto | null
+  ranking: MatchedDomainDto | null
+  size: MatchedEmployerSizeDto | null
+}
+
 /** Per-project match summary from GET /api/candidates list (`matchedProjects`). */
 export interface MatchedProjectDto {
   projectId: number
@@ -183,6 +221,10 @@ export interface Candidate {
   dataProgressPercentage?: number | null
   /** List-only: backend-computed project/domain matches for Cards/Table match summary. */
   matchedProjects?: MatchedProjectDto[]
+  /** List-only: backend-computed employer/work-experience matches for Cards/Table match summary. */
+  matchedEmployers?: MatchedEmployerDto[]
+  /** List-only: backend-computed work-experience row matches (shift/mode/zones/WE tech stacks). */
+  matchedWorkExperiences?: MatchedWorkExperienceDto[]
 }
 
 export type CandidateStatus =

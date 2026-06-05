@@ -106,6 +106,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  getWorkExperienceDateFieldErrors,
+  getWorkExperienceDateSuggestion,
+  getWorkExperienceDateWarningMessage,
+} from "@/lib/utils/work-experience-dates"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
 
@@ -522,6 +527,7 @@ function WorkExperienceEmployerCombobox({
 
 /** Preloads project name by ID when editing a row that has projectId but no cached name. */
 function WorkExperienceProjectCombobox({
+  experience,
   experienceIndex,
   project,
   projectIndex,
@@ -531,6 +537,7 @@ function WorkExperienceProjectCombobox({
   projectLookups,
   onCreateTechStack,
 }: {
+  experience: WorkExperience
   experienceIndex: number
   project: ProjectExperience
   projectIndex: number
@@ -541,6 +548,22 @@ function WorkExperienceProjectCombobox({
   onCreateTechStack?: (name: string) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
+  const [preloadedEmployerName, setPreloadedEmployerName] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setPreloadedEmployerName(null)
+    if (experience.employerId == null) return
+    if (experience.employerName?.trim()) return
+    let cancelled = false
+    fetchEmployerById(experience.employerId)
+      .then((e) => {
+        if (!cancelled) setPreloadedEmployerName(e.name)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [experience.id, experience.employerId, experience.employerName])
 
   React.useEffect(() => {
     setPreloadedName(null)
@@ -588,6 +611,17 @@ function WorkExperienceProjectCombobox({
           }
         : null
 
+  const resolvedEmployerName =
+    experience.employerName?.trim() || preloadedEmployerName?.trim() || ""
+
+  const createProjectInitialEmployer: WorkExperienceSelectedEmployer =
+    experience.employerId != null && resolvedEmployerName
+      ? { id: experience.employerId, name: resolvedEmployerName }
+      : null
+
+  const createProjectEmployerNameHint =
+    experience.employerId == null ? experience.employerName?.trim() || undefined : undefined
+
   return (
     <ProjectCombobox
       id={`work-exp-project-${experienceIndex}-${projectIndex}`}
@@ -597,6 +631,8 @@ function WorkExperienceProjectCombobox({
       disabled={disabled}
       error={error}
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
+      createProjectInitialEmployer={createProjectInitialEmployer}
+      createProjectEmployerNameHint={createProjectEmployerNameHint}
       projectLookups={projectLookups}
       onCreateTechStack={
         onCreateTechStack
@@ -1260,6 +1296,24 @@ export function CandidateCreationDialog({
     return JSON.stringify(formData) !== JSON.stringify(initialFormDataRef.current) || 
            verifiedFields.size > 0
   }, [formData, verifiedFields])
+
+  const workExperienceDateIssues = useMemo(() => {
+    const issues: Record<
+      number,
+      { warning: string; suggestion: ReturnType<typeof getWorkExperienceDateSuggestion> }
+    > = {}
+    formData.workExperiences.forEach((we, index) => {
+      const suggestion = getWorkExperienceDateSuggestion(we.startDate, we.endDate)
+      const warning = getWorkExperienceDateWarningMessage(
+        index + 1,
+        we.startDate,
+        we.endDate,
+        { hasSuggestion: suggestion != null },
+      )
+      if (warning) issues[index] = { warning, suggestion }
+    })
+    return issues
+  }, [formData.workExperiences])
   
   // Calculate verification progress
   const verificationProgress = useMemo(() => {
@@ -2048,6 +2102,27 @@ export function CandidateCreationDialog({
     }))
     markFieldModified(`workExperiences.${index}.${field}`)
     
+    // Clear date validation errors when either date changes
+    if (field === "startDate" || field === "endDate") {
+      if (
+        errors.workExperiences?.[index]?.startDate ||
+        errors.workExperiences?.[index]?.endDate
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          workExperiences: {
+            ...prev.workExperiences,
+            [index]: {
+              ...prev.workExperiences?.[index],
+              startDate: undefined,
+              endDate: undefined,
+            },
+          },
+        }))
+      }
+      return
+    }
+
     // Clear error when user starts typing
     if (errors.workExperiences?.[index]?.[field]) {
       setErrors(prev => ({
@@ -2464,6 +2539,14 @@ export function CandidateCreationDialog({
         if (exp.employerId == null) expErrors.employerId = "Employer is required"
         if (!exp.jobTitle.trim()) expErrors.jobTitle = "Job title is required"
       }
+
+      const dateErrors = getWorkExperienceDateFieldErrors(
+        index + 1,
+        exp.startDate,
+        exp.endDate,
+      )
+      if (dateErrors.startDate) expErrors.startDate = dateErrors.startDate
+      if (dateErrors.endDate) expErrors.endDate = dateErrors.endDate
 
       // Validate projects within each experience
       exp.projects.forEach((project, projectIndex) => {
@@ -3313,6 +3396,11 @@ export function CandidateCreationDialog({
                           />
                         </PopoverContent>
                       </Popover>
+                      {errors.workExperiences?.[index]?.startDate && (
+                        <p className="text-sm text-red-500">
+                          {errors.workExperiences[index].startDate}
+                        </p>
+                      )}
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.startDate`} />
                     </div>
 
@@ -3340,6 +3428,57 @@ export function CandidateCreationDialog({
                           />
                         </PopoverContent>
                       </Popover>
+                      {errors.workExperiences?.[index]?.endDate && (
+                        <p className="text-sm text-red-500">
+                          {errors.workExperiences[index].endDate}
+                        </p>
+                      )}
+                      {workExperienceDateIssues[index] &&
+                        !errors.workExperiences?.[index]?.startDate &&
+                        !errors.workExperiences?.[index]?.endDate && (
+                          <p className="text-sm text-amber-600 dark:text-amber-400">
+                            {workExperienceDateIssues[index].warning}
+                          </p>
+                        )}
+                      {workExperienceDateIssues[index]?.suggestion && (
+                        <div className="flex flex-col gap-2 rounded-md border border-amber-200 bg-amber-50/80 p-2 dark:border-amber-900 dark:bg-amber-950/30">
+                          <p className="text-sm text-amber-900 dark:text-amber-100">
+                            Did you mean{" "}
+                            <span className="font-medium">
+                              {workExperienceDateIssues[index].suggestion!.label}
+                            </span>
+                            ?
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 border-amber-300 bg-background dark:border-amber-800"
+                              onClick={() =>
+                                handleWorkExperienceChange(
+                                  index,
+                                  "endDate",
+                                  workExperienceDateIssues[index].suggestion!.suggestedEndDate,
+                                )
+                              }
+                            >
+                              Apply {workExperienceDateIssues[index].suggestion!.label}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-muted-foreground"
+                              onClick={() =>
+                                handleWorkExperienceChange(index, "endDate", undefined)
+                              }
+                            >
+                              Clear end (current role)
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.endDate`} />
                     </div>
 
@@ -3471,6 +3610,7 @@ export function CandidateCreationDialog({
                                 id={`prefill-anchor-we-${index}-project-${projectIndex}`}
                               >
                                 <WorkExperienceProjectCombobox
+                                  experience={experience}
                                   experienceIndex={index}
                                   project={project}
                                   projectIndex={projectIndex}

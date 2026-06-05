@@ -100,8 +100,6 @@ export interface CandidateFilters {
   startDateEnd: Date | null
   // Candidate work experience tech stacks
   candidateTechStacks: string[]
-  candidateTechStacksRequireAll: boolean  // false = OR logic (any), true = AND logic (all)
-  candidateTechStacksRequireInBoth: boolean  // false = work experience only, true = require in both work experience AND projects
   // Tech stack minimum years of experience
   techStackMinYears: {
     techStacks: string[]
@@ -118,8 +116,6 @@ export interface CandidateFilters {
   }
   /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
-  // Currently Working filter
-  isCurrentlyWorking: boolean | null  // null = no filter, true = only currently working, false = only not currently working
   // Worked with Top Developer filter
   workedWithTopDeveloper: boolean | null
   workedWithTopDeveloperUseTolerance: boolean  // true = apply tolerance, false = ignore dates
@@ -183,9 +179,9 @@ export interface CandidateFilters {
   // Verification percentage filters
   verificationPercentageMin: string  // Minimum verification percentage (0-100)
   verificationPercentageMax: string  // Maximum verification percentage (0-100)
-  // Data Progress filters
-  dataProgressMin: string  // Minimum data completion percentage (0-100)
-  dataProgressMax: string  // Maximum data completion percentage (0-100)
+  /** Min/max stored profile completion 0–100 → `minDataProgressPercentage` / `maxDataProgressPercentage` on GET /api/candidates. */
+  dataProgressMin: string
+  dataProgressMax: string
 }
 
 interface CandidatesFilterDialogProps {
@@ -384,8 +380,6 @@ const initialFilters: CandidateFilters = {
   startDateEnd: null,
   // Candidate work experience tech stacks
   candidateTechStacks: [],
-  candidateTechStacksRequireAll: false,  // Default: OR logic (any match)
-  candidateTechStacksRequireInBoth: false,  // Default: work experience only
   // Tech stack minimum years of experience
   techStackMinYears: {
     techStacks: [],
@@ -402,8 +396,6 @@ const initialFilters: CandidateFilters = {
   },
   // Candidate work experience time support zones
   timeSupportZones: [],
-  // Currently Working filter
-  isCurrentlyWorking: null,
   // Worked with Top Developer filter
   workedWithTopDeveloper: null,
   workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
@@ -904,8 +896,6 @@ export function CandidatesFilterDialog({
           break
         case "experience":
           updated.candidateTechStacks = []
-          updated.candidateTechStacksRequireAll = false
-          updated.candidateTechStacksRequireInBoth = false
           updated.techStackMinYears = {
             techStacks: [],
             minYears: ""
@@ -917,7 +907,6 @@ export function CandidatesFilterDialog({
             minYears: ""
           }
           updated.timeSupportZones = []
-            updated.isCurrentlyWorking = null
             updated.workedWithTopDeveloper = null
             updated.workedWithTopDeveloperUseTolerance = true
           updated.isTopDeveloper = null
@@ -1063,7 +1052,6 @@ export function CandidatesFilterDialog({
           tempFilters.workModes.length +
           ((tempFilters.workModeMinYears?.workModes.length || 0) > 0 && tempFilters.workModeMinYears?.minYears ? 1 : 0) +
           tempFilters.timeSupportZones.length +
-          (tempFilters.isCurrentlyWorking !== null ? 1 : 0) +
           (tempFilters.workedWithTopDeveloper !== null ? 1 : 0) +
           (tempFilters.isTopDeveloper !== null ? 1 : 0) +
           (tempFilters.jobTitle ? 1 : 0) +
@@ -1140,7 +1128,7 @@ export function CandidatesFilterDialog({
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string } | { maxChanges: string, years: string } | { minPromotions: string, years: string }) => {
+  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string }) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -1174,12 +1162,33 @@ export function CandidatesFilterDialog({
     return null
   }
 
+  const validateDataProgressPercentage = (): string | null => {
+    const minRaw = tempFilters.dataProgressMin.trim()
+    const maxRaw = tempFilters.dataProgressMax.trim()
+    if (!minRaw && !maxRaw) return null
+
+    const min = minRaw ? parseFloat(minRaw) : null
+    const max = maxRaw ? parseFloat(maxRaw) : null
+
+    if (minRaw && (min == null || Number.isNaN(min) || min < 0 || min > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (maxRaw && (max == null || Number.isNaN(max) || max < 0 || max > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (min != null && max != null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      return "Maximum data progress cannot be less than minimum."
+    }
+    return null
+  }
+
   const dateRangeError = validateDateRanges()
   const experienceYearsError = validateExperienceYears()
+  const dataProgressError = validateDataProgressPercentage()
 
   const handleApplyFilters = () => {
     // Validate before applying
-    if (dateRangeError || experienceYearsError) {
+    if (dateRangeError || experienceYearsError || dataProgressError) {
       return // Don't apply if there are validation errors
     }
     onFiltersChange(tempFilters)
@@ -1232,7 +1241,6 @@ export function CandidatesFilterDialog({
     tempFilters.workModes.length > 0 ||
     (tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears) ||
     tempFilters.timeSupportZones.length > 0 ||
-    tempFilters.isCurrentlyWorking !== null ||
     tempFilters.workedWithTopDeveloper !== null ||
     tempFilters.jobTitle ||
     tempFilters.yearsOfExperienceMin ||
@@ -1463,12 +1471,17 @@ export function CandidatesFilterDialog({
                       type="number"
                       min="0"
                       max="100"
+                      step="0.1"
                       placeholder="0"
                       value={tempFilters.dataProgressMin}
                       onChange={(e) => {
                         const value = e.target.value
-                        // Only allow numbers 0-100
-                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                        if (value === "") {
+                          handleFilterChange("dataProgressMin", value)
+                          return
+                        }
+                        const n = parseFloat(value)
+                        if (!Number.isNaN(n) && n >= 0 && n <= 100) {
                           handleFilterChange("dataProgressMin", value)
                         }
                       }}
@@ -1483,20 +1496,28 @@ export function CandidatesFilterDialog({
                       type="number"
                       min="0"
                       max="100"
+                      step="0.1"
                       placeholder="100"
                       value={tempFilters.dataProgressMax}
                       onChange={(e) => {
                         const value = e.target.value
-                        // Only allow numbers 0-100
-                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                        if (value === "") {
+                          handleFilterChange("dataProgressMax", value)
+                          return
+                        }
+                        const n = parseFloat(value)
+                        if (!Number.isNaN(n) && n >= 0 && n <= 100) {
                           handleFilterChange("dataProgressMax", value)
                         }
                       }}
                     />
                   </div>
                 </div>
+                {dataProgressError && (
+                  <p className="text-xs text-red-500">{dataProgressError}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
-                  Filter candidates by their data completion percentage (0-100%)
+                  Filter candidates by stored profile completion (`dataProgressPercentage`, 0–100%)
                 </p>
               </div>
 
@@ -1673,42 +1694,8 @@ export function CandidatesFilterDialog({
                   maxDisplay={4}
                 />
                 {tempFilters.candidateTechStacks.length > 0 && (
-                  <div className="space-y-2 pl-1">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="candidateTechStacksRequireAll"
-                        checked={tempFilters.candidateTechStacksRequireAll}
-                        onCheckedChange={(checked) =>
-                          handleFilterChange("candidateTechStacksRequireAll", checked === true)
-                        }
-                      />
-                      <Label htmlFor="candidateTechStacksRequireAll" className="text-xs text-muted-foreground cursor-pointer">
-                        Require all selected technologies (AND logic)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="candidateTechStacksRequireInBoth"
-                        checked={tempFilters.candidateTechStacksRequireInBoth}
-                        onCheckedChange={(checked) =>
-                          handleFilterChange("candidateTechStacksRequireInBoth", checked === true)
-                        }
-                      />
-                      <Label htmlFor="candidateTechStacksRequireInBoth" className="text-xs text-muted-foreground cursor-pointer">
-                        Require in both work experience AND projects (hands-on experience)
-                      </Label>
-                    </div>
-                  </div>
-                )}
-                {tempFilters.candidateTechStacks.length > 0 && (
                   <p className="text-xs text-muted-foreground pl-1">
-                    {tempFilters.candidateTechStacksRequireInBoth
-                      ? tempFilters.candidateTechStacksRequireAll
-                        ? "Candidate must have all selected technologies in both work experience AND projects"
-                        : "Candidate must have selected technologies in both work experience AND projects"
-                      : tempFilters.candidateTechStacksRequireAll
-                        ? "Candidate must have all selected technologies"
-                        : "Candidate must have at least one selected technology"}
+                    Candidate must have at least one selected technology on a work experience.
                   </p>
                 )}
               </div>
@@ -1851,26 +1838,6 @@ export function CandidatesFilterDialog({
                   Time zone names load from the same master list as the candidate form once lookups are available.
                 </p>
               )}
-
-              {/* Currently Working Filter */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isCurrentlyWorking"
-                    checked={tempFilters.isCurrentlyWorking === true}
-                    onCheckedChange={(checked) => 
-                      handleFilterChange("isCurrentlyWorking", checked ? true : null)
-                    }
-                  />
-                  <Label htmlFor="isCurrentlyWorking" className="text-sm font-medium cursor-pointer">
-                    Currently Working
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground pl-6">
-                  Filter candidates who have at least one ongoing work experience (no end date).
-                  Combine with Shift Type, Work Mode, or Time Support Zones to filter by current job details.
-                </p>
-              </div>
 
               {/* Worked with Top Developer Filter */}
               <div className="space-y-3 pt-2">

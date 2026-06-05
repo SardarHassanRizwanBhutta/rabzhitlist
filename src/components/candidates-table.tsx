@@ -17,6 +17,7 @@ import {
   Check,
   FolderOpen,
   Building2,
+  Briefcase,
   GraduationCap,
   Award,
   Info,
@@ -194,8 +195,6 @@ const defaultFilters: CandidateFilters = {
   technicalDomains: [],
   technicalAspectTypeIds: [],
   candidateTechStacks: [],
-  candidateTechStacksRequireAll: false,
-  candidateTechStacksRequireInBoth: false,
   techStackMinYears: {
     techStacks: [],
     minYears: ""
@@ -207,7 +206,6 @@ const defaultFilters: CandidateFilters = {
     minYears: ""
   },
   timeSupportZones: [],
-  isCurrentlyWorking: null,
   workedWithTopDeveloper: null,
   workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
   isTopDeveloper: null,
@@ -502,6 +500,8 @@ export function CandidatesTable({
         return FolderOpen
       case 'employers':
         return Building2
+      case 'workExperience':
+        return Briefcase
       case 'education':
         return GraduationCap
       case 'certifications':
@@ -515,6 +515,7 @@ export function CandidatesTable({
     const colorMap: Record<string, string> = {
       blue: 'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-200',
       purple: 'bg-purple-50 border-purple-200 text-purple-800 dark:bg-purple-950/20 dark:border-purple-800 dark:text-purple-200',
+      indigo: 'bg-indigo-50 border-indigo-200 text-indigo-800 dark:bg-indigo-950/20 dark:border-indigo-800 dark:text-indigo-200',
       green: 'bg-green-50 border-green-200 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-200',
       orange: 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950/20 dark:border-orange-800 dark:text-orange-200',
       gray: 'bg-gray-50 border-gray-200 text-gray-800 dark:bg-gray-950/20 dark:border-gray-800 dark:text-gray-200',
@@ -906,11 +907,6 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                                           {typeof item.context.isCheetah === 'boolean' && item.context.isCheetah && (
                                             <Badge variant="default" className="ml-2 bg-orange-500 hover:bg-orange-600 text-xs">
                                               Cheetah
-                                            </Badge>
-                                          )}
-                                          {typeof item.context.isTopDeveloper === 'boolean' && item.context.isTopDeveloper && (
-                                            <Badge variant="default" className="ml-2 bg-blue-500 hover:bg-blue-600 text-xs">
-                                              Top Developer
                                             </Badge>
                                           )}
                                         </div>

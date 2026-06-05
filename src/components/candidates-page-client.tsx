@@ -63,11 +63,14 @@ import {
   RANKING_DISPLAY_TO_DB,
   SALARY_POLICY_DISPLAY_TO_DB,
 } from "@/lib/types/employer"
+import type { ShiftTypeDb, WorkModeDb } from "@/lib/types/employer"
 import {
   EMPLOYER_STATUS_TO_API,
   EMPLOYER_TYPE_TO_API,
   RANKING_TO_API,
   SALARY_POLICY_TO_API,
+  SHIFT_TYPE_TO_API,
+  WORK_MODE_TO_API,
 } from "@/lib/services/employers-api"
 import {
   horizontalDomainLabelToInt,
@@ -99,8 +102,6 @@ const initialFilters: CandidateFilters = {
   startDateStart: null,
   startDateEnd: null,
   candidateTechStacks: [],
-  candidateTechStacksRequireAll: false,
-  candidateTechStacksRequireInBoth: false,
   techStackMinYears: {
     techStacks: [],
     minYears: "",
@@ -112,7 +113,6 @@ const initialFilters: CandidateFilters = {
     minYears: "",
   },
   timeSupportZones: [],
-  isCurrentlyWorking: null,
   workedWithTopDeveloper: null,
   workedWithTopDeveloperUseTolerance: true,
   isTopDeveloper: null,
@@ -443,6 +443,22 @@ export function CandidatesPageClient() {
       .map((db) => ACHIEVEMENT_TYPE_DB.indexOf(db as (typeof ACHIEVEMENT_TYPE_DB)[number]))
       .filter((n) => n >= 0)
 
+    const shiftTypes = combinedFiltersForBackend.shiftTypes
+      .map((k) => SHIFT_TYPE_TO_API[k as ShiftTypeDb])
+      .filter((v): v is number => typeof v === "number")
+    const workModes = combinedFiltersForBackend.workModes
+      .map((k) => WORK_MODE_TO_API[k as WorkModeDb])
+      .filter((v): v is number => typeof v === "number")
+    const timeSupportZoneIds = combinedFiltersForBackend.timeSupportZones
+      .map((name) => timeSupportZonesLookup.find((z) => z.name === name)?.id)
+      .filter((id): id is number => id != null)
+    const workExperienceTechStackIds = combinedFiltersForBackend.candidateTechStacks
+      .map((name) => {
+        const key = name.trim().toLowerCase()
+        return techStacksLookup.find((l) => l.name.trim().toLowerCase() === key)?.id
+      })
+      .filter((id): id is number => id != null)
+
     return {
       postingTitle: combinedFiltersForBackend.postingTitle.trim() || undefined,
       jobTitle: combinedFiltersForBackend.jobTitle.trim() || undefined,
@@ -496,10 +512,18 @@ export function CandidatesPageClient() {
       projectStartTo: toDateOnly(combinedFiltersForBackend.startDateEnd),
       achievementTypes: achievementTypes.length > 0 ? achievementTypes : undefined,
       achievementName: combinedFiltersForBackend.achievementName.trim() || undefined,
-      dataProgressMin: toOptionalNumber(combinedFiltersForBackend.dataProgressMin),
-      dataProgressMax: toOptionalNumber(combinedFiltersForBackend.dataProgressMax),
+      minDataProgressPercentage: toOptionalNumber(combinedFiltersForBackend.dataProgressMin),
+      maxDataProgressPercentage: toOptionalNumber(combinedFiltersForBackend.dataProgressMax),
       minExperienceYears: toOptionalNumber(combinedFiltersForBackend.yearsOfExperienceMin),
       maxExperienceYears: toOptionalNumber(combinedFiltersForBackend.yearsOfExperienceMax),
+      shiftTypes: shiftTypes.length > 0 ? shiftTypes : undefined,
+      workModes: workModes.length > 0 ? workModes : undefined,
+      timeSupportZoneIds:
+        timeSupportZoneIds.length > 0 ? timeSupportZoneIds : undefined,
+      workExperienceTechStackIds:
+        workExperienceTechStackIds.length > 0
+          ? workExperienceTechStackIds
+          : undefined,
     }
   }, [
     combinedFiltersForBackend,
@@ -510,6 +534,7 @@ export function CandidatesPageClient() {
     countriesLookup,
     clientLocationsLookup,
     techStacksLookup,
+    timeSupportZonesLookup,
   ])
 
   useEffect(() => {
