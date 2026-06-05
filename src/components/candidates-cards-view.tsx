@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { User, Target, FolderOpen, Building2, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone, Loader2 } from "lucide-react"
+import { User, Target, FolderOpen, Building2, Briefcase, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone, Loader2, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 
 import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
 import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
@@ -68,8 +69,6 @@ const defaultFilters: CandidateFilters = {
   startDateStart: null,
   startDateEnd: null,
   candidateTechStacks: [],
-  candidateTechStacksRequireAll: false,
-  candidateTechStacksRequireInBoth: false,
   techStackMinYears: {
     techStacks: [],
     minYears: ""
@@ -81,7 +80,6 @@ const defaultFilters: CandidateFilters = {
     minYears: ""
   },
   timeSupportZones: [],
-  isCurrentlyWorking: null,
   workedWithTopDeveloper: null,
   workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
   isTopDeveloper: null,
@@ -157,6 +155,8 @@ const getCategoryIcon = (type: string) => {
       return FolderOpen
     case 'employers':
       return Building2
+    case 'workExperience':
+      return Briefcase
     case 'education':
       return GraduationCap
     case 'certifications':
@@ -183,6 +183,11 @@ const getCategoryColor = (color: string) => {
       bg: 'bg-purple-50 dark:bg-purple-950/20',
       text: 'text-purple-800 dark:text-purple-200',
       border: 'border-purple-200 dark:border-purple-800'
+    },
+    indigo: {
+      bg: 'bg-indigo-50 dark:bg-indigo-950/20',
+      text: 'text-indigo-800 dark:text-indigo-200',
+      border: 'border-indigo-200 dark:border-indigo-800'
     },
     green: {
       bg: 'bg-green-50 dark:bg-green-950/20',
@@ -227,12 +232,18 @@ const getCriterionColor = (type: string): string => {
     
     // Work Experience
     'jobTitle': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
+    'shiftType': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
+    'workMode': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-700',
+    'timeSupportZones': 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200 border-teal-300 dark:border-teal-700',
+    'yearsOfExperience': 'bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200 border-lime-300 dark:border-lime-700',
 
     // Employer Characteristics
     'employer': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700',
     'employerStatus': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+    'employerType': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     'country': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border-red-300 dark:border-red-700',
     'city': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700',
+    'dataProgress': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700',
     'salaryPolicy': 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200 border-pink-300 dark:border-pink-700',
     'size': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200 border-fuchsia-300 dark:border-fuchsia-700',
     
@@ -245,6 +256,8 @@ const getCriterionColor = (type: string): string => {
     'isCheetah': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
     'startMonth': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     'endMonth': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
+    'personalityType': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200 border-fuchsia-300 dark:border-fuchsia-700',
+    'source': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-700',
     
     // Professional Certifications
     'certification': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700',
@@ -270,6 +283,38 @@ const getCriterionColor = (type: string): string => {
   }
   
   return colorMap[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border-gray-300 dark:border-gray-700'
+}
+
+function normalizeStoreLinkUrl(url: string): string | null {
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
+function StoreLinkVisitBadge({ url }: { url: string }) {
+  const href = normalizeStoreLinkUrl(url)
+  if (!href) return null
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium hover:bg-muted/80 transition-colors ${getCriterionColor("storeLink")}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          Visit App
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-sm break-all text-xs">
+        {url.trim()}
+      </TooltipContent>
+    </Tooltip>
+  )
 }
 
 // Helper to get all unique criterion types from match context
@@ -439,6 +484,7 @@ export function CandidatesCardsView({
   }
 
   return (
+    <TooltipProvider>
     <>
       {/* Single Filter Legend at the top */}
       {activeFilters && allUniqueCriteria.length > 0 && (
@@ -586,14 +632,43 @@ export function CandidatesCardsView({
                                   year: item.context.year as number | undefined
                                 } : null
 
+                                const storeLinkBadges = allBadges.filter((badge) => badge.type === "storeLink")
+                                const otherBadges = allBadges.filter((badge) => badge.type !== "storeLink")
+                                const showNameHeading =
+                                  !isRedundantHeading ||
+                                  (competitionContext &&
+                                    (competitionContext.ranking || competitionContext.year))
+                                const showBadgesRow =
+                                  otherBadges.length > 0 ||
+                                  (isRedundantHeading && !competitionContext) ||
+                                  (competitionContext &&
+                                    (competitionContext.ranking || competitionContext.year))
+
                                 return (
                                   <div key={itemIndex} className="space-y-2">
-                                    {/* Only show heading if it's not redundant or if there's additional context */}
-                                    {(!isRedundantHeading || (competitionContext && (competitionContext.ranking || competitionContext.year))) && (
-                                      <div className="font-medium text-sm">{item.name}</div>
-                                    )}
-                                    
-                                    {/* Display all badges in a compact row */}
+                                    {showNameHeading &&
+                                      (storeLinkBadges.length > 0 ? (
+                                        <div className="flex items-center justify-between gap-3 min-w-0">
+                                          <p
+                                            className="min-w-0 flex-1 truncate text-sm font-medium"
+                                            title={item.name}
+                                          >
+                                            {item.name}
+                                          </p>
+                                          <div className="flex shrink-0 items-center gap-1.5">
+                                            {storeLinkBadges.map((badge, badgeIndex) => (
+                                              <StoreLinkVisitBadge
+                                                key={badgeIndex}
+                                                url={badge.value}
+                                              />
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="font-medium text-sm">{item.name}</div>
+                                      ))}
+
+                                    {showBadgesRow && (
                                     <div className="flex flex-wrap gap-1.5 items-center">
                                       {/* For competitions with redundant heading, show competition name as first badge */}
                                       {isRedundantHeading && !competitionContext && (
@@ -605,14 +680,14 @@ export function CandidatesCardsView({
                                         </Badge>
                                       )}
                                       
-                                      {allBadges.map((badge, badgeIndex) => (
-                                        <Badge 
-                                          key={badgeIndex}
-                                          variant="outline" 
-                                          className={`${getCriterionColor(badge.type)} text-xs h-5 px-2 border`}
-                                        >
-                                          {badge.value}
-                                        </Badge>
+                                      {otherBadges.map((badge, badgeIndex) => (
+                                          <Badge
+                                            key={badgeIndex}
+                                            variant="outline"
+                                            className={`${getCriterionColor(badge.type)} text-xs h-5 px-2 border`}
+                                          >
+                                            {badge.value}
+                                          </Badge>
                                       ))}
                                       
                                       {/* Show additional context for competitions (ranking, year) */}
@@ -631,6 +706,7 @@ export function CandidatesCardsView({
                                         </>
                                       )}
                                     </div>
+                                    )}
                                     
                                     {itemIndex < category.items.length - 1 && (
                                       <Separator className="my-2" />
@@ -712,5 +788,6 @@ export function CandidatesCardsView({
         degreesMajorsLoading={lookupsLoading}
       />
     </>
+    </TooltipProvider>
   )
 }

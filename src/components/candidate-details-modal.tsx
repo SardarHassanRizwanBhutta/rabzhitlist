@@ -2984,7 +2984,6 @@ function workExperienceToSelectedEmployer(
 interface InlineEditableEmployerProps {
   experience: WorkExperience
   weIndex: number
-  candidate: Candidate | null
   onSave: (
     weIndex: number,
     selection: SelectedEmployer,
@@ -3000,7 +2999,6 @@ interface InlineEditableEmployerProps {
 const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
   experience,
   weIndex,
-  candidate,
   onSave,
   onEmployerClick,
   verificationIndicator,
@@ -3092,11 +3090,6 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
     }
   }
 
-  const promotions =
-    candidate && employerName !== "N/A"
-      ? calculateEmployerPromotions(candidate, employerName)
-      : 0
-
   if (isEditing) {
     return (
       <div className={cn("space-y-2 w-full min-w-0", className)}>
@@ -3181,11 +3174,6 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
         ) : (
           <span className="font-semibold text-lg block truncate">{employerName}</span>
         )}
-        {promotions > 0 ? (
-          <Badge variant="secondary" className="shrink-0">
-            {promotions} promotion{promotions !== 1 ? "s" : ""}
-          </Badge>
-        ) : null}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {verificationIndicator}
@@ -4001,36 +3989,6 @@ const calculateCandidateAverageTenure = (candidate: Candidate): number => {
 
   const totalTenure = employerTenures.reduce((sum, tenure) => sum + tenure, 0)
   return Math.round((totalTenure / employerTenures.length) * 10) / 10 // Round to 1 decimal place
-}
-
-// Helper function to calculate promotions for a specific employer
-const calculateEmployerPromotions = (candidate: Candidate, employerName: string): number => {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0
-  }
-
-  // Filter work experiences for this specific employer (case-insensitive)
-  const employerExperiences = candidate.workExperiences
-    .filter(we => we.employerName.toLowerCase().trim() === employerName.toLowerCase().trim())
-    .filter(we => we.startDate) // Must have start date
-    .sort((a, b) => new Date(a.startDate!).getTime() - new Date(b.startDate!).getTime())
-
-  if (employerExperiences.length < 2) {
-    return 0 // Need at least 2 experiences to have a promotion
-  }
-
-  // Count unique job titles - each change represents a promotion
-  const uniqueTitles = new Set<string>()
-
-  employerExperiences.forEach((experience) => {
-    if (experience.jobTitle) {
-      const titleKey = experience.jobTitle.toLowerCase().trim()
-      uniqueTitles.add(titleKey)
-    }
-  })
-
-  // Number of promotions = number of unique titles - 1
-  return uniqueTitles.size - 1
 }
 
 export function CandidateDetailsModal({ 
@@ -6251,7 +6209,6 @@ export function CandidateDetailsModal({
                                   <InlineEditableEmployer
                                     experience={experience}
                                     weIndex={idx}
-                                    candidate={viewCandidate}
                                     onSave={handleWorkExperienceEmployerSave}
                                     onEmployerClick={handleEmployerClick}
                                     createEmployerLookups={employerCreateLookups}

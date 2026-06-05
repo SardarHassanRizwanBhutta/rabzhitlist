@@ -11,12 +11,17 @@ import type {
   CandidateEducation,
   CandidateStandaloneProject,
   MatchedDomainDto,
+  MatchedEmployerDto,
+  MatchedEmployerSizeDto,
   MatchedProjectDto,
+  MatchedWorkExperienceDto,
   MatchedTeamSizeDto,
   ProjectExperience,
   WorkExperience,
 } from "@/lib/types/candidate"
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
+import { formatLocalDateForApi, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
+import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import {
   MBTI_TYPES,
   CANDIDATE_SOURCE_DB,
@@ -75,6 +80,10 @@ export interface CandidateListItemDto {
   dataProgressPercentage?: number | null
   /** Backend-computed project/domain matches when domain filters are active. */
   matchedProjects?: MatchedProjectDto[]
+  /** Backend-computed employer/work-experience matches when employer driver filters are active. */
+  matchedEmployers?: MatchedEmployerDto[]
+  /** Backend-computed work-experience row matches when WE driver filters are active. */
+  matchedWorkExperiences?: MatchedWorkExperienceDto[]
 }
 
 export interface CreateCandidateDto {
@@ -212,7 +221,13 @@ function parseIsoDate(v: unknown): Date | undefined {
   if (v == null) return undefined
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? undefined : v
   if (typeof v !== "string") return undefined
-  const d = new Date(v)
+  const trimmed = v.trim()
+  if (!trimmed) return undefined
+
+  const localDateOnly = parseLocalDateFromApi(trimmed)
+  if (localDateOnly) return localDateOnly
+
+  const d = new Date(trimmed)
   return Number.isNaN(d.getTime()) ? undefined : d
 }
 
@@ -455,6 +470,99 @@ function mapMatchedTeamSize(raw: unknown): MatchedTeamSizeDto | null {
   return { minTeamSize, maxTeamSize }
 }
 
+function mapMatchedEmployerSize(raw: unknown): MatchedEmployerSizeDto | null {
+  if (raw == null || typeof raw !== "object") return null
+  const item = raw as Record<string, unknown>
+  const minEmployees =
+    item.minEmployees != null && Number.isFinite(Number(item.minEmployees))
+      ? Number(item.minEmployees)
+      : undefined
+  const maxEmployees =
+    item.maxEmployees != null && Number.isFinite(Number(item.maxEmployees))
+      ? Number(item.maxEmployees)
+      : undefined
+  if (minEmployees == null && maxEmployees == null) return null
+  return { minEmployees, maxEmployees }
+}
+
+function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => ({
+      workExperienceId: Number(item.workExperienceId),
+      employerId: Number(item.employerId),
+      employerName: String(item.employerName ?? ""),
+      jobTitle:
+        typeof item.jobTitle === "string" && item.jobTitle.trim()
+          ? item.jobTitle.trim()
+          : null,
+      startDate:
+        typeof item.startDate === "string" && item.startDate.trim()
+          ? item.startDate.trim()
+          : null,
+      endDate:
+        item.endDate === null || item.endDate === undefined
+          ? null
+          : typeof item.endDate === "string" && item.endDate.trim()
+            ? item.endDate.trim()
+            : null,
+      shiftType: mapMatchedDomain(item.shiftType),
+      workMode: mapMatchedDomain(item.workMode),
+      timeSupportZones: mapMatchedDomains(item.timeSupportZones),
+      techStacks: mapMatchedDomains(item.techStacks),
+    }))
+    .filter(
+      (item) =>
+        Number.isFinite(item.workExperienceId) &&
+        Number.isFinite(item.employerId) &&
+        item.employerName.length > 0,
+    )
+}
+
+function mapMatchedEmployers(raw: unknown): MatchedEmployerDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => ({
+      workExperienceId: Number(item.workExperienceId),
+      employerId: Number(item.employerId),
+      employerName: String(item.employerName ?? ""),
+      jobTitle:
+        typeof item.jobTitle === "string" && item.jobTitle.trim()
+          ? item.jobTitle.trim()
+          : null,
+      startDate:
+        typeof item.startDate === "string" && item.startDate.trim()
+          ? item.startDate.trim()
+          : null,
+      endDate:
+        item.endDate === null || item.endDate === undefined
+          ? null
+          : typeof item.endDate === "string" && item.endDate.trim()
+            ? item.endDate.trim()
+            : null,
+      matchedByEmployerId: item.matchedByEmployerId === true,
+      statuses: mapMatchedDomains(item.statuses),
+      countries: mapMatchedDomains(item.countries),
+      cities: Array.isArray(item.cities)
+        ? item.cities
+            .filter((c): c is string => typeof c === "string" && c.trim() !== "")
+            .map((c) => c.trim())
+        : [],
+      employerTypes: mapMatchedDomains(item.employerTypes),
+      salaryPolicy: mapMatchedDomain(item.salaryPolicy),
+      ranking: mapMatchedDomain(item.ranking),
+      size: mapMatchedEmployerSize(item.size),
+    }))
+    .filter(
+      (item) =>
+        Number.isFinite(item.workExperienceId) &&
+        Number.isFinite(item.employerId) &&
+        item.employerName.length > 0,
+    )
+}
+
 function mapMatchedProjects(raw: unknown): MatchedProjectDto[] {
   if (!Array.isArray(raw)) return []
   return raw
@@ -530,6 +638,8 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
           ? Number(row.dataProgressPercentage)
           : null,
     matchedProjects: mapMatchedProjects(row.matchedProjects),
+    matchedEmployers: mapMatchedEmployers(row.matchedEmployers),
+    matchedWorkExperiences: mapMatchedWorkExperiences(row.matchedWorkExperiences),
   }
 }
 
@@ -622,8 +732,7 @@ function enumIndex<T extends string>(arr: readonly T[], val: string): number | n
 }
 
 function formatDateForApi(d: Date | undefined): string | null {
-  if (!d) return null
-  return d.toISOString().split("T")[0] ?? null
+  return formatLocalDateForApi(d)
 }
 
 function lookupIdByName(
@@ -907,10 +1016,19 @@ export async function fetchCandidatesPage(
     projectStartTo?: string
     achievementTypes?: number[]
     achievementName?: string
-    // dataProgressMin?: number
-    // dataProgressMax?: number
+    /** Stored profile completion 0–100 (`candidates.data_progress_percentage`). */
+    minDataProgressPercentage?: number
+    maxDataProgressPercentage?: number
     minExperienceYears?: number
     maxExperienceYears?: number
+    /** Work experience `ShiftType` enum ints (OR within array). */
+    shiftTypes?: number[]
+    /** Work experience `WorkMode` enum ints (OR within array). */
+    workModes?: number[]
+    /** Work experience time support zone catalog ids (OR within array). */
+    timeSupportZoneIds?: number[]
+    /** Work experience tech stack catalog ids — not project `techStackIds`. */
+    workExperienceTechStackIds?: number[]
   }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
@@ -993,14 +1111,23 @@ export async function fetchCandidatesPage(
 
   appendNumberList("achievementTypes", options?.achievementTypes)
   if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
-  // if (options?.dataProgressMin != null) params.set("dataProgressMin", String(options.dataProgressMin))
-  // if (options?.dataProgressMax != null) params.set("dataProgressMax", String(options.dataProgressMax))
+  if (options?.minDataProgressPercentage != null) {
+    params.set("minDataProgressPercentage", String(options.minDataProgressPercentage))
+  }
+  if (options?.maxDataProgressPercentage != null) {
+    params.set("maxDataProgressPercentage", String(options.maxDataProgressPercentage))
+  }
   if (options?.minExperienceYears != null) {
     params.set("minExperienceYears", String(options.minExperienceYears))
   }
   if (options?.maxExperienceYears != null) {
     params.set("maxExperienceYears", String(options.maxExperienceYears))
   }
+
+  appendNumberList("shiftTypes", options?.shiftTypes)
+  appendNumberList("workModes", options?.workModes)
+  appendNumberList("timeSupportZoneIds", options?.timeSupportZoneIds)
+  appendNumberList("workExperienceTechStackIds", options?.workExperienceTechStackIds)
 
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
@@ -1050,7 +1177,7 @@ export async function createCandidate(body: CreateCandidateDto): Promise<Candida
     if (text.includes("IX_candidates_email")) {
       throw new Error("A candidate with this email already exists.")
     }
-    throw new Error(`Create candidate: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   const data = (await res.json()) as Record<string, unknown>
   return mapCandidateDtoToCandidate(data)
@@ -1065,7 +1192,7 @@ export async function updateCandidate(id: number, body: UpdateCandidateDto): Pro
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Update candidate: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   const data = (await res.json()) as Record<string, unknown>
   return mapCandidateDtoToCandidate(data)
@@ -1079,7 +1206,7 @@ export async function deleteCandidate(id: number): Promise<void> {
   }
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Delete candidate: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
 }
 
@@ -1095,7 +1222,7 @@ async function subPost(path: string, body?: object): Promise<unknown> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`POST ${path}: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   const ct = res.headers.get("content-type") ?? ""
   return ct.includes("application/json") ? res.json() : null
@@ -1109,7 +1236,7 @@ async function subPut(path: string, body: object): Promise<unknown> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`PUT ${path}: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   const ct = res.headers.get("content-type") ?? ""
   return ct.includes("application/json") ? res.json() : null
@@ -1119,7 +1246,7 @@ async function subDelete(path: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" })
   if (!res.ok && res.status !== 404) {
     const text = await res.text()
-    throw new Error(`DELETE ${path}: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
 }
 

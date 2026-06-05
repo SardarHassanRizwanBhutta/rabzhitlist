@@ -18,6 +18,7 @@ import {
   ProjectCreationDialog,
   type ProjectFormData,
   type ProjectLookups,
+  type SelectedEmployer,
 } from "@/components/project-creation-dialog"
 import {
   buildCreateProjectDto,
@@ -52,6 +53,16 @@ export interface ProjectComboboxProps {
   error?: boolean
   /** Resume import: seed search when opening with no linked project yet. */
   parsedNameHint?: string
+  /**
+   * Create Candidate — work-experience project row: pre-select employer on Create Project
+   * when parent WE employer is already linked.
+   */
+  createProjectInitialEmployer?: SelectedEmployer
+  /**
+   * Create Candidate — work-experience project row: seed employer search when parent WE
+   * has a parsed name but no employerId yet.
+   */
+  createProjectEmployerNameHint?: string
   /** Lookups for ProjectCreationDialog and create payload mapping. */
   projectLookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
@@ -68,6 +79,8 @@ export function ProjectCombobox({
   className,
   error = false,
   parsedNameHint,
+  createProjectInitialEmployer,
+  createProjectEmployerNameHint,
   projectLookups,
   onCreateTechStack,
   onCreateTechnicalAspect,
@@ -76,6 +89,8 @@ export function ProjectCombobox({
   const [open, setOpen] = useState(false)
   const [addProjectOpen, setAddProjectOpen] = useState(false)
   const [addProjectInitialName, setAddProjectInitialName] = useState("")
+  const [addProjectInitialEmployer, setAddProjectInitialEmployer] = useState<SelectedEmployer>(null)
+  const [addProjectEmployerNameHint, setAddProjectEmployerNameHint] = useState("")
   const { query, setQuery, results, isLoading, resetSearch } = useProjectSearch()
   const prevOpenRef = React.useRef(false)
 
@@ -121,8 +136,25 @@ export function ProjectCombobox({
     selectProject({ id: created.id, name: created.name })
     setAddProjectOpen(false)
     setAddProjectInitialName("")
+    setAddProjectInitialEmployer(null)
+    setAddProjectEmployerNameHint("")
     resetSearch()
     toast.success(`Project "${created.name}" created successfully.`)
+  }
+
+  const openCreateProjectDialog = () => {
+    setAddProjectInitialName(query.trim())
+    setAddProjectInitialEmployer(createProjectInitialEmployer ?? null)
+    setAddProjectEmployerNameHint(createProjectEmployerNameHint?.trim() ?? "")
+    handleOpenChange(false)
+    setAddProjectOpen(true)
+  }
+
+  const closeCreateProjectDialog = () => {
+    setAddProjectOpen(false)
+    setAddProjectInitialName("")
+    setAddProjectInitialEmployer(null)
+    setAddProjectEmployerNameHint("")
   }
 
   return (
@@ -194,11 +226,7 @@ export function ProjectCombobox({
                     </div>
                     <CommandItem
                       value="__create_new_project__"
-                      onSelect={() => {
-                        setAddProjectInitialName(query.trim())
-                        handleOpenChange(false)
-                        setAddProjectOpen(true)
-                      }}
+                      onSelect={openCreateProjectDialog}
                       className="cursor-pointer font-medium text-primary"
                     >
                       <Plus className="mr-2 h-4 w-4" />
@@ -232,10 +260,12 @@ export function ProjectCombobox({
         showVerification={false}
         open={addProjectOpen}
         onOpenChange={(next) => {
-          setAddProjectOpen(next)
-          if (!next) setAddProjectInitialName("")
+          if (!next) closeCreateProjectDialog()
+          else setAddProjectOpen(true)
         }}
         initialName={addProjectInitialName}
+        initialSelectedEmployer={addProjectInitialEmployer}
+        initialEmployerNameHint={addProjectEmployerNameHint || undefined}
         lookups={projectLookups}
         onCreateTechStack={onCreateTechStack}
         onCreateTechnicalAspect={onCreateTechnicalAspect}
