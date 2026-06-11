@@ -112,6 +112,45 @@ export interface MatchedEmployerSizeDto {
   maxEmployees?: number
 }
 
+/** Per-education row match summary from GET /api/candidates list (`matchedEducations`). */
+export interface MatchedEducationDto {
+  educationId: number
+  universityId: number | null
+  universityName: string | null
+  matchedByUniversityId: boolean
+  degree: MatchedDomainDto | null
+  major: MatchedDomainDto | null
+  endMonth: string | null
+  grades: string | null
+  /** `true` only when `isTopper=true` filter active and row matched via topper. */
+  isTopper: boolean | null
+  /** `true` only when `isMainCheetah=true` filter active and row matched via cheetah. */
+  isMainCheetah: boolean | null
+}
+
+/** Per achievement row match summary from GET /api/candidates list (`matchedAchievements`). */
+export interface MatchedAchievementDto {
+  achievementId: number
+  name: string | null
+  matchedByAchievementName: boolean
+  achievementType: MatchedDomainDto | null
+  ranking: string | null
+  year: number | null
+  url: string | null
+}
+
+/** Per certification row match summary from GET /api/candidates list (`matchedCertifications`). */
+export interface MatchedCertificationDto {
+  candidateCertificationId: number
+  certificationId: number
+  certificationName: string | null
+  matchedByCertificationId: boolean
+  issuingBody: MatchedDomainDto | null
+  level: MatchedDomainDto | null
+  issueDate: string | null
+  expiryDate: string | null
+}
+
 /** Per work-experience row match summary from GET /api/candidates list (`matchedWorkExperiences`). */
 export interface MatchedWorkExperienceDto {
   workExperienceId: number
@@ -225,6 +264,12 @@ export interface Candidate {
   matchedEmployers?: MatchedEmployerDto[]
   /** List-only: backend-computed work-experience row matches (shift/mode/zones/WE tech stacks). */
   matchedWorkExperiences?: MatchedWorkExperienceDto[]
+  /** List-only: backend-computed education row matches when education driver filters are active. */
+  matchedEducations?: MatchedEducationDto[]
+  /** List-only: backend-computed certification row matches when certification driver filters are active. */
+  matchedCertifications?: MatchedCertificationDto[]
+  /** List-only: backend-computed achievement row matches when achievement driver filters are active. */
+  matchedAchievements?: MatchedAchievementDto[]
 }
 
 export type CandidateStatus =

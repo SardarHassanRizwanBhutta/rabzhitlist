@@ -139,6 +139,7 @@ const initialFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
+  universities: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,
@@ -150,7 +151,6 @@ const initialFilters: CandidateFilters = {
   certificationLevels: [],
   achievementTypes: [],
   achievementName: "",
-  competitionPlatforms: [],
   personalityTypes: [],
   source: [],
   verificationPercentageMin: "",
@@ -750,8 +750,18 @@ export function CandidatesPageClient() {
             return has ? filters.employers : [...filters.employers, entry]
           })()
         : filters.employers,
+      universities: universityFilter
+        ? (() => {
+            const idStr = universityFilter.id.trim()
+            const entry = /^\d+$/.test(idStr) ? idStr : universityFilter.name
+            const has = filters.universities.some(
+              (e) => e === entry || e.toLowerCase() === universityFilter.name.toLowerCase()
+            )
+            return has ? filters.universities : [...filters.universities, entry]
+          })()
+        : filters.universities,
     }
-  }, [filters, projectFilter, certificationFilter, employerFilter])
+  }, [filters, projectFilter, certificationFilter, employerFilter, universityFilter])
 
   const handleCandidateSubmit = async (data: CandidateFormData) => {
     try {

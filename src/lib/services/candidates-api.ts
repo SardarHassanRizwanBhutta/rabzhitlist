@@ -13,6 +13,9 @@ import type {
   MatchedDomainDto,
   MatchedEmployerDto,
   MatchedEmployerSizeDto,
+  MatchedAchievementDto,
+  MatchedCertificationDto,
+  MatchedEducationDto,
   MatchedProjectDto,
   MatchedWorkExperienceDto,
   MatchedTeamSizeDto,
@@ -84,6 +87,12 @@ export interface CandidateListItemDto {
   matchedEmployers?: MatchedEmployerDto[]
   /** Backend-computed work-experience row matches when WE driver filters are active. */
   matchedWorkExperiences?: MatchedWorkExperienceDto[]
+  /** Backend-computed education row matches when education driver filters are active. */
+  matchedEducations?: MatchedEducationDto[]
+  /** Backend-computed certification row matches when certification driver filters are active. */
+  matchedCertifications?: MatchedCertificationDto[]
+  /** Backend-computed achievement row matches when achievement driver filters are active. */
+  matchedAchievements?: MatchedAchievementDto[]
 }
 
 export interface CreateCandidateDto {
@@ -485,6 +494,125 @@ function mapMatchedEmployerSize(raw: unknown): MatchedEmployerSizeDto | null {
   return { minEmployees, maxEmployees }
 }
 
+function mapMatchedEducations(raw: unknown): MatchedEducationDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => {
+      const universityIdRaw = item.universityId
+      const universityId =
+        universityIdRaw != null && Number.isFinite(Number(universityIdRaw))
+          ? Number(universityIdRaw)
+          : null
+      const universityNameRaw = item.universityName
+      const universityName =
+        typeof universityNameRaw === "string" && universityNameRaw.trim()
+          ? universityNameRaw.trim()
+          : null
+
+      return {
+        educationId: Number(item.educationId),
+        universityId,
+        universityName,
+        matchedByUniversityId: item.matchedByUniversityId === true,
+        degree: mapMatchedDomain(item.degree),
+        major: mapMatchedDomain(item.major),
+        endMonth:
+          typeof item.endMonth === "string" && item.endMonth.trim()
+            ? item.endMonth.trim()
+            : null,
+        grades:
+          typeof item.grades === "string" && item.grades.trim() ? item.grades.trim() : null,
+        isTopper: typeof item.isTopper === "boolean" ? item.isTopper : null,
+        isMainCheetah:
+          typeof item.isMainCheetah === "boolean"
+            ? item.isMainCheetah
+            : typeof item.isCheetah === "boolean"
+              ? item.isCheetah
+              : null,
+      }
+    })
+    .filter((item) => Number.isFinite(item.educationId) && item.educationId > 0)
+}
+
+function mapMatchedCertifications(raw: unknown): MatchedCertificationDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => {
+      const certificationNameRaw = item.certificationName
+      const certificationName =
+        typeof certificationNameRaw === "string" && certificationNameRaw.trim()
+          ? certificationNameRaw.trim()
+          : null
+      const issueDate =
+        typeof item.issueDate === "string" && item.issueDate.trim()
+          ? item.issueDate.trim()
+          : null
+      const expiryDate =
+        typeof item.expiryDate === "string" && item.expiryDate.trim()
+          ? item.expiryDate.trim()
+          : null
+
+      return {
+        candidateCertificationId: Number(item.candidateCertificationId),
+        certificationId: Number(item.certificationId),
+        certificationName,
+        matchedByCertificationId: item.matchedByCertificationId === true,
+        issuingBody: mapMatchedDomain(item.issuingBody),
+        level: mapMatchedDomain(item.level),
+        issueDate,
+        expiryDate,
+      }
+    })
+    .filter(
+      (item) =>
+        Number.isFinite(item.candidateCertificationId) &&
+        item.candidateCertificationId > 0 &&
+        Number.isFinite(item.certificationId) &&
+        item.certificationId > 0,
+    )
+}
+
+function mapMatchedAchievements(raw: unknown): MatchedAchievementDto[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
+    .map((item) => {
+      const nameRaw = item.name
+      const name =
+        typeof nameRaw === "string" && nameRaw.trim() ? nameRaw.trim() : null
+      const rankingRaw = item.ranking
+      const ranking =
+        typeof rankingRaw === "string" && rankingRaw.trim()
+          ? rankingRaw.trim()
+          : rankingRaw != null
+            ? String(rankingRaw).trim() || null
+            : null
+      const yearRaw = item.year
+      const year =
+        typeof yearRaw === "number" && Number.isFinite(yearRaw)
+          ? yearRaw
+          : yearRaw != null && Number.isFinite(Number(yearRaw))
+            ? Number(yearRaw)
+            : null
+      const urlRaw = item.url
+      const url =
+        typeof urlRaw === "string" && urlRaw.trim() ? urlRaw.trim() : null
+
+      return {
+        achievementId: Number(item.achievementId),
+        name,
+        matchedByAchievementName: item.matchedByAchievementName === true,
+        achievementType: mapMatchedDomain(item.achievementType),
+        ranking,
+        year,
+        url,
+      }
+    })
+    .filter((item) => Number.isFinite(item.achievementId) && item.achievementId > 0)
+}
+
 function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
   if (!Array.isArray(raw)) return []
   return raw
@@ -640,6 +768,9 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     matchedProjects: mapMatchedProjects(row.matchedProjects),
     matchedEmployers: mapMatchedEmployers(row.matchedEmployers),
     matchedWorkExperiences: mapMatchedWorkExperiences(row.matchedWorkExperiences),
+    matchedEducations: mapMatchedEducations(row.matchedEducations),
+    matchedCertifications: mapMatchedCertifications(row.matchedCertifications),
+    matchedAchievements: mapMatchedAchievements(row.matchedAchievements),
   }
 }
 

@@ -153,6 +153,8 @@ export interface CandidateFilters {
   employerSizeMin: string
   employerSizeMax: string
   employerRankings: string[]  // Filter candidates by employer ranking
+  /** University id strings from URL chip or future filter UI (`universityId` on GET /api/candidates). */
+  universities: string[]
   // Education detail filters
   degreeNames: string[]
   majorNames: string[]
@@ -174,8 +176,6 @@ export interface CandidateFilters {
   achievementTypes: string[]  // Filter by achievement type (e.g., ["Competition", "Open Source", "Award"])
   /** Substring match on achievement `name` (same free-text field as CandidateCreationDialog achievements). */
   achievementName: string
-  // Legacy filters (kept for backward compatibility)
-  competitionPlatforms: string[]  // DEPRECATED: legacy multi-select; prefer achievementName text filter
   // Verification percentage filters
   verificationPercentageMin: string  // Minimum verification percentage (0-100)
   verificationPercentageMax: string  // Maximum verification percentage (0-100)
@@ -432,6 +432,7 @@ const initialFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
+  universities: [],
   // Education detail filters
   degreeNames: [],
   majorNames: [],
@@ -449,8 +450,6 @@ const initialFilters: CandidateFilters = {
   // Achievement-related filters
   achievementTypes: [],
   achievementName: "",
-  // Legacy filters (kept for backward compatibility during migration)
-  competitionPlatforms: [],
   // Verification percentage filters
   verificationPercentageMin: "",
   verificationPercentageMax: "",
@@ -964,7 +963,6 @@ export function CandidatesFilterDialog({
         case "competitions":
           updated.achievementTypes = []
           updated.achievementName = ""
-          updated.competitionPlatforms = []
           break
       }
       return updated
@@ -1110,8 +1108,7 @@ export function CandidatesFilterDialog({
       case "competitions":
         return (
           tempFilters.achievementTypes.length +
-          (tempFilters.achievementName.trim() ? 1 : 0) +
-          (tempFilters.competitionPlatforms.length > 0 ? tempFilters.competitionPlatforms.length : 0)
+          (tempFilters.achievementName.trim() ? 1 : 0)
         )
       default:
         return 0
@@ -1278,8 +1275,7 @@ export function CandidatesFilterDialog({
     tempFilters.certificationIssuingBodies.length > 0 ||
     tempFilters.certificationLevels.length > 0 ||
     tempFilters.achievementTypes.length > 0 ||
-    !!tempFilters.achievementName.trim() ||
-    tempFilters.competitionPlatforms.length > 0
+    !!tempFilters.achievementName.trim()
 
   // Validation for salary inputs
   const validateSalaryInput = (value: string): boolean => {
