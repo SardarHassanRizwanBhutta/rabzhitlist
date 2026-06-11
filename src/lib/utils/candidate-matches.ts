@@ -2,11 +2,8 @@ import type { Candidate } from "@/lib/types/candidate"
 import type { CandidateFilters } from "@/components/candidates-filter-dialog"
 import type { Project } from "@/lib/types/project"
 import {
-  CERTIFICATION_LEVEL_DB,
-  CERTIFICATION_LEVEL_LABELS_DB,
   CANDIDATE_SOURCE_LABELS,
   parseCandidateSource,
-  type CertificationLevelDb,
 } from "@/lib/constants/candidate-enums"
 import { normalizeSalaryPolicy } from "@/lib/types/employer"
 import { sampleProjects } from "@/lib/sample-data/projects"
@@ -25,6 +22,9 @@ import {
 import type { ProjectStatus, ProjectType, PublishPlatform } from "@/lib/types/project"
 import type {
   MatchedDomainDto,
+  MatchedAchievementDto,
+  MatchedCertificationDto,
+  MatchedEducationDto,
   MatchedEmployerDto,
   MatchedEmployerSizeDto,
   MatchedProjectDto,
@@ -45,49 +45,6 @@ import {
   RANKING_TO_API,
   SALARY_POLICY_TO_API,
 } from "@/lib/services/employers-api"
-
-/** Certification name filter: catalog id strings (preferred) or legacy certification name. */
-function certificationMatchesFilterEntry(
-  cert: { certificationId?: number | null; certificationName: string },
-  entry: string
-): boolean {
-  const t = entry.trim()
-  if (/^\d+$/.test(t)) {
-    return cert.certificationId != null && String(cert.certificationId) === t
-  }
-  return t.toLowerCase() === cert.certificationName.trim().toLowerCase()
-}
-
-/** Normalize API/UI certification level to a DB enum key (`foundation`, …). */
-function normalizeCertificationLevelToDb(
-  raw: string | null | undefined
-): CertificationLevelDb | null {
-  if (raw == null) return null
-  const s = String(raw).trim()
-  if (!s) return null
-  const lower = s.toLowerCase()
-  if ((CERTIFICATION_LEVEL_DB as readonly string[]).includes(lower)) {
-    return lower as CertificationLevelDb
-  }
-  for (const [db, label] of Object.entries(CERTIFICATION_LEVEL_LABELS_DB) as [
-    CertificationLevelDb,
-    string,
-  ][]) {
-    if (label.toLowerCase() === lower) return db
-  }
-  return null
-}
-
-/** Selected filter values are DB keys (preferred) or legacy Title Case labels. */
-function certificationLevelMatchesFilter(
-  certLevel: string | null | undefined,
-  selectedLevels: string[]
-): boolean {
-  if (selectedLevels.length === 0) return false
-  const certDb = normalizeCertificationLevelToDb(certLevel)
-  if (!certDb) return false
-  return selectedLevels.some((f) => normalizeCertificationLevelToDb(f) === certDb)
-}
 
 /** Project filter: API id strings (preferred) or legacy project name (case-insensitive vs `project.projectName`). */
 function projectMatchesFilterEntry(project: Project, entry: string): boolean {
@@ -211,6 +168,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.employerSizeMin ||
     filters.employerSizeMax ||
     filters.employerRankings.length > 0 ||
+    filters.universities.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -222,7 +180,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.certificationLevels.length > 0 ||
     (filters.achievementTypes && filters.achievementTypes.length > 0) ||
     !!filters.achievementName.trim() ||
-    filters.competitionPlatforms.length > 0 ||
     filters.personalityTypes.length > 0 ||
     filters.source.length > 0 ||
     filters.dataProgressMin ||
@@ -637,6 +594,302 @@ function appendBackendMatchedProjectItem(
     context: {
       projectId: mp.projectId,
     },
+  })
+}
+
+function formatEducationEndMonthBadge(isoDate: string): string {
+  const trimmed = isoDate.trim()
+  if (!trimmed) return trimmed
+  const d = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return trimmed
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short" })
+}
+
+function resolveMatchedEducationHeading(me: MatchedEducationDto): string {
+  if (me.universityName?.trim()) return me.universityName.trim()
+  if (me.universityId != null && Number.isFinite(me.universityId)) {
+    return `University #${me.universityId}`
+  }
+  return `Education #${me.educationId}`
+}
+
+function resolveMatchedEducationUniversityLabel(me: MatchedEducationDto): string {
+  if (me.universityName?.trim()) return me.universityName.trim()
+  if (me.universityId != null && Number.isFinite(me.universityId)) {
+    return `University #${me.universityId}`
+  }
+  return "University"
+}
+
+/** Active list filters that drive backend `matchedEducations`. */
+function hasBackendMatchedEducationFilterDrivers(filters: CandidateFilters): boolean {
+  return (
+    filters.universities.length > 0 ||
+    filters.degreeNames.length > 0 ||
+    filters.majorNames.length > 0 ||
+    filters.isTopper !== null ||
+    filters.isCheetah !== null ||
+    filters.educationEndDateStart !== null ||
+    filters.educationEndDateEnd !== null
+  )
+}
+
+/** Build Education Background match items from backend list `matchedEducations`. */
+function appendBackendMatchedEducationItems(
+  candidate: Candidate,
+  filters: CandidateFilters,
+  educationItems: MatchItem[],
+): void {
+  if (!hasBackendMatchedEducationFilterDrivers(filters)) return
+
+  const matchedEducations = candidate.matchedEducations
+  if (!matchedEducations?.length) return
+
+  for (const me of matchedEducations) {
+    appendBackendMatchedEducationItem(me, filters, educationItems)
+  }
+}
+
+function appendBackendMatchedEducationItem(
+  me: MatchedEducationDto,
+  filters: CandidateFilters,
+  educationItems: MatchItem[],
+): void {
+  const matchedCriteria: MatchCriterion[] = []
+
+  if (filters.universities.length > 0 && me.matchedByUniversityId) {
+    matchedCriteria.push({
+      type: "university",
+      label: "University",
+      values: [resolveMatchedEducationUniversityLabel(me)],
+    })
+  }
+
+  if (filters.degreeNames.length > 0 && me.degree != null) {
+    matchedCriteria.push({
+      type: "degree",
+      label: "Degree",
+      values: [resolveMatchedDomainLabel(me.degree)],
+    })
+  }
+
+  if (filters.majorNames.length > 0 && me.major != null) {
+    matchedCriteria.push({
+      type: "major",
+      label: "Major",
+      values: [resolveMatchedDomainLabel(me.major)],
+    })
+  }
+
+  if (filters.isTopper === true && me.isTopper === true) {
+    matchedCriteria.push({
+      type: "isTopper",
+      label: "Topper",
+      values: ["Yes"],
+    })
+  }
+
+  if (filters.isCheetah === true && me.isMainCheetah === true) {
+    matchedCriteria.push({
+      type: "isCheetah",
+      label: "Cheetah",
+      values: ["Yes"],
+    })
+  }
+
+  if (
+    (filters.educationEndDateStart !== null || filters.educationEndDateEnd !== null) &&
+    me.endMonth
+  ) {
+    matchedCriteria.push({
+      type: "endMonth",
+      label: "Graduation",
+      values: [formatEducationEndMonthBadge(me.endMonth)],
+    })
+  }
+
+  if (matchedCriteria.length === 0) return
+
+  if (me.grades?.trim()) {
+    matchedCriteria.push({
+      type: "grades",
+      label: "Grades",
+      values: [me.grades.trim()],
+    })
+  }
+
+  educationItems.push({
+    name: resolveMatchedEducationHeading(me),
+    matchedCriteria,
+    context: {
+      educationId: me.educationId,
+      universityId: me.universityId ?? undefined,
+      degreeName: me.degree ? resolveMatchedDomainLabel(me.degree) : undefined,
+      majorName: me.major ? resolveMatchedDomainLabel(me.major) : undefined,
+      grades: me.grades,
+      isTopper: me.isTopper === true,
+      isCheetah: me.isMainCheetah === true,
+    },
+  })
+}
+
+function resolveMatchedCertificationHeading(mc: MatchedCertificationDto): string {
+  if (mc.certificationName?.trim()) return mc.certificationName.trim()
+  return `Certification #${mc.certificationId}`
+}
+
+/** True when row catalog id or name matches any entry in `certificationNames` filter. */
+function matchedCertificationMatchesNameFilter(
+  mc: MatchedCertificationDto,
+  certificationNames: string[],
+): boolean {
+  return certificationNames.some((entry) => {
+    const t = entry.trim()
+    if (!t) return false
+    if (/^\d+$/.test(t)) return String(mc.certificationId) === t
+    return mc.certificationName?.trim().toLowerCase() === t.toLowerCase()
+  })
+}
+
+/** Active list filters that drive backend `matchedCertifications`. */
+function hasBackendMatchedCertificationFilterDrivers(filters: CandidateFilters): boolean {
+  return (
+    filters.certificationNames.length > 0 ||
+    filters.certificationIssuingBodies.length > 0 ||
+    filters.certificationLevels.length > 0
+  )
+}
+
+/** Build Certifications match items from backend list `matchedCertifications`. */
+function appendBackendMatchedCertificationItems(
+  candidate: Candidate,
+  filters: CandidateFilters,
+  certificationItems: MatchItem[],
+): void {
+  if (!hasBackendMatchedCertificationFilterDrivers(filters)) return
+
+  const matchedCertifications = candidate.matchedCertifications
+  if (!matchedCertifications?.length) return
+
+  for (const mc of matchedCertifications) {
+    appendBackendMatchedCertificationItem(mc, filters, certificationItems)
+  }
+}
+
+function appendBackendMatchedCertificationItem(
+  mc: MatchedCertificationDto,
+  filters: CandidateFilters,
+  certificationItems: MatchItem[],
+): void {
+  const matchedCriteria: MatchCriterion[] = []
+
+  if (filters.certificationNames.length > 0) {
+    const showCertBadge =
+      mc.matchedByCertificationId ||
+      matchedCertificationMatchesNameFilter(mc, filters.certificationNames)
+    if (showCertBadge) {
+      matchedCriteria.push({
+        type: "certification",
+        label: "Certification",
+        values: [resolveMatchedCertificationHeading(mc)],
+      })
+    }
+  }
+
+  if (filters.certificationIssuingBodies.length > 0 && mc.issuingBody != null) {
+    matchedCriteria.push({
+      type: "issuingBody",
+      label: "Issuing Body",
+      values: [resolveMatchedDomainLabel(mc.issuingBody)],
+    })
+  }
+
+  if (filters.certificationLevels.length > 0 && mc.level != null) {
+    matchedCriteria.push({
+      type: "level",
+      label: "Certification Level",
+      values: [resolveMatchedDomainLabel(mc.level)],
+    })
+  }
+
+  if (matchedCriteria.length === 0) return
+
+  certificationItems.push({
+    name: resolveMatchedCertificationHeading(mc),
+    matchedCriteria,
+    context: {
+      candidateCertificationId: mc.candidateCertificationId,
+      certificationId: mc.certificationId,
+    },
+  })
+}
+
+function resolveMatchedAchievementHeading(ma: MatchedAchievementDto): string {
+  if (ma.name?.trim()) return ma.name.trim()
+  return `Achievement #${ma.achievementId}`
+}
+
+/** Active list filters that drive backend `matchedAchievements`. */
+function hasBackendMatchedAchievementFilterDrivers(filters: CandidateFilters): boolean {
+  return (
+    (filters.achievementTypes?.length ?? 0) > 0 ||
+    !!filters.achievementName.trim()
+  )
+}
+
+/** Build Achievements match items from backend list `matchedAchievements`. */
+function appendBackendMatchedAchievementItems(
+  candidate: Candidate,
+  filters: CandidateFilters,
+  achievementItems: MatchItem[],
+): void {
+  if (!hasBackendMatchedAchievementFilterDrivers(filters)) return
+
+  const matchedAchievements = candidate.matchedAchievements
+  if (!matchedAchievements?.length) return
+
+  for (const ma of matchedAchievements) {
+    appendBackendMatchedAchievementItem(ma, filters, achievementItems)
+  }
+}
+
+function appendBackendMatchedAchievementItem(
+  ma: MatchedAchievementDto,
+  filters: CandidateFilters,
+  achievementItems: MatchItem[],
+): void {
+  const matchedCriteria: MatchCriterion[] = []
+
+  if ((filters.achievementTypes?.length ?? 0) > 0 && ma.achievementType != null) {
+    matchedCriteria.push({
+      type: "achievementType",
+      label: "Achievement Type",
+      values: [resolveMatchedDomainLabel(ma.achievementType)],
+    })
+  }
+
+  if (filters.achievementName.trim() && ma.matchedByAchievementName) {
+    matchedCriteria.push({
+      type: "achievementName",
+      label: "Achievement Name",
+      values: [resolveMatchedAchievementHeading(ma)],
+    })
+  }
+
+  if (matchedCriteria.length === 0) return
+
+  if (ma.url?.trim()) {
+    matchedCriteria.push({
+      type: "storeLink",
+      label: "Achievement URL",
+      values: [ma.url.trim()],
+    })
+  }
+
+  achievementItems.push({
+    name: resolveMatchedAchievementHeading(ma),
+    matchedCriteria,
+    context: {},
   })
 }
 
@@ -1166,6 +1419,7 @@ export function getCandidateMatchContext(
 
   // Education Background Matches
   const hasEducationFilters = !!(
+    filters.universities.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -1176,10 +1430,32 @@ export function getCandidateMatchContext(
 
   if (hasEducationFilters) {
     const educationItems: MatchItem[] = []
+    const useBackendMatchedEducations =
+      hasBackendMatchedEducationFilterDrivers(filters) &&
+      (candidate.matchedEducations?.length ?? 0) > 0
 
+    appendBackendMatchedEducationItems(candidate, filters, educationItems)
+
+    if (!useBackendMatchedEducations) {
     candidate.educations?.forEach(edu => {
       const matchedCriteria: MatchCriterion[] = []
       let hasMatch = false
+
+      if (
+        filters.universities.length > 0 &&
+        filters.universities.some(
+          (id) =>
+            id === edu.universityLocationId ||
+            id.trim() === edu.universityLocationId.trim()
+        )
+      ) {
+        matchedCriteria.push({
+          type: 'university',
+          label: 'University',
+          values: [edu.universityLocationName]
+        })
+        hasMatch = true
+      }
 
       // Degree match
       if (filters.degreeNames.includes(edu.degreeName)) {
@@ -1201,22 +1477,22 @@ export function getCandidateMatchContext(
         hasMatch = true
       }
 
-      // Topper match
+      // Topper match (badge only when filter is explicitly true)
       if (filters.isTopper === true && edu.isTopper === true) {
         matchedCriteria.push({
-          type: 'achievement',
-          label: 'Achievement',
-          values: ['Topper']
+          type: 'isTopper',
+          label: 'Topper',
+          values: ['Yes']
         })
         hasMatch = true
       }
 
-      // Cheetah match
+      // Cheetah match (badge only when filter is explicitly true)
       if (filters.isCheetah === true && edu.isCheetah === true) {
         matchedCriteria.push({
-          type: 'achievement',
-          label: 'Achievement',
-          values: ['Cheetah']
+          type: 'isCheetah',
+          label: 'Cheetah',
+          values: ['Yes']
         })
         hasMatch = true
       }
@@ -1229,7 +1505,6 @@ export function getCandidateMatchContext(
           let matchesRange = false
           
           if (filters.educationEndDateStart && filters.educationEndDateEnd) {
-            // Both dates set - check if graduation date is within range
             const filterStartDate = new Date(filters.educationEndDateStart)
             const filterEndDate = new Date(filters.educationEndDateEnd)
             filterStartDate.setHours(0, 0, 0, 0)
@@ -1239,14 +1514,12 @@ export function getCandidateMatchContext(
               matchesRange = true
             }
           } else if (filters.educationEndDateStart && !filters.educationEndDateEnd) {
-            // Only start date - graduation must be on or after this date
             const filterStartDate = new Date(filters.educationEndDateStart)
             filterStartDate.setHours(0, 0, 0, 0)
             if (eduEndDate >= filterStartDate) {
               matchesRange = true
             }
           } else if (filters.educationEndDateEnd && !filters.educationEndDateStart) {
-            // Only end date - graduation must be on or before this date
             const filterEndDate = new Date(filters.educationEndDateEnd)
             filterEndDate.setHours(23, 59, 59, 999)
             if (eduEndDate <= filterEndDate) {
@@ -1255,16 +1528,10 @@ export function getCandidateMatchContext(
           }
           
           if (matchesRange) {
-            const rangeLabel = filters.educationEndDateStart && filters.educationEndDateEnd
-              ? `${filters.educationEndDateStart.toLocaleDateString()} - ${filters.educationEndDateEnd.toLocaleDateString()}`
-              : filters.educationEndDateStart
-              ? `From ${filters.educationEndDateStart.toLocaleDateString()}`
-              : `Until ${filters.educationEndDateEnd?.toLocaleDateString()}`
-            
             matchedCriteria.push({
               type: 'endMonth',
-              label: 'Graduation Date Range',
-              values: [rangeLabel]
+              label: 'Graduation',
+              values: [formatEducationEndMonthBadge(edu.endMonth.toISOString())]
             })
             hasMatch = true
           }
@@ -1272,6 +1539,14 @@ export function getCandidateMatchContext(
       }
 
       if (hasMatch) {
+        if (edu.grades?.trim()) {
+          matchedCriteria.push({
+            type: 'grades',
+            label: 'Grades',
+            values: [edu.grades.trim()]
+          })
+        }
+
         educationItems.push({
           name: edu.universityLocationName,
           matchedCriteria,
@@ -1279,12 +1554,13 @@ export function getCandidateMatchContext(
             degreeName: edu.degreeName,
             majorName: edu.majorName,
             grades: edu.grades,
-            isTopper: edu.isTopper,
-            isCheetah: edu.isCheetah,
+            isTopper: edu.isTopper === true,
+            isCheetah: edu.isCheetah === true,
           }
         })
       }
     })
+    }
 
     if (educationItems.length > 0) {
       categories.push({
@@ -1298,85 +1574,12 @@ export function getCandidateMatchContext(
     }
   }
 
-  // Certification Matches
-  const hasCertificationFilters = !!(
-    filters.certificationNames.length > 0 ||
-    filters.certificationIssuingBodies.length > 0 ||
-    filters.certificationLevels.length > 0
-  )
+  // Certification Matches (backend `matchedCertifications` only)
+  const hasCertificationFilters = hasBackendMatchedCertificationFilterDrivers(filters)
 
   if (hasCertificationFilters) {
     const certificationItems: MatchItem[] = []
-
-    candidate.certifications?.forEach((cert) => {
-      const matchedCriteria: MatchCriterion[] = []
-
-      const needName = filters.certificationNames.length > 0
-      const needIssuer = filters.certificationIssuingBodies.length > 0
-      const needLevel = filters.certificationLevels.length > 0
-
-      const nameMatch = filters.certificationNames.some((e) =>
-        certificationMatchesFilterEntry(cert, e),
-      )
-      const issuerDisplay = (cert.certificationIssuerName ?? "").trim()
-      const issuerMatch =
-        !!issuerDisplay &&
-        filters.certificationIssuingBodies.some(
-          (ib) => ib.trim().toLowerCase() === issuerDisplay.toLowerCase(),
-        )
-      const levelMatch = certificationLevelMatchesFilter(
-        cert.certificationLevel as string | null | undefined,
-        filters.certificationLevels,
-      )
-
-      // Name vs. issuing body: legacy OR when both are active; level must match when filtered.
-      const nameIssuerOk =
-        !needName && !needIssuer
-          ? true
-          : needName && needIssuer
-            ? nameMatch || issuerMatch
-            : needName
-              ? nameMatch
-              : issuerMatch
-
-      const satisfies = nameIssuerOk && (!needLevel || levelMatch)
-
-      if (!satisfies) return
-
-      if (needName && nameMatch) {
-        matchedCriteria.push({
-          type: "certification",
-          label: "Certification",
-          values: [cert.certificationName],
-        })
-      }
-      if (needIssuer && issuerMatch) {
-        matchedCriteria.push({
-          type: "issuingBody",
-          label: "Issuing Body",
-          values: [issuerDisplay],
-        })
-      }
-      if (needLevel && levelMatch) {
-        const db = normalizeCertificationLevelToDb(cert.certificationLevel as string | null | undefined)
-        const levelLabel =
-          db != null ? CERTIFICATION_LEVEL_LABELS_DB[db] : String(cert.certificationLevel ?? "").trim() || "—"
-        matchedCriteria.push({
-          type: "level",
-          label: "Certification Level",
-          values: [levelLabel],
-        })
-      }
-
-      certificationItems.push({
-        name: cert.certificationName,
-        matchedCriteria,
-        context: {
-          issueDate: cert.issueDate,
-          expiryDate: cert.expiryDate,
-        },
-      })
-    })
+    appendBackendMatchedCertificationItems(candidate, filters, certificationItems)
 
     if (certificationItems.length > 0) {
       categories.push({
@@ -1390,118 +1593,12 @@ export function getCandidateMatchContext(
     }
   }
 
-  // Achievement Matches (includes Competitions)
-  const hasAchievementFilters = !!(
-    filters.achievementTypes?.length > 0 ||
-    !!filters.achievementName.trim() ||
-    filters.competitionPlatforms?.length > 0
-  )
+  // Achievement Matches (backend `matchedAchievements` only)
+  const hasAchievementFilters = hasBackendMatchedAchievementFilterDrivers(filters)
 
   if (hasAchievementFilters) {
     const achievementItems: MatchItem[] = []
-
-    // Process achievements (new structure)
-    candidate.achievements?.forEach(achievement => {
-      const matchedCriteria: MatchCriterion[] = []
-      let hasMatch = false
-
-      // Achievement type match
-      if (filters.achievementTypes && filters.achievementTypes.length > 0) {
-        if (filters.achievementTypes.includes(achievement.achievementType)) {
-          matchedCriteria.push({
-            type: 'achievementType',
-            label: 'Achievement Type',
-            values: [achievement.achievementType]
-          })
-          hasMatch = true
-        }
-      }
-
-      // Achievement name (substring; same semantics as creation form Name field)
-      const nameNeedle = filters.achievementName.trim()
-      if (nameNeedle) {
-        if (achievement.name.toLowerCase().includes(nameNeedle.toLowerCase())) {
-          matchedCriteria.push({
-            type: "achievementName",
-            label: "Achievement Name",
-            values: [achievement.name],
-          })
-          hasMatch = true
-        }
-      }
-
-      // Legacy competition platform match (for backward compatibility)
-      if (filters.competitionPlatforms && filters.competitionPlatforms.length > 0) {
-        if (filters.competitionPlatforms.some(platform => 
-          achievement.name.toLowerCase().includes(platform.toLowerCase())
-        )) {
-          matchedCriteria.push({
-            type: 'competitionPlatform',
-            label: 'Competition Platform',
-            values: [achievement.name]
-          })
-          hasMatch = true
-        }
-      }
-
-      if (hasMatch) {
-        achievementItems.push({
-          name: achievement.name,
-          matchedCriteria,
-          context: {
-            achievementType: achievement.achievementType,
-            ranking: achievement.ranking,
-            year: achievement.year,
-            url: achievement.url
-          }
-        })
-      }
-    })
-
-    // Process competitions (legacy structure - for backward compatibility)
-    candidate.competitions?.forEach(comp => {
-      const matchedCriteria: MatchCriterion[] = []
-      let hasMatch = false
-
-      // Legacy competition platform match
-      if (filters.competitionPlatforms && filters.competitionPlatforms.length > 0) {
-        if (filters.competitionPlatforms.some(platform => 
-          platform.toLowerCase() === comp.competitionName.toLowerCase()
-        )) {
-          matchedCriteria.push({
-            type: 'competitionPlatform',
-            label: 'Competition Platform',
-            values: [comp.competitionName]
-          })
-          hasMatch = true
-        }
-      }
-
-      const legacyNameNeedle = filters.achievementName.trim()
-      if (legacyNameNeedle) {
-        if (comp.competitionName.toLowerCase().includes(legacyNameNeedle.toLowerCase())) {
-          matchedCriteria.push({
-            type: "achievementName",
-            label: "Achievement Name",
-            values: [comp.competitionName],
-          })
-          hasMatch = true
-        }
-      }
-
-      if (hasMatch) {
-        achievementItems.push({
-          name: comp.competitionName,
-          matchedCriteria,
-          context: {
-            achievementType: "Competition",
-            ranking: comp.ranking,
-            year: comp.year,
-            url: comp.url
-          }
-        })
-      }
-    })
+    appendBackendMatchedAchievementItems(candidate, filters, achievementItems)
 
     if (achievementItems.length > 0) {
       categories.push({

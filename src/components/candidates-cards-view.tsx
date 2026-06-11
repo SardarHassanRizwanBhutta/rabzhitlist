@@ -106,10 +106,7 @@ const defaultFilters: CandidateFilters = {
   employerSizeMin: "",
   employerSizeMax: "",
   employerRankings: [],
-  // universities: [],
-  // universityCountries: [],
-  // universityRankings: [],
-  // universityCities: [],
+  universities: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,
@@ -121,7 +118,6 @@ const defaultFilters: CandidateFilters = {
   certificationLevels: [],
   achievementTypes: [],
   achievementName: "",
-  competitionPlatforms: [],
   personalityTypes: [],
   source: [],
   verificationPercentageMin: "",
@@ -254,6 +250,7 @@ const getCriterionColor = (type: string): string => {
     'major': 'bg-lime-100 text-lime-800 dark:bg-lime-900 dark:text-lime-200 border-lime-300 dark:border-lime-700',
     'isTopper': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',
     'isCheetah': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
+    'grades': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
     'startMonth': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     'endMonth': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
     'personalityType': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200 border-fuchsia-300 dark:border-fuchsia-700',
@@ -292,7 +289,7 @@ function normalizeStoreLinkUrl(url: string): string | null {
   return `https://${trimmed}`
 }
 
-function StoreLinkVisitBadge({ url }: { url: string }) {
+function StoreLinkVisitBadge({ url, label = "Visit App" }: { url: string; label?: string }) {
   const href = normalizeStoreLinkUrl(url)
   if (!href) return null
 
@@ -306,7 +303,7 @@ function StoreLinkVisitBadge({ url }: { url: string }) {
           className={`shrink-0 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium hover:bg-muted/80 transition-colors ${getCriterionColor("storeLink")}`}
           onClick={(e) => e.stopPropagation()}
         >
-          Visit App
+          {label}
           <ExternalLink className="h-3 w-3" />
         </a>
       </TooltipTrigger>
@@ -618,31 +615,21 @@ export function CandidatesCardsView({
                                   })
                                 })
 
-                                // Check if this is a competitions category
+                                // Check if this is a competitions / achievements category
                                 const isCompetitions = category.type === 'competitions'
                                 
-                                // For competitions, check if all badge values are the same as item name (redundant)
+                                // For achievements, check if all badge values are the same as item name (redundant)
                                 const isRedundantHeading = isCompetitions && 
                                   allBadges.length > 0 && 
                                   allBadges.every(badge => badge.value === item.name)
-                                
-                                // Get additional context for competitions
-                                const competitionContext = isCompetitions && item.context ? {
-                                  ranking: item.context.ranking as string | undefined,
-                                  year: item.context.year as number | undefined
-                                } : null
 
                                 const storeLinkBadges = allBadges.filter((badge) => badge.type === "storeLink")
                                 const otherBadges = allBadges.filter((badge) => badge.type !== "storeLink")
                                 const showNameHeading =
-                                  !isRedundantHeading ||
-                                  (competitionContext &&
-                                    (competitionContext.ranking || competitionContext.year))
+                                  !isRedundantHeading || storeLinkBadges.length > 0
                                 const showBadgesRow =
                                   otherBadges.length > 0 ||
-                                  (isRedundantHeading && !competitionContext) ||
-                                  (competitionContext &&
-                                    (competitionContext.ranking || competitionContext.year))
+                                  (isRedundantHeading && storeLinkBadges.length === 0)
 
                                 return (
                                   <div key={itemIndex} className="space-y-2">
@@ -660,6 +647,7 @@ export function CandidatesCardsView({
                                               <StoreLinkVisitBadge
                                                 key={badgeIndex}
                                                 url={badge.value}
+                                                label={isCompetitions ? "Visit Link" : "Visit App"}
                                               />
                                             ))}
                                           </div>
@@ -670,8 +658,7 @@ export function CandidatesCardsView({
 
                                     {showBadgesRow && (
                                     <div className="flex flex-wrap gap-1.5 items-center">
-                                      {/* For competitions with redundant heading, show competition name as first badge */}
-                                      {isRedundantHeading && !competitionContext && (
+                                      {isRedundantHeading && storeLinkBadges.length === 0 && (
                                         <Badge 
                                           variant="outline" 
                                           className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700 text-xs h-5 px-2 border font-medium"
@@ -689,22 +676,6 @@ export function CandidatesCardsView({
                                             {badge.value}
                                           </Badge>
                                       ))}
-                                      
-                                      {/* Show additional context for competitions (ranking, year) */}
-                                      {competitionContext && (
-                                        <>
-                                          {competitionContext.ranking && (
-                                            <span className="text-xs text-muted-foreground ml-1">
-                                              {competitionContext.ranking}
-                                            </span>
-                                          )}
-                                          {competitionContext.year && (
-                                            <span className="text-xs text-muted-foreground">
-                                              ({competitionContext.year})
-                                            </span>
-                                          )}
-                                        </>
-                                      )}
                                     </div>
                                     )}
                                     
