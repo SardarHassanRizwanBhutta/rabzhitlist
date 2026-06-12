@@ -19,9 +19,22 @@ import {
   createEmployer,
   type BuildCreateEmployerDtoOptions,
 } from "@/lib/services/employers-api"
-import { EmployerCreationDialog, type EmployerFormData } from "@/components/employers/employer-creation-dialog"
+import { EmployerCreationDialog, type EmployerFormData, type EmployerLookups } from "@/components/employer-creation-dialog"
+import type { Country } from "@/lib/types/country"
+import type { EmployerBenefit } from "@/lib/types/benefits"
 
 export type SelectedEmployer = { id: number; name: string } | null
+
+/** Optional props for nested {@link EmployerCreationDialog} ("+ Add New Employer"). */
+export interface EmployerComboboxNestedCreationProps {
+  countries: Country[]
+  countriesLoading?: boolean
+  lookups: EmployerLookups
+  onCreateTag: (name: string) => Promise<void>
+  onCreateTimeSupportZone: (name: string) => Promise<void>
+  onCreateBenefit: (name: string) => Promise<EmployerBenefit | null | void>
+  onCreateCountry: (name: string) => Promise<Country | null>
+}
 
 export interface EmployerComboboxProps {
   id?: string
@@ -38,6 +51,8 @@ export interface EmployerComboboxProps {
    * seed the search when the popover opens so recruiters can match or create quickly.
    */
   parsedNameHint?: string
+  /** When set, nested employer creation dialog receives lookups and create handlers (e.g. from Create Candidate). */
+  nestedEmployerCreation?: EmployerComboboxNestedCreationProps
 }
 
 const defaultCreateLookups: BuildCreateEmployerDtoOptions = {
@@ -55,6 +70,7 @@ export function EmployerCombobox({
   error = false,
   createEmployerLookups = defaultCreateLookups,
   parsedNameHint,
+  nestedEmployerCreation,
 }: EmployerComboboxProps) {
   const [open, setOpen] = useState(false)
   const [addEmployerOpen, setAddEmployerOpen] = useState(false)
@@ -196,6 +212,13 @@ export function EmployerCombobox({
           if (!next) setAddEmployerInitialName("")
         }}
         initialName={addEmployerInitialName}
+        countries={nestedEmployerCreation?.countries}
+        countriesLoading={nestedEmployerCreation?.countriesLoading}
+        lookups={nestedEmployerCreation?.lookups}
+        onCreateTag={nestedEmployerCreation?.onCreateTag}
+        onCreateTimeSupportZone={nestedEmployerCreation?.onCreateTimeSupportZone}
+        onCreateBenefit={nestedEmployerCreation?.onCreateBenefit}
+        onCreateCountry={nestedEmployerCreation?.onCreateCountry}
         onSubmit={async (formData: EmployerFormData) => {
           const dto = buildCreateEmployerDto(formData, createEmployerLookups)
           const created = await createEmployer(dto)

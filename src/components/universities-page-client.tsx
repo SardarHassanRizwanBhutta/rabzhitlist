@@ -380,6 +380,9 @@ export function UniversitiesPageClient() {
         isLoading={universitiesLoading}
         onEdit={handleEditUniversity}
         onDelete={handleDeleteUniversity}
+        countries={countries}
+        countriesLoading={countriesLoading}
+        onCreateCountry={handleCreateCountry}
       />
 
       {/* Edit University Dialog with Verification */}

@@ -65,6 +65,7 @@ import {
   getRankingLabel,
   type UniversityRanking,
 } from "@/lib/types/university"
+import type { Country } from "@/lib/types/country"
 import { UniversityDetailsModal } from "@/components/university-details-modal"
 
 interface UniversitiesTableProps {
@@ -75,6 +76,9 @@ interface UniversitiesTableProps {
   onEdit?: (university: University) => void
   onDelete?: (university: University) => void | Promise<void>
   onAddLocation?: (university: University) => void
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
 }
 
 type SortKey = keyof University | "jobSuccessRatio"
@@ -143,6 +147,9 @@ export function UniversitiesTable({
   onEdit,
   onDelete,
   onAddLocation,
+  countries,
+  countriesLoading,
+  onCreateCountry,
 }: UniversitiesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -659,6 +666,9 @@ export function UniversitiesTable({
             setSelectedUniversity(null) // Close detail modal
             onEdit(university)
           } : undefined}
+          countries={countries}
+          countriesLoading={countriesLoading}
+          onCreateCountry={onCreateCountry}
         />
       )}
 

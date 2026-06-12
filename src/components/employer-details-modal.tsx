@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Building2,
   BuildingIcon,
@@ -24,7 +24,35 @@ import {
   CalendarIcon,
 } from "lucide-react"
 
-import { Employer, EmployerStatus, SalaryPolicy, SALARY_POLICY_LABELS, EMPLOYER_STATUS_LABELS, Layoff, LayoffReason, LAYOFF_REASON_LABELS } from "@/lib/types/employer"
+import {
+  Employer,
+  EmployerStatus,
+  EmployerType,
+  SalaryPolicy,
+  SALARY_POLICY_DB_LABELS,
+  SALARY_POLICY_DISPLAY_TO_DB,
+  normalizeSalaryPolicy,
+  EMPLOYER_STATUS_LABELS,
+  EMPLOYER_TYPE_DB_LABELS,
+  EMPLOYER_TYPE_DISPLAY_TO_DB,
+  RANKING_DB_LABELS,
+  RANKING_DISPLAY_TO_DB,
+  WORK_MODE_DB_LABELS,
+  SHIFT_TYPE_DB_LABELS,
+  Layoff,
+  LayoffReason,
+  LAYOFF_REASON_LABELS,
+  type EmployerTypeDb,
+  type RankingDb,
+  type WorkModeDb,
+  type ShiftTypeDb,
+  type SalaryPolicyDb,
+} from "@/lib/types/employer"
+import type { Country } from "@/lib/types/country"
+import type { LookupItem } from "@/lib/services/lookups-api"
+import { fetchEmployerById, employerDtoToEmployer } from "@/lib/services/employers-api"
+import type { EmployerLookups } from "@/components/employer-creation-dialog"
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 import type { Project } from "@/lib/types/project"
 import type { Candidate } from "@/lib/types/candidate"
 import { Button } from "@/components/ui/button"
@@ -216,11 +244,68 @@ const statusOptions = Object.entries(EMPLOYER_STATUS_LABELS).map(([value, label]
   value: value as EmployerStatus
 }))
 
-// Salary policy options
-const salaryPolicyOptions = Object.entries(SALARY_POLICY_LABELS).map(([value, label]) => ({
-  label,
-  value: value as SalaryPolicy
-}))
+const salaryPolicyOptions = (Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
+
+function getEmployerSalaryPolicyDb(employer: Employer): string {
+  const policy =
+    employer.salaryPolicy != null && String(employer.salaryPolicy).trim()
+      ? employer.salaryPolicy
+      : employer.locations[0]?.salaryPolicy != null
+        ? employer.locations[0].salaryPolicy
+        : null
+  if (policy == null || !String(policy).trim()) return ""
+  return SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(policy))]
+}
+
+const workModeOptions = (Object.entries(WORK_MODE_DB_LABELS) as [WorkModeDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
+const shiftTypeOptions = (Object.entries(SHIFT_TYPE_DB_LABELS) as [ShiftTypeDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
+const rankingOptions = (Object.entries(RANKING_DB_LABELS) as [RankingDb, string][]).map(
+  ([value, label]) => ({ value, label })
+)
+const employerTypeOptions: MultiSelectOption[] = (
+  Object.entries(EMPLOYER_TYPE_DB_LABELS) as [EmployerTypeDb, string][]
+).map(([value, label]) => ({ value, label }))
+
+const EMPTY_COUNTRIES: Country[] = []
+
+function isInlineFieldValueEmpty(value: string | number | null | undefined): boolean {
+  if (value === null || value === undefined) return true
+  const trimmed = String(value).trim()
+  return trimmed === "" || trimmed === "—" || trimmed === "-"
+}
+
+function formatInlineFieldDisplayValue(value: string | number | null | undefined): string {
+  if (isInlineFieldValueEmpty(value)) return "N/A"
+  return String(value)
+}
+
+function formatEmployerDate(date: Date | undefined | null): string {
+  if (!date || Number.isNaN(date.getTime())) return "N/A"
+  return date.toLocaleDateString()
+}
+
+function getEmployerTypeDbList(employer: Employer): EmployerTypeDb[] {
+  if (employer.employerTypes?.length) {
+    return employer.employerTypes.filter((t) => t in EMPLOYER_TYPE_DB_LABELS)
+  }
+  if (employer.employerType && employer.employerType in EMPLOYER_TYPE_DISPLAY_TO_DB) {
+    return [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
+  }
+  return []
+}
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((val, idx) => val === sortedB[idx])
+}
 
 // Inline Edit Field Component
 interface InlineEditFieldProps {
@@ -309,11 +394,8 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
     }
   }
   
-  const displayValue = (() => {
-    const isEmpty = value === null || value === undefined || String(value).trim() === ''
-    if (isEmpty) return 'N/A'
-    return String(value)
-  })()
+  const displayValue = formatInlineFieldDisplayValue(value)
+  const isEmpty = isInlineFieldValueEmpty(value)
   
   // Verification indicator component
   const VerificationIndicator = ({ 
@@ -472,14 +554,454 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            (value === null || value === undefined || String(value).trim() === '') 
-              ? 'text-muted-foreground italic' 
-              : ''
-          }`}>
+          <span
+            className={cn(
+              "text-sm block",
+              isEmpty && "text-muted-foreground italic"
+            )}
+          >
             {displayValue}
           </span>
         </div>
+      )}
+    </div>
+  )
+}
+
+// Inline editable Select (shadcn Select — matches EmployerCreationDialog)
+interface InlineEditableSelectFieldProps {
+  label: string
+  value: string
+  fieldName: string
+  options: { label: string; value: string }[]
+  onSave: (fieldName: string, newValue: string, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
+  placeholder?: string
+  className?: string
+}
+
+const InlineEditableSelectField: React.FC<InlineEditableSelectFieldProps> = ({
+  label,
+  value,
+  fieldName,
+  options,
+  onSave,
+  getFieldVerification,
+  placeholder = "Select option...",
+  className,
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState(value)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+
+  const displayLabel = value ? options.find((o) => o.value === value)?.label ?? value : ""
+  const isEmpty = !value
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(value)
+    setWillVerify(true)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(value)
+    setWillVerify(true)
+  }
+
+  const handleSave = async () => {
+    if (editValue === value) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className={cn("min-w-0 space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <Label className="text-sm font-medium text-muted-foreground truncate">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationBadge status={getFieldVerification?.(fieldName) || "unverified"} size="sm" />
+            <Button size="sm" variant="ghost" onClick={handleEdit} className="h-6 w-6 p-0" type="button" title="Edit field">
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="min-w-0 space-y-2">
+          <Select value={editValue || undefined} onValueChange={setEditValue} disabled={isSaving}>
+            <SelectTrigger className="w-full min-w-0">
+              <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 pl-1 min-w-0">
+              <Checkbox id={`verify-${fieldName}`} checked={willVerify} onCheckedChange={(c) => setWillVerify(c as boolean)} disabled={isSaving} className="h-4 w-4 shrink-0" />
+              <Label htmlFor={`verify-${fieldName}`} className={cn("text-xs cursor-pointer truncate", willVerify ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                {willVerify ? "✓ Verified" : "Mark as verified"}
+              </Label>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="h-8 w-8 p-0">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <span className={cn("text-sm block truncate", isEmpty && "text-muted-foreground italic")} title={isEmpty ? undefined : displayLabel}>
+          {isEmpty ? "N/A" : displayLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Inline editable MultiSelect (tags, time zones, employer types)
+interface InlineEditableMultiSelectFieldProps {
+  label: string
+  selected: string[]
+  fieldName: string
+  items: MultiSelectOption[]
+  onSave: (fieldName: string, newValue: string[], verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
+  placeholder?: string
+  searchPlaceholder?: string
+  maxDisplay?: number
+  creatable?: boolean
+  createLabel?: string
+  onCreateNew?: (name: string) => Promise<void>
+  className?: string
+}
+
+const InlineEditableMultiSelectField: React.FC<InlineEditableMultiSelectFieldProps> = ({
+  label,
+  selected,
+  fieldName,
+  items,
+  onSave,
+  getFieldVerification,
+  placeholder = "Select...",
+  searchPlaceholder = "Search...",
+  maxDisplay = 3,
+  creatable = false,
+  createLabel,
+  onCreateNew,
+  className,
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState<string[]>(selected)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditValue(selected)
+    setWillVerify(true)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditValue(selected)
+    setWillVerify(true)
+  }
+
+  const handleSave = async () => {
+    if (arraysEqual(editValue, selected)) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onSave(fieldName, editValue, willVerify)
+      setIsEditing(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationBadge status={getFieldVerification?.(fieldName) || "unverified"} size="sm" />
+            <Button size="sm" variant="ghost" onClick={handleEdit} className="h-6 w-6 p-0" type="button" title="Edit field">
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-2">
+              <MultiSelect
+                items={items}
+                selected={editValue}
+                onChange={setEditValue}
+                placeholder={placeholder}
+                searchPlaceholder={searchPlaceholder}
+                maxDisplay={maxDisplay}
+                creatable={creatable}
+                createLabel={createLabel}
+                onCreateNew={onCreateNew}
+              />
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox id={`verify-${fieldName}`} checked={willVerify} onCheckedChange={(c) => setWillVerify(c as boolean)} disabled={isSaving} className="h-4 w-4" />
+                <Label htmlFor={`verify-${fieldName}`} className={cn("text-xs cursor-pointer", willVerify ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                  {willVerify ? "✓ Verified" : "Mark as verified"}
+                </Label>
+              </div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="h-8 w-8 p-0">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : selected.length === 0 ? (
+        <span className="text-sm block text-muted-foreground italic">N/A</span>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((item) => (
+            <Badge key={item} variant="secondary" className="text-xs">
+              {items.find((i) => i.value === item)?.label ?? item}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Location country combobox (saves country name — matches EmployerCreationDialog)
+interface InlineEditableLocationCountryFieldProps {
+  label: string
+  countryName: string
+  fieldName: string
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
+  onSave: (countryName: string, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
+  className?: string
+}
+
+const InlineEditableLocationCountryField: React.FC<InlineEditableLocationCountryFieldProps> = ({
+  label,
+  countryName,
+  fieldName,
+  countries = EMPTY_COUNTRIES,
+  countriesLoading = false,
+  onCreateCountry,
+  onSave,
+  getFieldVerification,
+  className,
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editCountryName, setEditCountryName] = useState(countryName)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false)
+  const [countrySearchQuery, setCountrySearchQuery] = useState("")
+  const [countryCreateInProgress, setCountryCreateInProgress] = useState(false)
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchQuery.trim()) return countries
+    const q = countrySearchQuery.toLowerCase().trim()
+    return countries.filter((c) => c.name.toLowerCase().includes(q))
+  }, [countries, countrySearchQuery])
+
+  const isEmpty = isInlineFieldValueEmpty(countryName)
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditCountryName(countryName)
+    setWillVerify(true)
+    setCountrySearchQuery("")
+    setCountryPopoverOpen(false)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditCountryName(countryName)
+    setWillVerify(true)
+    setCountryPopoverOpen(false)
+  }
+
+  const handleCountrySelect = (country: Country) => {
+    setEditCountryName(country.name)
+    setCountryPopoverOpen(false)
+    setCountrySearchQuery("")
+  }
+
+  const handleSave = async () => {
+    if (editCountryName.trim() === countryName.trim()) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onSave(editCountryName.trim(), willVerify)
+      setIsEditing(false)
+    } catch {
+      setEditCountryName(countryName)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationBadge status={getFieldVerification?.(fieldName) || "unverified"} size="sm" />
+            <Button size="sm" variant="ghost" onClick={handleEdit} className="h-6 w-6 p-0" type="button" title="Edit field">
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-2">
+              <Popover open={countryPopoverOpen} onOpenChange={setCountryPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" role="combobox" disabled={isSaving} className={cn("w-full justify-between", !editCountryName && "text-muted-foreground")}>
+                    {editCountryName ? (
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        {editCountryName}
+                      </span>
+                    ) : (
+                      "Select country..."
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput placeholder="Search countries..." value={countrySearchQuery} onValueChange={setCountrySearchQuery} />
+                    <CommandList>
+                      {countriesLoading ? (
+                        <CommandEmpty>
+                          <div className="flex items-center justify-center gap-2 py-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Loading countries...</span>
+                          </div>
+                        </CommandEmpty>
+                      ) : filteredCountries.length === 0 ? (
+                        <>
+                          <CommandEmpty>{countrySearchQuery.trim() ? "No country found." : "No countries available."}</CommandEmpty>
+                          {countrySearchQuery.trim() && onCreateCountry && (
+                            <CommandGroup>
+                              <CommandItem
+                                value={`add-country-${countrySearchQuery.trim()}`}
+                                onSelect={async () => {
+                                  const name = countrySearchQuery.trim()
+                                  if (!name) return
+                                  setCountryCreateInProgress(true)
+                                  try {
+                                    const newCountry = await onCreateCountry(name)
+                                    if (newCountry) handleCountrySelect(newCountry)
+                                  } finally {
+                                    setCountryCreateInProgress(false)
+                                  }
+                                }}
+                                disabled={countryCreateInProgress}
+                                className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                                {countryCreateInProgress ? "Adding…" : `Add "${countrySearchQuery.trim()}" as new country`}
+                              </CommandItem>
+                            </CommandGroup>
+                          )}
+                        </>
+                      ) : (
+                        <CommandGroup>
+                          {filteredCountries.map((country) => (
+                            <CommandItem key={country.id} value={String(country.id)} onSelect={() => handleCountrySelect(country)} className="flex items-center gap-2 cursor-pointer">
+                              <Check className={cn("h-4 w-4", editCountryName === country.name ? "opacity-100" : "opacity-0")} />
+                              {country.name}
+                            </CommandItem>
+                          ))}
+                          {countrySearchQuery.trim() && onCreateCountry && !filteredCountries.some((c) => c.name.toLowerCase() === countrySearchQuery.trim().toLowerCase()) && (
+                            <CommandItem
+                              value={`add-country-${countrySearchQuery.trim()}`}
+                              onSelect={async () => {
+                                const name = countrySearchQuery.trim()
+                                if (!name) return
+                                setCountryCreateInProgress(true)
+                                try {
+                                  const newCountry = await onCreateCountry(name)
+                                  if (newCountry) handleCountrySelect(newCountry)
+                                } finally {
+                                  setCountryCreateInProgress(false)
+                                }
+                              }}
+                              disabled={countryCreateInProgress}
+                              className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                            >
+                              <Plus className="h-4 w-4" />
+                              {countryCreateInProgress ? "Adding…" : `Add "${countrySearchQuery.trim()}" as new country`}
+                            </CommandItem>
+                          )}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox id={`verify-${fieldName}`} checked={willVerify} onCheckedChange={(c) => setWillVerify(c as boolean)} disabled={isSaving} className="h-4 w-4" />
+                <Label htmlFor={`verify-${fieldName}`} className={cn("text-xs cursor-pointer", willVerify ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground")}>
+                  {willVerify ? "✓ Verified" : "Mark as verified"}
+                </Label>
+              </div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="sm" onClick={handleSave} disabled={isSaving || !editCountryName.trim()} className="h-8 w-8 p-0">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <span className={cn("text-sm block", isEmpty && "text-muted-foreground italic")}>
+          {formatInlineFieldDisplayValue(countryName)}
+        </span>
       )}
     </div>
   )
@@ -494,6 +1016,8 @@ interface InlineEditableBenefitsProps {
   getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
   className?: string
   maxDisplay?: number
+  benefitOptions?: LookupItem[]
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
 const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
@@ -503,7 +1027,9 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
   onSave,
   getFieldVerification,
   className = "",
-  maxDisplay = 4
+  maxDisplay = 4,
+  benefitOptions = [],
+  onCreateBenefit,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState<EmployerBenefit[]>(value || [])
@@ -613,6 +1139,16 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
           <div className="w-full">
             <BenefitsSelector
               benefits={editValue}
+              benefitOptions={benefitOptions}
+              onCreateBenefit={
+                onCreateBenefit
+                  ? async (name) => {
+                      const added = await onCreateBenefit(name)
+                      if (added) setEditValue((prev) => [...prev, added])
+                      return added ?? undefined
+                    }
+                  : undefined
+              }
               onChange={(benefits) => setEditValue(benefits)}
             />
           </div>
@@ -745,7 +1281,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground italic">No benefits selected</p>
+        <span className="text-sm block text-muted-foreground italic">N/A</span>
       )}
     </div>
   )
@@ -1166,51 +1702,99 @@ export interface EmployerDetailsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (employer: Employer) => void
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
+  lookups?: EmployerLookups
+  onCreateTag?: (name: string) => Promise<void>
+  onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
-// Use only employer's own benefits (no candidate-derived data).
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
   if (!employer.benefits?.length) return []
   return employer.benefits.map((b) => normalizeEmployerBenefit(b))
 }
 
-const getEmployerShiftTypes = (_employer: Employer): string[] => []
-const getEmployerWorkModes = (_employer: Employer): string[] => []
-
-export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: EmployerDetailsModalProps) {
+export function EmployerDetailsModal({
+  employer,
+  open,
+  onOpenChange,
+  onEdit,
+  countries = EMPTY_COUNTRIES,
+  countriesLoading = false,
+  onCreateCountry,
+  lookups,
+  onCreateTag,
+  onCreateTimeSupportZone,
+  onCreateBenefit,
+}: EmployerDetailsModalProps) {
   const router = useRouter()
-  // Local state for employer data (for optimistic updates)
   const [localEmployer, setLocalEmployer] = useState<Employer>(employer)
-  
-  // Sync local employer when prop changes
-  React.useEffect(() => {
-    setLocalEmployer(employer)
-    setLayoffs(employer.layoffs || [])
-  }, [employer])
-  
-  // Collapsible sections state
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "projects", "candidates", "layoffs"]))
-  
-  // Layoffs state
-  const [layoffs, setLayoffs] = useState<Layoff[]>(localEmployer.layoffs || [])
+
+  const [layoffs, setLayoffs] = useState<Layoff[]>(employer.layoffs || [])
   const [isLayoffFormOpen, setIsLayoffFormOpen] = useState(false)
   const [editingLayoff, setEditingLayoff] = useState<Layoff | null>(null)
 
-  // Delete confirmation dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [locationToDelete, setLocationToDelete] = useState<{
     locationId: string
     locationName: string
   } | null>(null)
 
-  // Projects/candidates will be loaded from API when integrating.
   const employerProjects = React.useMemo((): Project[] => [], [employer.name])
   const employerCandidates = React.useMemo((): Candidate[] => [], [employer.name])
 
-  // Update local employer when prop changes
-  React.useEffect(() => {
+  const tagOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.tags?.map((t) => ({ value: t.name, label: t.name })) ?? [],
+    [lookups?.tags]
+  )
+  const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.timeSupportZones?.map((z) => ({ value: z.name, label: z.name })) ?? [],
+    [lookups?.timeSupportZones]
+  )
+
+  useEffect(() => {
+    if (!open || !employer?.id) {
+      setDetailLoading(false)
+      return
+    }
+
     setLocalEmployer(employer)
-  }, [employer])
+    setLayoffs(employer.layoffs || [])
+
+    let cancelled = false
+    setDetailLoading(true)
+
+    fetchEmployerById(Number(employer.id))
+      .then((dto) => {
+        if (!cancelled) {
+          const full = employerDtoToEmployer(dto)
+          setLocalEmployer({
+            ...full,
+            status: employer.status ?? full.status,
+          })
+          setLayoffs(full.layoffs || [])
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err)
+          if (message === "Not found") toast.error("Employer not found.")
+          else toast.error(message || "Failed to load employer details.")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, employer])
   
   // Toggle section
   const toggleSection = (section: string) => {
@@ -1313,26 +1897,123 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
     }
   }
   
-  // Handle location team size save (special handling for min/max)
-  const handleLocationTeamSizeSave = async (locationId: string, minSize: number | null, maxSize: number | null, verify: boolean) => {
+  const handleArrayFieldSave = async (fieldName: string, newValue: string[], verify: boolean) => {
     try {
-      setLocalEmployer(prev => ({
+      setLocalEmployer((prev) => ({
         ...prev,
-        locations: prev.locations.map(loc => 
-          loc.id === locationId 
-            ? { ...loc, minSize, maxSize }
-            : loc
-        )
+        [fieldName]: newValue,
       }))
-      
-      toast.success(`Team size updated${verify ? ' and verified' : ''}`)
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
     } catch (error) {
       setLocalEmployer(employer)
-      toast.error('Failed to save field')
+      toast.error("Failed to save field")
       throw error
     }
   }
-  
+
+  const handleEmployerTypesSave = async (fieldName: string, types: string[], verify: boolean) => {
+    try {
+      const employerTypes = types as EmployerTypeDb[]
+      const primaryType: EmployerType | undefined = employerTypes[0]
+        ? (EMPLOYER_TYPE_DB_LABELS[employerTypes[0]] as EmployerType)
+        : undefined
+      setLocalEmployer((prev) => ({
+        ...prev,
+        employerTypes,
+        ...(primaryType ? { employerType: primaryType } : {}),
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
+  const handleRankingSave = async (fieldName: string, rankingDb: string, verify: boolean) => {
+    try {
+      const ranking = rankingDb ? RANKING_DB_LABELS[rankingDb as RankingDb] : localEmployer.ranking
+      setLocalEmployer((prev) => ({
+        ...prev,
+        ranking,
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
+  const handleWorkModeSave = async (fieldName: string, workMode: string, verify: boolean) => {
+    try {
+      setLocalEmployer((prev) => ({
+        ...prev,
+        workMode: workMode ? (workMode as WorkModeDb) : undefined,
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
+  const handleShiftTypeSave = async (fieldName: string, shiftType: string, verify: boolean) => {
+    try {
+      setLocalEmployer((prev) => ({
+        ...prev,
+        shiftType: shiftType ? (shiftType as ShiftTypeDb) : undefined,
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
+  const handleSalaryPolicySave = async (fieldName: string, policyDb: string, verify: boolean) => {
+    try {
+      const salaryPolicy: SalaryPolicy | null = policyDb
+        ? (SALARY_POLICY_DB_LABELS[policyDb as SalaryPolicyDb] as SalaryPolicy)
+        : null
+      setLocalEmployer((prev) => ({
+        ...prev,
+        salaryPolicy,
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
+  const handleHeadcountSave = async (
+    fieldName: "minEmployees" | "maxEmployees",
+    newValue: string | number,
+    verify: boolean
+  ) => {
+    try {
+      const parsed =
+        newValue === "" || newValue === null
+          ? null
+          : typeof newValue === "number"
+            ? newValue
+            : parseInt(String(newValue), 10)
+      setLocalEmployer((prev) => ({
+        ...prev,
+        [fieldName]: parsed != null && !Number.isNaN(parsed) ? parsed : null,
+      }))
+      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(employer)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
   // Handle benefits field save
   const handleBenefitsFieldSave = async (fieldName: string, newValue: EmployerBenefit[], verify: boolean) => {
     try {
@@ -1501,6 +2182,13 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {detailLoading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading employer details…
+            </div>
+          ) : (
+          <>
           {/* Basic Information Section */}
           <Collapsible 
             open={expandedSections.has("basic")} 
@@ -1610,6 +2298,102 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                       )}
                     </div>
                     
+                    <InlineEditableMultiSelectField
+                      label="Type"
+                      selected={getEmployerTypeDbList(localEmployer)}
+                      fieldName="employerTypes"
+                      items={employerTypeOptions}
+                      onSave={handleEmployerTypesSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select employer types..."
+                      searchPlaceholder="Search types..."
+                      maxDisplay={3}
+                    />
+
+                    <InlineEditableSelectField
+                      label="Ranking"
+                      value={localEmployer.ranking ? RANKING_DISPLAY_TO_DB[localEmployer.ranking] : ""}
+                      fieldName="ranking"
+                      options={rankingOptions}
+                      onSave={handleRankingSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select ranking"
+                    />
+
+                    <InlineEditField
+                      label="Minimum Employees"
+                      value={localEmployer.minEmployees ?? ""}
+                      fieldName="minEmployees"
+                      fieldType="number"
+                      onSave={async (fieldName, newValue, verify) => {
+                        await handleHeadcountSave("minEmployees", newValue, verify)
+                      }}
+                      placeholder="e.g., 50"
+                      getFieldVerification={getFieldVerification}
+                    />
+
+                    <InlineEditField
+                      label="Maximum Employees"
+                      value={localEmployer.maxEmployees ?? ""}
+                      fieldName="maxEmployees"
+                      fieldType="number"
+                      onSave={async (fieldName, newValue, verify) => {
+                        await handleHeadcountSave("maxEmployees", newValue, verify)
+                      }}
+                      placeholder="e.g., 500"
+                      getFieldVerification={getFieldVerification}
+                    />
+
+                    <InlineEditableSelectField
+                      label="Work Mode"
+                      value={localEmployer.workMode ?? ""}
+                      fieldName="workMode"
+                      options={workModeOptions}
+                      onSave={handleWorkModeSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select work mode"
+                    />
+
+                    <InlineEditableSelectField
+                      label="Shift Type"
+                      value={localEmployer.shiftType ?? ""}
+                      fieldName="shiftType"
+                      options={shiftTypeOptions}
+                      onSave={handleShiftTypeSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select shift type"
+                    />
+
+                    <InlineEditableMultiSelectField
+                      label="Time Support Zones"
+                      selected={localEmployer.timeSupportZones ?? []}
+                      fieldName="timeSupportZones"
+                      items={timeSupportZoneOptions}
+                      onSave={handleArrayFieldSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select time zones..."
+                      searchPlaceholder="Search time zones..."
+                      maxDisplay={5}
+                      creatable={!!onCreateTimeSupportZone}
+                      createLabel="+ Add Time Zone"
+                      onCreateNew={onCreateTimeSupportZone}
+                    />
+
+                    <InlineEditableMultiSelectField
+                      label="Tags"
+                      selected={localEmployer.tags ?? []}
+                      fieldName="tags"
+                      items={tagOptions}
+                      onSave={handleArrayFieldSave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select tags..."
+                      searchPlaceholder="Search tags..."
+                      maxDisplay={3}
+                      creatable={!!onCreateTag}
+                      createLabel="Add Tag"
+                      onCreateNew={onCreateTag}
+                    />
+
                     {/* Benefits - Full Width */}
                     <div className="md:col-span-2">
                       <InlineEditableBenefits
@@ -1619,83 +2403,28 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                         onSave={handleBenefitsFieldSave}
                         getFieldVerification={getFieldVerification}
                         maxDisplay={4}
+                        benefitOptions={lookups?.benefits ?? []}
+                        onCreateBenefit={onCreateBenefit}
                       />
                     </div>
 
-                    <div className="md:col-span-2">
-                      <InlineEditField
-                        label="Salary Policy"
-                        value={
-                          localEmployer.salaryPolicy ??
-                          localEmployer.locations[0]?.salaryPolicy ??
-                          ""
-                        }
-                        fieldName="salaryPolicy"
-                        fieldType="select"
-                        options={salaryPolicyOptions}
-                        onSave={handleFieldSave}
-                        getFieldVerification={getFieldVerification}
-                      />
-                    </div>
-                    
-                    {/* DPL Competitive */}
-                    <div className="md:col-span-2">
-                      <InlineEditableSwitch
-                        label="DPL Competitive"
-                        value={localEmployer.isDPLCompetitive || false}
-                        fieldName="isDPLCompetitive"
-                        onSave={handleFieldSave}
-                        getFieldVerification={getFieldVerification}
-                      />
-                    </div>
-                    
-                    {/* Shift Types */}
-                    <div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Shift Types</Label>
-                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
-                          {(() => {
-                            const shiftTypes = getEmployerShiftTypes(localEmployer)
-                            if (shiftTypes.length === 0) {
-                              return <span className="text-muted-foreground text-sm">N/A</span>
-                            }
-                            return shiftTypes.map((shiftType, index) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-200"
-                              >
-                                {shiftType}
-                              </Badge>
-                            ))
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Work Modes */}
-                    <div>
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Work Modes</Label>
-                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
-                          {(() => {
-                            const workModes = getEmployerWorkModes(localEmployer)
-                            if (workModes.length === 0) {
-                              return <span className="text-muted-foreground text-sm">N/A</span>
-                            }
-                            return workModes.map((workMode, index) => (
-                              <Badge
-                                key={index}
-                                variant="secondary"
-                                className="text-xs bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-200"
-                              >
-                                {workMode}
-                              </Badge>
-                            ))
-                          })()}
-                        </div>
-                      </div>
-                    </div>
+                    <InlineEditableSelectField
+                      label="Salary Policy"
+                      value={getEmployerSalaryPolicyDb(localEmployer)}
+                      fieldName="salaryPolicy"
+                      options={salaryPolicyOptions}
+                      onSave={handleSalaryPolicySave}
+                      getFieldVerification={getFieldVerification}
+                      placeholder="Select salary policy"
+                    />
+
+                    <InlineEditableSwitch
+                      label="DPL Competitive"
+                      value={localEmployer.isDPLCompetitive || false}
+                      fieldName="isDPLCompetitive"
+                      onSave={handleFieldSave}
+                      getFieldVerification={getFieldVerification}
+                    />
                   </div>
                 </CardContent>
               </CollapsibleContent>
@@ -1734,7 +2463,7 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                     <p className="text-base text-muted-foreground text-center py-6">No office locations recorded</p>
                   ) : (
                     localEmployer.locations
-                      .sort((a, b) => b.isHeadquarters ? 1 : a.isHeadquarters ? -1 : 0)
+                      .sort((a, b) => Number(b.isHeadquarters) - Number(a.isHeadquarters))
                       .map((location, idx) => (
                         <div key={location.id}>
                           {idx > 0 && <Separator className="my-6" />}
@@ -1749,7 +2478,21 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                                     <MapPinIcon className="size-5 text-muted-foreground" />
                                   )}
                                   <span className="font-semibold text-lg">
-                                    {location.city || 'N/A'}, {location.country || 'N/A'}
+                                    <span
+                                      className={cn(
+                                        isInlineFieldValueEmpty(location.city) && "text-muted-foreground italic"
+                                      )}
+                                    >
+                                      {formatInlineFieldDisplayValue(location.city)}
+                                    </span>
+                                    {", "}
+                                    <span
+                                      className={cn(
+                                        isInlineFieldValueEmpty(location.country) && "text-muted-foreground italic"
+                                      )}
+                                    >
+                                      {formatInlineFieldDisplayValue(location.country)}
+                                    </span>
                                   </span>
                                   {location.isHeadquarters && (
                                     <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
@@ -1790,15 +2533,16 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                                 getFieldVerification={getFieldVerification}
                               />
                               
-                              <InlineEditField
+                              <InlineEditableLocationCountryField
                                 label="Country"
-                                value={location.country || ""}
+                                countryName={location.country || ""}
                                 fieldName={`locations[${idx}].country`}
-                                fieldType="text"
-                                onSave={async (fieldName, newValue, verify) => {
-                                  await handleLocationFieldSave(location.id, 'country', newValue, verify)
+                                countries={countries}
+                                countriesLoading={countriesLoading}
+                                onCreateCountry={onCreateCountry}
+                                onSave={async (countryName, verify) => {
+                                  await handleLocationFieldSave(location.id, "country", countryName, verify)
                                 }}
-                                placeholder="Enter country"
                                 getFieldVerification={getFieldVerification}
                               />
                               
@@ -1826,55 +2570,7 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                                     await handleLocationFieldSave(location.id, 'isHeadquarters', newValue, verify)
                                   }}
                                   getFieldVerification={getFieldVerification}
-                                  description="Mark this location as the company headquarters"
                                 />
-                              </div>
-                              
-                              {/* Team Size - Two Column Grid */}
-                              <div className="sm:col-span-2">
-                                <Label className="text-sm font-medium text-muted-foreground mb-2 block">Team Size</Label>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <InlineEditField
-                                    label="Min Size"
-                                    value={location.minSize || ""}
-                                    fieldName={`locations[${idx}].minSize`}
-                                    fieldType="number"
-                                    validation={(val) => {
-                                      if (!val) return null
-                                      const num = parseInt(val)
-                                      if (isNaN(num) || num < 1) return 'Must be at least 1'
-                                      if (num > 1000) return 'Too large'
-                                      if (location.maxSize && num > location.maxSize) return 'Must be less than max'
-                                      return null
-                                    }}
-                                    onSave={async (fieldName, newValue, verify) => {
-                                      const minSize = newValue && String(newValue).trim() ? parseInt(String(newValue)) : null
-                                      await handleLocationTeamSizeSave(location.id, minSize, location.maxSize, verify)
-                                    }}
-                                    placeholder="Min"
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                  <InlineEditField
-                                    label="Max Size"
-                                    value={location.maxSize || ""}
-                                    fieldName={`locations[${idx}].maxSize`}
-                                    fieldType="number"
-                                    validation={(val) => {
-                                      if (!val) return null
-                                      const num = parseInt(val)
-                                      if (isNaN(num) || num < 1) return 'Must be at least 1'
-                                      if (num > 1000) return 'Too large'
-                                      if (location.minSize && num < location.minSize) return 'Must be greater than min'
-                                      return null
-                                    }}
-                                    onSave={async (fieldName, newValue, verify) => {
-                                      const maxSize = newValue && String(newValue).trim() ? parseInt(String(newValue)) : null
-                                      await handleLocationTeamSizeSave(location.id, location.minSize, maxSize, verify)
-                                    }}
-                                    placeholder="Max"
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                </div>
                               </div>
                             </div>
                           </div>
@@ -2121,7 +2817,14 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
                                       ? `${LAYOFF_REASON_LABELS[layoff.reason]}: ${layoff.reasonOther}`
                                       : LAYOFF_REASON_LABELS[layoff.reason]}
                                   </td>
-                                  <td className="p-2">{layoff.source}</td>
+                                  <td
+                                    className={cn(
+                                      "p-2",
+                                      isInlineFieldValueEmpty(layoff.source) && "text-muted-foreground italic"
+                                    )}
+                                  >
+                                    {formatInlineFieldDisplayValue(layoff.source)}
+                                  </td>
                                   <td className="p-2">
                                     <div className="flex justify-end gap-2">
                                       <Button
@@ -2165,10 +2868,16 @@ export function EmployerDetailsModal({ employer, open, onOpenChange, onEdit }: E
           {/* Employer Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
-              <div>Created: {employer.createdAt.toLocaleDateString()}</div>
-              <div>Updated: {employer.updatedAt.toLocaleDateString()}</div>
+              <div className={cn(formatEmployerDate(localEmployer.createdAt) === "N/A" && "italic")}>
+                Created: {formatEmployerDate(localEmployer.createdAt)}
+              </div>
+              <div className={cn(formatEmployerDate(localEmployer.updatedAt) === "N/A" && "italic")}>
+                Updated: {formatEmployerDate(localEmployer.updatedAt)}
+              </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         <DialogFooter className="px-6 py-4 border-t border-border">

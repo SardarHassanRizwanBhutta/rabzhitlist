@@ -563,6 +563,16 @@ export function ProjectsPageClient() {
         onDelete={handleDelete}
         onVerify={handleVerify}
         technicalDomainOptions={technicalDomainSelectOptions}
+        lookups={{
+          techStacks: techStacksLookup,
+          technicalAspects: technicalAspectsLookup,
+          clientLocations: clientLocationsLookup,
+          technicalDomains: technicalDomainSelectOptions,
+          technicalAspectTypes: technicalAspectTypeSelectOptions,
+        }}
+        onCreateTechStack={handleCreateTechStack}
+        onCreateTechnicalAspect={handleCreateTechnicalAspect}
+        onCreateClientLocation={handleCreateClientLocation}
       />
     </div>
   )

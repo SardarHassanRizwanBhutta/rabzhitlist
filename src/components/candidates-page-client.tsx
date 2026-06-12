@@ -22,17 +22,26 @@ import {
   CandidateCreationDialog,
   CandidateFormData,
   type CandidateLookups,
+  type NestedProjectCreationProps,
 } from "@/components/candidate-creation-dialog"
 import { ResumeParserDialog } from "@/components/resume-parser-dialog"
 import {
   fetchTechStacks,
   fetchClientLocations,
+  fetchTechnicalAspects,
   fetchTechnicalAspectTypes,
   createTechStack,
+  createTechnicalAspect,
+  createClientLocation,
   type LookupItem,
 } from "@/lib/services/lookups-api"
-import { fetchCountries } from "@/lib/services/countries-api"
-import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
+import { fetchCountries, createCountry } from "@/lib/services/countries-api"
+import {
+  fetchTags,
+  createTag,
+  fetchTimeSupportZones,
+  createTimeSupportZone,
+} from "@/lib/services/tags-timesupportzones-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import { fetchDegrees, createDegree, fetchMajors, createMajor } from "@/lib/services/majors-degrees-api"
 import {
@@ -43,6 +52,7 @@ import {
   candidateListItemDtoToCandidate,
 } from "@/lib/services/candidates-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
+import type { Country } from "@/lib/types/country"
 import type { CertificationIssuer } from "@/lib/types/certification"
 import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
@@ -222,12 +232,20 @@ export function CandidatesPageClient() {
   const [degreesLookup, setDegreesLookup] = useState<NonNullable<CandidateLookups["degrees"]>>([])
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
+  const [technicalAspectsLookup, setTechnicalAspectsLookup] = useState<LookupItem[]>([])
   const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<
     MultiSelectOption[]
   >([])
-  const [countriesLookup, setCountriesLookup] = useState<LookupItem[]>([])
+  const [tagsLookup, setTagsLookup] = useState<LookupItem[]>([])
+  const [countries, setCountries] = useState<Country[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(true)
   const [certificationIssuersLookup, setCertificationIssuersLookup] = useState<CertificationIssuer[]>([])
   const [lookupsLoading, setLookupsLoading] = useState(true)
+
+  const countriesLookup = useMemo(
+    () => countries.map((c) => ({ id: c.id, name: c.name })),
+    [countries],
+  )
 
   const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
   const [createCandidatePrefill, setCreateCandidatePrefill] = useState<Partial<CandidateFormData> | null>(null)
@@ -249,28 +267,28 @@ export function CandidatesPageClient() {
     let cancelled = false
     Promise.all([
       fetchTechStacks(),
+      fetchTags(),
       fetchTimeSupportZones(),
       fetchBenefits(),
       fetchDegrees(),
       fetchMajors(),
       fetchClientLocations(),
+      fetchTechnicalAspects(),
       fetchTechnicalAspectTypes(),
-      fetchCountries(),
       fetchCertificationIssuers(),
     ])
-      .then(([techStacks, timeSupportZones, benefits, degrees, majors, clientLocs, aspectTypes, countries, issuers]) => {
+      .then(([techStacks, tags, timeSupportZones, benefits, degrees, majors, clientLocs, technicalAspects, aspectTypes, issuers]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
+          setTagsLookup(tags)
           setTimeSupportZonesLookup(timeSupportZones)
           setBenefitsLookup(benefits)
           setDegreesLookup(degrees)
           setMajorsLookup(majors)
           setClientLocationsLookup(clientLocs)
+          setTechnicalAspectsLookup(technicalAspects)
           setTechnicalAspectTypeSelectOptions(
             aspectTypes.map((a) => ({ value: String(a.value), label: a.label })),
-          )
-          setCountriesLookup(
-            Array.isArray(countries) ? countries.map((c) => ({ id: c.id, name: c.name })) : [],
           )
           setCertificationIssuersLookup(Array.isArray(issuers) ? issuers : [])
         }
@@ -278,19 +296,40 @@ export function CandidatesPageClient() {
       .catch(() => {
         if (!cancelled) {
           setTechStacksLookup([])
+          setTagsLookup([])
           setTimeSupportZonesLookup([])
           setBenefitsLookup([])
           setDegreesLookup([])
           setMajorsLookup([])
           setClientLocationsLookup([])
+          setTechnicalAspectsLookup([])
           setTechnicalAspectTypeSelectOptions([])
-          setCountriesLookup([])
           setCertificationIssuersLookup([])
           toast.error("Failed to load candidate form lookups.")
         }
       })
       .finally(() => {
         if (!cancelled) setLookupsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchCountries()
+      .then((data) => {
+        if (!cancelled) setCountries(data)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCountries([])
+          toast.error("Failed to load countries.")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCountriesLoading(false)
       })
     return () => {
       cancelled = true
@@ -570,6 +609,32 @@ export function CandidatesPageClient() {
     }
   }, [pageNumber, pageSize, reloadToken, backendListOptions])
 
+  const handleCreateTechnicalAspect = useCallback(async (name: string) => {
+    try {
+      const created = await createTechnicalAspect(name)
+      setTechnicalAspectsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add technical aspect")
+      throw e
+    }
+  }, [])
+
+  const handleCreateClientLocation = useCallback(async (name: string) => {
+    try {
+      const created = await createClientLocation(name)
+      setClientLocationsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add client location")
+      throw e
+    }
+  }, [])
+
   const handleCreateTechStack = useCallback(
     async (name: string, context?: { aspectTypeId: number }) => {
       try {
@@ -586,6 +651,34 @@ export function CandidatesPageClient() {
     },
     []
   )
+
+  const handleCreateTag = useCallback(async (name: string) => {
+    try {
+      const created = await createTag(name)
+      setTagsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add tag")
+    }
+  }, [])
+
+  const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
+    try {
+      const newCountry = await createCountry(name)
+      setCountries((prev) => [
+        ...prev.filter(
+          (c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase(),
+        ),
+        newCountry,
+      ])
+      return newCountry
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add country.")
+      return null
+    }
+  }, [])
 
   const handleCreateTimeSupportZone = useCallback(async (name: string) => {
     try {
@@ -654,6 +747,52 @@ export function CandidatesPageClient() {
       majorsLookup,
       certificationIssuersLookup,
     ]
+  )
+
+  const nestedProjectCreation: NestedProjectCreationProps = useMemo(
+    () => ({
+      lookups: {
+        clientLocations: clientLocationsLookup,
+        technicalAspects: technicalAspectsLookup,
+        technicalAspectTypes: technicalAspectTypeSelectOptions,
+      },
+      onCreateTechnicalAspect: handleCreateTechnicalAspect,
+      onCreateClientLocation: handleCreateClientLocation,
+    }),
+    [
+      clientLocationsLookup,
+      technicalAspectsLookup,
+      technicalAspectTypeSelectOptions,
+      handleCreateTechnicalAspect,
+      handleCreateClientLocation,
+    ],
+  )
+
+  const nestedEmployerCreation = useMemo(
+    () => ({
+      countries,
+      countriesLoading,
+      lookups: {
+        tags: tagsLookup,
+        timeSupportZones: timeSupportZonesLookup,
+        benefits: benefitsLookup,
+      },
+      onCreateTag: handleCreateTag,
+      onCreateTimeSupportZone: handleCreateTimeSupportZone,
+      onCreateBenefit: handleCreateBenefit,
+      onCreateCountry: handleCreateCountry,
+    }),
+    [
+      countries,
+      countriesLoading,
+      tagsLookup,
+      timeSupportZonesLookup,
+      benefitsLookup,
+      handleCreateTag,
+      handleCreateTimeSupportZone,
+      handleCreateBenefit,
+      handleCreateCountry,
+    ],
   )
 
   const handleCertificationIssuerCreated = useCallback((issuer: CertificationIssuer) => {
@@ -949,6 +1088,8 @@ export function CandidatesPageClient() {
             benefitsLoading={lookupsLoading}
             degreesMajorsLoading={lookupsLoading}
             certificationIssuersLoading={lookupsLoading}
+            nestedEmployerCreation={nestedEmployerCreation}
+            nestedProjectCreation={nestedProjectCreation}
           />
         </div>
       </div>
