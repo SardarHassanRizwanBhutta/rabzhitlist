@@ -87,7 +87,11 @@ import {
   type CandidateSourceDb,
   parseCandidateSource,
 } from "@/lib/constants/candidate-enums"
-import { EmployerCombobox, type SelectedEmployer as WorkExperienceSelectedEmployer } from "@/components/employer-combobox"
+import {
+  EmployerCombobox,
+  type EmployerComboboxNestedCreationProps,
+  type SelectedEmployer as WorkExperienceSelectedEmployer,
+} from "@/components/employer-combobox"
 import { fetchEmployerById, type BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
@@ -462,6 +466,7 @@ function WorkExperienceEmployerCombobox({
   disabled,
   error,
   createEmployerLookups,
+  nestedEmployerCreation,
   onEmployerChange,
 }: {
   experience: WorkExperience
@@ -469,6 +474,7 @@ function WorkExperienceEmployerCombobox({
   disabled: boolean
   error: boolean
   createEmployerLookups: BuildCreateEmployerDtoOptions
+  nestedEmployerCreation?: EmployerComboboxNestedCreationProps
   onEmployerChange: (i: number, sel: WorkExperienceSelectedEmployer) => void
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
@@ -518,6 +524,7 @@ function WorkExperienceEmployerCombobox({
       disabled={disabled}
       error={error}
       createEmployerLookups={createEmployerLookups}
+      nestedEmployerCreation={nestedEmployerCreation}
       parsedNameHint={
         experience.employerId == null ? experience.employerName?.trim() || undefined : undefined
       }
@@ -536,6 +543,8 @@ function WorkExperienceProjectCombobox({
   onLinkedProjectChange,
   projectLookups,
   onCreateTechStack,
+  onCreateTechnicalAspect,
+  onCreateClientLocation,
 }: {
   experience: WorkExperience
   experienceIndex: number
@@ -546,6 +555,8 @@ function WorkExperienceProjectCombobox({
   onLinkedProjectChange: (expIdx: number, projIdx: number, sel: SelectedProject) => void
   projectLookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
   const [preloadedEmployerName, setPreloadedEmployerName] = React.useState<string | null>(null)
@@ -635,6 +646,8 @@ function WorkExperienceProjectCombobox({
       createProjectEmployerNameHint={createProjectEmployerNameHint}
       projectLookups={projectLookups}
       onCreateTechStack={onCreateTechStack}
+      onCreateTechnicalAspect={onCreateTechnicalAspect}
+      onCreateClientLocation={onCreateClientLocation}
     />
   )
 }
@@ -647,6 +660,8 @@ function StandaloneProjectCombobox({
   onLinkedProjectChange,
   projectLookups,
   onCreateTechStack,
+  onCreateTechnicalAspect,
+  onCreateClientLocation,
 }: {
   index: number
   project: CandidateStandaloneProject
@@ -655,6 +670,8 @@ function StandaloneProjectCombobox({
   onLinkedProjectChange: (idx: number, sel: SelectedProject) => void
   projectLookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
 
@@ -707,6 +724,8 @@ function StandaloneProjectCombobox({
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
       projectLookups={projectLookups}
       onCreateTechStack={onCreateTechStack}
+      onCreateTechnicalAspect={onCreateTechnicalAspect}
+      onCreateClientLocation={onCreateClientLocation}
     />
   )
 }
@@ -859,6 +878,29 @@ interface CandidateCreationDialogProps {
   createPrefill?: Partial<CandidateFormData> | null
   /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
   onCreatePrefillConsumed?: () => void
+  /**
+   * When set (Create Candidate flow), work-experience "+ Add New Employer" opens
+   * {@link EmployerCreationDialog} with full lookups and create handlers.
+   */
+  nestedEmployerCreation?: EmployerComboboxNestedCreationProps
+  /**
+   * When set (Create Candidate flow), nested "+ Create New Project" opens
+   * {@link ProjectCreationDialog} with client locations, technical aspects, and create handlers.
+   */
+  nestedProjectCreation?: NestedProjectCreationProps
+}
+
+export type { EmployerComboboxNestedCreationProps as NestedEmployerCreationProps }
+
+/** Lookups and create handlers for nested project creation from work-experience / standalone project rows. */
+export interface NestedProjectCreationProps {
+  lookups: {
+    clientLocations: LookupItem[]
+    technicalAspects: LookupItem[]
+    technicalAspectTypes?: MultiSelectOption[]
+  }
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }
 
 const createEmptyProject = (): ProjectExperience => ({
@@ -1091,6 +1133,8 @@ export function CandidateCreationDialog({
   certificationIssuersLoading = false,
   createPrefill = null,
   onCreatePrefillConsumed,
+  nestedEmployerCreation,
+  nestedProjectCreation,
 }: CandidateCreationDialogProps) {
   // Always show verification by default (both create and edit modes), allow override via prop
   const showVerification = showVerificationProp ?? true
@@ -1150,19 +1194,23 @@ export function CandidateCreationDialog({
   
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
-      tagsLookup: [],
-      timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
+      tagsLookup: nestedEmployerCreation?.lookups.tags ?? [],
+      timeSupportZonesLookup:
+        nestedEmployerCreation?.lookups.timeSupportZones ?? lookups?.timeSupportZones ?? [],
+      getCountryId: (countryName: string) =>
+        nestedEmployerCreation?.countries.find((c) => c.name === countryName)?.id ?? 0,
     }),
-    [lookups?.timeSupportZones]
+    [nestedEmployerCreation, lookups?.timeSupportZones]
   )
 
   const projectCreateLookups: ProjectLookups = useMemo(
     () => ({
       techStacks: lookups?.techStacks ?? [],
-      technicalAspects: [],
-      clientLocations: [],
+      technicalAspects: nestedProjectCreation?.lookups.technicalAspects ?? [],
+      clientLocations: nestedProjectCreation?.lookups.clientLocations ?? [],
+      technicalAspectTypes: nestedProjectCreation?.lookups.technicalAspectTypes,
     }),
-    [lookups?.techStacks]
+    [lookups?.techStacks, nestedProjectCreation]
   )
 
   /** Tech stacks: API list + any values already on the candidate (edit) or newly selected. */
@@ -3352,6 +3400,7 @@ export function CandidateCreationDialog({
                         disabled={isLoading}
                         error={!!errors.workExperiences?.[index]?.employerId}
                         createEmployerLookups={employerCreateLookups}
+                        nestedEmployerCreation={nestedEmployerCreation}
                         onEmployerChange={handleWorkExperienceEmployerChange}
                       />
                       {errors.workExperiences?.[index]?.employerId && (
@@ -3607,6 +3656,8 @@ export function CandidateCreationDialog({
                                   onLinkedProjectChange={handleWorkExperienceLinkedProjectChange}
                                   projectLookups={projectCreateLookups}
                                   onCreateTechStack={onCreateTechStack}
+                                  onCreateTechnicalAspect={nestedProjectCreation?.onCreateTechnicalAspect}
+                                  onCreateClientLocation={nestedProjectCreation?.onCreateClientLocation}
                                 />
                                 {errors.workExperiences?.[index]?.projects?.[projectIndex]?.projectId && (
                                   <p className="text-sm text-red-500">
@@ -3846,6 +3897,8 @@ export function CandidateCreationDialog({
                         onLinkedProjectChange={handleStandaloneLinkedProjectChange}
                         projectLookups={projectCreateLookups}
                         onCreateTechStack={onCreateTechStack}
+                        onCreateTechnicalAspect={nestedProjectCreation?.onCreateTechnicalAspect}
+                        onCreateClientLocation={nestedProjectCreation?.onCreateClientLocation}
                       />
                       {errors.projects?.[index]?.projectId && (
                         <p className="text-sm text-red-500">{errors.projects[index].projectId}</p>

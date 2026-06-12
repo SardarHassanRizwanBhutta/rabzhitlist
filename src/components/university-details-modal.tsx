@@ -1,12 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
   GraduationCap,
   MapPinIcon,
   ExternalLink,
-  EditIcon,
   Pencil,
   Check,
   Save,
@@ -19,9 +18,11 @@ import {
   ShieldCheck,
   BuildingIcon,
   Trash2,
+  Plus,
 } from "lucide-react"
 
-import { University, UniversityRanking, UNIVERSITY_RANKING_COLORS, UNIVERSITY_RANKING_LABELS, getRankingLabel } from "@/lib/types/university"
+import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS, getRankingLabel } from "@/lib/types/university"
+import type { Country } from "@/lib/types/country"
 import { deleteUniversityLocation, fetchUniversityById } from "@/lib/services/universities-api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -85,6 +86,26 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
   label,
   value: value as UniversityRanking
 }))
+
+const EMPTY_COUNTRIES: Country[] = []
+
+function isInlineFieldValueEmpty(value: string | number | null | undefined): boolean {
+  if (value === null || value === undefined) return true
+  const trimmed = String(value).trim()
+  return trimmed === "" || trimmed === "—" || trimmed === "-"
+}
+
+function formatInlineFieldDisplayValue(value: string | number | null | undefined): string {
+  if (isInlineFieldValueEmpty(value)) return "N/A"
+  return String(value)
+}
+
+function formatUniversityDate(iso: string | undefined | null): string {
+  if (isInlineFieldValueEmpty(iso)) return "N/A"
+  const d = new Date(iso!)
+  if (Number.isNaN(d.getTime())) return "N/A"
+  return d.toLocaleDateString()
+}
 
 // Inline Edit Field Component
 interface InlineEditFieldProps {
@@ -173,11 +194,8 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
     }
   }
   
-  const displayValue = (() => {
-    const isEmpty = value === null || value === undefined || String(value).trim() === ''
-    if (isEmpty) return 'N/A'
-    return String(value)
-  })()
+  const displayValue = formatInlineFieldDisplayValue(value)
+  const isEmpty = isInlineFieldValueEmpty(value)
   
   // Verification indicator component
   const VerificationIndicator = ({ 
@@ -336,11 +354,324 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            (value === null || value === undefined || String(value).trim() === '') 
-              ? 'text-muted-foreground italic' 
-              : ''
-          }`}>
+          <span
+            className={cn(
+              "text-sm block",
+              isEmpty && "text-muted-foreground italic"
+            )}
+          >
+            {displayValue}
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Inline Editable Country Field (searchable combobox — matches UniversityCreationDialog)
+interface InlineEditableCountryFieldProps {
+  label: string
+  countryId: number | null
+  countryName: string
+  fieldName: string
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
+  onSave: (country: Country, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
+  className?: string
+}
+
+const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
+  label,
+  countryId,
+  countryName,
+  fieldName,
+  countries = EMPTY_COUNTRIES,
+  countriesLoading = false,
+  onCreateCountry,
+  onSave,
+  getFieldVerification,
+  className,
+}) => {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editCountry, setEditCountry] = useState<Country | null>(
+    countryId != null ? { id: countryId, name: countryName } : null
+  )
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false)
+  const [countrySearchQuery, setCountrySearchQuery] = useState("")
+  const [countryCreateInProgress, setCountryCreateInProgress] = useState(false)
+
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchQuery.trim()) return countries
+    const q = countrySearchQuery.toLowerCase().trim()
+    return countries.filter((c) => c.name.toLowerCase().includes(q))
+  }, [countries, countrySearchQuery])
+
+  const selectedCountryName = editCountry?.name ?? ""
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditCountry(countryId != null ? { id: countryId, name: countryName } : null)
+    setWillVerify(true)
+    setCountrySearchQuery("")
+    setCountryPopoverOpen(false)
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditCountry(countryId != null ? { id: countryId, name: countryName } : null)
+    setWillVerify(true)
+    setCountrySearchQuery("")
+    setCountryPopoverOpen(false)
+  }
+
+  const handleCountrySelect = (country: Country) => {
+    setEditCountry(country)
+    setCountryPopoverOpen(false)
+    setCountrySearchQuery("")
+  }
+
+  const handleSave = async () => {
+    if (!editCountry) return
+
+    if (editCountry.id === countryId) {
+      setIsEditing(false)
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await onSave(editCountry, willVerify)
+      setIsEditing(false)
+      setCountryPopoverOpen(false)
+      setCountrySearchQuery("")
+    } catch {
+      setEditCountry(countryId != null ? { id: countryId, name: countryName } : null)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const VerificationIndicator = ({ fName }: { fName: string }) => (
+    <div className="flex items-center gap-1 shrink-0">
+      <VerificationBadge status={getFieldVerification?.(fName) || "unverified"} size="sm" />
+    </div>
+  )
+
+  const displayValue = formatInlineFieldDisplayValue(countryName)
+  const isEmpty = isInlineFieldValueEmpty(countryName)
+
+  return (
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationIndicator fName={fieldName} />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {isEditing ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1 space-y-2">
+              <Popover open={countryPopoverOpen} onOpenChange={setCountryPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={countryPopoverOpen}
+                    disabled={isSaving}
+                    className={cn(
+                      "w-full justify-between",
+                      !selectedCountryName && "text-muted-foreground"
+                    )}
+                  >
+                    {selectedCountryName ? (
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 shrink-0" />
+                        {selectedCountryName}
+                      </span>
+                    ) : (
+                      "Select country..."
+                    )}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search countries..."
+                      value={countrySearchQuery}
+                      onValueChange={setCountrySearchQuery}
+                    />
+                    <CommandList>
+                      {countriesLoading ? (
+                        <CommandEmpty>
+                          <div className="flex items-center justify-center gap-2 py-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Loading countries...</span>
+                          </div>
+                        </CommandEmpty>
+                      ) : filteredCountries.length === 0 ? (
+                        <>
+                          <CommandEmpty>
+                            {countrySearchQuery.trim() ? "No country found." : "No countries available."}
+                          </CommandEmpty>
+                          {countrySearchQuery.trim() && onCreateCountry && (
+                            <CommandGroup>
+                              <CommandItem
+                                value={`add-country-${countrySearchQuery.trim()}`}
+                                onSelect={async () => {
+                                  const name = countrySearchQuery.trim()
+                                  if (!name) return
+                                  setCountryCreateInProgress(true)
+                                  try {
+                                    const newCountry = await onCreateCountry(name)
+                                    if (newCountry) {
+                                      handleCountrySelect(newCountry)
+                                    }
+                                  } finally {
+                                    setCountryCreateInProgress(false)
+                                  }
+                                }}
+                                disabled={countryCreateInProgress}
+                                className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                                {countryCreateInProgress
+                                  ? "Adding…"
+                                  : `Add "${countrySearchQuery.trim()}" as new country`}
+                              </CommandItem>
+                            </CommandGroup>
+                          )}
+                        </>
+                      ) : (
+                        <CommandGroup>
+                          {filteredCountries.map((country) => (
+                            <CommandItem
+                              key={country.id}
+                              value={String(country.id)}
+                              onSelect={() => handleCountrySelect(country)}
+                              className="flex items-center gap-2 cursor-pointer"
+                            >
+                              <Check
+                                className={cn(
+                                  "h-4 w-4",
+                                  editCountry?.id === country.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {country.name}
+                            </CommandItem>
+                          ))}
+                          {countrySearchQuery.trim() &&
+                            onCreateCountry &&
+                            !filteredCountries.some(
+                              (c) => c.name.toLowerCase() === countrySearchQuery.trim().toLowerCase()
+                            ) && (
+                              <CommandItem
+                                value={`add-country-${countrySearchQuery.trim()}`}
+                                onSelect={async () => {
+                                  const name = countrySearchQuery.trim()
+                                  if (!name) return
+                                  setCountryCreateInProgress(true)
+                                  try {
+                                    const newCountry = await onCreateCountry(name)
+                                    if (newCountry) {
+                                      handleCountrySelect(newCountry)
+                                    }
+                                  } finally {
+                                    setCountryCreateInProgress(false)
+                                  }
+                                }}
+                                disabled={countryCreateInProgress}
+                                className="flex items-center gap-2 font-medium text-primary cursor-pointer"
+                              >
+                                <Plus className="h-4 w-4" />
+                                {countryCreateInProgress
+                                  ? "Adding…"
+                                  : `Add "${countrySearchQuery.trim()}" as new country`}
+                              </CommandItem>
+                            )}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify
+                      ? "text-green-600 dark:text-green-400 font-medium"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {willVerify ? "✓ Verified" : "Mark as verified"}
+                </Label>
+              </div>
+            </div>
+
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving || !editCountry}
+                className="h-8 w-8 p-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                className="h-8 w-8 p-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <span
+            className={cn(
+              "text-sm block",
+              isEmpty && "text-muted-foreground italic"
+            )}
+          >
             {displayValue}
           </span>
         </div>
@@ -753,26 +1084,64 @@ export interface UniversityDetailsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onEdit?: (university: University) => void
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
 }
 
-export function UniversityDetailsModal({ university, open, onOpenChange, onEdit }: UniversityDetailsModalProps) {
-  // Local state for university data (for optimistic updates)
+export function UniversityDetailsModal({
+  university,
+  open,
+  onOpenChange,
+  onEdit,
+  countries = EMPTY_COUNTRIES,
+  countriesLoading = false,
+  onCreateCountry,
+}: UniversityDetailsModalProps) {
   const [localUniversity, setLocalUniversity] = useState<University>(university)
-  
-  // Collapsible sections state
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "statistics"]))
-  
-  // Delete confirmation dialog state
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [locationToDelete, setLocationToDelete] = useState<{
     locationId: number
     locationName: string
   } | null>(null)
-  
-  // Update local university when prop changes
-  React.useEffect(() => {
+
+  useEffect(() => {
+    if (!open || !university?.id) {
+      setDetailLoading(false)
+      return
+    }
+
     setLocalUniversity(university)
-  }, [university])
+
+    let cancelled = false
+    setDetailLoading(true)
+
+    fetchUniversityById(university.id)
+      .then((full) => {
+        if (!cancelled) setLocalUniversity(full)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err)
+          if (message === "Not found") {
+            toast.error("University not found.")
+          } else {
+            toast.error(message || "Failed to load university details.")
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, university])
   
   // Toggle section
   const toggleSection = (section: string) => {
@@ -793,7 +1162,20 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
     return undefined
   }
   
-  // Handle field save
+  const handleCountrySave = async (country: Country, verify: boolean) => {
+    try {
+      setLocalUniversity((prev) => ({
+        ...prev,
+        country: { id: country.id, name: country.name },
+      }))
+      toast.success(`country updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalUniversity(university)
+      toast.error("Failed to save field")
+      throw error
+    }
+  }
+
   const handleFieldSave = async (fieldName: string, newValue: string | number | null, verify: boolean) => {
     try {
       // Optimistic update
@@ -913,6 +1295,13 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          {detailLoading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading university details…
+            </div>
+          ) : (
+          <>
           {/* Basic Information Section */}
           <Collapsible 
             open={expandedSections.has("basic")} 
@@ -948,19 +1337,25 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                       getFieldVerification={getFieldVerification}
                     />
                     
-                    <InlineEditField
+                    <InlineEditableCountryField
                       label="Country"
-                      value={localUniversity.country?.name ?? ""}
+                      countryId={localUniversity.country?.id ?? null}
+                      countryName={localUniversity.country?.name ?? ""}
                       fieldName="country"
-                      fieldType="text"
-                      onSave={handleFieldSave}
-                      placeholder="Enter country"
+                      countries={countries}
+                      countriesLoading={countriesLoading}
+                      onCreateCountry={onCreateCountry}
+                      onSave={handleCountrySave}
                       getFieldVerification={getFieldVerification}
                     />
                     
                     <InlineEditField
                       label="Ranking"
-                      value={getRankingLabel(localUniversity.ranking)}
+                      value={
+                        localUniversity.ranking != null
+                          ? getRankingLabel(localUniversity.ranking)
+                          : null
+                      }
                       fieldName="ranking"
                       fieldType="select"
                       options={rankingOptions}
@@ -1053,7 +1448,7 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                     <p className="text-base text-muted-foreground text-center py-6">No campus locations recorded</p>
                   ) : (
                     localUniversity.locations
-                      .sort((a, b) => b.isMainCampus ? 1 : a.isMainCampus ? -1 : 0)
+                      .sort((a, b) => Number(b.isMainCampus) - Number(a.isMainCampus))
                       .map((location, idx) => (
                         <div key={location.id}>
                           {idx > 0 && <Separator className="my-6" />}
@@ -1067,8 +1462,13 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
                                   ) : (
                                     <MapPinIcon className="size-5 text-muted-foreground" />
                                   )}
-                                  <span className="font-semibold text-lg">
-                                    {location.city || 'N/A'}
+                                  <span
+                                    className={cn(
+                                      "font-semibold text-lg",
+                                      isInlineFieldValueEmpty(location.city) && "text-muted-foreground italic"
+                                    )}
+                                  >
+                                    {formatInlineFieldDisplayValue(location.city)}
                                   </span>
                                   {location.isMainCampus && (
                                     <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
@@ -1178,10 +1578,24 @@ export function UniversityDetailsModal({ university, open, onOpenChange, onEdit 
           {/* University Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
-              <div>Created: {new Date(university.createdAt).toLocaleDateString()}</div>
-              <div>Updated: {new Date(university.updatedAt).toLocaleDateString()}</div>
+              <div
+                className={cn(
+                  isInlineFieldValueEmpty(localUniversity.createdAt) && "italic"
+                )}
+              >
+                Created: {formatUniversityDate(localUniversity.createdAt)}
+              </div>
+              <div
+                className={cn(
+                  isInlineFieldValueEmpty(localUniversity.updatedAt) && "italic"
+                )}
+              >
+                Updated: {formatUniversityDate(localUniversity.updatedAt)}
+              </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         <DialogFooter className="px-6 py-4 border-t border-border">

@@ -1,13 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import {
   ChevronUpIcon,
   ChevronDownIcon,
   MoreHorizontalIcon,
   SearchIcon,
   PlusIcon,
+  Plus,
   EyeIcon,
   EditIcon,
   TrashIcon,
@@ -97,11 +98,26 @@ import {
   Project,
   PROJECT_STATUS_COLORS,
   PROJECT_STATUS_LABELS,
+  PROJECT_TYPES,
+  PUBLISH_PLATFORM_FILTER_OPTIONS,
   type ProjectStatus,
 } from "@/lib/types/project"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { sampleProjects } from "@/lib/sample-data/projects"
-import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
+import {
+  VERTICAL_DOMAINS,
+  HORIZONTAL_DOMAINS,
+  fetchProjectById,
+  projectDtoToProject,
+} from "@/lib/services/projects-api"
+import {
+  searchEmployers,
+  fetchEmployerById,
+  createEmployer,
+  buildCreateEmployerDto,
+} from "@/lib/services/employers-api"
+import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import type { ProjectLookups, SelectedEmployer } from "@/components/project-creation-dialog"
+import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
   getVerificationsForProject,
   calculateProjectVerificationSummary,
@@ -170,92 +186,14 @@ const validateNotes = (notes: string): string | null => {
   return null
 }
 
-// Publish platform options
-const publishPlatformOptions: MultiSelectOption[] = [
-  { value: "App Store", label: "App Store (iOS)" },
-  { value: "Play Store", label: "Play Store (Android)" },
-  { value: "Web", label: "Web" },
-  { value: "Desktop", label: "Desktop" },
-  { value: "Cloud", label: "Cloud" },
-  { value: "IoT", label: "IoT" },
-  { value: "Embedded", label: "Embedded" },
-]
+const publishPlatformOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}))
 
-// Extract unique project types
-const extractUniqueProjectTypes = (): string[] => {
-  const types = new Set<string>()
-  sampleProjects.forEach(project => {
-    types.add(project.projectType)
-  })
-  return Array.from(types).sort()
-}
-
-// Extract unique employers from sample projects
-const extractUniqueEmployers = (): string[] => {
-  const employers = new Set<string>()
-  sampleProjects.forEach(project => {
-    if (project.employerName) {
-      employers.add(project.employerName)
-    }
-  })
-  return Array.from(employers).sort()
-}
-
-// Project type options
-const projectTypeOptions = extractUniqueProjectTypes().map(type => ({
+const projectTypeOptions = PROJECT_TYPES.map((type) => ({
   label: type,
-  value: type
-}))
-
-// Employer options
-const employerOptions = extractUniqueEmployers().map(employer => ({
-  label: employer,
-  value: employer
-}))
-
-// Extract unique tech stacks
-const extractUniqueTechStacks = (): string[] => {
-  const techStacks = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.techStacks.forEach(tech => techStacks.add(tech))
-  })
-  return Array.from(techStacks).sort()
-}
-
-// Extract unique vertical domains
-const extractUniqueVerticalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-// Extract unique horizontal domains
-const extractUniqueHorizontalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-// Extract unique client locations (from clientLocations array or legacy clientLocation)
-const extractUniqueClientLocations = (): string[] => {
-  const locations = new Set<string>()
-  sampleProjects.forEach(project => {
-    const list = project.clientLocations ?? (project.clientLocation ? [project.clientLocation] : [])
-    list.forEach(loc => {
-      if (loc?.trim()) locations.add(loc.trim())
-    })
-  })
-  return Array.from(locations).sort()
-}
-
-// Multi-select options
-const techStackOptions: MultiSelectOption[] = extractUniqueTechStacks().map(tech => ({
-  value: tech,
-  label: tech
+  value: type,
 }))
 
 const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
@@ -266,11 +204,6 @@ const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => (
 const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
   value: d.label,
   label: d.label,
-}))
-
-const clientLocationOptions: MultiSelectOption[] = extractUniqueClientLocations().map(loc => ({
-  value: loc,
-  label: loc
 }))
 
 // Status options
@@ -297,6 +230,10 @@ interface ProjectsTableProps {
   onVerify?: (project: Project) => void
   /** From GET /api/TechnicalDomains; empty until parent loads catalog. */
   technicalDomainOptions?: MultiSelectOption[]
+  lookups?: ProjectLookups
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }
 
 type SortKey = keyof Project
@@ -348,6 +285,10 @@ export function ProjectsTable({
   onDelete,
   onVerify,
   technicalDomainOptions = [],
+  lookups,
+  onCreateTechStack,
+  onCreateTechnicalAspect,
+  onCreateClientLocation,
 }: ProjectsTableProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
@@ -779,6 +720,10 @@ export function ProjectsTable({
             onVerify(project)
           } : undefined}
           technicalDomainOptions={technicalDomainOptions}
+          lookups={lookups}
+          onCreateTechStack={onCreateTechStack}
+          onCreateTechnicalAspect={onCreateTechnicalAspect}
+          onCreateClientLocation={onCreateClientLocation}
         />
       )}
 
@@ -909,6 +854,9 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
     
     return String(value)
   })()
+
+  const isEmptyDisplay =
+    value === null || value === undefined || String(value).trim() === ""
   
   // Verification indicator component
   const VerificationIndicator = ({ 
@@ -930,9 +878,9 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
   }
   
   return (
-    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
-      <div className="flex items-center justify-between mb-1">
-        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+    <div className={cn("min-w-0 space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <Label className="text-sm font-medium text-muted-foreground truncate">{label}</Label>
         {!isEditing && (
           <div className="flex items-center gap-1 shrink-0">
             <VerificationIndicator fieldName={fieldName} />
@@ -1005,7 +953,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                   onChange={(e) => setEditValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={placeholder}
-                  className={cn("text-sm", error && "border-red-500")}
+                  className={cn("w-full min-w-0 text-sm", error && "border-red-500")}
                   autoFocus
                   disabled={isSaving}
                 />
@@ -1066,12 +1014,15 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-between">
-          <span className={`text-sm ${
-            (value === null || value === undefined || String(value).trim() === '') 
-              ? 'text-muted-foreground italic' 
-              : ''
-          }`}>
+        <div className="min-w-0">
+          <span
+            className={cn(
+              "text-sm block min-w-0",
+              fieldType === "url" && !isEmptyDisplay && "break-all",
+              isEmptyDisplay && "text-muted-foreground italic"
+            )}
+            title={fieldType === "url" && !isEmptyDisplay ? String(value) : undefined}
+          >
             {displayValue}
           </span>
         </div>
@@ -1333,6 +1284,9 @@ interface InlineEditableMultiSelectProps {
   searchPlaceholder?: string
   badgeColorClass?: string
   maxDisplay?: number
+  creatable?: boolean
+  createLabel?: string
+  onCreateNew?: (name: string) => Promise<void>
 }
 
 const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
@@ -1346,7 +1300,10 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   placeholder = "Select options...",
   searchPlaceholder = "Search...",
   badgeColorClass = "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  maxDisplay = 4
+  maxDisplay = 4,
+  creatable = false,
+  createLabel = "Add new",
+  onCreateNew,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState<string[]>(value || [])
@@ -1455,6 +1412,9 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               placeholder={placeholder}
               searchPlaceholder={searchPlaceholder}
               maxDisplay={maxDisplay}
+              creatable={creatable}
+              createLabel={createLabel}
+              onCreateNew={onCreateNew}
             />
           </div>
           
@@ -1800,9 +1760,9 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
   }
 
   return (
-    <div className={cn("py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
-      <div className="flex items-center justify-between mb-3">
-        <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
+    <div className={cn("space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
+      <div className="flex items-center justify-between mb-1">
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         <div className="flex items-center gap-1 shrink-0">
           <VerificationIndicator fieldName={fieldName} />
           <Button
@@ -1818,23 +1778,23 @@ const InlineEditableTextarea: React.FC<InlineEditableTextareaProps> = ({
         </div>
       </div>
       {displayText ? (
-        <div className="rounded-lg bg-muted/50 p-4">
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+        <div className="space-y-1">
+          <span className="text-sm leading-relaxed whitespace-pre-wrap block">
             {truncatedText}
-          </p>
+          </span>
           {shouldTruncate && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="mt-2 h-7 text-xs"
+              className="h-7 px-0 text-xs text-muted-foreground hover:text-foreground"
             >
-              {isExpanded ? 'Show less' : 'Show more'}
+              {isExpanded ? "Show less" : "Show more"}
             </Button>
           )}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground italic">No description provided</p>
+        <span className="text-sm text-muted-foreground italic">N/A</span>
       )}
     </div>
   )
@@ -2445,6 +2405,332 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
   )
 }
 
+// Inline editable employer (server-driven combobox, same as ProjectCreationDialog)
+interface InlineEditableEmployerFieldProps {
+  selectedEmployer: SelectedEmployer
+  displayNameFallback?: string | null
+  onSave: (employer: SelectedEmployer, verify: boolean) => Promise<void>
+  getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
+  preloadEmployerId?: number
+}
+
+const InlineEditableEmployerField: React.FC<InlineEditableEmployerFieldProps> = ({
+  selectedEmployer,
+  displayNameFallback,
+  onSave,
+  getFieldVerification,
+  preloadEmployerId,
+}) => {
+  const fieldName = "selectedEmployer"
+  const [isEditing, setIsEditing] = useState(false)
+  const [editEmployer, setEditEmployer] = useState<SelectedEmployer>(selectedEmployer)
+  const [isSaving, setIsSaving] = useState(false)
+  const [willVerify, setWillVerify] = useState(true)
+  const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
+  const [employerSearchQuery, setEmployerSearchQuery] = useState("")
+  const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
+  const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
+  const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
+  const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const employerAbortRef = useRef<AbortController | null>(null)
+
+  const verificationStatus = getFieldVerification?.(fieldName)
+  const isCurrentlyVerified = verificationStatus === "verified"
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditEmployer(selectedEmployer)
+    }
+  }, [selectedEmployer, isEditing])
+
+  useEffect(() => {
+    if (isEditing) {
+      setWillVerify(isCurrentlyVerified)
+    }
+  }, [isEditing, isCurrentlyVerified])
+
+  useEffect(() => {
+    if (!isEditing || !preloadEmployerId || editEmployer) return
+    fetchEmployerById(preloadEmployerId)
+      .then((emp) => setEditEmployer({ id: emp.id, name: emp.name }))
+      .catch(() => {
+        // Keep fallback display name if fetch fails
+      })
+  }, [isEditing, preloadEmployerId, editEmployer])
+
+  useEffect(() => {
+    if (!isEditing) return
+    if (employerDebounceRef.current) {
+      clearTimeout(employerDebounceRef.current)
+      employerDebounceRef.current = null
+    }
+    if (employerSearchQuery.trim().length < 2) {
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+        employerAbortRef.current = null
+      }
+      setEmployerSearchResults([])
+      setEmployerSearchLoading(false)
+      return
+    }
+    employerDebounceRef.current = setTimeout(() => {
+      employerDebounceRef.current = null
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+      const controller = new AbortController()
+      employerAbortRef.current = controller
+      setEmployerSearchLoading(true)
+      const query = employerSearchQuery.trim()
+      searchEmployers(query, 10, controller.signal)
+        .then((list) => {
+          if (employerAbortRef.current !== controller) return
+          setEmployerSearchResults(list)
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === "AbortError") return
+          setEmployerSearchResults([])
+        })
+        .finally(() => {
+          if (employerAbortRef.current === controller) {
+            setEmployerSearchLoading(false)
+          }
+        })
+    }, 300)
+    return () => {
+      if (employerDebounceRef.current) {
+        clearTimeout(employerDebounceRef.current)
+      }
+      if (employerAbortRef.current) {
+        employerAbortRef.current.abort()
+      }
+    }
+  }, [employerSearchQuery, isEditing])
+
+  const handleEdit = () => {
+    setIsEditing(true)
+    setEditEmployer(selectedEmployer)
+    setWillVerify(isCurrentlyVerified)
+    setEmployerSearchQuery("")
+    setEmployerSearchResults([])
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditEmployer(selectedEmployer)
+    setWillVerify(isCurrentlyVerified)
+    setEmployerComboboxOpen(false)
+    setEmployerSearchQuery("")
+    setEmployerSearchResults([])
+  }
+
+  const handleSave = async () => {
+    const employerChanged =
+      (editEmployer?.id ?? null) !== (selectedEmployer?.id ?? null) ||
+      (editEmployer?.name ?? "") !== (selectedEmployer?.name ?? "")
+    const verificationChanged = willVerify !== isCurrentlyVerified
+    if (!employerChanged && !verificationChanged) {
+      setIsEditing(false)
+      return
+    }
+    setIsSaving(true)
+    try {
+      await onSave(editEmployer, willVerify)
+      setIsEditing(false)
+      setEmployerComboboxOpen(false)
+      setEmployerSearchQuery("")
+      setEmployerSearchResults([])
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const displayName = selectedEmployer?.name ?? displayNameFallback
+  const isEmpty = !displayName?.trim()
+
+  return (
+    <div className="min-w-0 space-y-1 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <Label className="text-sm font-medium text-muted-foreground">Employer</Label>
+        {!isEditing && (
+          <div className="flex items-center gap-1 shrink-0">
+            <VerificationBadge status={verificationStatus || "unverified"} size="sm" />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleEdit}
+              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              type="button"
+              title="Edit field"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        <div className="min-w-0 space-y-2">
+          {editEmployer ? (
+            <div className="flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9">
+              <span className="flex-1 truncate text-sm">{editEmployer.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                disabled={isSaving}
+                onClick={() => {
+                  setEditEmployer(null)
+                  setEmployerSearchQuery("")
+                  setEmployerSearchResults([])
+                }}
+                aria-label="Clear employer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Popover
+              open={employerComboboxOpen}
+              onOpenChange={(open) => {
+                setEmployerComboboxOpen(open)
+                if (!open) {
+                  setEmployerSearchQuery("")
+                  setEmployerSearchResults([])
+                }
+              }}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full min-w-0 justify-between font-normal"
+                  disabled={isSaving}
+                >
+                  <span className={employerSearchQuery ? "text-foreground" : "text-muted-foreground"}>
+                    {employerSearchQuery || "Search employers..."}
+                  </span>
+                  <ChevronsUpDown className="opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search employers..."
+                    value={employerSearchQuery}
+                    onValueChange={setEmployerSearchQuery}
+                    className="h-9"
+                  />
+                  <CommandList>
+                    {employerSearchLoading && (
+                      <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+                    )}
+                    {!employerSearchLoading && employerSearchQuery.trim().length < 2 && (
+                      <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                    )}
+                    {!employerSearchLoading &&
+                      employerSearchQuery.trim().length >= 2 &&
+                      employerSearchResults.length === 0 && (
+                        <CommandGroup>
+                          <div className="py-2 px-2 text-center text-sm text-muted-foreground">No employers found</div>
+                          <CommandItem
+                            value="__add_new_employer__"
+                            onSelect={() => {
+                              setEmployerComboboxOpen(false)
+                              setAddEmployerDialogOpen(true)
+                            }}
+                            className="cursor-pointer font-medium text-primary"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add New Employer
+                          </CommandItem>
+                        </CommandGroup>
+                      )}
+                    {!employerSearchLoading && employerSearchResults.length > 0 && (
+                      <CommandGroup>
+                        {employerSearchResults.map((emp) => (
+                          <CommandItem
+                            key={emp.id}
+                            value={String(emp.id)}
+                            onSelect={() => {
+                              setEditEmployer({ id: emp.id, name: emp.name })
+                              setEmployerComboboxOpen(false)
+                              setEmployerSearchQuery("")
+                              setEmployerSearchResults([])
+                            }}
+                            className="cursor-pointer"
+                          >
+                            {emp.name}
+                            <Check className="ml-auto opacity-100" />
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 pl-1 min-w-0">
+              <Checkbox
+                id="verify-selectedEmployer"
+                checked={willVerify}
+                onCheckedChange={(c) => setWillVerify(c as boolean)}
+                disabled={isSaving}
+                className="h-4 w-4 shrink-0"
+              />
+              <Label
+                htmlFor="verify-selectedEmployer"
+                className={cn(
+                  "text-xs cursor-pointer truncate",
+                  willVerify ? "text-green-600 dark:text-green-400 font-medium" : "text-muted-foreground"
+                )}
+              >
+                {willVerify ? "✓ Verified" : "Mark as verified"}
+              </Label>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <Button size="sm" onClick={handleSave} disabled={isSaving} className="h-8 w-8 p-0">
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving} className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <span className={cn("text-sm block", isEmpty && "text-muted-foreground italic")}>
+          {isEmpty ? "Not Linked" : displayName}
+        </span>
+      )}
+
+      <EmployerCreationDialog
+        mode="create"
+        open={addEmployerDialogOpen}
+        onOpenChange={setAddEmployerDialogOpen}
+        initialName={employerSearchQuery}
+        onSubmit={async (formData) => {
+          const dto = buildCreateEmployerDto(formData, {
+            tagsLookup: [],
+            timeSupportZonesLookup: [],
+          })
+          const created = await createEmployer(dto)
+          return created ? { id: created.id, name: created.name } : undefined
+        }}
+        onSuccess={(employer) => {
+          setEditEmployer(employer)
+          setAddEmployerDialogOpen(false)
+          setEmployerSearchQuery("")
+          setEmployerSearchResults([])
+          setEmployerComboboxOpen(false)
+        }}
+      />
+    </div>
+  )
+}
+
 // Project Detail Dialog Component
 interface ProjectDetailDialogProps {
   project: Project
@@ -2452,6 +2738,10 @@ interface ProjectDetailDialogProps {
   onOpenChange: (open: boolean) => void
   onVerify?: (project: Project) => void
   technicalDomainOptions: MultiSelectOption[]
+  lookups?: ProjectLookups
+  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
+  onCreateTechnicalAspect?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<void>
 }
 
 function ProjectDetailDialog({
@@ -2460,14 +2750,68 @@ function ProjectDetailDialog({
   onOpenChange,
   onVerify,
   technicalDomainOptions: technicalDomainOptionsForDetail,
+  lookups,
+  onCreateTechStack,
+  onCreateClientLocation,
 }: ProjectDetailDialogProps) {
-  // Local state for project data (for optimistic updates)
   const [localProject, setLocalProject] = useState<Project>(project)
-  
-  // Update local project when prop changes
-  React.useEffect(() => {
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  useEffect(() => {
+    if (!open || !project?.id) {
+      setDetailLoading(false)
+      return
+    }
+
     setLocalProject(project)
-  }, [project])
+
+    let cancelled = false
+    setDetailLoading(true)
+
+    fetchProjectById(Number(project.id))
+      .then((dto) => {
+        if (!cancelled) setLocalProject(projectDtoToProject(dto))
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : String(err)
+          if (message === "Not found") {
+            toast.error("Project not found.")
+          } else {
+            toast.error(message || "Failed to load project details.")
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, project])
+
+  const techStackOptions = useMemo<MultiSelectOption[]>(
+    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.techStacks]
+  )
+
+  const clientLocationOptions = useMemo<MultiSelectOption[]>(
+    () => lookups?.clientLocations?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.clientLocations]
+  )
+
+  const technicalDomainOptionsResolved = useMemo(
+    () => lookups?.technicalDomains ?? technicalDomainOptionsForDetail,
+    [lookups?.technicalDomains, technicalDomainOptionsForDetail]
+  )
+
+  const selectedEmployer: SelectedEmployer = useMemo(() => {
+    if (localProject.employerId != null && localProject.employerName?.trim()) {
+      return { id: localProject.employerId, name: localProject.employerName.trim() }
+    }
+    return null
+  }, [localProject.employerId, localProject.employerName])
   
   // Get verification data for this project
   const verifications = useMemo(() => 
@@ -2539,8 +2883,7 @@ function ProjectDetailDialog({
         return next
       })
       
-      // TODO: API call to save field
-      // await updateProjectField(project.id, fieldName, processedValue, verify)
+      // TODO: Wire inline save to PUT /api/projects/{id} via buildUpdateProjectDto when API inline saves are enabled.
       
       toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
     } catch (error) {
@@ -2559,6 +2902,22 @@ function ProjectDetailDialog({
   // Handle multi-select field save (wrapper for type safety)
   const handleMultiSelectFieldSave = async (fieldName: string, newValue: string[], verify: boolean) => {
     await handleFieldSave(fieldName, newValue, verify)
+  }
+
+  const handleEmployerSave = async (employer: SelectedEmployer, verify: boolean) => {
+    try {
+      setLocalProject((prev) => ({
+        ...prev,
+        employerId: employer?.id,
+        employerName: employer?.name ?? null,
+      }))
+      // TODO: Wire inline save to PUT /api/projects/{id} via buildUpdateProjectDto when API inline saves are enabled.
+      toast.success(`Employer updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalProject(project)
+      toast.error("Failed to save field")
+      throw error
+    }
   }
 
   // Verification indicator component - shows badge and history together
@@ -2620,7 +2979,14 @@ function ProjectDetailDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-6 py-6 space-y-6">
+          {detailLoading ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Loading project details…
+            </div>
+          ) : (
+          <>
           {/* Verification Summary Bar */}
           {verificationSummary && verificationSummary.totalFields > 0 && (
             <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg border">
@@ -2643,7 +3009,7 @@ function ProjectDetailDialog({
 
           {/* Project Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <InlineEditField
                 label="Project Name"
                 value={localProject.projectName ?? ""}
@@ -2655,14 +3021,11 @@ function ProjectDetailDialog({
                 getFieldVerification={getFieldVerification}
               />
 
-              <InlineEditField
-                label="Employer"
-                value={localProject.employerName ?? ""}
-                fieldName="employerName"
-                fieldType="select"
-                options={employerOptions}
-                onSave={handleFieldSave}
-                placeholder="Select employer..."
+              <InlineEditableEmployerField
+                selectedEmployer={selectedEmployer}
+                displayNameFallback={localProject.employerName}
+                preloadEmployerId={localProject.employerId}
+                onSave={handleEmployerSave}
                 getFieldVerification={getFieldVerification}
               />
 
@@ -2677,6 +3040,9 @@ function ProjectDetailDialog({
                 searchPlaceholder="Search locations..."
                 badgeColorClass="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200"
                 maxDisplay={4}
+                creatable={!!onCreateClientLocation}
+                createLabel="Add Client Location"
+                onCreateNew={onCreateClientLocation}
               />
               
               <InlineEditableSelect
@@ -2688,57 +3054,9 @@ function ProjectDetailDialog({
                 getFieldVerification={getFieldVerification}
                 placeholder="Select project type..."
               />
-
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-muted-foreground">Team Size</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <InlineEditField
-                    label="Minimum"
-                    value={localProject.minTeamSize != null ? String(localProject.minTeamSize) : ""}
-                    fieldName="minTeamSize"
-                    fieldType="number"
-                    onSave={handleFieldSave}
-                    placeholder="e.g., 5"
-                    getFieldVerification={getFieldVerification}
-                  />
-                  <InlineEditField
-                    label="Maximum"
-                    value={localProject.maxTeamSize != null ? String(localProject.maxTeamSize) : ""}
-                    fieldName="maxTeamSize"
-                    fieldType="number"
-                    onSave={handleFieldSave}
-                    placeholder="e.g., 30"
-                    getFieldVerification={getFieldVerification}
-                  />
-                </div>
-              </div>
-
-              <InlineEditableSelect
-                label="Status"
-                value={localProject.status ?? ""}
-                fieldName="status"
-                options={statusOptions}
-                onSave={handleFieldSave}
-                getFieldVerification={getFieldVerification}
-                placeholder="Select status..."
-              />
-
-              {/* Platforms */}
-              <InlineEditableMultiSelect
-                label="Publish Platforms"
-                value={localProject.publishPlatforms || []}
-                fieldName="publishPlatforms"
-                options={publishPlatformOptions}
-                onSave={handleMultiSelectFieldSave}
-                getFieldVerification={getFieldVerification}
-                placeholder="Select platforms"
-                searchPlaceholder="Search platforms..."
-                badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                maxDisplay={4}
-              />
             </div>
 
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <InlineEditDateField
                 label="Start Date"
                 value={localProject.startDate}
@@ -2763,7 +3081,7 @@ function ProjectDetailDialog({
                 validateDateRange={validateDateRange}
               />
               
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <InlineEditField
                   label="Project Link"
                   value={localProject.projectLink || ""}
@@ -2787,7 +3105,6 @@ function ProjectDetailDialog({
                 )}
               </div>
 
-              {/* Published */}
               <InlineEditableCheckbox
                 label="Published"
                 value={localProject.isPublished || false}
@@ -2795,30 +3112,55 @@ function ProjectDetailDialog({
                 onSave={handleFieldSave}
                 getFieldVerification={getFieldVerification}
               />
-
-              {/* Download Count */}
-              <InlineEditField
-                label="Download Count"
-                value={localProject.downloadCount ? localProject.downloadCount.toString() : ""}
-                fieldName="downloadCount"
-                fieldType="number"
-                validation={(value) => {
-                  if (!value.trim()) return null // Optional field
-                  const num = parseInt(value)
-                  if (isNaN(num) || num < 0) {
-                    return "Download count must be a positive number"
-                  }
-                  return null
-                }}
-                onSave={handleFieldSave}
-                placeholder="e.g., 100000"
-                getFieldVerification={getFieldVerification}
-              />
             </div>
-          </div>
 
-          {/* Tech Stacks & Domains */}
-          <div className="space-y-6">
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-sm font-medium text-muted-foreground">Team Size</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <InlineEditField
+                  label="Minimum"
+                  value={localProject.minTeamSize != null ? String(localProject.minTeamSize) : ""}
+                  fieldName="minTeamSize"
+                  fieldType="number"
+                  onSave={handleFieldSave}
+                  placeholder="e.g., 5"
+                  getFieldVerification={getFieldVerification}
+                />
+                <InlineEditField
+                  label="Maximum"
+                  value={localProject.maxTeamSize != null ? String(localProject.maxTeamSize) : ""}
+                  fieldName="maxTeamSize"
+                  fieldType="number"
+                  onSave={handleFieldSave}
+                  placeholder="e.g., 30"
+                  getFieldVerification={getFieldVerification}
+                />
+              </div>
+            </div>
+
+            <InlineEditableSelect
+              label="Status"
+              value={localProject.status ?? ""}
+              fieldName="status"
+              options={statusOptions}
+              onSave={handleFieldSave}
+              getFieldVerification={getFieldVerification}
+              placeholder="Select status..."
+            />
+
+            <InlineEditableMultiSelect
+              label="Publish Platforms"
+              value={localProject.publishPlatforms || []}
+              fieldName="publishPlatforms"
+              options={publishPlatformOptions}
+              onSave={handleMultiSelectFieldSave}
+              getFieldVerification={getFieldVerification}
+              placeholder="Select platforms"
+              searchPlaceholder="Search platforms..."
+              badgeColorClass="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+              maxDisplay={4}
+            />
+
             <InlineEditableMultiSelect
               label="Technology Stack"
               value={localProject.techStacks || []}
@@ -2830,8 +3172,32 @@ function ProjectDetailDialog({
               searchPlaceholder="Search technologies..."
               badgeColorClass="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
               maxDisplay={4}
+              creatable={!!onCreateTechStack}
+              createLabel="Add Technology"
+              onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
             />
 
+            <InlineEditField
+              label="Download Count"
+              value={localProject.downloadCount ? localProject.downloadCount.toString() : ""}
+              fieldName="downloadCount"
+              fieldType="number"
+              validation={(value) => {
+                if (!value.trim()) return null // Optional field
+                const num = parseInt(value)
+                if (isNaN(num) || num < 0) {
+                  return "Download count must be a positive number"
+                }
+                return null
+              }}
+              onSave={handleFieldSave}
+              placeholder="e.g., 100000"
+              getFieldVerification={getFieldVerification}
+            />
+          </div>
+
+          {/* Domains */}
+          <div className="space-y-6">
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InlineEditableMultiSelect
@@ -2865,7 +3231,7 @@ function ProjectDetailDialog({
                 label="Technical Domains"
                 value={localProject.technicalDomains || []}
                 fieldName="technicalDomains"
-                options={technicalDomainOptionsForDetail}
+                options={technicalDomainOptionsResolved}
                 onSave={handleMultiSelectFieldSave}
                 getFieldVerification={getFieldVerification}
                 placeholder="Select technical domains..."
@@ -2880,15 +3246,19 @@ function ProjectDetailDialog({
                 (server projects `aspectTypeLabels`). It is not directly
                 editable: change the tech stacks above to change this list.
               */}
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium text-muted-foreground">Technical Aspects</Label>
+              <div className="py-2 px-3 rounded-md">
+                <div className="mb-3">
+                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspects</Label>
+                </div>
                 {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-2 min-h-[2rem]">
                     {localProject.aspectTypeLabels.map((label) => (
                       <Badge
                         key={label}
                         variant="secondary"
-                        className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                        className={cn(
+                          "text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                        )}
                       >
                         {label}
                       </Badge>
@@ -2916,24 +3286,16 @@ function ProjectDetailDialog({
             placeholder="Provide a detailed description of the project, its goals, and key features..."
           />
 
-          {/* Notes */}
-          <div className="py-2 px-3 rounded-md">
-            <InlineEditField
-              label="Notes"
-              value={localProject.notes || ""}
-              fieldName="notes"
-              fieldType="text"
-              validation={validateNotes}
-              onSave={handleFieldSave}
-              placeholder="Additional notes about the project"
-              getFieldVerification={getFieldVerification}
-            />
-            {localProject.notes && (
-              <div className="rounded-lg bg-muted/50 p-4 mt-2">
-                <p className="text-sm leading-relaxed">{localProject.notes}</p>
-              </div>
-            )}
-          </div>
+          <InlineEditField
+            label="Notes"
+            value={localProject.notes || ""}
+            fieldName="notes"
+            fieldType="text"
+            validation={validateNotes}
+            onSave={handleFieldSave}
+            placeholder="Additional notes about the project"
+            getFieldVerification={getFieldVerification}
+          />
 
           {/* Project Metadata */}
           <div className="pt-4 border-t border-border">
@@ -2942,6 +3304,8 @@ function ProjectDetailDialog({
               <div>Updated: {localProject.updatedAt?.toLocaleDateString?.() ?? "—"}</div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         <DialogFooter className="px-6 py-4 border-t border-border">

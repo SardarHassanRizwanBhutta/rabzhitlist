@@ -1992,6 +1992,22 @@ const validateGitHubURL = (url: string): string | null => {
   return validateURL(url)
 }
 
+function VisitUrlButton({ url, label }: { url: string | null | undefined; label: string }) {
+  if (!url?.trim()) return null
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => window.open(url.trim(), "_blank")}
+      className="h-7 text-xs"
+    >
+      <ExternalLink className="h-3 w-3 mr-1" />
+      {label}
+    </Button>
+  )
+}
+
 const validateCNIC = (cnic: string): string | null => {
   if (!cnic || cnic.trim() === '') return 'CNIC is required'
   const cnicRegex = /^\d{5}-\d{7}-\d$/
@@ -6106,9 +6122,10 @@ export function CandidateDetailsModal({
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-muted-foreground">Links & Resources</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                      <div className="space-y-2">
                         <InlineEditableField 
                           label="LinkedIn URL" 
-                        value={viewCandidate.linkedinUrl ?? ''} 
+                          value={viewCandidate.linkedinUrl ?? ''} 
                           fieldName="linkedinUrl"
                           fieldType="url"
                           validation={validateLinkedInURL}
@@ -6116,9 +6133,12 @@ export function CandidateDetailsModal({
                           verificationIndicator={<VerificationIndicator fieldName="linkedinUrl" />}
                           getFieldVerification={getFieldVerification}
                         />
+                        <VisitUrlButton url={viewCandidate.linkedinUrl} label="Visit LinkedIn" />
+                      </div>
+                      <div className="space-y-2">
                         <InlineEditableField 
                           label="GitHub URL" 
-                        value={viewCandidate.githubUrl ?? ''} 
+                          value={viewCandidate.githubUrl ?? ''} 
                           fieldName="githubUrl"
                           fieldType="url"
                           validation={validateGitHubURL}
@@ -6126,6 +6146,8 @@ export function CandidateDetailsModal({
                           verificationIndicator={<VerificationIndicator fieldName="githubUrl" />}
                           getFieldVerification={getFieldVerification}
                         />
+                        <VisitUrlButton url={viewCandidate.githubUrl} label="Visit GitHub" />
+                      </div>
                       <InlineEditableResume
                         label="Resume"
                         resumeUrl={viewCandidate.resume}
@@ -6977,9 +6999,10 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Certificate Link */}
+                          <div className="space-y-2">
                             <InlineEditableField 
                               label="Certification URL" 
-                            value={cert.certificationUrl ?? ''} 
+                              value={cert.certificationUrl ?? ''} 
                               fieldName={`certifications[${idx}].certificationUrl`}
                               fieldType="url"
                               validation={validateURL}
@@ -6987,6 +7010,8 @@ export function CandidateDetailsModal({
                               verificationIndicator={<VerificationIndicator fieldName={`certifications[${idx}].certificationUrl`} />}
                               getFieldVerification={getFieldVerification}
                             />
+                            <VisitUrlButton url={cert.certificationUrl} label="Visit Certification" />
+                          </div>
                         </div>
                       </div>
                     ))
@@ -7100,9 +7125,10 @@ export function CandidateDetailsModal({
                             </Button>
                           </div>
                           {/* Achievement URL */}
+                          <div className="space-y-2">
                             <InlineEditableField 
                               label="URL" 
-                            value={ach.url ?? ''} 
+                              value={ach.url ?? ''} 
                               fieldName={`achievements[${idx}].url`}
                               fieldType="url"
                               validation={validateURL}
@@ -7110,6 +7136,8 @@ export function CandidateDetailsModal({
                               verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
                               getFieldVerification={getFieldVerification}
                             />
+                            <VisitUrlButton url={ach.url} label="Visit Link" />
+                          </div>
                           {/* Description */}
                             <InlineEditableField 
                               label="Description" 

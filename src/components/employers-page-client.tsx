@@ -581,6 +581,17 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         onEdit={handleEditEmployer}
         onDelete={handleDeleteEmployer}
         onAddLocation={handleAddLocation}
+        countries={countries}
+        countriesLoading={countriesLoading}
+        onCreateCountry={handleCreateCountry}
+        lookups={{
+          tags: tagsLookup,
+          timeSupportZones: timeSupportZonesLookup,
+          benefits: benefitsLookup,
+        }}
+        onCreateTag={handleCreateTag}
+        onCreateTimeSupportZone={handleCreateTimeSupportZone}
+        onCreateBenefit={handleCreateBenefit}
       />
 
       {employerToEdit && (

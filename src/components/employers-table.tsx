@@ -84,6 +84,8 @@ import {
   type EmployerTypeDb,
 } from "@/lib/types/employer"
 import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
+import type { Country } from "@/lib/types/country"
+import type { EmployerLookups } from "@/components/employer-creation-dialog"
 import type { EmployerFilters } from "./employers-filter-dialog"
 
 /** Display company-wide headcount when set on employer; otherwise legacy sum from locations. */
@@ -184,6 +186,13 @@ interface EmployersTableProps {
   onAddLocation?: (employer: Employer) => void
   onEditLocation?: (location: EmployerLocation) => void
   onDeleteLocation?: (location: EmployerLocation) => void
+  countries?: Country[]
+  countriesLoading?: boolean
+  onCreateCountry?: (name: string) => Promise<Country | null>
+  lookups?: EmployerLookups
+  onCreateTag?: (name: string) => Promise<void>
+  onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
 type SortKey = keyof Employer | 'size' | 'applicants'
@@ -232,6 +241,13 @@ export function EmployersTable({
   onAddLocation,
   onEditLocation,
   onDeleteLocation,
+  countries,
+  countriesLoading,
+  onCreateCountry,
+  lookups,
+  onCreateTag,
+  onCreateTimeSupportZone,
+  onCreateBenefit,
 }: EmployersTableProps) {
   const router = useRouter()
   const [sortKey, setSortKey] = useState<SortKey>("name")
@@ -525,8 +541,8 @@ export function EmployersTable({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="align-top">
-                      <div className="flex flex-wrap gap-1">
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1">
                         {getEmployerTypeDbList(employer).map((db) => (
                           <Badge
                             key={db}
@@ -591,18 +607,19 @@ export function EmployersTable({
                         const displayBenefits = benefits.slice(0, 2)
                         const remainingCount = benefits.length - 2
                         return (
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-nowrap items-center gap-1">
                             {displayBenefits.map((benefit, index) => (
                               <Badge
                                 key={benefit.id || index}
                                 variant="secondary"
-                                className="text-xs bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                className="max-w-[7rem] truncate text-xs bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                title={benefit.name}
                               >
                                 {benefit.name}
                               </Badge>
                             ))}
                             {remainingCount > 0 && (
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="shrink-0 text-xs">
                                 +{remainingCount}
                               </Badge>
                             )}
@@ -949,6 +966,13 @@ export function EmployersTable({
             }
           }}
           onEdit={onEdit}
+          countries={countries}
+          countriesLoading={countriesLoading}
+          onCreateCountry={onCreateCountry}
+          lookups={lookups}
+          onCreateTag={onCreateTag}
+          onCreateTimeSupportZone={onCreateTimeSupportZone}
+          onCreateBenefit={onCreateBenefit}
         />
       )}
 
