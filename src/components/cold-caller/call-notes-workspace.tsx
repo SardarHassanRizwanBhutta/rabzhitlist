@@ -1,0 +1,113 @@
+"use client"
+
+import { cn } from "@/lib/utils"
+import { useResizableSplit } from "@/hooks/useResizableSplit"
+import { CallNotesResumePanel } from "./call-notes-resume-panel"
+import { CallNotesEditor } from "./call-notes-editor"
+import { CallNotesQuestionsSidebar } from "./call-notes-questions-sidebar"
+import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
+
+interface CallNotesWorkspaceProps {
+  resumeUrl: string | null | undefined
+  candidateId: string
+  resumeVisible: boolean
+  onResumeVisibleChange: (visible: boolean) => void
+  rawNotesDraft: string
+  onDraftChange: (draft: string) => void
+  showDraftSavedHint: boolean
+  onAnalyze: () => void
+  isAnalyzing?: boolean
+  questions: GeneratedQuestion[]
+  isLoadingQuestions: boolean
+  questionsError: string | null
+  emptyFields: EmptyField[]
+  activeQuestionField?: string | null
+  onQuestionSelect?: (apiFieldName: string) => void
+  onRetryGenerateQuestions?: () => void
+  section?: FieldSection
+  className?: string
+}
+
+export function CallNotesWorkspace({
+  resumeUrl,
+  candidateId,
+  resumeVisible,
+  onResumeVisibleChange,
+  rawNotesDraft,
+  onDraftChange,
+  showDraftSavedHint,
+  onAnalyze,
+  isAnalyzing = false,
+  questions,
+  isLoadingQuestions,
+  questionsError,
+  emptyFields,
+  activeQuestionField,
+  onQuestionSelect,
+  onRetryGenerateQuestions,
+  section,
+  className,
+}: CallNotesWorkspaceProps) {
+  const storageKey = `cold-caller-resume-width:${candidateId}`
+  const { containerRef, leftPercent, handleProps } = useResizableSplit({
+    storageKey,
+    enabled: resumeVisible,
+  })
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn("flex h-full min-h-0 overflow-hidden", className)}
+    >
+      {resumeVisible && (
+        <>
+          <div
+            className="shrink-0 min-h-0 min-w-[200px] max-w-[55%] overflow-hidden"
+            style={{ width: `${leftPercent}%` }}
+          >
+            <CallNotesResumePanel
+              resumeUrl={resumeUrl}
+              candidateId={candidateId}
+              onCollapse={() => onResumeVisibleChange(false)}
+              className="h-full"
+            />
+          </div>
+
+          <div
+            {...handleProps}
+            className={cn(
+              "w-1.5 shrink-0 cursor-col-resize touch-none",
+              "bg-border hover:bg-primary/40 active:bg-primary/60 transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+            )}
+            aria-label="Resize resume panel"
+          />
+        </>
+      )}
+
+      <div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
+        <div className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden p-6">
+          <CallNotesEditor
+            value={rawNotesDraft}
+            onChange={onDraftChange}
+            onAnalyze={onAnalyze}
+            isAnalyzing={isAnalyzing}
+            showDraftSavedHint={showDraftSavedHint}
+            className="h-full"
+          />
+        </div>
+
+        <CallNotesQuestionsSidebar
+          section={section}
+          questions={questions}
+          isLoading={isLoadingQuestions}
+          error={questionsError}
+          emptyFields={emptyFields}
+          activeQuestionField={activeQuestionField}
+          onQuestionSelect={onQuestionSelect}
+          onRetry={onRetryGenerateQuestions}
+        />
+      </div>
+    </div>
+  )
+}

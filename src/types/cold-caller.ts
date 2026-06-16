@@ -49,11 +49,22 @@ export type FieldSection =
   | 'techStacks'
   | 'projects'
 
-// Field status for tracking progress during cold call
+// Field status for tracking progress during Fields View cold call
 export type FieldStatus = 'pending' | 'answered' | 'skipped' | 'askLater'
 
-// View mode for the cold caller dialog
-export type ColdCallerViewMode = 'list' | 'focus'
+/** Internal dialog view: field-by-field vs unstructured call notes */
+export type ColdCallerViewMode = 'fields' | 'callNotes'
+
+/** Call Notes View workflow stage (Phase 2+ wires backend) */
+export type CallNotesStage =
+  | 'draft'
+  | 'submitting'
+  | 'extracting'
+  | 'review'
+  | 'applying'
+  | 'completed'
+  | 'extractionError'
+  | 'applyError'
 
 export interface EmptyField {
   fieldPath: string           // e.g., "postingTitle", "workExperiences[0].shiftType"
@@ -110,7 +121,16 @@ export interface ColdCallerState {
   expandedSections: Set<string>
   isSaving: boolean
   viewMode: ColdCallerViewMode
-  focusIndex: number          // Current index in focus mode
+}
+
+export interface CallNotesViewState {
+  stage: CallNotesStage
+  rawNotesDraft: string
+  sessionId?: number
+  selectedMappingIds: Set<number>
+  unresolvedLookupCount: number
+  extractionError?: string
+  applyError?: string
 }
 
 // Section labels for display

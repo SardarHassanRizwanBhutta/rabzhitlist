@@ -4,23 +4,19 @@ import * as React from "react"
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { 
   Phone, 
-  User, 
-  Briefcase,
-  GraduationCap,
-  Award,
-  Trophy,
-  Code,
   CheckCircle,
   Sparkles,
   Check,
   Loader2,
   Circle,
   ChevronRight,
-  FolderOpen,
   Plus,
   MessageSquare,
   MessageCircle,
   Users,
+  ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -45,7 +41,8 @@ import type {
   FieldSection, 
   FieldStatus,
   FieldState,
-  InteractionMode
+  InteractionMode,
+  ColdCallerViewMode,
 } from "@/types/cold-caller"
 import { SECTION_LABELS, MODE_CONFIG } from "@/types/cold-caller"
 import { 
@@ -57,21 +54,18 @@ import {
 } from "@/lib/utils/empty-field-detection"
 import { generateQuestions } from "@/lib/services/questions-api"
 import { QuestionFieldCard } from "./question-field-card"
+// import { ColdCallerViewSwitcher } from "./cold-caller-view-switcher"
+import { ColdCallerCallNotesView } from "./cold-caller-call-notes-view"
+import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
+import { useCallNotesDraft } from "@/hooks/useCallNotesDraft"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
+import { resolveResumeUrlForViewer } from "@/lib/utils/resume-url"
 
-// Section icons mapping
-const SECTION_ICONS: Record<FieldSection, React.ElementType> = {
-  basic: User,
-  workExperience: Briefcase,
-  education: GraduationCap,
-  certifications: Award,
-  achievements: Trophy,
-  techStacks: Code,
-  projects: FolderOpen,
-}
+// Section icons mapping (Fields View tabs)
+const SECTION_ICONS = COLD_CALLER_SECTION_ICONS
 
 interface ColdCallerDialogProps {
   open: boolean
@@ -109,9 +103,18 @@ export function ColdCallerDialog({
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
   const [questionsError, setQuestionsError] = useState<string | null>(null)
   
-  // UI state
+  // UI state — Call Notes View is default for Cold Caller mode (view switcher commented out for now)
+  const [viewMode, setViewMode] = useState<ColdCallerViewMode>("callNotes")
+  const [resumeVisible, setResumeVisible] = useState(true)
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeFieldPath, setActiveFieldPath] = useState<string | null>(null)
+
+  const showCallNotesTab = mode === "coldCaller"
+  const {
+    draft: rawNotesDraft,
+    setDraft: setRawNotesDraft,
+    showDraftSavedHint,
+  } = useCallNotesDraft(candidate.id, open)
   
   // Track manually added entries for dynamic sections
   const [manuallyAddedFields, setManuallyAddedFields] = useState<EmptyField[]>([])
@@ -192,6 +195,13 @@ export function ColdCallerDialog({
 
   const progressPercentage = stats.total > 0 ? Math.round((stats.answered / stats.total) * 100) : 100
 
+  // Call Notes View is only available in Cold Caller interaction mode
+  useEffect(() => {
+    if (!showCallNotesTab && viewMode === "callNotes") {
+      setViewMode("fields")
+    }
+  }, [showCallNotesTab, viewMode])
+
   // Track previous candidate ID and dialog open state to detect changes
   const prevCandidateIdRef = React.useRef<string | undefined>(undefined)
   const prevOpenRef = React.useRef<boolean>(false)
@@ -239,6 +249,11 @@ export function ColdCallerDialog({
           setQuestionsError(null)
         }
         
+        // Show resume panel when opening cold caller session
+        if (dialogJustOpened || candidateChanged) {
+          setResumeVisible(true)
+        }
+
         // Update references
         prevCandidateIdRef.current = candidate.id
         prevOpenRef.current = true
@@ -814,6 +829,15 @@ export function ColdCallerDialog({
     setPendingEntity(null)
   }, [pendingEntity, handleFieldSave])
 
+  const resumeViewerUrl = useMemo(
+    () => resolveResumeUrlForViewer(candidate.resume),
+    [candidate.resume],
+  )
+
+  const handlePopOutResume = useCallback(() => {
+    window.open(resumeViewerUrl, "_blank", "noopener,noreferrer,width=900,height=1000")
+  }, [resumeViewerUrl])
+
   // Get section stats
   const getSectionStats = (fields: EmptyField[]) => {
     let answered = 0
@@ -829,24 +853,55 @@ export function ColdCallerDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[95vw] lg:!max-w-6xl xl:!max-w-7xl h-[95vh] overflow-hidden !flex !flex-col p-0">        {/* Header */}
+      <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-none !w-screen !h-[100dvh] !max-h-[100dvh] rounded-none border-0 shadow-none overflow-hidden !flex !flex-col p-0 gap-0 sm:!max-w-none">
+        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className={cn("h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center", modeConfig.color)}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className={cn("h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0", modeConfig.color)}>
                 <ModeIcon className="h-6 w-6 text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <DialogTitle className="text-xl font-semibold mb-1">
                   {modeConfig.label} Mode
                 </DialogTitle>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground truncate">
                   {candidate.name} • {candidate.mobileNo || 'No phone'}
                 </p>
               </div>
             </div>
-            
-            <div className="mr-8">
+
+            <div className="mr-8 shrink-0 flex items-center gap-2">
+              {showCallNotesTab && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={resumeVisible ? "secondary" : "outline"}
+                    onClick={() => setResumeVisible((v) => !v)}
+                    className="gap-1.5"
+                    aria-pressed={resumeVisible}
+                  >
+                    {resumeVisible ? (
+                      <PanelLeftClose className="h-4 w-4" />
+                    ) : (
+                      <PanelLeftOpen className="h-4 w-4" />
+                    )}
+                    {resumeVisible ? "Hide Resume" : "Show Resume"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handlePopOutResume}
+                    className="gap-1.5"
+                    title="Open resume in a new window"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Pop Out
+                  </Button>
+                </>
+              )}
               <Button
                 size="sm"
                 onClick={handleGenerateQuestions}
@@ -862,8 +917,16 @@ export function ColdCallerDialog({
               </Button>
             </div>
           </div>
+
+          {/* Fields / Call Notes view switcher — hidden for now; Call Notes is default in Cold Caller mode */}
+          {/* {showCallNotesTab && (
+            <div className="mt-4">
+              <ColdCallerViewSwitcher value={viewMode} onChange={setViewMode} />
+            </div>
+          )} */}
           
-          {/* Progress and Stats */}
+          {/* Progress and Stats — Fields View only */}
+          {!showCallNotesTab && (
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-4">
@@ -879,11 +942,29 @@ export function ColdCallerDialog({
             </div>
             <Progress value={progressPercentage} className="h-2" />
           </div>
+          )}
         </DialogHeader>
 
-        {/* Main Content - Tabs Navigation */}
+        {/* Main Content */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-          {allFieldsComplete ? (
+          {showCallNotesTab ? (
+            <ColdCallerCallNotesView
+              candidateId={candidate.id}
+              resumeUrl={resumeViewerUrl}
+              resumeVisible={resumeVisible}
+              onResumeVisibleChange={setResumeVisible}
+              emptyFields={emptyFields}
+              groupedFields={groupedFields}
+              sectionsWithFields={sectionsWithFields}
+              rawNotesDraft={rawNotesDraft}
+              onDraftChange={setRawNotesDraft}
+              showDraftSavedHint={showDraftSavedHint}
+              questions={questions}
+              isLoadingQuestions={isLoadingQuestions}
+              questionsError={questionsError}
+              onRetryGenerateQuestions={handleGenerateQuestions}
+            />
+          ) : allFieldsComplete ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">
               <div className="h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
                 <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
@@ -1360,10 +1441,18 @@ export function ColdCallerDialog({
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
           <div className="text-sm text-muted-foreground">
-            {stats.answered > 0 && (
-              <span className="text-green-600 dark:text-green-400 font-medium">
-                ✓ {stats.answered} field{stats.answered !== 1 ? 's' : ''} answered
-              </span>
+            {showCallNotesTab ? (
+              rawNotesDraft.trim() && (
+                <span className="text-muted-foreground">
+                  Call notes draft in progress
+                </span>
+              )
+            ) : (
+              stats.answered > 0 && (
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  ✓ {stats.answered} field{stats.answered !== 1 ? 's' : ''} answered
+                </span>
+              )
             )}
           </div>
           <div className="flex items-center gap-3">
