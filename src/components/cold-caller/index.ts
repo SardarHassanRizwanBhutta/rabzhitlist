@@ -1,6 +1,12 @@
 // Cold Caller Components - Barrel Export
 
 export { ColdCallerDialog } from './cold-caller-dialog'
+export { ColdCallerViewSwitcher } from './cold-caller-view-switcher'
+export { ColdCallerCallNotesView } from './cold-caller-call-notes-view'
+export { CallNotesEditor } from './call-notes-editor'
+export { CallNotesFieldsSidebar } from './call-notes-fields-sidebar'
+export { CallNotesResumePanel } from './call-notes-resume-panel'
+export { CallNotesQuestionsSidebar } from './call-notes-questions-sidebar'
 export { ColdCallerFieldEditor } from './cold-caller-field-editor'
 export { QuestionFieldCard } from './question-field-card'
 
