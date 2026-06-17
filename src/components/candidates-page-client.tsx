@@ -51,6 +51,11 @@ import {
   prepareCandidateCreateLookups,
   candidateListItemDtoToCandidate,
 } from "@/lib/services/candidates-api"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import type {
+  CandidateSubmitOptions,
+  CandidateCreateSubmitResult,
+} from "@/lib/contracts/candidate-resume"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import type { Country } from "@/lib/types/country"
 import type { CertificationIssuer } from "@/lib/types/certification"
@@ -902,14 +907,54 @@ export function CandidatesPageClient() {
     }
   }, [filters, projectFilter, certificationFilter, employerFilter, universityFilter])
 
-  const handleCandidateSubmit = async (data: CandidateFormData) => {
+  const handleCandidateSubmit = async (
+    data: CandidateFormData,
+    options?: CandidateSubmitOptions,
+  ): Promise<CandidateCreateSubmitResult | void> => {
+    const resumeFile = options?.resumeFile ?? null
+
     try {
       const preparedLookups = await prepareCandidateCreateLookups(data, candidateLookups)
       setTechStacksLookup(preparedLookups.techStacks ?? [])
-      await createCandidate(candidateFormDataToCreateDto(data, preparedLookups))
-      toast.success("Candidate created successfully.")
-      setPageNumber(1)
-      refetchCandidates()
+      const candidate = await createCandidate(
+        candidateFormDataToCreateDto(data, preparedLookups),
+      )
+
+      if (!resumeFile) {
+        toast.success("Candidate created successfully.")
+        setPageNumber(1)
+        refetchCandidates()
+        return { status: "success" }
+      }
+
+      const candidateId = Number(candidate.id)
+      if (!Number.isFinite(candidateId)) {
+        throw new Error("Invalid candidate id returned from server.")
+      }
+
+      try {
+        await uploadCandidateResume({
+          candidateId,
+          file: resumeFile,
+          onStageChange: options?.onResumeStageChange,
+        })
+        toast.success("Candidate and resume created successfully.")
+        setPageNumber(1)
+        refetchCandidates()
+        return { status: "success" }
+      } catch (resumeError) {
+        refetchCandidates()
+        return {
+          status: "resume-upload-failed",
+          candidateId,
+          candidateName: candidate.name,
+          file: resumeFile,
+          error:
+            resumeError instanceof Error
+              ? resumeError.message
+              : "The resume could not be uploaded.",
+        }
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to create candidate.")
       throw e
@@ -1076,6 +1121,7 @@ export function CandidatesPageClient() {
             createPrefill={createCandidatePrefill}
             onCreatePrefillConsumed={handleCreatePrefillConsumed}
             onSubmit={handleCandidateSubmit}
+            onResumeAttached={refetchCandidates}
             lookups={candidateLookups}
             onCreateTechStack={handleCreateTechStack}
             onCreateTimeSupportZone={handleCreateTimeSupportZone}

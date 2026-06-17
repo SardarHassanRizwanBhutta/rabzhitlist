@@ -62,7 +62,8 @@ import { ProjectCreationDialog, ProjectFormData } from "@/components/project-cre
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
-import { resolveResumeUrlForViewer } from "@/lib/utils/resume-url"
+import { getCandidateResumeOpenUrl } from "@/lib/services/candidate-resume-api"
+import { openUrlInNewTabAfterFetch } from "@/lib/utils/open-url-in-new-tab"
 
 // Section icons mapping (Fields View tabs)
 const SECTION_ICONS = COLD_CALLER_SECTION_ICONS
@@ -829,14 +830,24 @@ export function ColdCallerDialog({
     setPendingEntity(null)
   }, [pendingEntity, handleFieldSave])
 
-  const resumeViewerUrl = useMemo(
-    () => resolveResumeUrlForViewer(candidate.resume),
-    [candidate.resume],
-  )
+  const handlePopOutResume = useCallback(async () => {
+    const id = Number(candidate.id)
+    if (!candidate.hasResume || !Number.isFinite(id)) {
+      toast.error("No resume available to open.")
+      return
+    }
 
-  const handlePopOutResume = useCallback(() => {
-    window.open(resumeViewerUrl, "_blank", "noopener,noreferrer,width=900,height=1000")
-  }, [resumeViewerUrl])
+    try {
+      await openUrlInNewTabAfterFetch(async () => {
+        const response = await getCandidateResumeOpenUrl(id)
+        return response.url
+      })
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to open the resume.",
+      )
+    }
+  }, [candidate.hasResume, candidate.id])
 
   // Get section stats
   const getSectionStats = (fields: EmptyField[]) => {
@@ -894,6 +905,7 @@ export function ColdCallerDialog({
                     size="sm"
                     variant="outline"
                     onClick={handlePopOutResume}
+                    disabled={!candidate.hasResume}
                     className="gap-1.5"
                     title="Open resume in a new window"
                   >
@@ -950,7 +962,9 @@ export function ColdCallerDialog({
           {showCallNotesTab ? (
             <ColdCallerCallNotesView
               candidateId={candidate.id}
-              resumeUrl={resumeViewerUrl}
+              hasResume={candidate.hasResume}
+              resumeFileName={candidate.resumeFileName}
+              resumeContentType={candidate.resumeContentType}
               resumeVisible={resumeVisible}
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}

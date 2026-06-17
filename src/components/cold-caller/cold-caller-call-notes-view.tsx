@@ -21,7 +21,9 @@ const TAB_TRIGGER_CLASS = cn(
 
 interface ColdCallerCallNotesViewProps {
   candidateId: string
-  resumeUrl: string | null | undefined
+  hasResume?: boolean
+  resumeFileName?: string | null
+  resumeContentType?: string | null
   resumeVisible: boolean
   onResumeVisibleChange: (visible: boolean) => void
   emptyFields: EmptyField[]
@@ -52,7 +54,9 @@ function getSectionQuestionCount(
 
 export function ColdCallerCallNotesView({
   candidateId,
-  resumeUrl,
+  hasResume,
+  resumeFileName,
+  resumeContentType,
   resumeVisible,
   onResumeVisibleChange,
   emptyFields,
@@ -117,8 +121,10 @@ export function ColdCallerCallNotesView({
   }, [sectionsWithFields, groupedFields, questions, emptyFields])
 
   const workspaceProps = {
-    resumeUrl,
     candidateId,
+    hasResume,
+    resumeFileName,
+    resumeContentType,
     resumeVisible,
     onResumeVisibleChange,
     rawNotesDraft,

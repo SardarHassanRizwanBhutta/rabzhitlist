@@ -76,6 +76,11 @@ export interface CandidateListItemDto {
   source: string | number | null
   status: string
   resumeUrl: string | null
+  hasResume?: boolean
+  resumeFileName?: string | null
+  resumeContentType?: string | null
+  resumeFileSizeBytes?: number | null
+  resumeUploadedAt?: string | null
   createdAt: string
   updatedAt: string
   /** Same as detail GET — for list badges/filters without an extra fetch. */
@@ -724,6 +729,44 @@ function mapMatchedProjects(raw: unknown): MatchedProjectDto[] {
     .filter((item) => Number.isFinite(item.projectId) && item.projectName.length > 0)
 }
 
+function mapResumeFieldsFromDto(
+  row: Record<string, unknown>,
+): Pick<
+  Candidate,
+  | "hasResume"
+  | "resumeFileName"
+  | "resumeContentType"
+  | "resumeFileSizeBytes"
+  | "resumeUploadedAt"
+  | "resume"
+> {
+  const hasResume = row.hasResume === true
+  const resumeFileName =
+    row.resumeFileName != null ? String(row.resumeFileName) : null
+  const resumeContentType =
+    row.resumeContentType != null ? String(row.resumeContentType) : null
+  const resumeFileSizeBytes =
+    typeof row.resumeFileSizeBytes === "number"
+      ? row.resumeFileSizeBytes
+      : row.resumeFileSizeBytes != null
+        ? Number(row.resumeFileSizeBytes)
+        : null
+  const resumeUploadedAt =
+    row.resumeUploadedAt != null ? String(row.resumeUploadedAt) : null
+
+  return {
+    hasResume,
+    resumeFileName,
+    resumeContentType,
+    resumeFileSizeBytes:
+      resumeFileSizeBytes != null && Number.isFinite(resumeFileSizeBytes)
+        ? resumeFileSizeBytes
+        : null,
+    resumeUploadedAt,
+    resume: row.resumeUrl != null ? String(row.resumeUrl) : null,
+  }
+}
+
 /** Map GET list row to UI {@link Candidate} (no nested graph). */
 export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Candidate {
   return {
@@ -741,7 +784,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     githubUrl: row.githubUrl,
     source: parseCandidateSource(row.source),
     status: row.status as Candidate["status"],
-    resume: row.resumeUrl,
+    ...mapResumeFieldsFromDto(row as unknown as Record<string, unknown>),
     totalExperienceYears: row.totalExperienceYears,
     totalExperienceMonths:
       typeof row.totalExperienceMonths === "number"
@@ -827,7 +870,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     githubUrl: data.githubUrl != null ? String(data.githubUrl) : null,
     source: parseCandidateSource(data.source as string | number | null),
     status: String(data.status ?? "sourced") as Candidate["status"],
-    resume: data.resumeUrl != null ? String(data.resumeUrl) : null,
+    ...mapResumeFieldsFromDto(data),
     totalExperienceYears:
       typeof data.totalExperienceYears === "number" ? data.totalExperienceYears : null,
     totalExperienceMonths:
