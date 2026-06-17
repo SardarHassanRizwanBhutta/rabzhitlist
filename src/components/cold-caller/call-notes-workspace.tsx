@@ -8,8 +8,10 @@ import { CallNotesQuestionsSidebar } from "./call-notes-questions-sidebar"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
 
 interface CallNotesWorkspaceProps {
-  resumeUrl: string | null | undefined
   candidateId: string
+  hasResume?: boolean
+  resumeFileName?: string | null
+  resumeContentType?: string | null
   resumeVisible: boolean
   onResumeVisibleChange: (visible: boolean) => void
   rawNotesDraft: string
@@ -29,8 +31,10 @@ interface CallNotesWorkspaceProps {
 }
 
 export function CallNotesWorkspace({
-  resumeUrl,
   candidateId,
+  hasResume,
+  resumeFileName,
+  resumeContentType,
   resumeVisible,
   onResumeVisibleChange,
   rawNotesDraft,
@@ -66,8 +70,10 @@ export function CallNotesWorkspace({
             style={{ width: `${leftPercent}%` }}
           >
             <CallNotesResumePanel
-              resumeUrl={resumeUrl}
               candidateId={candidateId}
+              hasResume={hasResume}
+              resumeFileName={resumeFileName}
+              resumeContentType={resumeContentType}
               onCollapse={() => onResumeVisibleChange(false)}
               className="h-full"
             />

@@ -63,7 +63,9 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Separator } from "@/components/ui/separator"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
-import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
+import { ResumeOpenButton } from "@/components/candidates/resume-open-button"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
 import { 
   getCandidateMatchContext, 
@@ -308,21 +310,49 @@ export function CandidatesTable({
     }
   }
 
-  const handleUpdateCandidate = async (formData: CandidateFormData) => {
+  const handleUpdateCandidate = async (
+    formData: CandidateFormData,
+    options?: CandidateSubmitOptions,
+  ): Promise<CandidateCreateSubmitResult | void> => {
     if (!candidateToEdit) return
     const id = Number(candidateToEdit.id)
     if (!Number.isFinite(id)) {
       toast.error("Invalid candidate id.")
       return
     }
+    const resumeFile = options?.resumeFile ?? null
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
       await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
+
+      if (resumeFile) {
+        try {
+          await uploadCandidateResume({
+            candidateId: id,
+            file: resumeFile,
+          })
+        } catch (resumeError) {
+          onCandidatesListChanged?.()
+          return {
+            status: "resume-upload-failed",
+            candidateId: id,
+            candidateName: candidateToEdit.name,
+            file: resumeFile,
+            error:
+              resumeError instanceof Error
+                ? resumeError.message
+                : "The new resume could not be uploaded.",
+          }
+        }
+      }
+
       toast.success("Candidate updated successfully.")
+
       onCandidatesListChanged?.()
       setEditDialogOpen(false)
       setCandidateToEdit(null)
+      return { status: "success" }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
       throw err
@@ -626,7 +656,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
               )}
               
               {/* Actions - Always visible */}
-              <TableHead className="w-[70px]">
+              <TableHead className="min-w-[7.5rem] w-[108px]">
                 Actions
               </TableHead>
             </TableRow>
@@ -775,28 +805,35 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                   )}
                   
                   {/* Actions */}
-                  <TableCell>
-                    <div className="flex items-center gap-1">
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-0.5">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCandidate(candidate)
-                        }}
+                        className="h-8 w-8 cursor-pointer shrink-0"
+                        onClick={() => setSelectedCandidate(candidate)}
                       >
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">View details</span>
                       </Button>
-                      
+
+                      <ResumeOpenButton
+                        candidateId={Number(candidate.id)}
+                        fileName={candidate.resumeFileName}
+                        contentType={candidate.resumeContentType}
+                        hasResume={
+                          candidate.hasResume === true &&
+                          Number.isFinite(Number(candidate.id))
+                        }
+                        className="shrink-0"
+                      />
+
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                            className="h-8 w-8 cursor-pointer"
-                            onClick={(e) => e.stopPropagation()}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 cursor-pointer shrink-0"
                           >
                             <MoreHorizontal className="h-4 w-4" />
                             <span className="sr-only">Open menu</span>
@@ -835,7 +872,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 {/* Expandable Match Details Row */}
                 {activeFilters && isExpanded && matchContext && matchContext.totalMatches > 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} className="p-0">
+                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} className="p-0">
                       <div className="bg-gray-50 dark:bg-gray-950/50 border-t border-border">
                         <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                           {matchContext.categories.map((category) => {
@@ -1046,6 +1083,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdateCandidate}
+        onResumeAttached={onCandidatesListChanged}
         lookups={candidateLookups}
         onCreateTechStack={onCreateTechStack}
         onCreateTimeSupportZone={onCreateTimeSupportZone}

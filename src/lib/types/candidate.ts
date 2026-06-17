@@ -238,7 +238,13 @@ export interface Candidate {
   linkedinUrl?: string | null
   source: string
   status: CandidateStatus
+  /** @deprecated Legacy field — use `hasResume` and resume metadata instead. */
   resume?: string | null
+  hasResume?: boolean
+  resumeFileName?: string | null
+  resumeContentType?: string | null
+  resumeFileSizeBytes?: number | null
+  resumeUploadedAt?: string | null
   workExperiences?: WorkExperience[] 
   projects?: CandidateStandaloneProject[] // Standalone projects not associated with work experience
   certifications?: CandidateCertification[] | null

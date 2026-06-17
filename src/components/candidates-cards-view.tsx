@@ -29,7 +29,8 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
-import { CandidateCreationDialog, CandidateFormData, type CandidateLookups } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import { 
@@ -417,21 +418,49 @@ export function CandidatesCardsView({
     }
   }
 
-  const handleUpdateCandidate = async (formData: CandidateFormData) => {
+  const handleUpdateCandidate = async (
+    formData: CandidateFormData,
+    options?: CandidateSubmitOptions,
+  ): Promise<CandidateCreateSubmitResult | void> => {
     if (!candidateToEdit) return
     const id = Number(candidateToEdit.id)
     if (!Number.isFinite(id)) {
       toast.error("Invalid candidate id.")
       return
     }
+    const resumeFile = options?.resumeFile ?? null
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
       await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
+
+      if (resumeFile) {
+        try {
+          await uploadCandidateResume({
+            candidateId: id,
+            file: resumeFile,
+          })
+        } catch (resumeError) {
+          onCandidatesListChanged?.()
+          return {
+            status: "resume-upload-failed",
+            candidateId: id,
+            candidateName: candidateToEdit.name,
+            file: resumeFile,
+            error:
+              resumeError instanceof Error
+                ? resumeError.message
+                : "The new resume could not be uploaded.",
+          }
+        }
+      }
+
       toast.success("Candidate updated successfully.")
+
       onCandidatesListChanged?.()
       setEditDialogOpen(false)
       setCandidateToEdit(null)
+      return { status: "success" }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
       throw err
@@ -747,6 +776,7 @@ export function CandidatesCardsView({
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdateCandidate}
+        onResumeAttached={onCandidatesListChanged}
         lookups={candidateLookups}
         onCreateTechStack={onCreateTechStack}
         onCreateTimeSupportZone={onCreateTimeSupportZone}

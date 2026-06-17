@@ -110,6 +110,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   getWorkExperienceDateFieldErrors,
   getWorkExperienceDateSuggestion,
@@ -117,6 +118,18 @@ import {
 } from "@/lib/utils/work-experience-dates"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
+import type {
+  CandidateCreateSubmitResult,
+  CandidateSubmitOptions,
+  PendingResumeRetry,
+  ResumeUploadStage,
+} from "@/lib/contracts/candidate-resume"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import { ResumeFileInput } from "@/components/candidates/resume-file-input"
+import { ResumeUploadStatus } from "@/components/candidates/resume-upload-status"
+import { ResumeOpenButton } from "@/components/candidates/resume-open-button"
+import { formatResumeFileSize } from "@/lib/utils/candidate-resume"
+import { format } from "date-fns"
 
 /** Lookups from backend for candidate form dropdowns (aligned with employer/project dialogs). */
 export interface CandidateLookups {
@@ -842,12 +855,19 @@ export interface VerificationState {
   modifiedFields: Set<string>
 }
 
+export type { CandidateSubmitOptions, CandidateCreateSubmitResult } from "@/lib/contracts/candidate-resume"
+
 interface CandidateCreationDialogProps {
   children?: React.ReactNode
   mode?: DialogMode
   candidateData?: Candidate
   showVerification?: boolean  // Enable verification UI mode (automatically true in edit mode, optional for create mode)
-  onSubmit?: (data: CandidateFormData, verificationState?: VerificationState) => Promise<void> | void
+  onSubmit?: (
+    data: CandidateFormData,
+    options?: CandidateSubmitOptions,
+  ) => Promise<CandidateCreateSubmitResult | void>
+  /** Called after a resume is successfully attached (create retry or edit replacement). */
+  onResumeAttached?: () => void
   onOpenChange?: (open: boolean) => void
   open?: boolean
   /** Tech stacks from `/api/techstacks`; same pattern as employer/project dialogs. */
@@ -1117,6 +1137,7 @@ export function CandidateCreationDialog({
   candidateData,
   showVerification: showVerificationProp,
   onSubmit,
+  onResumeAttached,
   onOpenChange,
   open: controlledOpen,
   lookups,
@@ -1167,7 +1188,11 @@ export function CandidateCreationDialog({
 
   // Resume file state
   const [resumeFile, setResumeFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [resumeUploadStage, setResumeUploadStage] = useState<ResumeUploadStage | null>(null)
+  const [resumeUploadError, setResumeUploadError] = useState<string | null>(null)
+  const [pendingResumeRetry, setPendingResumeRetry] = useState<PendingResumeRetry | null>(null)
+  const [isCreatingCandidate, setIsCreatingCandidate] = useState(false)
+  const [isRetryingResume, setIsRetryingResume] = useState(false)
 
   // Sticky navigation tabs state
   const [activeTab, setActiveTab] = useState<string>("basic-info")
@@ -2714,14 +2739,34 @@ export function CandidateCreationDialog({
     }
 
     setIsLoading(true)
+    setResumeUploadError(null)
+    setResumeUploadStage(null)
+    setIsCreatingCandidate(true)
+
     try {
       const verificationState: VerificationState = {
         verifiedFields: new Set(verifiedFields),
         modifiedFields: new Set(modifiedFields),
       }
-      await onSubmit?.(formData, showVerification ? verificationState : undefined)
+      const result = await onSubmit?.(formData, {
+        verificationState,
+        resumeFile,
+        onResumeStageChange:
+          mode === "create" ? setResumeUploadStage : undefined,
+      })
+
+      if (result?.status === "resume-upload-failed") {
+        setPendingResumeRetry({
+          candidateId: result.candidateId,
+          candidateName: result.candidateName,
+          file: result.file,
+        })
+        setResumeUploadError(result.error)
+        return
+      }
+
       resetForm()
-      // Force close without warning since we just saved
+      setPendingResumeRetry(null)
       if (controlledOpen === undefined) {
         setInternalOpen(false)
       }
@@ -2730,7 +2775,54 @@ export function CandidateCreationDialog({
       console.error("Error submitting form:", error)
     } finally {
       setIsLoading(false)
+      setIsCreatingCandidate(false)
+      setResumeUploadStage(null)
     }
+  }
+
+  const handleRetryResumeUpload = async () => {
+    if (!pendingResumeRetry) return
+
+    setIsRetryingResume(true)
+    setResumeUploadError(null)
+    setResumeUploadStage(null)
+
+    try {
+      await uploadCandidateResume({
+        candidateId: pendingResumeRetry.candidateId,
+        file: pendingResumeRetry.file,
+        onStageChange: mode === "create" ? setResumeUploadStage : undefined,
+      })
+      onResumeAttached?.()
+      toast.success(
+        mode === "edit"
+          ? "Candidate updated successfully."
+          : "Resume uploaded successfully.",
+      )
+      resetForm()
+      setPendingResumeRetry(null)
+      if (controlledOpen === undefined) {
+        setInternalOpen(false)
+      }
+      onOpenChange?.(false)
+    } catch (error) {
+      setResumeUploadError(
+        error instanceof Error ? error.message : "Failed to upload resume.",
+      )
+    } finally {
+      setIsRetryingResume(false)
+      setResumeUploadStage(null)
+    }
+  }
+
+  const handleCloseAfterPartialSuccess = () => {
+    setPendingResumeRetry(null)
+    setResumeUploadError(null)
+    resetForm()
+    if (controlledOpen === undefined) {
+      setInternalOpen(false)
+    }
+    onOpenChange?.(false)
   }
 
   const handleCancel = () => {
@@ -2764,9 +2856,8 @@ export function CandidateCreationDialog({
       setVerifiedFields(new Set())
       setModifiedFields(new Set())
       setResumeFile(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
+      setPendingResumeRetry(null)
+      setResumeUploadError(null)
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
       setProjectsOpen(true)
@@ -2793,9 +2884,9 @@ export function CandidateCreationDialog({
         setVerifiedFields(new Set())
         setModifiedFields(new Set())
         setResumeFile(null)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
+        setResumeFile(null)
+        setPendingResumeRetry(null)
+        setResumeUploadError(null)
         setWorkExperienceOpen(true)
         setTechStacksOpen(true)
         setProjectsOpen(true)
@@ -2818,9 +2909,8 @@ export function CandidateCreationDialog({
     setVerifiedFields(new Set())
     setModifiedFields(new Set())
     setResumeFile(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+    setPendingResumeRetry(null)
+    setResumeUploadError(null)
     setWorkExperienceOpen(false)
     setTechStacksOpen(false)
     setProjectsOpen(false)
@@ -3212,73 +3302,61 @@ export function CandidateCreationDialog({
                 </div>
                 <VerificationCheckbox fieldPath="isTopDeveloper" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="resume">Resume</Label>
-                {!resumeFile ? (
-                  <div className="space-y-2">
-                    <Input 
-                      id="resume" 
-                      type="file" 
-                      ref={fileInputRef}
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          setResumeFile(file)
-                          if (showVerification) {
-                            setModifiedFields(prev => new Set(prev).add("resume"))
-                            setVerifiedFields(prev => new Set(prev).add("resume"))
-                          }
-                        }
-                      }}
-                      className="cursor-pointer"
-                    />
+              {mode === "edit" && candidateData?.hasResume && !resumeFile && (
+                <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Current resume
+                  </p>
+                  <p className="text-sm font-medium truncate" title={candidateData.resumeFileName ?? undefined}>
+                    {candidateData.resumeFileName ?? "Resume on file"}
+                  </p>
+                  {candidateData.resumeFileSizeBytes != null && (
                     <p className="text-xs text-muted-foreground">
-                      Accepted formats: PDF, DOC, DOCX
+                      {formatResumeFileSize(candidateData.resumeFileSizeBytes)}
+                      {candidateData.resumeUploadedAt
+                        ? ` · Uploaded ${format(new Date(candidateData.resumeUploadedAt), "MMM d, yyyy")}`
+                        : null}
                     </p>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 p-3 border rounded-md bg-muted/50">
-                    <div className="flex-1 flex items-center gap-2 min-w-0">
-                      <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm font-medium truncate" title={resumeFile.name}>
-                        {resumeFile.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        ({(resumeFile.size / 1024).toFixed(1)} KB)
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setResumeFile(null)
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = ""
-                        }
-                        if (showVerification) {
-                          setModifiedFields(prev => {
-                            const newSet = new Set(prev)
-                            newSet.delete("resume")
-                            return newSet
-                          })
-                          setVerifiedFields(prev => {
-                            const newSet = new Set(prev)
-                            newSet.delete("resume")
-                            return newSet
-                          })
-                        }
-                      }}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-                      title="Remove file"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-                <VerificationCheckbox fieldPath="resume" />
-              </div>
+                  )}
+                  {Number.isFinite(Number(candidateData.id)) && (
+                    <ResumeOpenButton
+                      candidateId={Number(candidateData.id)}
+                      fileName={candidateData.resumeFileName}
+                      contentType={candidateData.resumeContentType}
+                      variant="button"
+                    />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Select a new file below to replace the current resume after saving.
+                  </p>
+                </div>
+              )}
+              <ResumeFileInput
+                id="resume"
+                value={resumeFile}
+                onChange={(file) => {
+                  setResumeFile(file)
+                  if (file && showVerification) {
+                    setModifiedFields((prev) => new Set(prev).add("resume"))
+                    setVerifiedFields((prev) => new Set(prev).add("resume"))
+                  }
+                  if (!file && showVerification) {
+                    setModifiedFields((prev) => {
+                      const next = new Set(prev)
+                      next.delete("resume")
+                      return next
+                    })
+                    setVerifiedFields((prev) => {
+                      const next = new Set(prev)
+                      next.delete("resume")
+                      return next
+                    })
+                  }
+                }}
+                disabled={isLoading || isRetryingResume || !!pendingResumeRetry}
+                label={mode === "edit" && candidateData?.hasResume ? "Replace resume" : "Resume"}
+              />
+              <VerificationCheckbox fieldPath="resume" />
               </div>
             </CardContent>
           </Card>
@@ -4667,25 +4745,78 @@ export function CandidateCreationDialog({
           </form>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t border-border gap-2">
+        <DialogFooter className="px-6 py-4 border-t border-border gap-2 flex-col items-stretch sm:flex-col sm:items-stretch">
+          {pendingResumeRetry && (
+            <div
+              className="rounded-md border border-amber-500/40 bg-amber-500/10 p-4 space-y-3 w-full"
+              role="alert"
+              tabIndex={-1}
+            >
+              <p className="text-sm font-medium">
+                {mode === "edit"
+                  ? "Candidate updated, but the new resume could not be uploaded."
+                  : "Candidate created successfully, but the resume could not be uploaded."}
+              </p>
+              {resumeUploadError && (
+                <p className="text-sm text-muted-foreground">{resumeUploadError}</p>
+              )}
+              <p className="text-xs text-muted-foreground truncate" title={pendingResumeRetry.file.name}>
+                {pendingResumeRetry.file.name} ({formatResumeFileSize(pendingResumeRetry.file.size)})
+              </p>
+              {mode === "create" && (
+                <ResumeUploadStatus stage={resumeUploadStage} className="text-foreground" />
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={handleRetryResumeUpload}
+                  disabled={isRetryingResume}
+                >
+                  {isRetryingResume && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Retry Resume Upload
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCloseAfterPartialSuccess}
+                  disabled={isRetryingResume}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {mode === "create" && (
+            <ResumeUploadStatus
+              stage={resumeUploadStage}
+              creatingCandidate={isCreatingCandidate && !resumeUploadStage}
+              className="w-full"
+            />
+          )}
+
+          <div className="flex justify-end gap-2 w-full">
             <Button
               type="button"
               variant="outline"
               onClick={handleCancel}
-              disabled={isLoading}
+              disabled={isLoading || isRetryingResume}
               className="cursor-pointer"
             >
-              Cancel
+              {pendingResumeRetry ? "Close" : "Cancel"}
             </Button>
-            <Button 
-              type="submit"
-              form="candidate-form"
-              disabled={isLoading}
-              className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
-            >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {getSubmitButtonText(isLoading)}
-            </Button>
+            {!pendingResumeRetry && (
+              <Button 
+                type="submit"
+                form="candidate-form"
+                disabled={isLoading || isRetryingResume}
+                className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
+              >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {getSubmitButtonText(isLoading)}
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
       

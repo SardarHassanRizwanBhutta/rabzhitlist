@@ -91,7 +91,9 @@ import {
 } from "@/lib/constants/candidate-enums"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
-import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
+import { CandidateResumeField } from "@/components/candidates/candidate-resume-field"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import {
   updateCandidate,
   candidateFormDataToUpdateDto,
@@ -5404,7 +5406,10 @@ export function CandidateDetailsModal({
     }
   }, [open, candidate?.id])
   
-  const handleEditSubmit = async (formData: CandidateFormData, verificationState?: VerificationState) => {
+  const handleEditSubmit = async (
+    formData: CandidateFormData,
+    options?: CandidateSubmitOptions,
+  ): Promise<CandidateCreateSubmitResult | void> => {
     if (!candidate) return
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -5412,21 +5417,45 @@ export function CandidateDetailsModal({
       return
     }
     const existing = fullCandidate ?? candidate
+    const resumeFile = options?.resumeFile ?? null
+
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
       await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
       await syncCandidateSubResources(id, formData, existing, preparedLookups)
 
-      const verifiedCount = verificationState?.verifiedFields.size || 0
-      const modifiedCount = verificationState?.modifiedFields.size || 0
+      if (resumeFile) {
+        try {
+          await uploadCandidateResume({
+            candidateId: id,
+            file: resumeFile,
+          })
+        } catch (resumeError) {
+          await refreshFullCandidate()
+          onCandidateUpdated?.()
+          return {
+            status: "resume-upload-failed",
+            candidateId: id,
+            candidateName: existing.name,
+            file: resumeFile,
+            error:
+              resumeError instanceof Error
+                ? resumeError.message
+                : "The new resume could not be uploaded.",
+          }
+        }
+      }
+
+      const verifiedCount = options?.verificationState?.verifiedFields.size || 0
+      const modifiedCount = options?.verificationState?.modifiedFields.size || 0
       toast.success(
         `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
-        { duration: 4000 }
+        { duration: 4000 },
       )
       setEditDialogOpen(false)
-      // await loadDataProgress()
       await refreshFullCandidate()
       onCandidateUpdated?.()
+      return { status: "success" }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
       throw err
@@ -6148,14 +6177,7 @@ export function CandidateDetailsModal({
                         />
                         <VisitUrlButton url={viewCandidate.githubUrl} label="Visit GitHub" />
                       </div>
-                      <InlineEditableResume
-                        label="Resume"
-                        resumeUrl={viewCandidate.resume}
-                        fieldName="resume"
-                        onSave={handleResumeSave}
-                        verificationIndicator={<VerificationIndicator fieldName="resume" />}
-                        getFieldVerification={getFieldVerification}
-                      />
+                      <CandidateResumeField candidate={viewCandidate} className="py-2 px-3" />
                     </div>
                   </div>
 
@@ -7169,6 +7191,10 @@ export function CandidateDetailsModal({
           open={editDialogOpen}
           onOpenChange={setEditDialogOpen}
           onSubmit={handleEditSubmit}
+          onResumeAttached={() => {
+            void refreshFullCandidate()
+            onCandidateUpdated?.()
+          }}
           lookups={editLookups}
         />
       )}
