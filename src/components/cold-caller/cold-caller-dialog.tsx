@@ -48,11 +48,16 @@ import { SECTION_LABELS, MODE_CONFIG } from "@/types/cold-caller"
 import { 
   getEmptyFields, 
   groupEmptyFieldsBySection, 
-  getApiFieldNames,
   createEntryFields,
   createProjectFields,
 } from "@/lib/utils/empty-field-detection"
 import { generateQuestions } from "@/lib/services/questions-api"
+import {
+  flattenSectionQuestions,
+  mapGenerateQuestionsResponse,
+  totalMissingFieldsCount,
+} from "@/lib/utils/question-generation-response"
+import type { ColdCallerSectionQuestions } from "@/types/cold-caller"
 import { QuestionFieldCard } from "./question-field-card"
 // import { ColdCallerViewSwitcher } from "./cold-caller-view-switcher"
 import { ColdCallerCallNotesView } from "./cold-caller-call-notes-view"
@@ -100,6 +105,7 @@ export function ColdCallerDialog({
   
   // Questions state
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([])
+  const [questionSections, setQuestionSections] = useState<ColdCallerSectionQuestions[] | null>(null)
   const [questionsMap, setQuestionsMap] = useState<Map<string, GeneratedQuestion>>(new Map())
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
   const [questionsError, setQuestionsError] = useState<string | null>(null)
@@ -246,6 +252,7 @@ export function ColdCallerDialog({
         // Only reset questions if candidate changed
         if (candidateChanged) {
           setQuestions([])
+          setQuestionSections(null)
           setQuestionsMap(new Map())
           setQuestionsError(null)
         }
@@ -432,18 +439,19 @@ export function ColdCallerDialog({
     setQuestionsError(null)
     
     try {
-      const apiFieldNames = getApiFieldNames(emptyFields)
-      const response = await generateQuestions(candidate.id, apiFieldNames, candidate)
-      setQuestions(response.questions)
+      const response = await generateQuestions(candidate.id, candidate, mode === "coldCaller" ? "cold_call" : mode)
+      const sections = mapGenerateQuestionsResponse(response)
+      const flatQuestions = flattenSectionQuestions(sections)
+
+      setQuestionSections(sections)
+      setQuestions(flatQuestions)
       
-      // Build questions map for O(1) lookup
       const qMap = new Map<string, GeneratedQuestion>()
-      response.questions.forEach(q => {
+      flatQuestions.forEach(q => {
         qMap.set(q.field, q)
       })
       setQuestionsMap(qMap)
       
-      // Update field states with linked questions
       setFieldStates(prev => {
         const next = new Map(prev)
         emptyFields.forEach(field => {
@@ -456,7 +464,10 @@ export function ColdCallerDialog({
         return next
       })
       
-      toast.success(`Generated ${response.total_questions} questions`)
+      const missingCount = totalMissingFieldsCount(sections)
+      toast.success(
+        `Generated ${response.total_questions} questions across ${missingCount} missing field${missingCount === 1 ? "" : "s"}`,
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate questions'
       setQuestionsError(message)
@@ -917,7 +928,7 @@ export function ColdCallerDialog({
               <Button
                 size="sm"
                 onClick={handleGenerateQuestions}
-                disabled={isLoadingQuestions || emptyFields.length === 0}
+                disabled={isLoadingQuestions}
                 className="gap-1.5"
               >
                 {isLoadingQuestions ? (
@@ -974,6 +985,7 @@ export function ColdCallerDialog({
               onDraftChange={setRawNotesDraft}
               showDraftSavedHint={showDraftSavedHint}
               questions={questions}
+              questionSections={questionSections}
               isLoadingQuestions={isLoadingQuestions}
               questionsError={questionsError}
               onRetryGenerateQuestions={handleGenerateQuestions}

@@ -6,8 +6,14 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
+import type {
+  ColdCallerSectionQuestions,
+  EmptyField,
+  FieldSection,
+  GeneratedQuestion,
+} from "@/types/cold-caller"
 import { SECTION_LABELS } from "@/types/cold-caller"
+import { ALL_FIELD_SECTIONS } from "@/lib/utils/question-section-map"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { CallNotesWorkspace } from "./call-notes-workspace"
 
@@ -33,10 +39,10 @@ interface ColdCallerCallNotesViewProps {
   onDraftChange: (draft: string) => void
   showDraftSavedHint: boolean
   questions: GeneratedQuestion[]
+  questionSections: ColdCallerSectionQuestions[] | null
   isLoadingQuestions: boolean
   questionsError: string | null
   onRetryGenerateQuestions?: () => void
-  /** Phase 2+: wired to create cold-call session API */
   onAnalyzeNotes?: (rawNotes: string) => void | Promise<void>
   isAnalyzing?: boolean
 }
@@ -44,12 +50,8 @@ interface ColdCallerCallNotesViewProps {
 function getSectionQuestionCount(
   section: FieldSection,
   questions: GeneratedQuestion[],
-  emptyFields: EmptyField[],
 ): number {
-  const apiNames = new Set(
-    emptyFields.filter((f) => f.section === section).map((f) => f.apiFieldName),
-  )
-  return questions.filter((q) => apiNames.has(q.field)).length
+  return questions.filter((q) => q.section === section).length
 }
 
 export function ColdCallerCallNotesView({
@@ -66,6 +68,7 @@ export function ColdCallerCallNotesView({
   onDraftChange,
   showDraftSavedHint,
   questions,
+  questionSections,
   isLoadingQuestions,
   questionsError,
   onRetryGenerateQuestions,
@@ -75,15 +78,23 @@ export function ColdCallerCallNotesView({
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
 
+  const displaySections = questionSections != null ? ALL_FIELD_SECTIONS : sectionsWithFields
+
+  const sectionResultsByField = useMemo(() => {
+    const map = new Map<FieldSection, ColdCallerSectionQuestions>()
+    questionSections?.forEach((s) => map.set(s.section, s))
+    return map
+  }, [questionSections])
+
   useEffect(() => {
-    if (sectionsWithFields.length === 0) {
+    if (displaySections.length === 0) {
       setActiveTab(null)
       return
     }
-    if (!activeTab || !sectionsWithFields.includes(activeTab)) {
-      setActiveTab(sectionsWithFields[0])
+    if (!activeTab || !displaySections.includes(activeTab)) {
+      setActiveTab(displaySections[0])
     }
-  }, [sectionsWithFields, activeTab])
+  }, [displaySections, activeTab])
 
   const handleQuestionSelect = useCallback((apiFieldName: string) => {
     setActiveQuestionField(apiFieldName)
@@ -108,17 +119,28 @@ export function ColdCallerCallNotesView({
     toast.info("Note analysis will be available once the backend session API is connected.")
   }, [rawNotesDraft, onAnalyzeNotes])
 
+  const activeSectionResult = activeTab ? sectionResultsByField.get(activeTab) : undefined
+  const activeSectionQuestions =
+    questionSections != null && activeTab
+      ? (activeSectionResult?.questions ?? [])
+      : questions.filter((q) => {
+          if (!activeTab) return true
+          return q.section === activeTab
+        })
+
   const tabBadges = useMemo(() => {
-    const map = new Map<FieldSection, { questionCount: number; fieldCount: number }>()
-    sectionsWithFields.forEach((section) => {
+    const map = new Map<FieldSection, { questionCount: number; missingCount: number; fieldCount: number }>()
+    displaySections.forEach((section) => {
+      const apiResult = sectionResultsByField.get(section)
       const fields = groupedFields.get(section) ?? []
       map.set(section, {
         fieldCount: fields.length,
-        questionCount: getSectionQuestionCount(section, questions, emptyFields),
+        questionCount: apiResult?.questions.length ?? getSectionQuestionCount(section, questions),
+        missingCount: apiResult?.missingFields.length ?? fields.length,
       })
     })
     return map
-  }, [sectionsWithFields, groupedFields, questions, emptyFields])
+  }, [displaySections, groupedFields, questions, sectionResultsByField])
 
   const workspaceProps = {
     candidateId,
@@ -132,7 +154,9 @@ export function ColdCallerCallNotesView({
     showDraftSavedHint,
     onAnalyze: handleAnalyze,
     isAnalyzing,
-    questions,
+    questions: activeSectionQuestions,
+    sectionMissingFields: activeSectionResult?.missingFields,
+    sectionComplete: activeSectionResult != null && activeSectionResult.missingFields.length === 0,
     isLoadingQuestions,
     questionsError,
     emptyFields,
@@ -141,7 +165,7 @@ export function ColdCallerCallNotesView({
     onRetryGenerateQuestions,
   }
 
-  if (sectionsWithFields.length === 0) {
+  if (displaySections.length === 0) {
     return <CallNotesWorkspace {...workspaceProps} />
   }
 
@@ -153,18 +177,34 @@ export function ColdCallerCallNotesView({
     >
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border shadow-sm shrink-0">
         <TabsList className="h-12 w-full justify-start rounded-none border-0 bg-transparent p-0 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          {sectionsWithFields.map((section) => {
+          {displaySections.map((section) => {
             const SectionIcon = COLD_CALLER_SECTION_ICONS[section]
             const badge = tabBadges.get(section)
             const fieldCount = badge?.fieldCount ?? 0
             const questionCount = badge?.questionCount ?? 0
+            const missingCount = badge?.missingCount ?? 0
             const hasQuestions = questionCount > 0
+            const showApiBadge = questionSections != null
 
             return (
               <TabsTrigger key={section} value={section} className={TAB_TRIGGER_CLASS}>
                 <SectionIcon className="h-4 w-4" />
                 <span>{SECTION_LABELS[section]}</span>
-                {fieldCount > 0 && (
+                {showApiBadge ? (
+                  missingCount > 0 ? (
+                    <Badge variant="default" className="ml-1 text-xs px-1.5 py-0.5 font-medium shrink-0">
+                      {missingCount}
+                    </Badge>
+                  ) : questionCount > 0 ? (
+                    <Badge
+                      variant="outline"
+                      className="ml-1 text-xs px-1.5 py-0.5 shrink-0 text-green-600 border-green-200"
+                    >
+                      <CheckCircle className="w-3 h-3" aria-hidden />
+                      <span className="sr-only">{questionCount} questions</span>
+                    </Badge>
+                  ) : null
+                ) : fieldCount > 0 ? (
                   <Badge
                     variant="default"
                     className={cn(
@@ -183,7 +223,7 @@ export function ColdCallerCallNotesView({
                       fieldCount
                     )}
                   </Badge>
-                )}
+                ) : null}
               </TabsTrigger>
             )
           })}

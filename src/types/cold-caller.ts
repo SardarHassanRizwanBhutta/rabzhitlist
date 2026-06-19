@@ -1,7 +1,5 @@
 // Cold Caller Mode Type Definitions
 
-import type { Candidate } from '@/lib/types/candidate'
-
 export type InteractionMode = 'coldCaller' | 'interviewer' | 'l1' | 'l2'
 
 export interface ModeConfig {
@@ -91,23 +89,17 @@ export interface FieldState {
 export interface GeneratedQuestion {
   question: string
   field: string               // Maps to EmptyField.apiFieldName
-  category: string
-  priority: number            // 1-5, higher = ask first
+  section: FieldSection
+  priority: number            // server-assigned; higher = ask first
   context: string             // Guidance for the interviewer
 }
 
-export interface GenerateQuestionsRequest {
-  candidate_id: string
-  missing_fields: string[]
-  candidate_data: Candidate
-  conversation_context: InteractionMode | string
-}
-
-export interface GenerateQuestionsResponse {
+/** Per-section question payload after mapping the Python API response. */
+export interface ColdCallerSectionQuestions {
+  section: FieldSection
+  label: string
+  missingFields: string[]
   questions: GeneratedQuestion[]
-  generated_at: string
-  candidate_id: string
-  total_questions: number
 }
 
 export interface ColdCallerState {
@@ -140,7 +132,7 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   education: 'Education',
   certifications: 'Certifications',
   achievements: 'Achievements',
-  techStacks: 'Tech Stacks',
+  techStacks: 'Independent Tech Stacks',
   projects: 'Independent Projects',
 }
 

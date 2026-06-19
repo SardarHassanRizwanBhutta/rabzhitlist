@@ -1,90 +1,56 @@
-// Questions Generation API Service
+// Questions Generation API Service — direct browser fetch to Python LLM service
+// @see docs/FRONTEND_INTEGRATION_CONTRACT.md
 
-import type { Candidate } from '@/lib/types/candidate'
-import type { GenerateQuestionsRequest, GenerateQuestionsResponse } from '@/types/cold-caller'
+import type { Candidate } from "@/lib/types/candidate"
+import type {
+  GenerateQuestionsResponse,
+  QuestionsHealthResponse,
+} from "@/types/question-generation"
+import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
+
+function questionsApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_QUESTIONS_API_URL?.trim()
+  if (raw) return raw.replace(/\/+$/, "")
+  return "http://localhost:8002"
+}
 
 /**
- * Generate AI-powered questions for cold calling based on missing candidate fields
- * Uses Next.js API route to proxy requests to the FastAPI server (avoids CORS issues)
+ * Generate AI-powered cold-call questions. Missing fields are computed server-side.
  */
 export async function generateQuestions(
   candidateId: string,
-  missingFields: string[],
-  candidateData: Candidate,
-  mode?: string
+  candidate: Candidate,
+  conversationContext = "cold_call",
 ): Promise<GenerateQuestionsResponse> {
-  const requestBody: GenerateQuestionsRequest = {
-    candidate_id: candidateId,
-    missing_fields: missingFields,
-    candidate_data: candidateData,
-    conversation_context: mode || 'cold_call'
+  const candidateData = mapMainAppCandidateToQuestionService(candidate)
+
+  const response = await fetch(`${questionsApiBaseUrl()}/api/generate-questions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      candidate_id: candidateId,
+      candidate_data: candidateData,
+      conversation_context: conversationContext,
+    }),
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new Error(`Generate questions failed (${response.status}): ${errorBody}`)
   }
 
-  // Use local Next.js API route to proxy the request (avoids CORS)
-  const url = '/api/generate-questions'
-  
-  console.log('Calling Questions API via proxy:', url)
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
-
-    console.log('Response status:', response.status)
-
-    const data = await response.json()
-    
-    if (!response.ok) {
-      console.error('API Error Response:', data)
-      throw new Error(data.error || `API Error: ${response.status}`)
-    }
-
-    console.log('API Response:', data)
-    return data
-  } catch (error) {
-    console.error('Fetch error:', error)
-    
-    if (error instanceof Error) {
-      if (error.message.includes('Failed to fetch')) {
-        throw new Error('Unable to connect to the API. Please check if the server is running.')
-      }
-      throw error
-    }
-    
-    throw new Error('An unexpected error occurred while generating questions.')
-  }
+  return response.json() as Promise<GenerateQuestionsResponse>
 }
 
-/**
- * Check if the questions API is healthy
- */
-export async function checkApiHealth(): Promise<boolean> {
-  try {
-    const response = await fetch('/api/generate-questions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        candidate_id: 'health-check',
-        missing_fields: [],
-        candidate_data: {},
-        conversation_context: 'health_check'
-      }),
-    })
-    return response.ok
-  } catch {
-    return false
+/** Liveness check for the Python question generation service. */
+export async function checkQuestionsApiHealth(): Promise<QuestionsHealthResponse> {
+  const response = await fetch(`${questionsApiBaseUrl()}/health`)
+  if (!response.ok) {
+    throw new Error(`Questions API health check failed (${response.status})`)
   }
+  return response.json() as Promise<QuestionsHealthResponse>
 }
 
-/**
- * Get the API base URL (useful for debugging)
- */
-export function getApiBaseUrl(): string {
-  return '/api/generate-questions (proxied)'
+export function getQuestionsApiBaseUrl(): string {
+  return questionsApiBaseUrl()
 }

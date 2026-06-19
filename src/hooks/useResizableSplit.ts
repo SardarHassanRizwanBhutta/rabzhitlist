@@ -2,26 +2,34 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+type ResizableSplitSide = "left" | "right"
+
 interface UseResizableSplitOptions {
   storageKey: string
+  side?: ResizableSplitSide
   defaultPercent?: number
   minPercent?: number
   maxPercent?: number
   enabled?: boolean
 }
 
-const DEFAULT_PERCENT = 38
-const MIN_PERCENT = 22
-const MAX_PERCENT = 55
+const DEFAULT_LEFT_PERCENT = 38
+const DEFAULT_LEFT_MIN = 22
+const DEFAULT_LEFT_MAX = 55
 
-function readStoredPercent(storageKey: string, fallback: number): number {
+function readStoredPercent(
+  storageKey: string,
+  fallback: number,
+  minPercent: number,
+  maxPercent: number,
+): number {
   if (typeof window === "undefined") return fallback
   try {
     const raw = sessionStorage.getItem(storageKey)
     if (raw == null) return fallback
     const n = Number.parseFloat(raw)
     if (!Number.isFinite(n)) return fallback
-    return Math.min(MAX_PERCENT, Math.max(MIN_PERCENT, n))
+    return Math.min(maxPercent, Math.max(minPercent, n))
   } catch {
     return fallback
   }
@@ -29,32 +37,37 @@ function readStoredPercent(storageKey: string, fallback: number): number {
 
 export function useResizableSplit({
   storageKey,
-  defaultPercent = DEFAULT_PERCENT,
-  minPercent = MIN_PERCENT,
-  maxPercent = MAX_PERCENT,
+  side = "left",
+  defaultPercent,
+  minPercent,
+  maxPercent,
   enabled = true,
 }: UseResizableSplitOptions) {
+  const resolvedDefault = defaultPercent ?? DEFAULT_LEFT_PERCENT
+  const resolvedMin = minPercent ?? DEFAULT_LEFT_MIN
+  const resolvedMax = maxPercent ?? DEFAULT_LEFT_MAX
+
   const containerRef = useRef<HTMLDivElement>(null)
-  const [leftPercent, setLeftPercent] = useState(() =>
-    readStoredPercent(storageKey, defaultPercent),
+  const [panelPercent, setPanelPercent] = useState(() =>
+    readStoredPercent(storageKey, resolvedDefault, resolvedMin, resolvedMax),
   )
   const draggingRef = useRef(false)
 
   useEffect(() => {
-    setLeftPercent(readStoredPercent(storageKey, defaultPercent))
-  }, [storageKey, defaultPercent])
+    setPanelPercent(readStoredPercent(storageKey, resolvedDefault, resolvedMin, resolvedMax))
+  }, [storageKey, resolvedDefault, resolvedMin, resolvedMax])
 
   const persistPercent = useCallback(
     (value: number) => {
-      const clamped = Math.min(maxPercent, Math.max(minPercent, value))
-      setLeftPercent(clamped)
+      const clamped = Math.min(resolvedMax, Math.max(resolvedMin, value))
+      setPanelPercent(clamped)
       try {
         sessionStorage.setItem(storageKey, String(clamped))
       } catch {
         // ignore quota errors
       }
     },
-    [storageKey, minPercent, maxPercent],
+    [storageKey, resolvedMin, resolvedMax],
   )
 
   const onPointerDown = useCallback(
@@ -71,11 +84,12 @@ export function useResizableSplit({
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!draggingRef.current || !containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const percent = (x / rect.width) * 100
+      const offset =
+        side === "left" ? e.clientX - rect.left : rect.right - e.clientX
+      const percent = (offset / rect.width) * 100
       persistPercent(percent)
     },
-    [persistPercent],
+    [persistPercent, side],
   )
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -86,7 +100,8 @@ export function useResizableSplit({
 
   return {
     containerRef,
-    leftPercent,
+    panelPercent,
+    leftPercent: panelPercent,
     handleProps: {
       onPointerDown,
       onPointerMove,
@@ -94,9 +109,9 @@ export function useResizableSplit({
       onPointerCancel: onPointerUp,
       role: "separator" as const,
       "aria-orientation": "vertical" as const,
-      "aria-valuenow": Math.round(leftPercent),
-      "aria-valuemin": minPercent,
-      "aria-valuemax": maxPercent,
+      "aria-valuenow": Math.round(panelPercent),
+      "aria-valuemin": resolvedMin,
+      "aria-valuemax": resolvedMax,
       tabIndex: 0,
     },
   }

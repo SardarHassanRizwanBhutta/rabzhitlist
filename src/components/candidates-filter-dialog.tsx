@@ -801,7 +801,7 @@ export function CandidatesFilterDialog({
       certificationNames: prev.certificationNames.filter((x) => x !== idStr),
     }))
   }
-
+  
   // Define sections for navigation
   const sections = [
     { id: "basic", sectionId: "filter-basic", label: "Basic" },
@@ -2312,15 +2312,15 @@ export function CandidatesFilterDialog({
               </div>
 
               <div className="space-y-2">
-                <MultiSelect
+              <MultiSelect
                   items={projectTechStackFilterOptions}
-                  selected={tempFilters.techStacks}
-                  onChange={(values) => handleFilterChange("techStacks", values)}
-                  placeholder="Filter by technology..."
-                  label="Technology Stack"
-                  searchPlaceholder="Search technologies..."
-                  maxDisplay={4}
-                />
+                selected={tempFilters.techStacks}
+                onChange={(values) => handleFilterChange("techStacks", values)}
+                placeholder="Filter by technology..."
+                label="Technology Stack"
+                searchPlaceholder="Search technologies..."
+                maxDisplay={4}
+              />
                 <p className="text-xs text-muted-foreground">
                   Matches candidates with linked projects that use any selected stack (OR). Does not filter on
                   candidate-level or work-experience-only tech stacks.
@@ -2798,15 +2798,15 @@ export function CandidatesFilterDialog({
               </div>
               
               <div className="space-y-2">
-                <MultiSelect
+              <MultiSelect
                   items={degreeNameFilterOptions}
-                  selected={tempFilters.degreeNames}
-                  onChange={(values) => handleFilterChange("degreeNames", values)}
-                  placeholder="Filter by degree..."
-                  label="Degree"
-                  searchPlaceholder="Search degrees..."
-                  maxDisplay={3}
-                />
+                selected={tempFilters.degreeNames}
+                onChange={(values) => handleFilterChange("degreeNames", values)}
+                placeholder="Filter by degree..."
+                label="Degree"
+                searchPlaceholder="Search degrees..."
+                maxDisplay={3}
+                />           
                 {degreeNameFilterOptions.length === 0 && (
                   <p className="text-xs text-muted-foreground">
                     Degree names load from GET /api/degrees (same as the candidate form) once lookups are available.
@@ -2815,15 +2815,15 @@ export function CandidatesFilterDialog({
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <MultiSelect
+                <MultiSelect
                     items={majorNameFilterOptions}
-                    selected={tempFilters.majorNames}
-                    onChange={(values) => handleFilterChange("majorNames", values)}
-                    placeholder="Filter by major..."
-                    label="Major"
-                    searchPlaceholder="Search majors..."
-                    maxDisplay={3}
-                  />
+                  selected={tempFilters.majorNames}
+                  onChange={(values) => handleFilterChange("majorNames", values)}
+                  placeholder="Filter by major..."
+                  label="Major"
+                  searchPlaceholder="Search majors..."
+                  maxDisplay={3}
+                />
                   {majorNameFilterOptions.length === 0 && (
                     <p className="text-xs text-muted-foreground">
                       Major names load from GET /api/majors (same as the candidate form) once lookups are available.
@@ -3107,15 +3107,15 @@ export function CandidatesFilterDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <MultiSelect
+                <MultiSelect
                     items={certificationIssuingBodyFilterOptions}
-                    selected={tempFilters.certificationIssuingBodies}
-                    onChange={(values) => handleFilterChange("certificationIssuingBodies", values)}
-                    placeholder="Filter by issuing body..."
-                    label="Issuing Body"
-                    searchPlaceholder="Search issuing bodies..."
-                    maxDisplay={3}
-                  />
+                  selected={tempFilters.certificationIssuingBodies}
+                  onChange={(values) => handleFilterChange("certificationIssuingBodies", values)}
+                  placeholder="Filter by issuing body..."
+                  label="Issuing Body"
+                  searchPlaceholder="Search issuing bodies..."
+                  maxDisplay={3}
+                />
                   {certificationIssuingBodyFilterOptions.length === 0 && (
                     <p className="text-xs text-muted-foreground">
                       Issuing bodies load from the certification catalog once the issuers API is available.
@@ -3172,10 +3172,10 @@ export function CandidatesFilterDialog({
                   value={tempFilters.achievementName}
                   onChange={(e) => handleFilterChange("achievementName", e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                   Same field as the Name input when creating or editing a candidate&apos;s achievements; match is
                   case-insensitive.
-                </p>
+              </p>
               </div>
             </section>
 
