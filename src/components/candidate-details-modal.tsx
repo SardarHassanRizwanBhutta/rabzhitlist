@@ -6176,7 +6176,7 @@ export function CandidateDetailsModal({
                           getFieldVerification={getFieldVerification}
                         />
                         <VisitUrlButton url={viewCandidate.githubUrl} label="Visit GitHub" />
-                      </div>
+                        </div>
                       <CandidateResumeField candidate={viewCandidate} className="py-2 px-3" />
                     </div>
                   </div>

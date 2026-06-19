@@ -4,6 +4,10 @@ import type { Candidate } from '@/lib/types/candidate'
 import type { EmptyField, FieldSection, FieldType } from '@/types/cold-caller'
 import { sampleProjects } from '@/lib/sample-data/projects'
 import { sampleEmployers } from '@/lib/sample-data/employers'
+import {
+  CERTIFICATION_LEVEL_DB,
+  CERTIFICATION_LEVEL_LABELS_DB,
+} from '@/lib/constants/candidate-enums'
 
 // Shift type options
 export const SHIFT_TYPE_OPTIONS = [
@@ -35,6 +39,11 @@ export const BOOLEAN_OPTIONS = [
   { value: 'true', label: 'Yes' },
   { value: 'false', label: 'No' },
 ]
+
+const CERTIFICATION_LEVEL_OPTIONS = CERTIFICATION_LEVEL_DB.map((value) => ({
+  value,
+  label: CERTIFICATION_LEVEL_LABELS_DB[value],
+}))
 
 // Helper functions to get combobox options
 export function getProjectOptions(): { value: string; label: string }[] {
@@ -110,18 +119,6 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
 
   // Work Experience Fields
   if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    // Section is completely empty - create placeholder fields for first entry
-    emptyFields.push({
-      fieldPath: 'workExperiences[0].employerName',
-      apiFieldName: 'work_experience_0_employerName',
-      fieldLabel: 'Employer Name',
-      fieldType: 'combobox',
-      section: 'workExperience',
-      currentValue: null,
-      parentIndex: 0,
-      options: getEmployerOptions(),
-      onCreateEntity: 'employer',
-    })
     emptyFields.push({
       fieldPath: 'workExperiences[0].jobTitle',
       apiFieldName: 'work_experience_0_jobTitle',
@@ -130,6 +127,17 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       section: 'workExperience',
       currentValue: null,
       parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'workExperiences[0].employerName',
+      apiFieldName: 'work_experience_0_employerName',
+      fieldLabel: 'Employer',
+      fieldType: 'combobox',
+      section: 'workExperience',
+      currentValue: null,
+      parentIndex: 0,
+      options: getEmployerOptions(),
+      onCreateEntity: 'employer',
     })
     emptyFields.push({
       fieldPath: 'workExperiences[0].startDate',
@@ -145,6 +153,15 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       apiFieldName: 'work_experience_0_endDate',
       fieldLabel: 'End Date',
       fieldType: 'date',
+      section: 'workExperience',
+      currentValue: null,
+      parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'workExperiences[0].techStacks',
+      apiFieldName: 'work_experience_0_techStacks',
+      fieldLabel: 'Tech Stacks',
+      fieldType: 'multiselect',
       section: 'workExperience',
       currentValue: null,
       parentIndex: 0,
@@ -180,15 +197,6 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       parentIndex: 0,
     })
     emptyFields.push({
-      fieldPath: 'workExperiences[0].techStacks',
-      apiFieldName: 'work_experience_0_techStacks',
-      fieldLabel: 'Tech Stacks',
-      fieldType: 'multiselect',
-      section: 'workExperience',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
       fieldPath: 'workExperiences[0].benefits',
       apiFieldName: 'work_experience_0_benefits',
       fieldLabel: 'Benefits',
@@ -197,7 +205,26 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       currentValue: null,
       parentIndex: 0,
     })
-    // Note: Projects are added dynamically via handleAddProject() - not included here
+    emptyFields.push({
+      fieldPath: 'workExperiences[0].projects[0].projectName',
+      apiFieldName: 'work_experience_0_project_0_projectName',
+      fieldLabel: 'Project Name',
+      fieldType: 'combobox',
+      section: 'workExperience',
+      currentValue: null,
+      parentIndex: 0,
+      options: getProjectOptions(),
+      onCreateEntity: 'project',
+    })
+    emptyFields.push({
+      fieldPath: 'workExperiences[0].projects[0].contributionNotes',
+      apiFieldName: 'work_experience_0_project_0_contributionNotes',
+      fieldLabel: 'Contribution',
+      fieldType: 'textarea',
+      section: 'workExperience',
+      currentValue: null,
+      parentIndex: 0,
+    })
   } else {
     // Existing work experiences - check for empty fields within them
     candidate.workExperiences.forEach((we, index) => {
@@ -253,7 +280,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         emptyFields.push({
           fieldPath: `workExperiences[${index}].projects[0].contributionNotes`,
           apiFieldName: `work_experience_${index}_project_0_contributionNotes`,
-          fieldLabel: 'Contribution Notes',
+          fieldLabel: 'Contribution',
           fieldType: 'textarea',
           section: 'workExperience',
           context,
@@ -267,7 +294,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
             emptyFields.push({
               fieldPath: `workExperiences[${index}].projects[${projIndex}].contributionNotes`,
               apiFieldName: `work_experience_${index}_project_${projIndex}_contributionNotes`,
-              fieldLabel: 'Contribution Notes',
+              fieldLabel: 'Contribution',
               fieldType: 'textarea',
               section: 'workExperience',
               context: `${context} → ${proj.projectName}`,
@@ -308,6 +335,24 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       apiFieldName: 'education_0_majorName',
       fieldLabel: 'Major Name',
       fieldType: 'text',
+      section: 'education',
+      currentValue: null,
+      parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'educations[0].startMonth',
+      apiFieldName: 'education_0_startMonth',
+      fieldLabel: 'Start Month',
+      fieldType: 'date',
+      section: 'education',
+      currentValue: null,
+      parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'educations[0].endMonth',
+      apiFieldName: 'education_0_endMonth',
+      fieldLabel: 'End Month',
+      fieldType: 'date',
       section: 'education',
       currentValue: null,
       parentIndex: 0,
@@ -411,6 +456,24 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         parentIndex: newIndex,
       })
       emptyFields.push({
+        fieldPath: `educations[${newIndex}].startMonth`,
+        apiFieldName: `education_${newIndex}_startMonth`,
+        fieldLabel: 'Start Month',
+        fieldType: 'date',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
+        fieldPath: `educations[${newIndex}].endMonth`,
+        apiFieldName: `education_${newIndex}_endMonth`,
+        fieldLabel: 'End Month',
+        fieldType: 'date',
+        section: 'education',
+        currentValue: null,
+        parentIndex: newIndex,
+      })
+      emptyFields.push({
         fieldPath: `educations[${newIndex}].grades`,
         apiFieldName: `education_${newIndex}_grades`,
         fieldLabel: 'Grades',
@@ -444,26 +507,16 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
 
   // Certification Fields
   if (!candidate.certifications || candidate.certifications.length === 0) {
-    // Section is completely empty - create placeholder fields for first entry
     emptyFields.push({
       fieldPath: 'certifications[0].certificationName',
       apiFieldName: 'certification_0_name',
-      fieldLabel: 'Certification Name',
+      fieldLabel: 'Name',
       fieldType: 'combobox',
       section: 'certifications',
       currentValue: null,
       parentIndex: 0,
       options: getCertificationOptions(),
       onCreateEntity: 'certification',
-    })
-    emptyFields.push({
-      fieldPath: 'certifications[0].certificationUrl',
-      apiFieldName: 'certification_0_url',
-      fieldLabel: 'Certification URL',
-      fieldType: 'text',
-      section: 'certifications',
-      currentValue: null,
-      parentIndex: 0,
     })
     emptyFields.push({
       fieldPath: 'certifications[0].issueDate',
@@ -483,9 +536,41 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       currentValue: null,
       parentIndex: 0,
     })
+    emptyFields.push({
+      fieldPath: 'certifications[0].certificationUrl',
+      apiFieldName: 'certification_0_url',
+      fieldLabel: 'Certification URL',
+      fieldType: 'text',
+      section: 'certifications',
+      currentValue: null,
+      parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'certifications[0].certificationLevel',
+      apiFieldName: 'certification_0_level',
+      fieldLabel: 'Certification Level',
+      fieldType: 'select',
+      section: 'certifications',
+      currentValue: null,
+      parentIndex: 0,
+      options: CERTIFICATION_LEVEL_OPTIONS,
+    })
   } else {
     // Existing certifications - check for empty fields within them
     candidate.certifications.forEach((cert, index) => {
+      if (isEmpty(cert.certificationLevel)) {
+        emptyFields.push({
+          fieldPath: `certifications[${index}].certificationLevel`,
+          apiFieldName: `certification_${index}_level`,
+          fieldLabel: 'Certification Level',
+          fieldType: 'select',
+          section: 'certifications',
+          context: cert.certificationName,
+          currentValue: cert.certificationLevel,
+          parentIndex: index,
+          options: CERTIFICATION_LEVEL_OPTIONS,
+        })
+      }
       if (isEmpty(cert.certificationUrl)) {
         emptyFields.push({
           fieldPath: `certifications[${index}].certificationUrl`,
@@ -599,7 +684,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     emptyFields.push({
       fieldPath: 'projects[0].projectName',
       apiFieldName: 'project_0_projectName',
-      fieldLabel: 'Project Name',
+      fieldLabel: 'Name',
       fieldType: 'combobox',
       section: 'projects',
       currentValue: null,
@@ -610,7 +695,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     emptyFields.push({
       fieldPath: 'projects[0].contributionNotes',
       apiFieldName: 'project_0_contributionNotes',
-      fieldLabel: 'Contribution Notes',
+      fieldLabel: 'Contribution',
       fieldType: 'textarea',
       section: 'projects',
       currentValue: null,
@@ -708,17 +793,6 @@ export function createEntryFields(
     case 'workExperience':
       fields.push(
         {
-          fieldPath: `workExperiences[${index}].employerName`,
-          apiFieldName: `work_experience_${index}_employerName`,
-          fieldLabel: 'Employer Name',
-          fieldType: 'combobox',
-          section: 'workExperience',
-          currentValue: null,
-          parentIndex: index,
-          options: getEmployerOptions(),
-          onCreateEntity: 'employer',
-        },
-        {
           fieldPath: `workExperiences[${index}].jobTitle`,
           apiFieldName: `work_experience_${index}_jobTitle`,
           fieldLabel: 'Job Title',
@@ -726,6 +800,17 @@ export function createEntryFields(
           section: 'workExperience',
           currentValue: null,
           parentIndex: index,
+        },
+        {
+          fieldPath: `workExperiences[${index}].employerName`,
+          apiFieldName: `work_experience_${index}_employerName`,
+          fieldLabel: 'Employer',
+          fieldType: 'combobox',
+          section: 'workExperience',
+          currentValue: null,
+          parentIndex: index,
+          options: getEmployerOptions(),
+          onCreateEntity: 'employer',
         },
         {
           fieldPath: `workExperiences[${index}].startDate`,
@@ -741,6 +826,15 @@ export function createEntryFields(
           apiFieldName: `work_experience_${index}_endDate`,
           fieldLabel: 'End Date',
           fieldType: 'date',
+          section: 'workExperience',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `workExperiences[${index}].techStacks`,
+          apiFieldName: `work_experience_${index}_techStacks`,
+          fieldLabel: 'Tech Stacks',
+          fieldType: 'multiselect',
           section: 'workExperience',
           currentValue: null,
           parentIndex: index,
@@ -773,15 +867,6 @@ export function createEntryFields(
           section: 'workExperience',
           currentValue: null,
           options: TIME_SUPPORT_ZONE_OPTIONS,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `workExperiences[${index}].techStacks`,
-          apiFieldName: `work_experience_${index}_techStacks`,
-          fieldLabel: 'Tech Stacks',
-          fieldType: 'multiselect',
-          section: 'workExperience',
-          currentValue: null,
           parentIndex: index,
         },
         {
@@ -829,6 +914,24 @@ export function createEntryFields(
           parentIndex: index,
         },
         {
+          fieldPath: `educations[${index}].startMonth`,
+          apiFieldName: `education_${index}_startMonth`,
+          fieldLabel: 'Start Month',
+          fieldType: 'date',
+          section: 'education',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `educations[${index}].endMonth`,
+          apiFieldName: `education_${index}_endMonth`,
+          fieldLabel: 'End Month',
+          fieldType: 'date',
+          section: 'education',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
           fieldPath: `educations[${index}].grades`,
           apiFieldName: `education_${index}_grades`,
           fieldLabel: 'Grades',
@@ -865,22 +968,13 @@ export function createEntryFields(
         {
           fieldPath: `certifications[${index}].certificationName`,
           apiFieldName: `certification_${index}_name`,
-          fieldLabel: 'Certification Name',
+          fieldLabel: 'Name',
           fieldType: 'combobox',
           section: 'certifications',
           currentValue: null,
           parentIndex: index,
           options: getCertificationOptions(),
           onCreateEntity: 'certification',
-        },
-        {
-          fieldPath: `certifications[${index}].certificationUrl`,
-          apiFieldName: `certification_${index}_url`,
-          fieldLabel: 'Certification URL',
-          fieldType: 'text',
-          section: 'certifications',
-          currentValue: null,
-          parentIndex: index,
         },
         {
           fieldPath: `certifications[${index}].issueDate`,
@@ -899,6 +993,25 @@ export function createEntryFields(
           section: 'certifications',
           currentValue: null,
           parentIndex: index,
+        },
+        {
+          fieldPath: `certifications[${index}].certificationUrl`,
+          apiFieldName: `certification_${index}_url`,
+          fieldLabel: 'Certification URL',
+          fieldType: 'text',
+          section: 'certifications',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `certifications[${index}].certificationLevel`,
+          apiFieldName: `certification_${index}_level`,
+          fieldLabel: 'Certification Level',
+          fieldType: 'select',
+          section: 'certifications',
+          currentValue: null,
+          parentIndex: index,
+          options: CERTIFICATION_LEVEL_OPTIONS,
         }
       )
       break
@@ -967,7 +1080,7 @@ export function createEntryFields(
         {
           fieldPath: `projects[${index}].projectName`,
           apiFieldName: `project_${index}_projectName`,
-          fieldLabel: 'Project Name',
+          fieldLabel: 'Name',
           fieldType: 'combobox',
           section: 'projects',
           currentValue: null,
@@ -978,7 +1091,7 @@ export function createEntryFields(
         {
           fieldPath: `projects[${index}].contributionNotes`,
           apiFieldName: `project_${index}_contributionNotes`,
-          fieldLabel: 'Contribution Notes',
+          fieldLabel: 'Contribution',
           fieldType: 'textarea',
           section: 'projects',
           currentValue: null,
@@ -1014,7 +1127,7 @@ export function createProjectFields(
     {
       fieldPath: `workExperiences[${workExperienceIndex}].projects[${projectIndex}].contributionNotes`,
       apiFieldName: `work_experience_${workExperienceIndex}_project_${projectIndex}_contributionNotes`,
-      fieldLabel: 'Contribution Notes',
+      fieldLabel: 'Contribution',
       fieldType: 'textarea',
       section: 'workExperience',
       currentValue: null,

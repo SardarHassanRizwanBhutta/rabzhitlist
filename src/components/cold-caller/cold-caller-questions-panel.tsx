@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { GeneratedQuestion } from "@/types/cold-caller"
+import { SECTION_LABELS } from "@/types/cold-caller"
 
 interface ColdCallerQuestionsPanelProps {
   questions: GeneratedQuestion[]
@@ -29,17 +30,17 @@ interface ColdCallerQuestionsPanelProps {
   onQuestionClick?: (fieldName: string) => void
 }
 
-// Category colors for visual distinction
-const CATEGORY_COLORS: Record<string, string> = {
-  compensation: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  experience: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  technical: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+const SECTION_COLORS: Partial<Record<GeneratedQuestion["section"], string>> = {
+  basic: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
+  workExperience: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  techStacks: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  projects: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
   education: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  personal: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-  default: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+  certifications: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  achievements: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 }
 
-function QuestionCard({ 
+function QuestionCard({
   question, 
   index,
   onCopy,
@@ -59,7 +60,9 @@ function QuestionCard({
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const categoryColor = CATEGORY_COLORS[question.category] || CATEGORY_COLORS.default
+  const sectionColor =
+    SECTION_COLORS[question.section] ??
+    "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
 
   return (
     <div 
@@ -97,11 +100,11 @@ function QuestionCard({
           </div>
           
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={cn("text-xs", categoryColor)}>
-              {question.category}
+            <Badge variant="outline" className={cn("text-xs", sectionColor)}>
+              {SECTION_LABELS[question.section]}
             </Badge>
             <Badge variant="outline" className="text-xs">
-              Priority: {question.priority}/5
+              Priority: {question.priority}
             </Badge>
             <Badge variant="secondary" className="text-xs font-mono">
               {question.field}
