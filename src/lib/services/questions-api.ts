@@ -7,6 +7,8 @@ import type {
   QuestionsHealthResponse,
 } from "@/types/question-generation"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
+import { enrichEducationsWithUniversityCatalog } from "@/lib/utils/map-education-for-service"
+import { enrichWorkExperiencesWithEmployerCatalog } from "@/lib/utils/map-work-experience-for-service"
 
 function questionsApiBaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_QUESTIONS_API_URL?.trim()
@@ -22,7 +24,13 @@ export async function generateQuestions(
   candidate: Candidate,
   conversationContext = "cold_call",
 ): Promise<GenerateQuestionsResponse> {
-  const candidateData = mapMainAppCandidateToQuestionService(candidate)
+  const educations = await enrichEducationsWithUniversityCatalog(candidate.educations)
+  const workExperiences = await enrichWorkExperiencesWithEmployerCatalog(candidate.workExperiences)
+  const candidateData = mapMainAppCandidateToQuestionService({
+    ...candidate,
+    educations,
+    workExperiences,
+  })
 
   const response = await fetch(`${questionsApiBaseUrl()}/api/generate-questions`, {
     method: "POST",

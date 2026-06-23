@@ -13,9 +13,15 @@ import type {
   GeneratedQuestion,
 } from "@/types/cold-caller"
 import { SECTION_LABELS } from "@/types/cold-caller"
-import { ALL_FIELD_SECTIONS } from "@/lib/utils/question-section-map"
+import {
+  buildCallNotesSectionResults,
+  CALL_NOTES_DISPLAY_SECTIONS,
+  isPreferencesApiFieldName,
+} from "@/lib/utils/preferences-section"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { CallNotesWorkspace } from "./call-notes-workspace"
+import { isSectionComplete } from "@/lib/utils/question-generation-response"
+import type { WorkExperience, CandidateCertification, CandidateEducation, CandidateStandaloneProject } from "@/lib/types/candidate"
 
 const TAB_TRIGGER_CLASS = cn(
   "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12",
@@ -33,6 +39,10 @@ interface ColdCallerCallNotesViewProps {
   resumeVisible: boolean
   onResumeVisibleChange: (visible: boolean) => void
   emptyFields: EmptyField[]
+  workExperiences?: WorkExperience[]
+  educations?: CandidateEducation[]
+  certifications?: CandidateCertification[]
+  standaloneProjects?: CandidateStandaloneProject[]
   groupedFields: Map<FieldSection, EmptyField[]>
   sectionsWithFields: FieldSection[]
   rawNotesDraft: string
@@ -51,6 +61,12 @@ function getSectionQuestionCount(
   section: FieldSection,
   questions: GeneratedQuestion[],
 ): number {
+  if (section === "preferences") {
+    return questions.filter((q) => isPreferencesApiFieldName(q.field)).length
+  }
+  if (section === "basic") {
+    return questions.filter((q) => q.section === "basic" && !isPreferencesApiFieldName(q.field)).length
+  }
   return questions.filter((q) => q.section === section).length
 }
 
@@ -62,6 +78,10 @@ export function ColdCallerCallNotesView({
   resumeVisible,
   onResumeVisibleChange,
   emptyFields,
+  workExperiences,
+  educations,
+  certifications,
+  standaloneProjects,
   groupedFields,
   sectionsWithFields,
   rawNotesDraft,
@@ -78,12 +98,11 @@ export function ColdCallerCallNotesView({
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
 
-  const displaySections = questionSections != null ? ALL_FIELD_SECTIONS : sectionsWithFields
+  const displaySections = questionSections != null ? CALL_NOTES_DISPLAY_SECTIONS : sectionsWithFields
 
   const sectionResultsByField = useMemo(() => {
-    const map = new Map<FieldSection, ColdCallerSectionQuestions>()
-    questionSections?.forEach((s) => map.set(s.section, s))
-    return map
+    if (!questionSections) return new Map<FieldSection, ColdCallerSectionQuestions>()
+    return buildCallNotesSectionResults(questionSections)
   }, [questionSections])
 
   useEffect(() => {
@@ -156,10 +175,14 @@ export function ColdCallerCallNotesView({
     isAnalyzing,
     questions: activeSectionQuestions,
     sectionMissingFields: activeSectionResult?.missingFields,
-    sectionComplete: activeSectionResult != null && activeSectionResult.missingFields.length === 0,
+    sectionComplete: activeSectionResult != null && isSectionComplete(activeSectionResult),
     isLoadingQuestions,
     questionsError,
     emptyFields,
+    workExperiences,
+    educations,
+    certifications,
+    standaloneProjects,
     activeQuestionField,
     onQuestionSelect: handleQuestionSelect,
     onRetryGenerateQuestions,
@@ -194,14 +217,6 @@ export function ColdCallerCallNotesView({
                   missingCount > 0 ? (
                     <Badge variant="default" className="ml-1 text-xs px-1.5 py-0.5 font-medium shrink-0">
                       {missingCount}
-                    </Badge>
-                  ) : questionCount > 0 ? (
-                    <Badge
-                      variant="outline"
-                      className="ml-1 text-xs px-1.5 py-0.5 shrink-0 text-green-600 border-green-200"
-                    >
-                      <CheckCircle className="w-3 h-3" aria-hidden />
-                      <span className="sr-only">{questionCount} questions</span>
                     </Badge>
                   ) : null
                 ) : fieldCount > 0 ? (

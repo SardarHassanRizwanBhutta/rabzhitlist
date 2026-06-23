@@ -25,6 +25,9 @@ import type {
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { parseLinkedProjectCatalogFromApi } from "@/lib/utils/map-linked-project-for-service"
+import { parseCertificationCatalogFromApi } from "@/lib/utils/map-certification-for-service"
+import { parseUniversityCatalogFromEducationRow } from "@/lib/utils/map-education-for-service"
 import {
   MBTI_TYPES,
   CANDIDATE_SOURCE_DB,
@@ -251,6 +254,7 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 
 function mapProjectExperience(raw: Record<string, unknown>, idx: number): ProjectExperience {
   const pid = raw.projectId
+  const catalog = parseLinkedProjectCatalogFromApi(raw)
   return {
     id: String(raw.id ?? `proj-${idx}`),
     projectId: typeof pid === "number" && Number.isFinite(pid) ? pid : pid != null ? Number(pid) || null : null,
@@ -261,6 +265,7 @@ function mapProjectExperience(raw: Record<string, unknown>, idx: number): Projec
         : raw.contributionNotes != null
           ? String(raw.contributionNotes)
           : "",
+    ...catalog,
   }
 }
 
@@ -342,16 +347,18 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
 
 function mapStandaloneProject(raw: Record<string, unknown>, idx: number): CandidateStandaloneProject {
   const pid = raw.projectId
+  const catalog = parseLinkedProjectCatalogFromApi(raw)
   return {
     id: String(raw.id ?? `sp-${idx}`),
     projectId: typeof pid === "number" && Number.isFinite(pid) ? pid : pid != null ? Number(pid) || null : null,
-    projectName: String(raw.projectName ?? ""),
+    projectName: String(raw.projectName ?? raw.name ?? ""),
     contributionNotes:
       raw.contribution != null
         ? String(raw.contribution)
         : raw.contributionNotes != null
           ? String(raw.contributionNotes)
           : "",
+    ...catalog,
   }
 }
 
@@ -388,16 +395,17 @@ function mapCertification(raw: Record<string, unknown>, idx: number): CandidateC
       : raw.url != null
         ? String(raw.url)
         : null
+  const catalog = parseCertificationCatalogFromApi(raw)
   return {
     id: String(raw.id ?? `cert-${idx}`),
     certificationId: Number.isFinite(certId) ? certId : null,
-    certificationName: String(raw.certificationName ?? raw.name ?? ""),
+    certificationName: String(raw.certificationName ?? raw.name ?? catalog.certificationName ?? ""),
     certificationIssuerName:
       raw.issuerName != null
         ? String(raw.issuerName)
         : raw.certificationIssuerName != null
           ? String(raw.certificationIssuerName)
-          : null,
+          : catalog.issuingBody,
     certificationLevel: typeof raw.certificationLevel === "number"
       ? (CERTIFICATION_LEVEL_DB[raw.certificationLevel] ?? null) as CandidateCertification["certificationLevel"]
       : typeof raw.level === "number"
@@ -408,21 +416,35 @@ function mapCertification(raw: Record<string, unknown>, idx: number): CandidateC
     issueDate: parseIsoDate(raw.issueDate),
     expiryDate: parseIsoDate(raw.expiryDate),
     certificationUrl: url,
+    issuingBody: catalog.issuingBody,
+    issuingBodyUrl: catalog.issuingBodyUrl,
   }
 }
 
 function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEducation {
-  const university = asRecord(raw.university)
-  const ulid = raw.universityLocationId ?? raw.universityId ?? university?.id
+  const universityIdRaw = raw.universityId ?? raw.universityLocationId
+  const universityIdNum =
+    typeof universityIdRaw === "number"
+      ? universityIdRaw
+      : universityIdRaw != null
+        ? Number(universityIdRaw)
+        : NaN
+  const universityId =
+    Number.isFinite(universityIdNum) && universityIdNum > 0 ? universityIdNum : null
+
   const universityName =
-    raw.universityLocationName ??
     raw.universityName ??
-    (typeof raw.university === "string" ? raw.university : null) ??
-    university?.name
+    raw.universityLocationName ??
+    (typeof raw.university === "string" ? raw.university : null)
+
+  const flatCatalog = parseUniversityCatalogFromEducationRow(raw)
+
   return {
     id: String(raw.id ?? `edu-${idx}`),
-    universityLocationId: ulid != null ? String(ulid) : "",
+    universityId,
+    universityLocationId: universityId != null ? String(universityId) : "",
     universityLocationName: String(universityName ?? ""),
+    universityName: String(universityName ?? ""),
     degreeName: String(raw.degreeName ?? ""),
     majorName: String(raw.majorName ?? ""),
     startMonth: parseIsoDate(raw.startMonth ?? raw.startDate),
@@ -435,6 +457,11 @@ function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEduca
         : typeof raw.isMainCheetah === "boolean"
           ? raw.isMainCheetah
           : null,
+    country: flatCatalog.country,
+    ranking: flatCatalog.ranking,
+    websiteUrl: flatCatalog.websiteUrl,
+    linkedinUrl: flatCatalog.linkedinUrl,
+    locations: flatCatalog.locations,
   }
 }
 

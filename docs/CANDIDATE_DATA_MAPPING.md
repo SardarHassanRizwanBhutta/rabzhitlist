@@ -73,7 +73,11 @@ The frontend links generated questions to editable UI fields via **`apiFieldName
 | `personalityType` | `personalityType` | `personalityType` |
 | `isTopDeveloper` | `isTopDeveloper` | `isTopDeveloper` |
 
+**Always-ask fields (cold call):** `currentSalary`, `expectedSalary`, `linkedinUrl` — the API **always** generates a question for each on every request. When empty → `prompt_type: 'missing'` (in `missing_fields`). When populated → `prompt_type: 'enrichment'` with **Reminder** badge (not in `missing_fields`). Other basic fields remain missing-only. See contract § 4.14.
+
 #### Work Experience
+
+**Link fields** (visible in UI; enrichment when populated — § 4.13.2a in contract doc):
 
 | apiFieldName | Payload check | Main app source |
 |---|---|---|
@@ -82,38 +86,74 @@ The frontend links generated questions to editable UI fields via **`apiFieldName
 | `work_experience_{i}_jobTitle` | `workExperiences[i].jobTitle` | `jobTitle` |
 | `work_experience_{i}_startDate` | `workExperiences[i].startDate` | `startDate` |
 | `work_experience_{i}_endDate` | `workExperiences[i].endDate` | `endDate` (null allowed on current role only) |
-| `work_experience_{i}_techStacks` | `workExperiences[i].techStacks` | `techStacks` |
-| `work_experience_{i}_shiftType` | `workExperiences[i].shiftType` | `shiftType` |
-| `work_experience_{i}_workMode` | `workExperiences[i].workMode` | `workMode` |
-| `work_experience_{i}_timeSupportZones` | `workExperiences[i].timeSupportZones` | `timeSupportZones` |
-| `work_experience_{i}_benefits` | `workExperiences[i].benefits` | `benefits` (empty `[]` only) |
-| `work_experience_{i}_projects` | empty `workExperiences[i].projects[]` | no nested projects on role |
-| `work_experience_{i}_project_{j}_projectName` | nested project name | `projects[j].projectName` |
-| `work_experience_{i}_project_{j}_contributionNotes` | nested notes | `projects[j].contributionNotes` |
+| `work_experience_{i}_techStacks` | `workExperiences[i].techStacks` | `techStacks` — enrichment § 4.9 |
+| `work_experience_{i}_shiftType` | `workExperiences[i].shiftType` | shared with employer catalog |
+| `work_experience_{i}_workMode` | `workExperiences[i].workMode` | shared with employer catalog |
+| `work_experience_{i}_timeSupportZones` | `workExperiences[i].timeSupportZones` | shared with employer catalog |
+| `work_experience_{i}_benefits` | `workExperiences[i].benefits` | shared with employer catalog (empty `[]` only) |
+| `work_experience_{i}_projects` | empty `workExperiences[i].projects[]` | nested projects opener + synthetic `project_0_*` |
+| `work_experience_{i}_project_{j}_*` | nested project row | Same suffixes as `project_{i}_*` — see [nested projects](#work-experience-nested-projects-catalog-fields) |
+
+**Employer catalog** (accordion; missing-only; flat on row after `enrichWorkExperiencesWithEmployerCatalog`):
+
+| apiFieldName | Payload check | Main app source |
+|---|---|---|
+| `work_experience_{i}_foundedYear` | `workExperiences[i].foundedYear` | Employer catalog |
+| `work_experience_{i}_status` | `workExperiences[i].status` | `open`, `closed`, `flagged` |
+| `work_experience_{i}_types` | empty `types[]` | Employer type enum strings |
+| `work_experience_{i}_ranking` | `workExperiences[i].ranking` | `tier_1` … `dpl_favourite` |
+| `work_experience_{i}_minEmployees` | `workExperiences[i].minEmployees` | |
+| `work_experience_{i}_maxEmployees` | `workExperiences[i].maxEmployees` | |
+| `work_experience_{i}_websiteUrl` | `workExperiences[i].websiteUrl` | |
+| `work_experience_{i}_linkedInUrl` | `workExperiences[i].linkedInUrl` | |
+| `work_experience_{i}_isDplCompetitor` | `isDplCompetitor` is `null` | `false` is **present** |
+| `work_experience_{i}_salaryPolicy` | `workExperiences[i].salaryPolicy` | |
+| `work_experience_{i}_tags` | empty `tags[]` | |
+
+**Office locations** (`locations[]`; country is **string** name on payload):
+
+| apiFieldName | Payload check |
+|---|---|
+| `work_experience_{i}_office_{j}_country` | `locations[j].country` (string) |
+| `work_experience_{i}_office_{j}_city` | `locations[j].city` |
+| `work_experience_{i}_office_{j}_address` | `locations[j].address` |
+| `work_experience_{i}_office_{j}_isHeadquarters` | `isHeadquarters` is `null` |
+
+Synthetic `office_0_*` when `locations[]` empty.
+
+**Layoffs** (`layoffs[]`):
+
+| apiFieldName | Payload property |
+|---|---|
+| `work_experience_{i}_layoff_{j}_layoffDate` | `layoffDate` |
+| `work_experience_{i}_layoff_{j}_affectedEmployees` | `affectedEmployees` |
+| `work_experience_{i}_layoff_{j}_reason` | `reason` |
+| `work_experience_{i}_layoff_{j}_source` | `source` |
+
+Synthetic `layoff_0_*` when `layoffs[]` empty.
+
+**UI:** link fields visible → projects block → accordion **Complete employer details** (catalog + offices + layoffs). See [CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md](./CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md) and contract § 4.7 / § 4.13.
 
 ### Empty work experience section (synthetic first role)
 
-When `workExperiences[]` is **empty**, the server emits **13 missing-field keys**:
+When `workExperiences[]` is **empty**, the server emits **51 missing-field keys**:
 
-| apiFieldName | UI label | Purpose |
-|---|---|---|
-| `work_experiences` | — | Section opener — broad reminder that no work experience entries exist yet |
-| `work_experience_0_jobTitle` | Job Title | Mini-question for job title |
-| `work_experience_0_employerName` | Employer | Mini-question for employer |
-| `work_experience_0_startDate` | Start Date | Mini-question for start date (duration) |
-| `work_experience_0_endDate` | End Date | Mini-question for end date (duration) |
-| `work_experience_0_techStacks` | Tech Stacks | Mini-question for technologies used in role |
-| `work_experience_0_shiftType` | Shift Type | Mini-question for shift |
-| `work_experience_0_workMode` | Work Mode | Mini-question for remote/hybrid/on-site |
-| `work_experience_0_timeSupportZones` | Time Support Zones | Mini-question for time zones supported |
-| `work_experience_0_benefits` | Benefits | Mini-question for role benefits |
-| `work_experience_0_projects` | Projects | Mini-question prompting first nested project on role |
-| `work_experience_0_project_0_projectName` | Project Name | Mini-question for first nested project name |
-| `work_experience_0_project_0_contributionNotes` | Contribution | Mini-question for first nested project contribution |
+| Group | Keys |
+|---|---|
+| Section opener | `work_experiences` |
+| First role link | `work_experience_0_*` link fields (9) |
+| Employer catalog | `work_experience_0_foundedYear` … `work_experience_0_tags` (11) |
+| First office | `work_experience_0_office_0_*` (4) |
+| First layoff | `work_experience_0_layoff_0_*` (4) |
+| Nested projects opener | `work_experience_0_projects` |
+| First nested project | `work_experience_0_project_0_*` (21) |
 
-- Questions are **LLM-generated** (one per key); server fills any gaps with templates.
-- **`work_experience_0_*` applies only to the first role** while the array is empty. After rows are added and generation re-runs, missing keys use real indices (`work_experience_1_*`, etc.).
-- UI: show as a **numbered list** (section opener first by priority, then field mini-questions).
+- **`work_experience_0_*` applies only while the array is empty.** After rows are added, keys use real indices (`work_experience_1_*`, etc.).
+- **`employerId`** and row ids are never question fields.
+
+### Work experience link enrichment (§ 4.13.2a)
+
+When `workExperiences[]` has rows, enrichment for opener + populated link fields (`jobTitle`, `employerName`, `startDate`, `endDate`, `shiftType`, `workMode`, `timeSupportZones`, `benefits`). Catalog/offices/layoffs remain missing-only. `techStacks` and projects keep existing enrichment rules.
 
 #### Independent Tech Stacks
 
@@ -121,61 +161,149 @@ When `workExperiences[]` is **empty**, the server emits **13 missing-field keys*
 |---|---|---|
 | `techStacks` | empty top-level `techStacks[]` | `techStacks` |
 
+**Enrichment (always ask when populated):**
+
+| apiFieldName | Payload check | Response |
+|---|---|---|
+| `techStacks` | non-empty `techStacks[]` | Question with `prompt_type: 'enrichment'` — **not** in `missing_fields` |
+
+Resume-parsed stacks may be incomplete; cold callers should ask for **additional** technologies. See [FRONTEND_INTEGRATION_CONTRACT.md § 4.9](./FRONTEND_INTEGRATION_CONTRACT.md#49-tech-stack-enrichment-prompts).
+
+**Work experience role tech stacks** — same enrichment rule for `work_experience_{i}_techStacks` when `workExperiences[i].techStacks[]` is populated.
+
 #### Independent Projects
 
 | apiFieldName | Payload check | Main app source |
 |---|---|---|
 | `projects` | empty top-level `projects[]` | no standalone projects — **also emits synthetic `project_0_*` keys** (see below) |
-| `project_{i}_projectName` | `projects[i].projectName` | `projectName` (UI: Name) |
-| `project_{i}_contributionNotes` | `projects[i].contributionNotes` | `contributionNotes` (UI: Contribution) |
+| `project_{i}_projectName` | `projects[i].projectName` | ASP.NET `Project.Name` (candidate link) |
+| `project_{i}_contributionNotes` | `projects[i].contributionNotes` | `CandidateProject` junction (candidate link) |
+| `project_{i}_employerName` | `projects[i].employerName` | `Project.Employer` navigation name |
+| `project_{i}_clientLocations` | `projects[i].clientLocations` | `Project.ClientLocations` → `string[]` |
+| `project_{i}_projectType` | `projects[i].projectType` | `Project.Type` enum |
+| `project_{i}_status` | `projects[i].status` | `Project.Status` enum |
+| `project_{i}_minTeamSize` | `projects[i].minTeamSize` | `Project.MinTeamSize` (weight 2.5; team size group 5 total) |
+| `project_{i}_maxTeamSize` | `projects[i].maxTeamSize` | `Project.MaxTeamSize` (weight 2.5) |
+| `project_{i}_startDate` | `projects[i].startDate` | `Project.StartDate` |
+| `project_{i}_endDate` | `projects[i].endDate` | `Project.EndDate` |
+| `project_{i}_verticalDomains` | `projects[i].verticalDomains` | `Project.VerticalDomains` collection |
+| `project_{i}_horizontalDomains` | `projects[i].horizontalDomains` | `Project.HorizontalDomains` collection |
+| `project_{i}_technicalDomains` | `projects[i].technicalDomains` | `Project.TechnicalDomains` collection |
+| `project_{i}_description` | `projects[i].description` | `Project.Description` |
+| `project_{i}_notes` | `projects[i].notes` | `Project.Notes` |
+| `project_{i}_projectLink` | `projects[i].link` | `Project.Link` (payload **`link`**, apiFieldName **`projectLink`**) |
+| `project_{i}_isPublished` | `projects[i].isPublished` | `Project.IsPublished` (`false` = present, not missing) |
+| `project_{i}_publishPlatforms` | `projects[i].publishPlatforms` | `Project.PublishPlatforms` collection |
+| `project_{i}_downloadCount` | `projects[i].downloadCount` | `Project.DownloadCount` (`0` = present, not missing) |
+| `project_{i}_technicalAspects` | `projects[i].technicalAspects` | `Project.TechnicalAspects` collection |
+| `project_{i}_techStacks` | `projects[i].techStacks` | `Project.TechStacks` collection |
+
+**Link field weights (Tier A — always visible, fixed UI order Name → Contribution):** `projectName` 4, `contributionNotes` 1.
 
 ### Empty independent projects section (synthetic first row)
 
-When top-level `projects[]` is **empty**, the server emits **3 missing-field keys**:
+When top-level `projects[]` is **empty**, the server emits **22 missing-field keys**:
 
 | apiFieldName | UI label | Purpose |
 |---|---|---|
-| `projects` | — | Section opener — broad reminder that no standalone projects exist yet |
-| `project_0_projectName` | Name | Mini-question for project name |
-| `project_0_contributionNotes` | Contribution | Mini-question for contribution notes |
+| `projects` | — | Section opener |
+| `project_0_projectName` | Name | Candidate link (weight 4) |
+| `project_0_contributionNotes` | Contribution | Candidate link (weight 1) |
+| `project_0_employerName` … `project_0_techStacks` | (catalog) | Accordion — see master table |
 
-- Questions are **LLM-generated** (one per key); server fills any gaps with templates.
+- **21 `project_0_*` field keys** per synthetic row (2 link + 19 catalog).
+- Questions are **LLM-generated** (one per key); server fills gaps with templates.
 - **`project_0_*` applies only to the first entry** while the array is empty. After rows are added and generation re-runs, missing keys use real indices (`project_1_*`, etc.).
-- UI: show as a **numbered list** (section opener first by priority, then field mini-questions).
+- **UI (Cold Caller):** see [FRONTEND_INTEGRATION_CONTRACT.md § 4.11](./FRONTEND_INTEGRATION_CONTRACT.md#411-independent-projects-tab-rendering-spec) — section opener → per project: **Name + Contribution visible** → collapsible **Complete project details** for catalog. Enrichment § 4.10.
+
+### Project enrichment (Option B)
+
+When `projects[]` or nested `workExperiences[i].projects[]` is **populated**:
+
+| Field | Enrichment when |
+|---|---|
+| `projects` / `work_experience_{i}_projects` | List non-empty — ask for **more** projects |
+| `*_projectName` | Value present — verify/correct name |
+| `*_contributionNotes` | Value present — add/correct contribution |
+
+Enrichment fields are **not** in `missing_fields`. Catalog suffixes remain missing-only. See [FRONTEND_INTEGRATION_CONTRACT.md § 4.10](./FRONTEND_INTEGRATION_CONTRACT.md#410-project-enrichment-prompts-option-b).
+
+### Work experience nested projects (catalog fields)
+
+When `workExperiences[i].projects[]` is **empty**, the server emits `work_experience_{i}_projects` plus **21** synthetic `work_experience_{i}_project_0_*` keys (same suffixes as independent projects).
+
+When nested projects exist, missing keys use `work_experience_{i}_project_{j}_{suffix}` for each empty catalog/link field on that row.
+
+| apiFieldName pattern | Example |
+|---|---|
+| `work_experience_{i}_project_{j}_projectName` | Nested project name |
+| `work_experience_{i}_project_{j}_contributionNotes` | Nested contribution |
+| `work_experience_{i}_project_{j}_employerName` | … all catalog suffixes same as `project_{i}_*` |
+
+**UI:** nested under the Work Experience card — projects opener visible; Name + Contribution inside accordion. Enrichment rules § 4.10 when rows populated from resume.
 
 #### Education
+
+**Link fields** (visible in UI; enrichment when populated — § 4.12.2a):
 
 | apiFieldName | Payload check | Main app source |
 |---|---|---|
 | `educations` | empty `educations[]` | no education rows — **also emits synthetic `education_0_*` keys** (see below) |
-| `education_{i}_universityLocationName` | `educations[i].universityLocationName` | `universityLocationName` — ask **university name only**, not location |
+| `education_{i}_universityName` | `educations[i].universityName` (legacy: `universityLocationName`) | `universityName` |
 | `education_{i}_degreeName` | `educations[i].degreeName` | `degreeName` |
 | `education_{i}_majorName` | `educations[i].majorName` | `majorName` |
 | `education_{i}_startMonth` | `educations[i].startMonth` | `startMonth` |
 | `education_{i}_endMonth` | `educations[i].endMonth` | `endMonth` |
 | `education_{i}_grades` | `educations[i].grades` | `grades` |
-| `education_{i}_isTopper` | `educations[i].isTopper` | `isTopper` |
-| `education_{i}_isCheetah` | `educations[i].isCheetah` | `isCheetah` |
+| `education_{i}_isTopper` | `educations[i].isTopper` is `null` | `isTopper` — `false` is **present** |
+| `education_{i}_isCheetah` | `educations[i].isCheetah` is `null` | `isCheetah` — `false` is **present** |
+
+**University catalog** (accordion in UI; missing-only; flat on each row, merged from DB by `universityId`):
+
+| apiFieldName | Payload check | Main app source |
+|---|---|---|
+| `education_{i}_country` | `educations[i].country` | University — `Country` |
+| `education_{i}_ranking` | `educations[i].ranking` | University — `Ranking` (`tier_1`, `tier_2`, `tier_3`, `dpl_favourite`; display: Tier 1, Tier 2, Tier 3, DPL Favourite) |
+| `education_{i}_websiteUrl` | `educations[i].websiteUrl` | University — `WebsiteUrl` |
+| `education_{i}_linkedinUrl` | `educations[i].linkedinUrl` | University — `LinkedInUrl` |
+
+**Campus locations** (`locations[]` on row; accordion under catalog; apiFieldName uses `campus_{j}_` index):
+
+| apiFieldName | Payload check | Main app source |
+|---|---|---|
+| `education_{i}_campus_{j}_city` | `educations[i].locations[j].city` | Campus — `City` |
+| `education_{i}_campus_{j}_isMainCampus` | `locations[j].isMainCampus` is `null` | Campus — `IsMainCampus` |
+| `education_{i}_campus_{j}_address` | `educations[i].locations[j].address` | Campus — `Address` (UI: Office Location) |
+
+When `locations[]` is **empty**, server emits synthetic `education_{i}_campus_0_*` keys.
+
+**UI:** link fields visible outside accordion; catalog + campuses inside **Complete university details**. See § 4.12.
 
 ### Empty education section (synthetic first row)
 
-When `educations[]` is **empty**, the server emits **9 missing-field keys**:
+When `educations[]` is **empty**, the server emits **16 missing-field keys**:
 
 | apiFieldName | UI label | Purpose |
 |---|---|---|
-| `educations` | — | Section opener — broad reminder that no education entries exist yet |
-| `education_0_universityLocationName` | University Name | Mini-question for **university name only** (not campus/city/location) |
-| `education_0_degreeName` | Degree Name | Mini-question for degree (e.g. Bachelor of Science) |
-| `education_0_majorName` | Major Name | Mini-question for major (e.g. Computer Science) |
-| `education_0_startMonth` | Start Month | Mini-question for start date |
-| `education_0_endMonth` | End Month | Mini-question for end/completion date (priority weight 0 — sorts last) |
-| `education_0_grades` | Grades | Mini-question for grades/GPA |
-| `education_0_isTopper` | Topper | Mini-question for topper status |
-| `education_0_isCheetah` | Cheetah | Mini-question for Cheetah status |
+| `educations` | — | Section opener |
+| `education_0_universityName` | University Name | Link |
+| `education_0_degreeName` | Degree Name | Link |
+| `education_0_majorName` | Major Name | Link |
+| `education_0_startMonth` | Start Month | Link |
+| `education_0_endMonth` | End Month | Link |
+| `education_0_grades` | Grades | Link |
+| `education_0_isTopper` | Topper | Link |
+| `education_0_isCheetah` | Cheetah | Link |
+| `education_0_country` | Country | Catalog |
+| `education_0_ranking` | Ranking | Catalog |
+| `education_0_websiteUrl` | Website URL | Catalog |
+| `education_0_linkedinUrl` | LinkedIn URL | Catalog |
+| `education_0_campus_0_city` | City | Campus 1 |
+| `education_0_campus_0_isMainCampus` | Main Campus | Campus 1 |
+| `education_0_campus_0_address` | Office Location | Campus 1 |
 
-- Questions are **LLM-generated** (one per key); server fills any gaps with templates.
-- **`education_0_*` applies only to the first entry** while the array is empty. After rows are added and generation re-runs, missing keys use real indices (`education_1_*`, etc.).
-- UI: show as a **numbered list** (section opener first by priority, then field mini-questions).
+- **`education_0_*` applies only while the array is empty.** After rows are added, keys use real indices (`education_1_*`, etc.).
+- **`universityId`**, **`universityLocationId`**, campus `id`, education `id` — never question fields.
 
 #### Certifications — payload property ≠ apiFieldName suffix
 
@@ -187,27 +315,67 @@ When `educations[]` is **empty**, the server emits **9 missing-field keys**:
 | `certification_{i}_url` | `certificationUrl` | `certificationUrl` |
 | `certification_{i}_issueDate` | `issueDate` | `issueDate` |
 | `certification_{i}_expiryDate` | `expiryDate` | `expiryDate` |
+| `certification_{i}_issuingBody` | `issuingBody` | Certification catalog — `IssuingBody` |
+| `certification_{i}_issuingBodyUrl` | `issuingBodyUrl` | Certification catalog — official issuer website URL |
 
-> **Do not emit** `certification_{i}_certificationName`, `certification_{i}_certificationLevel`, or `certification_{i}_certificationUrl`.
+> **Do not emit** `certification_{i}_certificationName`, `certification_{i}_certificationLevel`, or `certification_{i}_certificationUrl`.  
+> **`certificationId`** is for DB linking only — not a generated question field.
+
+**Field tiers (UI):**
+
+| Tier | apiFieldName suffixes | UI placement |
+|---|---|---|
+| Link (visible) | `name`, `issueDate`, `expiryDate`, `url`, `level` | Flat list per certification card |
+| Catalog (accordion) | `issuingBody`, `issuingBodyUrl` | Collapsible **Complete certification details** |
+
+When a row is **linked** to an existing Certification record, the frontend **must merge** catalog values (`issuingBody`, `issuingBodyUrl`, `certificationName`) into the payload before POST. The API only asks for catalog fields that are still `null` / `""` in the payload.
+
+**Issuer body / URL dependency** (existing rows only — not synthetic `certification_0_*` when `certifications[]` is empty):
+
+| Condition | API behavior |
+|---|---|
+| `issuingBody` present | Do **not** emit `certification_{i}_issuingBodyUrl` |
+| `issuingBodyUrl` present | Do **not** emit `certification_{i}_issuingBody` |
+| Both empty | Emit both when missing |
+| `certifications[]` empty (synthetic first row) | Always emit both catalog keys (unchanged) |
+
+### Certification link enrichment (existing rows)
+
+When `certifications[]` is **not** empty, the server emits **`prompt_type: enrichment`** questions (not in `missing_fields`) for:
+
+| Field | When |
+|---|---|
+| `certifications` | Section has at least one row — ask for more certifications |
+| `certification_{i}_name` | `certificationName` present |
+| `certification_{i}_issueDate` | `issueDate` present |
+| `certification_{i}_expiryDate` | `expiryDate` present |
+| `certification_{i}_url` | `certificationUrl` present |
+| `certification_{i}_level` | `certificationLevel` present |
+
+Catalog fields (`issuingBody`, `issuingBodyUrl`) are **not** enrichment — missing-only, with issuer body ↔ URL skip rule above.
+
+Fully complete rows still receive link-field enrichment Reminders. See [FRONTEND_INTEGRATION_CONTRACT.md § 4.8.2a](./FRONTEND_INTEGRATION_CONTRACT.md#482a-certification-link-enrichment-prompt_type-enrichment).
 
 ### Empty certifications section (synthetic first row)
 
-When `certifications[]` is **empty**, the server emits **6 missing-field keys**:
+When `certifications[]` is **empty**, the server emits **8 missing-field keys**:
 
-| apiFieldName | Purpose |
-|---|---|
-| `certifications` | Section opener — broad reminder that no certifications exist yet |
-| `certification_0_name` | Mini-question for Name |
-| `certification_0_issueDate` | Mini-question for Issue Date |
-| `certification_0_expiryDate` | Mini-question for Expiry Date |
-| `certification_0_url` | Mini-question for Certification URL |
-| `certification_0_level` | Mini-question for Certification Level |
+| apiFieldName | Tier | Purpose |
+|---|---|---|
+| `certifications` | — | Section opener |
+| `certification_0_name` | Link | Certification name |
+| `certification_0_issueDate` | Link | Issue date |
+| `certification_0_expiryDate` | Link | Expiry date |
+| `certification_0_url` | Link | Candidate verification / badge URL |
+| `certification_0_level` | Link | Certification level |
+| `certification_0_issuingBody` | Catalog | Issuer body (e.g. AWS) |
+| `certification_0_issuingBodyUrl` | Catalog | Issuer official website URL |
 
 Valid **level** values: `Foundation`, `Associate`, `Professional`, `Expert`, `Master`.
 
 - Questions are **LLM-generated** (one per key); server fills any gaps with templates.
 - **`certification_0_*` applies only to the first entry** while the array is empty. After rows are added and generation re-runs, missing keys use real indices (`certification_1_*`, etc.).
-- UI: show as a **numbered list** (section opener first by priority, then field mini-questions).
+- **UI:** see [FRONTEND_INTEGRATION_CONTRACT.md § 4.8](./FRONTEND_INTEGRATION_CONTRACT.md#48-certifications-tab-rendering-spec) — section opener → per certification: link fields visible → accordion for catalog fields.
 
 #### Achievements — payload property ≠ apiFieldName suffix
 
@@ -379,7 +547,7 @@ When sorting `missing_fields` and `questions` within a section, priority lookup 
 |---|---|---|
 | Certifications | `name`, `level`, `url`, `issueDate`, `expiryDate` | Not `certificationName` / `certificationLevel` |
 | Achievements | `name`, `type`, `ranking`, `year`, `url`, `description` | Not `achievementType` |
-| Education | `universityLocationName`, `isCheetah`, … | Same as payload property names |
+| Education | `universityName`, `isCheetah`, `country`, `campus_0_city`, … | Same as payload / apiFieldName suffix |
 | Work experience | `employerName`, `benefits`, `projectName`, … | Unchanged |
 
 ---
@@ -411,10 +579,21 @@ const payload = mapMainAppCandidateToQuestionService(candidate)
 | 8 | Keep demo `candidates_table.html` priority weights aligned with Python | ✅ |
 | 9 | Update `sample_candidates.py` if examples use old certification/achievement field keys in test assertions | ⬜ optional |
 | 10 | Empty `achievements[]`: emit `achievements` + `achievement_0_*` synthetic keys; LLM section opener + field mini-questions | ✅ |
-| 11 | Empty `certifications[]`: emit `certifications` + `certification_0_*` synthetic keys; LLM section opener + field mini-questions | ✅ |
-| 12 | Empty `educations[]`: emit `educations` + `education_0_*` synthetic keys (incl. `endMonth`); LLM section opener + field mini-questions | ✅ |
-| 13 | Empty top-level `projects[]`: emit `projects` + `project_0_*` synthetic keys; LLM section opener + field mini-questions | ✅ |
-| 14 | Empty `workExperiences[]`: emit `work_experiences` + `work_experience_0_*` synthetic keys (incl. nested `project_0_*`); LLM section opener + field mini-questions | ✅ |
+| 11 | Empty `certifications[]`: emit `certifications` + `certification_0_*` synthetic keys (**8** total incl. catalog); § 4.8 UI | ✅ |
+| 17 | Certification catalog: `issuingBody`, `issuingBodyUrl` on flat payload row; accordion in UI | ✅ |
+| 18 | Tech stack enrichment: always prompt when populated; `prompt_type: enrichment`; exclude from `missing_fields` | ✅ |
+| 19 | Project enrichment (Option B): openers + Name/Contribution when populated; catalog missing-only | ✅ |
+| 20 | Independent Projects tab UI spec § 4.11 (grouped cards, no flat missing-field dump) | ✅ docs |
+| 21 | Certification catalog: `issuingBody` present → skip `issuingBodyUrl`; URL present → skip `issuingBody` (existing rows only) | ✅ |
+| 22 | Certification link enrichment: opener + present link fields when `certifications[]` populated; `prompt_type: enrichment` | ✅ |
+| 12 | Empty `educations[]`: emit `educations` + `education_0_*` synthetic keys (**16** total incl. catalog + campus_0); § 4.12 UI | ✅ |
+| 23 | Education university catalog: country, ranking, websiteUrl, linkedinUrl flat on row; locations[] campuses; accordion in UI | ✅ |
+| 24 | Education link enrichment: opener + present link fields when `educations[]` populated; `prompt_type: enrichment` | ✅ |
+| 13 | Empty top-level `projects[]`: emit `projects` + **21** `project_0_*` synthetic keys | ✅ |
+| 26 | Basic information always-ask: `currentSalary`, `expectedSalary`, `linkedinUrl` — enrichment when populated (§ 4.14) | ✅ |
+| 14 | Empty `workExperiences[]`: emit `work_experiences` + link + catalog + office_0 + layoff_0 + projects (**51** keys) | ✅ |
+| 15 | Linked project rows: detect missing catalog fields on `projects[]` and nested `workExperiences[].projects[]` | ✅ |
+| 16 | Payload `link` → apiFieldName `projectLink`; `isPublished: false` and `downloadCount: 0` are **present** | ✅ |
 
 ### Python implementation map (`question_generator.py`)
 
@@ -425,6 +604,8 @@ CERTIFICATION_PAYLOAD_TO_API_KEY = {
     "expiryDate": "expiryDate",
     "certificationUrl": "url",
     "certificationLevel": "level",
+    "issuingBody": "issuingBody",
+    "issuingBodyUrl": "issuingBodyUrl",
 }
 # achievements: achievement_{i}_type when achievementType/type missing
 ```

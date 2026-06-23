@@ -5,13 +5,49 @@ export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
 export type WorkMode = "Remote" | "Onsite" | "Hybrid"
 export type TimeSupportZone = "US" | "UK" | "EU" | "APAC" | "MEA"
 
-export interface ProjectExperience {
+/** Catalog fields from linked Project entity (junction + navigation). */
+export interface LinkedProjectFields {
+  employerName?: string | null
+  projectType?: string | null
+  status?: string | null
+  teamSize?: string | null
+  minTeamSize?: number | null
+  maxTeamSize?: number | null
+  techStacks?: string[]
+  technicalAspects?: string[]
+  horizontalDomains?: string[]
+  verticalDomains?: string[]
+  description?: string | null
+  notes?: string | null
+  startDate?: Date | undefined
+  endDate?: Date | undefined
+  link?: string | null
+  isPublished?: boolean | null
+  publishPlatforms?: string[]
+  downloadCount?: number | null
+}
+
+export interface ProjectExperience extends LinkedProjectFields {
   id: string
   /** Linked project id for API payloads; null when not selected. */
   projectId: number | null
   /** Cached display name (from API or combobox). */
   projectName: string
   contributionNotes: string | null
+}
+
+export interface WorkExperienceOfficeLocation {
+  country?: string | null
+  city?: string | null
+  address?: string | null
+  isHeadquarters?: boolean | null
+}
+
+export interface WorkExperienceLayoffRow {
+  layoffDate?: Date | null
+  affectedEmployees?: number | null
+  reason?: string | null
+  source?: string | null
 }
 
 export interface WorkExperience {
@@ -28,6 +64,20 @@ export interface WorkExperience {
   workMode: WorkMode | "" | null
   timeSupportZones: string[]
   benefits: EmployerBenefit[]
+  /** Merged from GET /api/employers/{id} before question-service POST. */
+  foundedYear?: number | null
+  status?: string | null
+  types?: string[]
+  ranking?: string | null
+  minEmployees?: number | null
+  maxEmployees?: number | null
+  websiteUrl?: string | null
+  linkedinUrl?: string | null
+  isDplCompetitor?: boolean | null
+  salaryPolicy?: string | null
+  tags?: string[]
+  locations?: WorkExperienceOfficeLocation[]
+  layoffs?: WorkExperienceLayoffRow[]
 }
 
 export interface CandidateCertification {
@@ -41,10 +91,23 @@ export interface CandidateCertification {
   issueDate: Date | undefined
   expiryDate: Date | undefined
   certificationUrl: string | null
+  /** Catalog issuer body from linked Certification entity (display + question payload). */
+  issuingBody?: string | null
+  /** Catalog issuer website URL from linked Certification entity. */
+  issuingBodyUrl?: string | null
+}
+
+export interface EducationCampusLocation {
+  city?: string | null
+  address?: string | null
+  isMainCampus?: boolean | null
 }
 
 export interface CandidateEducation {
   id: string
+  /** Linked university id (`universityId` on CandidateEducationDto). */
+  universityId?: number | null
+  /** Same id as string — legacy field name used across forms. */
   universityLocationId: string
   universityLocationName: string
   degreeName: string
@@ -52,11 +115,19 @@ export interface CandidateEducation {
   startMonth: Date | undefined
   endMonth: Date | undefined
   grades: string | null
-  isTopper: boolean | null 
+  isTopper: boolean | null
   isCheetah: boolean | null
+  /** Alias for display / question-service payload (`universityName`). */
+  universityName?: string | null
+  /** University catalog — merged from linked University entity. */
+  country?: string | null
+  ranking?: string | null
+  websiteUrl?: string | null
+  linkedinUrl?: string | null
+  locations?: EducationCampusLocation[]
 }
 
-export interface CandidateStandaloneProject {
+export interface CandidateStandaloneProject extends LinkedProjectFields {
   id: string
   /** Linked project id for API payloads; null when not selected. */
   projectId: number | null

@@ -61,6 +61,7 @@ import type { ColdCallerSectionQuestions } from "@/types/cold-caller"
 import { QuestionFieldCard } from "./question-field-card"
 // import { ColdCallerViewSwitcher } from "./cold-caller-view-switcher"
 import { ColdCallerCallNotesView } from "./cold-caller-call-notes-view"
+import { ProjectEntryFields } from "./project-entry-fields"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { useCallNotesDraft } from "@/hooks/useCallNotesDraft"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
@@ -979,6 +980,10 @@ export function ColdCallerDialog({
               resumeVisible={resumeVisible}
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}
+              workExperiences={candidate.workExperiences ?? undefined}
+              educations={candidate.educations ?? undefined}
+              certifications={candidate.certifications ?? undefined}
+              standaloneProjects={candidate.projects ?? undefined}
               groupedFields={groupedFields}
               sectionsWithFields={sectionsWithFields}
               rawNotesDraft={rawNotesDraft}
@@ -1259,15 +1264,15 @@ export function ColdCallerDialog({
                                                     </div>
                                                     
                                                     {/* Project Fields */}
-                                                    <div className="space-y-4">
-                                                      {projectFields.map((field) => {
+                                                    <ProjectEntryFields
+                                                      fields={projectFields}
+                                                      renderField={(field) => {
                                                         const state = fieldStates.get(field.fieldPath)
                                                         const question = questionsMap.get(field.apiFieldName)
                                                         const isFieldVerified = verifiedFields.has(field.fieldPath)
-                                                        
+
                                                         return (
                                                           <div
-                                                            key={field.fieldPath}
                                                             ref={(el) => {
                                                               if (el) {
                                                                 fieldRefs.current.set(field.fieldPath, el)
@@ -1289,8 +1294,8 @@ export function ColdCallerDialog({
                                                             />
                                                           </div>
                                                         )
-                                                      })}
-                                                    </div>
+                                                      }}
+                                                    />
                                                   </div>
                                                 )
                                               })}
@@ -1366,6 +1371,40 @@ export function ColdCallerDialog({
                                         )}
                                         
                                         {/* Entry Fields */}
+                                        {section === 'projects' ? (
+                                          <ProjectEntryFields
+                                            fields={entryFields}
+                                            renderField={(field) => {
+                                              const state = fieldStates.get(field.fieldPath)
+                                              const question = questionsMap.get(field.apiFieldName)
+                                              const isFieldVerified = verifiedFields.has(field.fieldPath)
+
+                                              return (
+                                                <div
+                                                  ref={(el) => {
+                                                    if (el) {
+                                                      fieldRefs.current.set(field.fieldPath, el)
+                                                    }
+                                                  }}
+                                                >
+                                                  <QuestionFieldCard
+                                                    field={field}
+                                                    question={question}
+                                                    status={state?.status || 'pending'}
+                                                    value={state?.value ?? field.currentValue}
+                                                    onValueChange={handleFieldChange}
+                                                    onSave={handleFieldSave}
+                                                    onStatusChange={handleStatusChange}
+                                                    isVerified={isFieldVerified}
+                                                    onVerificationToggle={handleVerificationToggle}
+                                                    showPriority={true}
+                                                    onCreateEntity={handleCreateEntity}
+                                                  />
+                                                </div>
+                                              )
+                                            }}
+                                          />
+                                        ) : (
                                         <div className="space-y-4">
                                           {entryFields.map((field) => {
                                             const state = fieldStates.get(field.fieldPath)
@@ -1398,6 +1437,7 @@ export function ColdCallerDialog({
                                             )
                                           })}
                                         </div>
+                                        )}
                                       </div>
                                     )
                                   })}

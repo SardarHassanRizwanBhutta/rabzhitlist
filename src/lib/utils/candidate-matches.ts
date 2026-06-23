@@ -1151,62 +1151,62 @@ export function getCandidateMatchContext(
 
       // Project status, tech stacks, domains, type — skip mock path when backend matchedProjects is used
       if (!useBackendMatchedProjects) {
-        if (filters.projectStatus.includes(project.status)) {
-          matchedCriteria.push({
-            type: 'status',
-            label: 'Project Status',
-            values: [project.status]
-          })
-          hasMatch = true
-        }
+      if (filters.projectStatus.includes(project.status)) {
+        matchedCriteria.push({
+          type: 'status',
+          label: 'Project Status',
+          values: [project.status]
+        })
+        hasMatch = true
+      }
 
-        const matchingTechStacks = project.techStacks.filter(tech =>
-          filters.techStacks.some(filterTech => filterTech.toLowerCase() === tech.toLowerCase())
-        )
-        if (matchingTechStacks.length > 0) {
-          matchedCriteria.push({
-            type: 'techStack',
-            label: 'Tech Stack',
-            values: matchingTechStacks
-          })
-          hasMatch = true
-        }
+      const matchingTechStacks = project.techStacks.filter(tech =>
+        filters.techStacks.some(filterTech => filterTech.toLowerCase() === tech.toLowerCase())
+      )
+      if (matchingTechStacks.length > 0) {
+        matchedCriteria.push({
+          type: 'techStack',
+          label: 'Tech Stack',
+          values: matchingTechStacks
+        })
+        hasMatch = true
+      }
 
-        const matchingVerticalDomains = project.verticalDomains.filter(domain =>
-          filters.verticalDomains.includes(domain)
-        )
-        if (matchingVerticalDomains.length > 0) {
-          matchedCriteria.push({
-            type: 'verticalDomain',
-            label: 'Vertical Domain',
-            values: matchingVerticalDomains
-          })
-          hasMatch = true
-        }
+      const matchingVerticalDomains = project.verticalDomains.filter(domain =>
+        filters.verticalDomains.includes(domain)
+      )
+      if (matchingVerticalDomains.length > 0) {
+        matchedCriteria.push({
+          type: 'verticalDomain',
+          label: 'Vertical Domain',
+          values: matchingVerticalDomains
+        })
+        hasMatch = true
+      }
 
-        const matchingHorizontalDomains = project.horizontalDomains.filter(domain =>
-          filters.horizontalDomains.includes(domain)
-        )
-        if (matchingHorizontalDomains.length > 0) {
-          matchedCriteria.push({
-            type: 'horizontalDomain',
-            label: 'Horizontal Domain',
-            values: matchingHorizontalDomains
-          })
-          hasMatch = true
-        }
+      const matchingHorizontalDomains = project.horizontalDomains.filter(domain =>
+        filters.horizontalDomains.includes(domain)
+      )
+      if (matchingHorizontalDomains.length > 0) {
+        matchedCriteria.push({
+          type: 'horizontalDomain',
+          label: 'Horizontal Domain',
+          values: matchingHorizontalDomains
+        })
+        hasMatch = true
+      }
 
         const matchingTechnicalDomains = project.technicalDomains.filter((d) =>
           filters.technicalDomains.includes(d)
-        )
+      )
         if (matchingTechnicalDomains.length > 0) {
-          matchedCriteria.push({
+        matchedCriteria.push({
             type: 'technicalDomain',
             label: 'Technical Domain',
             values: matchingTechnicalDomains
-          })
-          hasMatch = true
-        }
+        })
+        hasMatch = true
+      }
 
         if (filters.projectTypes.includes(project.projectType)) {
           matchedCriteria.push({
@@ -1219,15 +1219,15 @@ export function getCandidateMatchContext(
       }
 
       if (hasMatch) {
-        projectItems.push({
-          name: project.projectName,
+              projectItems.push({
+                name: project.projectName,
           matchedCriteria,
-          context: {
-            projectId: project.id,
-            status: project.status,
+                context: {
+                  projectId: project.id,
+                  status: project.status,
             projectType: project.projectType
-          }
-        })
+                }
+              })
       }
     })
 
@@ -1317,17 +1317,17 @@ export function getCandidateMatchContext(
         const cityNeedle = filters.employerCity.trim()
         if (cityNeedle) {
           const needleLower = cityNeedle.toLowerCase()
-          const matchingCities = employer.locations
+        const matchingCities = employer.locations
             .map((loc) => loc.city)
             .filter((city): city is string => city != null && String(city).trim() !== "")
             .filter((city) => city.toLowerCase().includes(needleLower))
-          if (matchingCities.length > 0) {
-            matchedCriteria.push({
+        if (matchingCities.length > 0) {
+          matchedCriteria.push({
               type: "city",
               label: "City",
               values: matchingCities,
-            })
-            hasMatch = true
+          })
+          hasMatch = true
           }
         }
 
@@ -1747,31 +1747,31 @@ export function getCandidateMatchContext(
 
     if (!useBackendMatchedWorkExperiences) {
       candidate.workExperiences?.forEach((we) => {
-        const matchedCriteria: MatchCriterion[] = []
-        let hasMatch = false
+      const matchedCriteria: MatchCriterion[] = []
+      let hasMatch = false
 
         if (hasBackendWeRowFilters) {
-          if (filters.shiftTypes.length > 0 && we.shiftType) {
-            if (filters.shiftTypes.includes(we.shiftType)) {
-              matchedCriteria.push({
+      if (filters.shiftTypes.length > 0 && we.shiftType) {
+        if (filters.shiftTypes.includes(we.shiftType)) {
+          matchedCriteria.push({
                 type: "shiftType",
                 label: "Shift Type",
                 values: [we.shiftType],
-              })
-              hasMatch = true
-            }
-          }
+          })
+          hasMatch = true
+        }
+      }
 
-          if (filters.workModes.length > 0 && we.workMode) {
-            if (filters.workModes.includes(we.workMode)) {
-              matchedCriteria.push({
+      if (filters.workModes.length > 0 && we.workMode) {
+        if (filters.workModes.includes(we.workMode)) {
+          matchedCriteria.push({
                 type: "workMode",
                 label: "Work Mode",
                 values: [we.workMode],
-              })
-              hasMatch = true
-            }
-          }
+          })
+          hasMatch = true
+        }
+      }
 
           if (
             filters.timeSupportZones.length > 0 &&
@@ -1780,16 +1780,16 @@ export function getCandidateMatchContext(
           ) {
             const matchingZones = we.timeSupportZones.filter((zone) =>
               filters.timeSupportZones.includes(zone),
-            )
-            if (matchingZones.length > 0) {
-              matchedCriteria.push({
+        )
+        if (matchingZones.length > 0) {
+          matchedCriteria.push({
                 type: "timeSupportZones",
                 label: "Time Support Zones",
                 values: matchingZones,
-              })
-              hasMatch = true
-            }
-          }
+          })
+          hasMatch = true
+        }
+      }
 
           if (filters.candidateTechStacks.length > 0 && we.techStacks.length > 0) {
             const matchingTechStacks = we.techStacks.filter((tech) =>
@@ -1798,24 +1798,24 @@ export function getCandidateMatchContext(
               ),
             )
             if (matchingTechStacks.length > 0) {
-              matchedCriteria.push({
+          matchedCriteria.push({
                 type: "candidateTechStack",
                 label: "Tech Stack",
                 values: matchingTechStacks,
-              })
-              hasMatch = true
+          })
+          hasMatch = true
             }
-          }
         }
+      }
 
-        if (hasMatch) {
-          workExperienceItems.push({
+      if (hasMatch) {
+        workExperienceItems.push({
             name: `${we.employerName} - ${we.jobTitle || "N/A"}`,
-            matchedCriteria,
-            context: {
-              employerName: we.employerName,
-              jobTitle: we.jobTitle,
-              startDate: we.startDate,
+          matchedCriteria,
+          context: {
+            employerName: we.employerName,
+            jobTitle: we.jobTitle,
+            startDate: we.startDate,
               endDate: we.endDate,
             },
           })
