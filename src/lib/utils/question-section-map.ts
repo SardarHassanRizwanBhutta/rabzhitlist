@@ -22,7 +22,10 @@ const SECTION_ID_TO_FIELD: Record<QuestionSectionId, FieldSection> = {
   achievements: "achievements",
 }
 
-const FIELD_TO_SECTION_ID: Record<FieldSection, QuestionSectionId> = {
+/** Sections mapped to Python `QuestionSectionId` (excludes frontend-only tabs). */
+export type ApiMappedFieldSection = Exclude<FieldSection, "preferences">
+
+const FIELD_TO_SECTION_ID: Record<ApiMappedFieldSection, QuestionSectionId> = {
   basic: "basic_information",
   workExperience: "work_experience",
   techStacks: "independent_tech_stacks",
@@ -36,6 +39,7 @@ export function questionSectionIdToFieldSection(id: QuestionSectionId): FieldSec
   return SECTION_ID_TO_FIELD[id]
 }
 
-export function fieldSectionToQuestionSectionId(section: FieldSection): QuestionSectionId {
+export function fieldSectionToQuestionSectionId(section: FieldSection): QuestionSectionId | null {
+  if (section === "preferences") return null
   return FIELD_TO_SECTION_ID[section]
 }

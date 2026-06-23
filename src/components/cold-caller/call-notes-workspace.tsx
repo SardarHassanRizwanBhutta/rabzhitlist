@@ -6,6 +6,7 @@ import { CallNotesResumePanel } from "./call-notes-resume-panel"
 import { CallNotesEditor } from "./call-notes-editor"
 import { CallNotesQuestionsSidebar } from "./call-notes-questions-sidebar"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
+import type { CandidateCertification, CandidateEducation, CandidateStandaloneProject, WorkExperience } from "@/lib/types/candidate"
 
 const RESIZE_HANDLE_CLASS = cn(
   "w-1.5 shrink-0 cursor-col-resize touch-none",
@@ -36,6 +37,10 @@ interface CallNotesWorkspaceProps {
   isLoadingQuestions: boolean
   questionsError: string | null
   emptyFields: EmptyField[]
+  workExperiences?: WorkExperience[]
+  educations?: CandidateEducation[]
+  certifications?: CandidateCertification[]
+  standaloneProjects?: CandidateStandaloneProject[]
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
   onRetryGenerateQuestions?: () => void
@@ -61,6 +66,10 @@ export function CallNotesWorkspace({
   isLoadingQuestions,
   questionsError,
   emptyFields,
+  workExperiences,
+  educations,
+  certifications,
+  standaloneProjects,
   activeQuestionField,
   onQuestionSelect,
   onRetryGenerateQuestions,
@@ -151,6 +160,10 @@ export function CallNotesWorkspace({
             isLoading={isLoadingQuestions}
             error={questionsError}
             emptyFields={emptyFields}
+            workExperiences={workExperiences}
+            educations={educations}
+            certifications={certifications}
+            standaloneProjects={standaloneProjects}
             activeQuestionField={activeQuestionField}
             onQuestionSelect={onQuestionSelect}
             onRetry={onRetryGenerateQuestions}

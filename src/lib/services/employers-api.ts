@@ -223,6 +223,8 @@ export interface EmployerDto {
   timeSupportZones: { id: number; name: string }[]
   tags: { id: number; name: string }[]
   techStacks: { id: number; name: string }[]
+  /** First entry maps to question-service `status` (Open=0, Closed=1, Flagged=2). */
+  status?: number[] | null
   createdAt: string
   updatedAt: string
   /** Company-wide headcount range when API stores it on the employer. */

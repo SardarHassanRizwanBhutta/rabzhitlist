@@ -46,6 +46,7 @@ export type FieldSection =
   | 'achievements' 
   | 'techStacks'
   | 'projects'
+  | 'preferences'
 
 // Field status for tracking progress during Fields View cold call
 export type FieldStatus = 'pending' | 'answered' | 'skipped' | 'askLater'
@@ -86,12 +87,18 @@ export interface FieldState {
   question?: GeneratedQuestion // Linked question for this field
 }
 
+export type PromptType = "missing" | "enrichment"
+
 export interface GeneratedQuestion {
   question: string
   field: string               // Maps to EmptyField.apiFieldName
   section: FieldSection
   priority: number            // server-assigned; higher = ask first
   context: string             // Guidance for the interviewer
+  /** Gap-fill vs resume enrichment follow-up (§ 4.8.2a, § 4.12.2a, § 4.9, § 4.10). Defaults to missing when absent. */
+  promptType?: PromptType
+  /** Values already on file when promptType is enrichment. § 4.8.2a / § 4.9 / § 4.10 */
+  existingValues?: string[] | null
 }
 
 /** Per-section question payload after mapping the Python API response. */
@@ -134,6 +141,7 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   achievements: 'Achievements',
   techStacks: 'Independent Tech Stacks',
   projects: 'Independent Projects',
+  preferences: 'Preferences',
 }
 
 // Section icons mapping
@@ -145,6 +153,7 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   achievements: 'Trophy',
   techStacks: 'Code',
   projects: 'FolderOpen',
+  preferences: 'SlidersHorizontal',
 }
 
 // Status labels and colors

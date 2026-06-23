@@ -8,6 +8,11 @@ import {
   CERTIFICATION_LEVEL_DB,
   CERTIFICATION_LEVEL_LABELS_DB,
 } from '@/lib/constants/candidate-enums'
+import {
+  buildLinkedProjectEmptyFields,
+  collectMissingLinkedProjectFields,
+} from '@/lib/utils/project-catalog-fields'
+import { RANKING_DISPLAY_TO_DB, type RankingDb } from '@/lib/types/employer'
 
 // Shift type options
 export const SHIFT_TYPE_OPTIONS = [
@@ -44,6 +49,81 @@ const CERTIFICATION_LEVEL_OPTIONS = CERTIFICATION_LEVEL_DB.map((value) => ({
   value,
   label: CERTIFICATION_LEVEL_LABELS_DB[value],
 }))
+
+const EDUCATION_RANKING_OPTIONS = (Object.entries(RANKING_DISPLAY_TO_DB) as [RankingDb, string][]).map(
+  ([value, label]) => ({ value, label }),
+)
+
+function appendEducationCatalogAndCampusEmptyFields(
+  emptyFields: EmptyField[],
+  index: number,
+  context?: string,
+): void {
+  const catalogFields: Array<{
+    path: string
+    apiName: string
+    label: string
+    type: FieldType
+    options?: { value: string; label: string }[]
+  }> = [
+    { path: 'country', apiName: `education_${index}_country`, label: 'Country', type: 'text' },
+    {
+      path: 'ranking',
+      apiName: `education_${index}_ranking`,
+      label: 'Ranking',
+      type: 'select',
+      options: EDUCATION_RANKING_OPTIONS,
+    },
+    { path: 'websiteUrl', apiName: `education_${index}_websiteUrl`, label: 'Website URL', type: 'text' },
+    { path: 'linkedinUrl', apiName: `education_${index}_linkedinUrl`, label: 'LinkedIn URL', type: 'text' },
+  ]
+
+  for (const field of catalogFields) {
+    emptyFields.push({
+      fieldPath: `educations[${index}].${field.path}`,
+      apiFieldName: field.apiName,
+      fieldLabel: field.label,
+      fieldType: field.type,
+      section: 'education',
+      context,
+      currentValue: null,
+      options: field.options,
+      parentIndex: index,
+    })
+  }
+
+  const campusFields: Array<{
+    path: string
+    apiSuffix: string
+    label: string
+    type: FieldType
+    options?: { value: string; label: string }[]
+  }> = [
+    { path: 'locations[0].city', apiSuffix: 'city', label: 'City', type: 'text' },
+    {
+      path: 'locations[0].isMainCampus',
+      apiSuffix: 'isMainCampus',
+      label: 'Main Campus',
+      type: 'boolean',
+      options: BOOLEAN_OPTIONS,
+    },
+    { path: 'locations[0].address', apiSuffix: 'address', label: 'Office Location', type: 'text' },
+  ]
+
+  for (const field of campusFields) {
+    emptyFields.push({
+      fieldPath: `educations[${index}].${field.path}`,
+      apiFieldName: `education_${index}_campus_0_${field.apiSuffix}`,
+      fieldLabel: field.label,
+      fieldType: field.type,
+      section: 'education',
+      context,
+      currentValue: null,
+      options: field.options,
+      parentIndex: index,
+    })
+  }
+}
 
 // Helper functions to get combobox options
 export function getProjectOptions(): { value: string; label: string }[] {
@@ -205,26 +285,12 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       currentValue: null,
       parentIndex: 0,
     })
-    emptyFields.push({
-      fieldPath: 'workExperiences[0].projects[0].projectName',
-      apiFieldName: 'work_experience_0_project_0_projectName',
-      fieldLabel: 'Project Name',
-      fieldType: 'combobox',
+    emptyFields.push(...buildLinkedProjectEmptyFields({
       section: 'workExperience',
-      currentValue: null,
+      fieldPathPrefix: 'workExperiences[0].projects[0]',
+      apiPrefix: 'work_experience_0_project_0',
       parentIndex: 0,
-      options: getProjectOptions(),
-      onCreateEntity: 'project',
-    })
-    emptyFields.push({
-      fieldPath: 'workExperiences[0].projects[0].contributionNotes',
-      apiFieldName: 'work_experience_0_project_0_contributionNotes',
-      fieldLabel: 'Contribution',
-      fieldType: 'textarea',
-      section: 'workExperience',
-      currentValue: null,
-      parentIndex: 0,
-    })
+    }))
   } else {
     // Existing work experiences - check for empty fields within them
     candidate.workExperiences.forEach((we, index) => {
@@ -263,45 +329,23 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         }
       })
 
-      // Check projects - if no projects exist, add placeholder project
       if (!we.projects || we.projects.length === 0) {
-          emptyFields.push({
-            fieldPath: `workExperiences[${index}].projects[0].projectName`,
-            apiFieldName: `work_experience_${index}_project_0_projectName`,
-            fieldLabel: 'Project Name',
-            fieldType: 'combobox',
-            section: 'workExperience',
-            context,
-            currentValue: null,
-            parentIndex: index,
-            options: getProjectOptions(),
-            onCreateEntity: 'project',
-          })
-        emptyFields.push({
-          fieldPath: `workExperiences[${index}].projects[0].contributionNotes`,
-          apiFieldName: `work_experience_${index}_project_0_contributionNotes`,
-          fieldLabel: 'Contribution',
-          fieldType: 'textarea',
+        emptyFields.push(...buildLinkedProjectEmptyFields({
           section: 'workExperience',
-          context,
-          currentValue: null,
+          fieldPathPrefix: `workExperiences[${index}].projects[0]`,
+          apiPrefix: `work_experience_${index}_project_0`,
           parentIndex: index,
-        })
+          context,
+        }))
       } else {
-        // Check project contribution notes for existing projects
         we.projects.forEach((proj, projIndex) => {
-          if (isEmpty(proj.contributionNotes)) {
-            emptyFields.push({
-              fieldPath: `workExperiences[${index}].projects[${projIndex}].contributionNotes`,
-              apiFieldName: `work_experience_${index}_project_${projIndex}_contributionNotes`,
-              fieldLabel: 'Contribution',
-              fieldType: 'textarea',
-              section: 'workExperience',
-              context: `${context} → ${proj.projectName}`,
-              currentValue: proj.contributionNotes,
-              parentIndex: index,
-            })
-          }
+          emptyFields.push(...collectMissingLinkedProjectFields(proj, {
+            section: 'workExperience',
+            fieldPathPrefix: `workExperiences[${index}].projects[${projIndex}]`,
+            apiPrefix: `work_experience_${index}_project_${projIndex}`,
+            parentIndex: index,
+            context: `${context} → ${proj.projectName || 'Unnamed Project'}`,
+          }))
         })
       }
     })
@@ -312,8 +356,8 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     // Section is completely empty - create placeholder fields for first entry
     emptyFields.push({
       fieldPath: 'educations[0].universityLocationName',
-      apiFieldName: 'education_0_universityLocationName',
-      fieldLabel: 'University',
+      apiFieldName: 'education_0_universityName',
+      fieldLabel: 'University Name',
       fieldType: 'combobox',
       section: 'education',
       currentValue: null,
@@ -386,6 +430,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       options: BOOLEAN_OPTIONS,
       parentIndex: 0,
     })
+    appendEducationCatalogAndCampusEmptyFields(emptyFields, 0)
   } else {
     // Existing educations - check for empty fields within them
     let hasEmptyFields = false
@@ -421,6 +466,77 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
           })
         }
       })
+
+      const catalogFields: Array<{
+        path: keyof NonNullable<typeof edu> & string
+        apiName: string
+        label: string
+        type: FieldType
+        options?: { value: string; label: string }[]
+      }> = [
+        { path: 'country', apiName: `education_${index}_country`, label: 'Country', type: 'text' },
+        {
+          path: 'ranking',
+          apiName: `education_${index}_ranking`,
+          label: 'Ranking',
+          type: 'select',
+          options: EDUCATION_RANKING_OPTIONS,
+        },
+        { path: 'websiteUrl', apiName: `education_${index}_websiteUrl`, label: 'Website URL', type: 'text' },
+        { path: 'linkedinUrl', apiName: `education_${index}_linkedinUrl`, label: 'LinkedIn URL', type: 'text' },
+      ]
+
+      catalogFields.forEach((field) => {
+        const value = edu[field.path as keyof typeof edu]
+        if (isEmpty(value)) {
+          hasEmptyFields = true
+          emptyFields.push({
+            fieldPath: `educations[${index}].${field.path}`,
+            apiFieldName: field.apiName,
+            fieldLabel: field.label,
+            fieldType: field.type,
+            section: 'education',
+            context,
+            currentValue: value ?? null,
+            options: field.options,
+            parentIndex: index,
+          })
+        }
+      })
+
+      if (!edu.locations?.length) {
+        hasEmptyFields = true
+        const campusFields: Array<{
+          path: string
+          apiSuffix: string
+          label: string
+          type: FieldType
+          options?: { value: string; label: string }[]
+        }> = [
+          { path: 'locations[0].city', apiSuffix: 'city', label: 'City', type: 'text' },
+          {
+            path: 'locations[0].isMainCampus',
+            apiSuffix: 'isMainCampus',
+            label: 'Main Campus',
+            type: 'boolean',
+            options: BOOLEAN_OPTIONS,
+          },
+          { path: 'locations[0].address', apiSuffix: 'address', label: 'Office Location', type: 'text' },
+        ]
+        for (const field of campusFields) {
+          emptyFields.push({
+            fieldPath: `educations[${index}].${field.path}`,
+            apiFieldName: `education_${index}_campus_0_${field.apiSuffix}`,
+            fieldLabel: field.label,
+            fieldType: field.type,
+            section: 'education',
+            context,
+            currentValue: null,
+            options: field.options,
+            parentIndex: index,
+          })
+        }
+      }
     })
     
     // If no empty fields found in existing entries, create placeholder for a new entry
@@ -428,8 +544,8 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       const newIndex = candidate.educations.length
       emptyFields.push({
         fieldPath: `educations[${newIndex}].universityLocationName`,
-        apiFieldName: `education_${newIndex}_universityLocationName`,
-        fieldLabel: 'University',
+        apiFieldName: `education_${newIndex}_universityName`,
+        fieldLabel: 'University Name',
         fieldType: 'combobox',
         section: 'education',
         currentValue: null,
@@ -502,6 +618,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         options: BOOLEAN_OPTIONS,
         parentIndex: newIndex,
       })
+      appendEducationCatalogAndCampusEmptyFields(emptyFields, newIndex)
     }
   }
 
@@ -548,12 +665,30 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     emptyFields.push({
       fieldPath: 'certifications[0].certificationLevel',
       apiFieldName: 'certification_0_level',
-      fieldLabel: 'Certification Level',
+      fieldLabel: 'Level',
       fieldType: 'select',
       section: 'certifications',
       currentValue: null,
       parentIndex: 0,
       options: CERTIFICATION_LEVEL_OPTIONS,
+    })
+    emptyFields.push({
+      fieldPath: 'certifications[0].issuingBody',
+      apiFieldName: 'certification_0_issuingBody',
+      fieldLabel: 'Issuer body',
+      fieldType: 'text',
+      section: 'certifications',
+      currentValue: null,
+      parentIndex: 0,
+    })
+    emptyFields.push({
+      fieldPath: 'certifications[0].issuingBodyUrl',
+      apiFieldName: 'certification_0_issuingBodyUrl',
+      fieldLabel: 'Issuer body URL',
+      fieldType: 'text',
+      section: 'certifications',
+      currentValue: null,
+      parentIndex: 0,
     })
   } else {
     // Existing certifications - check for empty fields within them
@@ -680,87 +815,35 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
 
   // Independent Projects (Standalone projects not associated with work experience)
   if (!candidate.projects || candidate.projects.length === 0) {
-    // Section is completely empty - create placeholder fields for first entry
-    emptyFields.push({
-      fieldPath: 'projects[0].projectName',
-      apiFieldName: 'project_0_projectName',
-      fieldLabel: 'Name',
-      fieldType: 'combobox',
+    emptyFields.push(...buildLinkedProjectEmptyFields({
       section: 'projects',
-      currentValue: null,
+      fieldPathPrefix: 'projects[0]',
+      apiPrefix: 'project_0',
       parentIndex: 0,
-      options: getProjectOptions(),
-      onCreateEntity: 'project',
-    })
-    emptyFields.push({
-      fieldPath: 'projects[0].contributionNotes',
-      apiFieldName: 'project_0_contributionNotes',
-      fieldLabel: 'Contribution',
-      fieldType: 'textarea',
-      section: 'projects',
-      currentValue: null,
-      parentIndex: 0,
-    })
+    }))
   } else {
-    // Existing projects - check for empty fields within them
     let hasEmptyFields = false
     candidate.projects.forEach((project, index) => {
       const context = project.projectName || 'Unnamed Project'
-      
-      if (isEmpty(project.projectName)) {
-        hasEmptyFields = true
-        emptyFields.push({
-          fieldPath: `projects[${index}].projectName`,
-          apiFieldName: `project_${index}_projectName`,
-          fieldLabel: 'Project Name',
-          fieldType: 'combobox',
-          section: 'projects',
-          context,
-          currentValue: project.projectName,
-          parentIndex: index,
-          options: getProjectOptions(),
-          onCreateEntity: 'project',
-        })
-      }
-      
-      if (isEmpty(project.contributionNotes)) {
-        hasEmptyFields = true
-        emptyFields.push({
-          fieldPath: `projects[${index}].contributionNotes`,
-          apiFieldName: `project_${index}_contributionNotes`,
-          fieldLabel: 'Contribution Notes',
-          fieldType: 'textarea',
-          section: 'projects',
-          context,
-          currentValue: project.contributionNotes,
-          parentIndex: index,
-        })
-      }
+      const missing = collectMissingLinkedProjectFields(project, {
+        section: 'projects',
+        fieldPathPrefix: `projects[${index}]`,
+        apiPrefix: `project_${index}`,
+        parentIndex: index,
+        context,
+      })
+      if (missing.length > 0) hasEmptyFields = true
+      emptyFields.push(...missing)
     })
-    
-    // If no empty fields found in existing entries, create placeholder for a new entry
+
     if (!hasEmptyFields) {
       const newIndex = candidate.projects.length
-      emptyFields.push({
-        fieldPath: `projects[${newIndex}].projectName`,
-        apiFieldName: `project_${newIndex}_projectName`,
-        fieldLabel: 'Project Name',
-        fieldType: 'combobox',
+      emptyFields.push(...buildLinkedProjectEmptyFields({
         section: 'projects',
-        currentValue: null,
+        fieldPathPrefix: `projects[${newIndex}]`,
+        apiPrefix: `project_${newIndex}`,
         parentIndex: newIndex,
-        options: getProjectOptions(),
-        onCreateEntity: 'project',
-      })
-      emptyFields.push({
-        fieldPath: `projects[${newIndex}].contributionNotes`,
-        apiFieldName: `project_${newIndex}_contributionNotes`,
-        fieldLabel: 'Contribution Notes',
-        fieldType: 'textarea',
-        section: 'projects',
-        currentValue: null,
-        parentIndex: newIndex,
-      })
+      }))
     }
   }
 
@@ -886,8 +969,8 @@ export function createEntryFields(
       fields.push(
         {
           fieldPath: `educations[${index}].universityLocationName`,
-          apiFieldName: `education_${index}_universityLocationName`,
-          fieldLabel: 'University',
+          apiFieldName: `education_${index}_universityName`,
+          fieldLabel: 'University Name',
           fieldType: 'combobox',
           section: 'education',
           currentValue: null,
@@ -959,8 +1042,9 @@ export function createEntryFields(
           currentValue: null,
           options: BOOLEAN_OPTIONS,
           parentIndex: index,
-        }
+        },
       )
+      appendEducationCatalogAndCampusEmptyFields(fields, index)
       break
       
     case 'certifications':
@@ -1077,26 +1161,12 @@ export function createEntryFields(
       
     case 'projects':
       fields.push(
-        {
-          fieldPath: `projects[${index}].projectName`,
-          apiFieldName: `project_${index}_projectName`,
-          fieldLabel: 'Name',
-          fieldType: 'combobox',
+        ...buildLinkedProjectEmptyFields({
           section: 'projects',
-          currentValue: null,
+          fieldPathPrefix: `projects[${index}]`,
+          apiPrefix: `project_${index}`,
           parentIndex: index,
-          options: getProjectOptions(),
-          onCreateEntity: 'project',
-        },
-        {
-          fieldPath: `projects[${index}].contributionNotes`,
-          apiFieldName: `project_${index}_contributionNotes`,
-          fieldLabel: 'Contribution',
-          fieldType: 'textarea',
-          section: 'projects',
-          currentValue: null,
-          parentIndex: index,
-        }
+        }),
       )
       break
   }
@@ -1112,28 +1182,12 @@ export function createProjectFields(
   workExperienceIndex: number,
   projectIndex: number
 ): EmptyField[] {
-  return [
-        {
-          fieldPath: `workExperiences[${workExperienceIndex}].projects[${projectIndex}].projectName`,
-          apiFieldName: `work_experience_${workExperienceIndex}_project_${projectIndex}_projectName`,
-          fieldLabel: 'Project Name',
-          fieldType: 'combobox',
-          section: 'workExperience',
-          currentValue: null,
-          parentIndex: workExperienceIndex,
-          options: getProjectOptions(),
-          onCreateEntity: 'project',
-        },
-    {
-      fieldPath: `workExperiences[${workExperienceIndex}].projects[${projectIndex}].contributionNotes`,
-      apiFieldName: `work_experience_${workExperienceIndex}_project_${projectIndex}_contributionNotes`,
-      fieldLabel: 'Contribution',
-      fieldType: 'textarea',
-      section: 'workExperience',
-      currentValue: null,
-      parentIndex: workExperienceIndex,
-    }
-  ]
+  return buildLinkedProjectEmptyFields({
+    section: 'workExperience',
+    fieldPathPrefix: `workExperiences[${workExperienceIndex}].projects[${projectIndex}]`,
+    apiPrefix: `work_experience_${workExperienceIndex}_project_${projectIndex}`,
+    parentIndex: workExperienceIndex,
+  })
 }
 
 /**
