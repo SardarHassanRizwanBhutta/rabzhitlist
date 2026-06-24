@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, FolderOpen, Building2, Award, GraduationCap } from "lucide-react"
+import { Users, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 
 import {
@@ -19,6 +19,12 @@ import {
 
 // Navigation items configuration
 const navigationItems = [
+  {
+    title: "Dashboard",
+    url: "/",
+    icon: LayoutDashboard,
+    description: "Overview — data progress, verification, and key metrics",
+  },
   {
     title: "Candidates",
     url: "/candidates",
@@ -101,24 +107,32 @@ export function NavigationSidebar({
   )
 }
 
+function isNavItemActive(pathname: string, url: string): boolean {
+  if (url === "/") return pathname === "/"
+  return pathname === url || pathname.startsWith(`${url}/`)
+}
+
 function AppSidebar() {
   const pathname = usePathname()
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2">
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-2 rounded-md transition-colors hover:bg-sidebar-accent"
+        >
           <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Building2 className="size-4" />
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="truncate font-semibold">Rabz Hit List</span>
           </div>
-        </div>
+        </Link>
       </SidebarHeader>
           <SidebarMenu className="p-2">
             {navigationItems.map((item) => {
-              const isActive = pathname === item.url || pathname.startsWith(item.url + "/")
+              const isActive = isNavItemActive(pathname, item.url)
               
               return (
                 <SidebarMenuItem key={item.title}>
