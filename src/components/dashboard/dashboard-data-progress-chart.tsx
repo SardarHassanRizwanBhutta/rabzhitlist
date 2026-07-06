@@ -11,7 +11,6 @@ import {
   YAxis,
 } from "recharts"
 import { format } from "date-fns"
-import type { DashboardDailyMetrics } from "@/types/dashboard"
 import {
   formatDashboardDateLabel,
   formatMetricInteger,
@@ -21,8 +20,15 @@ import {
 
 const GAINED_LINE_COLOR = "hsl(142 76% 36%)"
 
+/** Minimal row shape the chart needs (works for intake fleet + data-progress rows). */
+export interface ProgressChartRow {
+  date: string
+  totalDataProgress: number
+  progressPointsGained: number
+}
+
 interface DashboardDataProgressChartProps {
-  rows: DashboardDailyMetrics[]
+  rows: ProgressChartRow[]
   highlightDate?: string
 }
 
@@ -36,7 +42,7 @@ interface ChartPoint {
 function chartXLabel(
   date: string,
   index: number,
-  rows: DashboardDailyMetrics[],
+  rows: ProgressChartRow[],
 ): string {
   if (rows.length <= 14) {
     return formatDashboardDateLabel(date).replace(/, \d{4}$/, "")
