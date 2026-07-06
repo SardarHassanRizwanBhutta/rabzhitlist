@@ -7,7 +7,6 @@ import type {
   DashboardProgressPeriodSummary,
   DashboardRange,
 } from "@/types/dashboard"
-
 export const DEFAULT_DASHBOARD_TIMEZONE = "Asia/Karachi"
 export const MAX_DASHBOARD_CUSTOM_RANGE_DAYS = 90
 
@@ -287,6 +286,11 @@ export function aggregatePeriodSummary(
 
 export function formatMetricInteger(value: number): string {
   return new Intl.NumberFormat("en-US").format(value)
+}
+
+/** Intake card footer — e.g. "8,241 total". */
+export function formatFleetTotalHint(count: number): string {
+  return `${formatMetricInteger(count)} total`
 }
 
 export function formatProgressPoints(value: number): string {

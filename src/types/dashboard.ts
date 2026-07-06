@@ -1,4 +1,4 @@
-/** Dashboard productivity metrics — @see docs/DASHBOARD_METRICS_API_CONTRACT.md */
+/** Dashboard metrics (mock). Live dashboard contract: docs/DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md */
 
 export type DashboardRange = "today" | "7d" | "30d"
 
