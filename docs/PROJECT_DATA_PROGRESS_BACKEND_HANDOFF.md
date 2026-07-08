@@ -226,11 +226,11 @@ Reuse patterns from `CandidateDataProgressService` if it exists in the backend r
 
 Do **not** change `DashboardDataProgressService` in Phase 1.
 
-Phase 2 checklist (separate PR):
+Phase 2 checklist — see [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md):
 
 - [ ] Read `projects.data_progress_percentage` for snapshots + live today
 - [ ] Set `summary.modules[projects].available = true`
-- [ ] Update D2 in dashboard docs (candidates + projects)
+- [ ] Recalc hooks on project mutations → today snapshot upsert
 
 ---
 

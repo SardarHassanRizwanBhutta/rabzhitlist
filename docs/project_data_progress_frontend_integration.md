@@ -15,7 +15,7 @@
 | **Phase 1** | Per-project completion % on list + min/max filters; breakdown API available |
 | **Phase 1 UI** | **Projects table column** + **filter dialog** only |
 | **Deferred UI** | Data Progress panel inside `ProjectDetailDialog` — **do not build** until requested |
-| **Phase 2** | Dashboard `projects` module — **unchanged** (`available: false`); out of scope here |
+| **Phase 2** | Dashboard `projects` module — see [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) (backend first; frontend verify only) |
 | **Scoring** | **Backend only** — never compute weights or % on the client |
 
 After create/update, backend recalculates and persists `dataProgressPercentage` automatically. List responses include the stored value.
@@ -272,9 +272,11 @@ Mirror **`projects-filter-dialog.tsx`** / candidates filter UX if it exists.
 
 Per locked requirements: **do not** add a Data Progress accordion/panel in `ProjectDetailDialog` in Phase 1. The breakdown API is ready for a future pass.
 
-### 5.4 Dashboard — **no changes**
+### 5.4 Dashboard (Phase 2)
 
-`GET /api/dashboard/data-progress` still returns `projects` with `available: false` and `avgDataProgress: 0`. Do not enable projects progress on the dashboard in Phase 1.
+**Handoff:** [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)
+
+No dashboard code changes until backend sets `summary.modules[projects].available = true`. Then verify Projects card + detail KPIs/chart on `/`.
 
 ---
 
@@ -353,7 +355,8 @@ When you eventually build the detail panel, map sections to `ProjectCreationDial
 | [`PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | Weights, section rules, phasing |
 | [`PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md`](./PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md) | Backend implementation details |
 | [`candidate_data_progress_frontend_integration.md`](./candidate_data_progress_frontend_integration.md) | Candidate reference (if present in repo) |
-| [`DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md) | Dashboard (Phase 2 for projects) |
+| [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) | Dashboard projects module Phase 2 |
+| [`DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md) | Dashboard candidates implementation |
 
 ---
 
