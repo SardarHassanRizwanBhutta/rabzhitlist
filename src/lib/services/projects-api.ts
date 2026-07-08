@@ -1,5 +1,6 @@
 import type { Project, ProjectStatus, ProjectType } from "@/lib/types/project"
 import type { PublishPlatform } from "@/lib/types/project"
+import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progress"
 
 import { API_BASE_URL } from "@/lib/config/api"
 
@@ -37,6 +38,7 @@ export interface ProjectListItemDto {
   aspectTypeLabels?: string[]
   publishPlatforms?: number[]
   clientLocations?: string[]
+  dataProgressPercentage?: number | null
   createdAt?: string
   updatedAt?: string
 }
@@ -80,6 +82,7 @@ export interface ProjectDto {
   aspectTypeLabels?: string[]
   publishPlatforms: number[]
   clientLocations: string[]
+  dataProgressPercentage?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -370,6 +373,9 @@ export interface ProjectsListFilterInput {
   isPublished: boolean | null
   publishPlatforms: string[]
   minDownloadCount: string
+  /** Stored completion filter 0–100 (`dataProgressMin` / `dataProgressMax` in UI). */
+  dataProgressMin: string
+  dataProgressMax: string
 }
 
 export interface FetchProjectsParams {
@@ -405,6 +411,17 @@ export interface FetchProjectsParams {
   activeWindowFrom?: string
   /** Active-window overlap: upper bound. */
   activeWindowTo?: string
+  minDataProgressPercentage?: number
+  maxDataProgressPercentage?: number
+}
+
+function parseDataProgressPercentage(value: unknown): number | null {
+  if (typeof value === "number") return value
+  if (value != null) {
+    const n = Number(value)
+    return Number.isNaN(n) ? null : n
+  }
+  return null
 }
 
 function toDateString(d: Date | null | undefined): string | undefined {
@@ -432,6 +449,12 @@ export function buildFetchProjectsParams(
   const minTeamSize = filters.teamSizeMin?.trim() ? parseInt(filters.teamSizeMin, 10) : undefined
   const maxTeamSize = filters.teamSizeMax?.trim() ? parseInt(filters.teamSizeMax, 10) : undefined
   const minDownloadCount = filters.minDownloadCount?.trim() ? parseInt(filters.minDownloadCount, 10) : undefined
+  const minDataProgress = filters.dataProgressMin?.trim()
+    ? parseFloat(filters.dataProgressMin)
+    : undefined
+  const maxDataProgress = filters.dataProgressMax?.trim()
+    ? parseFloat(filters.dataProgressMax)
+    : undefined
 
   const name = filters.projectName?.trim() ? filters.projectName.trim() : undefined
   const link = filters.projectLink?.trim() ? filters.projectLink.trim() : undefined
@@ -484,6 +507,14 @@ export function buildFetchProjectsParams(
     projectStartTo,
     activeWindowFrom,
     activeWindowTo,
+    minDataProgressPercentage:
+      minDataProgress !== undefined && !Number.isNaN(minDataProgress)
+        ? minDataProgress
+        : undefined,
+    maxDataProgressPercentage:
+      maxDataProgress !== undefined && !Number.isNaN(maxDataProgress)
+        ? maxDataProgress
+        : undefined,
   }
 }
 
@@ -531,6 +562,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     isPublished: dto.isPublished ?? false,
     publishPlatforms: (dto.publishPlatforms ?? []).map((n) => PUBLISH_PLATFORM_NUM_TO_UI[n] ?? "App Store"),
     downloadCount: dto.downloadCount ?? undefined,
+    dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
     createdAt: dto.createdAt ? new Date(dto.createdAt) : new Date(),
     updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : new Date(),
   }
@@ -570,6 +602,7 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
     employerId: dto.employerId ?? undefined,
+    dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
   }
 }
 
@@ -602,6 +635,12 @@ function buildListQuery(params: FetchProjectsParams): string {
   params.horizontalDomains?.forEach((v) => search.append("horizontalDomains", String(v)))
   params.technicalDomains?.forEach((v) => search.append("technicalDomains", String(v)))
   params.technicalAspects?.forEach((id) => search.append("technicalAspects", String(id)))
+  if (params.minDataProgressPercentage != null) {
+    search.set("minDataProgressPercentage", String(params.minDataProgressPercentage))
+  }
+  if (params.maxDataProgressPercentage != null) {
+    search.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
+  }
   return search.toString()
 }
 
@@ -618,6 +657,24 @@ export async function fetchProjectsFiltered(
     throw new Error(`Failed to fetch projects: ${response.status} — ${text}`)
   }
   return response.json()
+}
+
+export async function fetchProjectDataProgress(
+  projectId: number,
+  signal?: AbortSignal,
+): Promise<ProjectDataProgressResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/data-progress`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal,
+  })
+  if (response.status === 404) throw new Error("Not found")
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Project data progress failed (${response.status}): ${text}`)
+  }
+  return response.json() as Promise<ProjectDataProgressResponse>
 }
 
 export async function fetchProjectById(id: number): Promise<ProjectDto> {

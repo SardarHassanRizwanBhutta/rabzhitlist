@@ -157,6 +157,8 @@ const initialFilters: ProjectFilters = {
   isPublished: null,
   publishPlatforms: [],
   minDownloadCount: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function ProjectsFilterDialog({
@@ -412,7 +414,9 @@ export function ProjectsFilterDialog({
     (filters.projectLink.trim() ? 1 : 0) +
     (filters.isPublished !== null ? 1 : 0) +
     filters.publishPlatforms.length +
-    (filters.minDownloadCount ? 1 : 0)
+    (filters.minDownloadCount ? 1 : 0) +
+    (filters.dataProgressMin ? 1 : 0) +
+    (filters.dataProgressMax ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters({
@@ -457,12 +461,33 @@ export function ProjectsFilterDialog({
     return null
   }
 
+  const validateDataProgressPercentage = (): string | null => {
+    const minRaw = tempFilters.dataProgressMin.trim()
+    const maxRaw = tempFilters.dataProgressMax.trim()
+    if (!minRaw && !maxRaw) return null
+
+    const min = minRaw ? parseFloat(minRaw) : null
+    const max = maxRaw ? parseFloat(maxRaw) : null
+
+    if (minRaw && (min == null || Number.isNaN(min) || min < 0 || min > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (maxRaw && (max == null || Number.isNaN(max) || max < 0 || max > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (min != null && max != null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      return "Maximum data progress cannot be less than minimum."
+    }
+    return null
+  }
+
   const dateRangeError = validateDateRanges()
   const teamSizeError = validateTeamSizeRange()
+  const dataProgressError = validateDataProgressPercentage()
 
   const handleApplyFilters = () => {
     // Validate before applying
-    if (dateRangeError || teamSizeError) {
+    if (dateRangeError || teamSizeError || dataProgressError) {
       return // Don't apply if there are validation errors
     }
     const payload: ProjectFilters = {
@@ -517,7 +542,10 @@ export function ProjectsFilterDialog({
     tempFilters.projectName.trim() !== "" ||
     tempFilters.projectLink.trim() !== "" ||
     tempFilters.isPublished !== null ||
-    tempFilters.publishPlatforms.length > 0
+    tempFilters.publishPlatforms.length > 0 ||
+    tempFilters.minDownloadCount !== "" ||
+    tempFilters.dataProgressMin.trim() !== "" ||
+    tempFilters.dataProgressMax.trim() !== ""
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -1133,6 +1161,71 @@ export function ProjectsFilterDialog({
                   <p className="text-xs text-red-500">{teamSizeError}</p>
                 )}
               </div>
+            </div>
+
+            {/* Data Progress Filter */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Data Progress</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="projectDataProgressMin" className="text-xs text-muted-foreground">
+                    Minimum (%)
+                  </Label>
+                  <Input
+                    id="projectDataProgressMin"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="0"
+                    value={tempFilters.dataProgressMin}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === "") {
+                        handleFilterChange("dataProgressMin", value)
+                        return
+                      }
+                      const n = parseFloat(value)
+                      if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                        handleFilterChange("dataProgressMin", value)
+                      }
+                    }}
+                    className={dataProgressError ? "border-red-500" : ""}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="projectDataProgressMax" className="text-xs text-muted-foreground">
+                    Maximum (%)
+                  </Label>
+                  <Input
+                    id="projectDataProgressMax"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="100"
+                    value={tempFilters.dataProgressMax}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === "") {
+                        handleFilterChange("dataProgressMax", value)
+                        return
+                      }
+                      const n = parseFloat(value)
+                      if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                        handleFilterChange("dataProgressMax", value)
+                      }
+                    }}
+                    className={dataProgressError ? "border-red-500" : ""}
+                  />
+                </div>
+              </div>
+              {dataProgressError && (
+                <p className="text-xs text-red-500">{dataProgressError}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Filter projects by stored profile completion (`dataProgressPercentage`, 0–100%)
+              </p>
             </div>
 
             {/* Published App Filter */}

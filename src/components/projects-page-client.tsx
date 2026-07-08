@@ -69,6 +69,8 @@ const initialFilters: ProjectFilters = {
   isPublished: null,
   publishPlatforms: [],
   minDownloadCount: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 function namesToIds(names: string[], lookup: LookupItem[]): number[] {
