@@ -145,4 +145,5 @@ When `available: false`: show **`0.0%` avg completion**, `avgDataProgressDelta: 
 |----------|---------|
 | [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md) | Backend implementation contract (includes legacy intake migration — Appendix A) |
 | [`PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | Project entity progress (Phase 1); dashboard projects module Phase 2 |
+| [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) | Dashboard projects module (Phase 2 backend) |
 | [`candidate_data_progress_frontend_integration.md`](./candidate_data_progress_frontend_integration.md) | Per-candidate progress (entity level) |

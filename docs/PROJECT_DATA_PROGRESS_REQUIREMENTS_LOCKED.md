@@ -141,15 +141,17 @@ Per section:
 
 ---
 
-## 7. Dashboard (Phase 2 — deferred)
+## 7. Dashboard (Phase 2)
+
+**Handoff:** [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)
 
 When Phase 2 ships:
 
 - `GET /api/dashboard/data-progress` → `summary.modules[projects].available = true`
 - Aggregate `projects.data_progress_percentage` like candidates (fleet sum, avg, snapshots)
-- Update [`DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md) C5 exception list
+- Frontend: verify existing dashboard UI (no new components)
 
-Phase 1 **must not** break dashboard; projects module stays `available: false` until Phase 2.
+Employers / universities / certifications remain `available: false`.
 
 ---
 
@@ -160,4 +162,6 @@ Phase 1 **must not** break dashboard; projects module stays `available: false` u
 | [`PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md`](./PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md) | Backend implementation contract |
 | [`project_data_progress_frontend_integration.md`](./project_data_progress_frontend_integration.md) | Frontend wiring guide |
 | [`candidate_data_progress_frontend_integration.md`](./candidate_data_progress_frontend_integration.md) | Reference pattern (candidates) |
-| [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md) | Dashboard module (Phase 2) |
+| [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) | Dashboard Phase 2 backend handoff |
+| [`project_data_progress_frontend_integration_phase2.md`](./project_data_progress_frontend_integration_phase2.md) | Dashboard Phase 2 frontend verification |
+| [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md) | Full dashboard API contract |

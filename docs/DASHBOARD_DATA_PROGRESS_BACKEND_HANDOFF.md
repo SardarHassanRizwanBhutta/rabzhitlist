@@ -15,7 +15,7 @@ Handoff for the **backend AI agent** implementing **`GET /api/dashboard/data-pro
 
 | # | Decision | Status |
 |---|----------|--------|
-| **D1** | **Candidates-only progress in v1.** `available: true` only for `candidates`. Other modules return `available: false`; progress fields (`avgDataProgress`, `totalDataProgress` in `daily[]`) are zero or omitted semantics per §4. | **Locked** |
+| **D1** | **Progress-enabled modules:** `candidates` and `projects` (`available: true`). Other modules return `available: false`; progress fields in `daily[]` are zero per C5. See [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md). | **Locked** (projects Phase 2) |
 | **D2** | **`candidates.data_progress_percentage`** exists today. **`projects.data_progress_percentage`** added in Project Data Progress Phase 1; dashboard aggregation for projects = **Phase 2** (see [`PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) §7). Employers, universities, certifications: no progress column until a future phase. | **Locked** |
 | **D3** | **Yes** — universities and certifications `recordCount` and `newInPeriod` (and `daily[].newRecords`) come from **this endpoint** via `created_at` on those tables. | **Locked** |
 | **D4** | **Single dashboard API call.** Frontend drops `GET /api/dashboard/intake` and uses only `GET /api/dashboard/data-progress`. Intake fields live in `summary.modules` (+ `daily[].newRecords` for selected module). See §0.1. | **Locked** |
@@ -362,7 +362,7 @@ Return **all five** modules on every request.
 | `recordCount` | Fleet now (`deleted_at IS NULL`) |
 | `newInPeriod` | `SUM(newRecords)` over user `from`..`to` (from `daily[]` subset) |
 | `avgDataProgressDelta` | See §4.9 |
-| `available` | `true` only for `candidates` (D1). `false` otherwise — **`avgDataProgress` = `0`**, **`avgDataProgressDelta` = `null`** (C5) |
+| `available` | `true` for `candidates` and `projects` (D1). `false` otherwise — **`avgDataProgress` = `0`**, **`avgDataProgressDelta` = `null`** (C5) |
 
 **Former intake parity (candidates, employers, projects):** `recordCount` / `newInPeriod` must match the rules previously implemented on `GET /api/dashboard/intake` (for regression comparison during migration only).
 
@@ -516,7 +516,7 @@ Store in snapshot row; serve via API `daily[]`.
 |--------|------------------|--------------|----------------------|--------------|
 | `candidates` | `candidates` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` |
 | `employers` | `employers` | `deleted_at IS NULL` | None (D2) — `available: false` | `created_at`; ignore `deleted_at` |
-| `projects` | `projects` | `deleted_at IS NULL` | None (D2) | `created_at`; ignore `deleted_at` |
+| `projects` | `projects` | `deleted_at IS NULL` | `data_progress_percentage` ✓ (Phase 2 dashboard — [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)) | `created_at`; ignore `deleted_at` |
 | `universities` | `universities` | `deleted_at IS NULL` (C2) | None (D2) | `created_at`; ignore `deleted_at` (C2) |
 | `certifications` | Confirm table name with schema | `deleted_at IS NULL` (C2) | None (D2) | `created_at`; ignore `deleted_at` (C2) |
 
