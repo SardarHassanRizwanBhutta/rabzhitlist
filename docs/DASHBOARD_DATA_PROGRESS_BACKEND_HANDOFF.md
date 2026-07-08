@@ -16,7 +16,7 @@ Handoff for the **backend AI agent** implementing **`GET /api/dashboard/data-pro
 | # | Decision | Status |
 |---|----------|--------|
 | **D1** | **Candidates-only progress in v1.** `available: true` only for `candidates`. Other modules return `available: false`; progress fields (`avgDataProgress`, `totalDataProgress` in `daily[]`) are zero or omitted semantics per §4. | **Locked** |
-| **D2** | Only **`candidates.data_progress_percentage`** exists today. No progress column on employers, projects, universities, certifications until a future phase. | **Locked** |
+| **D2** | **`candidates.data_progress_percentage`** exists today. **`projects.data_progress_percentage`** added in Project Data Progress Phase 1; dashboard aggregation for projects = **Phase 2** (see [`PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./PROJECT_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) §7). Employers, universities, certifications: no progress column until a future phase. | **Locked** |
 | **D3** | **Yes** — universities and certifications `recordCount` and `newInPeriod` (and `daily[].newRecords`) come from **this endpoint** via `created_at` on those tables. | **Locked** |
 | **D4** | **Single dashboard API call.** Frontend drops `GET /api/dashboard/intake` and uses only `GET /api/dashboard/data-progress`. Intake fields live in `summary.modules` (+ `daily[].newRecords` for selected module). See §0.1. | **Locked** |
 | **D5** | **Persisted daily snapshots** required (§5). Scheduled job is the recommended way to build immutable historical days; see §5.2 for why and alternatives. | **Locked** |

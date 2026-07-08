@@ -60,6 +60,8 @@ export interface Project {
   isPublished: boolean  // Is this project/app published on any platform?
   publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop, Cloud, IoT, Embedded)
   downloadCount?: number  // Download count (e.g., 150000 for 150K downloads)
+  /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). */
+  dataProgressPercentage?: number | null
   createdAt: Date
   updatedAt: Date
 }

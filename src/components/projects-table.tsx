@@ -93,6 +93,12 @@ import { Switch } from "@/components/ui/switch"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import {
+  formatProjectDataProgress,
+  getDataProgressBadgeClasses,
+  getDataProgressStatus,
+  normalizeProgress,
+} from "@/lib/utils/project-data-progress"
 
 import {
   Project,
@@ -250,6 +256,29 @@ function coerceProjectStatusForDisplay(raw: string): ProjectStatus {
   return "Development"
 }
 
+function ProjectDataProgressBadge({ project }: { project: Project }) {
+  const normalized = normalizeProgress(project.dataProgressPercentage)
+  const badgeColors = getDataProgressBadgeClasses(normalized)
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center justify-center",
+        "h-7 min-w-[44px] px-2 rounded-full",
+        "text-xs font-semibold border",
+        "cursor-default transition-colors",
+        badgeColors.bg,
+        badgeColors.border,
+        badgeColors.text,
+      )}
+      title={`Data progress: ${getDataProgressStatus(normalized)}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {formatProjectDataProgress(project.dataProgressPercentage)}
+    </div>
+  )
+}
+
 // Helper function to calculate team size for a project
 const calculateTeamSize = (projectName: string): number => {
   return sampleCandidates.filter(candidate => {
@@ -346,6 +375,13 @@ export function ProjectsTable({
   // Sorting
   const sortedProjects = useMemo(() => {
     return [...filteredProjects].sort((a, b) => {
+      if (sortKey === "dataProgressPercentage") {
+        const aNum = normalizeProgress(a.dataProgressPercentage)
+        const bNum = normalizeProgress(b.dataProgressPercentage)
+        if (aNum === bNum) return 0
+        return sortDirection === "asc" ? aNum - bNum : bNum - aNum
+      }
+
       const aValue = a[sortKey]
       const bValue = b[sortKey]
 
@@ -500,6 +536,9 @@ export function ProjectsTable({
               <TableHead className="w-[100px]">
                 <SortButton column="teamSize">Team Size</SortButton>
               </TableHead>
+              <TableHead className="hidden lg:table-cell w-[88px]">
+                <SortButton column="dataProgressPercentage">Data Progress</SortButton>
+              </TableHead>
               <TableHead className="w-[60px]" title="View Team Members">Team</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
@@ -560,6 +599,9 @@ export function ProjectsTable({
                     <UsersIcon className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span>{project.teamSize ?? "N/A"}</span>
                   </div>
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  <ProjectDataProgressBadge project={project} />
                 </TableCell>
                 <TableCell>
                   <Button
