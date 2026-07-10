@@ -18,6 +18,8 @@ export interface University {
   country: { id: number; name: string }
   ranking: Ranking | null
   locations: UniversityLocation[]
+  /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). */
+  dataProgressPercentage?: number | null
   createdAt: string
   updatedAt: string
 }

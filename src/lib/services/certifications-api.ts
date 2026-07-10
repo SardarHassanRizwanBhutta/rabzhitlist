@@ -1,6 +1,23 @@
 import type { Certification, CertificationIssuer } from '@/lib/types/certification'
+import type { CertificationDataProgressResponse } from '@/lib/types/certification-data-progress'
 
 import { API_BASE_URL } from "@/lib/config/api"
+
+function parseDataProgressPercentage(value: unknown): number | null {
+  if (typeof value === "number") return value
+  if (value != null) {
+    const n = Number(value)
+    return Number.isNaN(n) ? null : n
+  }
+  return null
+}
+
+function mapCertificationDto(data: Record<string, unknown>): Certification {
+  return {
+    ...(data as unknown as Certification),
+    dataProgressPercentage: parseDataProgressPercentage(data.dataProgressPercentage),
+  }
+}
 
 export interface CertificationsPageResponse {
   items: Certification[]
@@ -17,6 +34,8 @@ export interface FetchCertificationsParams {
   issuerIds?: number[]
   pageNumber?: number
   pageSize?: number
+  minDataProgressPercentage?: number
+  maxDataProgressPercentage?: number
 }
 
 export async function fetchCertificationsPage(params: FetchCertificationsParams = {}): Promise<CertificationsPageResponse> {
@@ -26,16 +45,27 @@ export async function fetchCertificationsPage(params: FetchCertificationsParams 
   issuerIds.forEach(id => search.append('issuerId', String(id)))
   search.set('pageNumber', String(pageNumber))
   search.set('pageSize', String(pageSize))
+  if (params.minDataProgressPercentage != null) {
+    search.set('minDataProgressPercentage', String(params.minDataProgressPercentage))
+  }
+  if (params.maxDataProgressPercentage != null) {
+    search.set('maxDataProgressPercentage', String(params.maxDataProgressPercentage))
+  }
   const query = search.toString()
-  const url = `${API_BASE_URL}/api/Certifications${query ? `?${query}` : ''}`
+  const url = `${API_BASE_URL}/api/certifications${query ? `?${query}` : ''}`
 
   const response = await fetch(url)
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch certifications: ${response.status}`)
+    const text = await response.text()
+    throw new Error(`Failed to fetch certifications: ${response.status} — ${text}`)
   }
 
-  return response.json()
+  const data = await response.json() as CertificationsPageResponse
+  return {
+    ...data,
+    items: data.items.map((item) => mapCertificationDto(item as unknown as Record<string, unknown>)),
+  }
 }
 
 export async function fetchCertificationIssuers(): Promise<CertificationIssuer[]> {
@@ -74,7 +104,7 @@ interface CreateCertificationRequest {
 }
 
 export async function createCertification(data: CreateCertificationRequest): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Certifications`, {
+  const response = await fetch(`${API_BASE_URL}/api/certifications`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -91,11 +121,11 @@ export interface UpdateCertificationRequest {
   issuerId: number | null
 }
 
-export async function updateCertification(id: number, data: UpdateCertificationRequest): Promise<Certification> {
-  const response = await fetch(`${API_BASE_URL}/api/Certifications/${id}`, {
+export async function updateCertification(id: number, body: UpdateCertificationRequest): Promise<Certification> {
+  const response = await fetch(`${API_BASE_URL}/api/certifications/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(body),
   })
 
   if (response.status === 404) {
@@ -107,11 +137,33 @@ export async function updateCertification(id: number, data: UpdateCertificationR
     throw new Error(`Failed to update certification: ${response.status} — ${errorBody}`)
   }
 
-  return response.json()
+  const payload = await response.json()
+  return mapCertificationDto(payload as Record<string, unknown>)
+}
+
+export async function fetchCertificationDataProgress(
+  certificationId: number,
+  signal?: AbortSignal,
+): Promise<CertificationDataProgressResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/certifications/${certificationId}/data-progress`,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal,
+    },
+  )
+  if (response.status === 404) throw new Error("Not found")
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Certification data progress failed (${response.status}): ${text}`)
+  }
+  return response.json() as Promise<CertificationDataProgressResponse>
 }
 
 export async function deleteCertification(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/Certifications/${id}`, {
+  const response = await fetch(`${API_BASE_URL}/api/certifications/${id}`, {
     method: 'DELETE',
   })
 

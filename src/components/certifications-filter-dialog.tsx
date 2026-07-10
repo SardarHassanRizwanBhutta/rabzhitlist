@@ -21,6 +21,8 @@ import type { CertificationIssuer } from "@/lib/types/certification"
 export interface CertificationFilters {
   certificationNameSearch: string
   issuerIds: number[]
+  dataProgressMin: string
+  dataProgressMax: string
 }
 
 interface CertificationsFilterDialogProps {
@@ -34,6 +36,8 @@ interface CertificationsFilterDialogProps {
 const initialFilters: CertificationFilters = {
   certificationNameSearch: "",
   issuerIds: [],
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function CertificationsFilterDialog({
@@ -53,7 +57,9 @@ export function CertificationsFilterDialog({
 
   const activeFilterCount =
     (filters.certificationNameSearch.trim() ? 1 : 0) +
-    filters.issuerIds.length
+    filters.issuerIds.length +
+    (filters.dataProgressMin.trim() ? 1 : 0) +
+    (filters.dataProgressMax.trim() ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
@@ -67,7 +73,30 @@ export function CertificationsFilterDialog({
     setTempFilters(prev => ({ ...prev, issuerIds: values.map(Number) }))
   }
 
+  const validateDataProgressPercentage = (): string | null => {
+    const minRaw = tempFilters.dataProgressMin.trim()
+    const maxRaw = tempFilters.dataProgressMax.trim()
+    if (!minRaw && !maxRaw) return null
+
+    const min = minRaw ? parseFloat(minRaw) : null
+    const max = maxRaw ? parseFloat(maxRaw) : null
+
+    if (minRaw && (min == null || Number.isNaN(min) || min < 0 || min > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (maxRaw && (max == null || Number.isNaN(max) || max < 0 || max > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (min != null && max != null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      return "Maximum data progress cannot be less than minimum."
+    }
+    return null
+  }
+
+  const dataProgressError = validateDataProgressPercentage()
+
   const handleApplyFilters = () => {
+    if (dataProgressError) return
     onFiltersChange(tempFilters)
     setOpen(false)
   }
@@ -84,7 +113,9 @@ export function CertificationsFilterDialog({
 
   const hasAnyTempFilters =
     tempFilters.certificationNameSearch.trim() !== "" ||
-    tempFilters.issuerIds.length > 0
+    tempFilters.issuerIds.length > 0 ||
+    tempFilters.dataProgressMin.trim() !== "" ||
+    tempFilters.dataProgressMax.trim() !== ""
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -138,6 +169,70 @@ export function CertificationsFilterDialog({
                   maxDisplay={3}
                 />
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Data Progress</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="certificationDataProgressMin" className="text-xs text-muted-foreground">
+                    Minimum (%)
+                  </Label>
+                  <Input
+                    id="certificationDataProgressMin"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="0"
+                    value={tempFilters.dataProgressMin}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === "") {
+                        setTempFilters((prev) => ({ ...prev, dataProgressMin: value }))
+                        return
+                      }
+                      const n = parseFloat(value)
+                      if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                        setTempFilters((prev) => ({ ...prev, dataProgressMin: value }))
+                      }
+                    }}
+                    className={dataProgressError ? "border-red-500" : ""}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="certificationDataProgressMax" className="text-xs text-muted-foreground">
+                    Maximum (%)
+                  </Label>
+                  <Input
+                    id="certificationDataProgressMax"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    placeholder="100"
+                    value={tempFilters.dataProgressMax}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (value === "") {
+                        setTempFilters((prev) => ({ ...prev, dataProgressMax: value }))
+                        return
+                      }
+                      const n = parseFloat(value)
+                      if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                        setTempFilters((prev) => ({ ...prev, dataProgressMax: value }))
+                      }
+                    }}
+                    className={dataProgressError ? "border-red-500" : ""}
+                  />
+                </div>
+              </div>
+              {dataProgressError && (
+                <p className="text-xs text-red-500">{dataProgressError}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Filter certifications by stored profile completion (`dataProgressPercentage`, 0–100%)
+              </p>
             </div>
           </div>
         </div>

@@ -8,6 +8,8 @@ export interface Certification {
   id: number
   name: string
   issuer: CertificationIssuer | null
+  /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). */
+  dataProgressPercentage?: number | null
   createdAt: string
   updatedAt: string
 }
