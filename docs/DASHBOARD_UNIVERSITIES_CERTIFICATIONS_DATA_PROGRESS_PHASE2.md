@@ -1,6 +1,6 @@
 # Dashboard Universities & Certifications Data Progress — Phase 2 Backend Handoff
 
-**Status:** Not implemented — contract for backend work.  
+**Status:** Backend Phase 2 **implemented** (2026-07).  
 **Audience:** Backend AI agent / engineer.  
 **Depends on:** Entity Phase 1 shipped for both modules (`universities.data_progress_percentage`, `certifications.data_progress_percentage`).
 

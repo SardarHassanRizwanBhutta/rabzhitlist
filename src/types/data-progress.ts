@@ -58,7 +58,7 @@ export interface DataProgressModuleSummary {
   recordCount: number
   /** New records added within the selected window (intake). */
   newInPeriod: number
-  /** True only for candidates (progress KPIs meaningful). */
+  /** True when progress KPIs are meaningful (candidates, projects, universities, certifications). */
   available: boolean
 }
 
