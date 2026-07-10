@@ -1,7 +1,24 @@
 import type { University, UniversityLocation } from "@/lib/types/university"
 import type { Ranking } from "@/lib/types/university"
+import type { UniversityDataProgressResponse } from "@/lib/types/university-data-progress"
 
 import { API_BASE_URL } from "@/lib/config/api"
+
+function parseDataProgressPercentage(value: unknown): number | null {
+  if (typeof value === "number") return value
+  if (value != null) {
+    const n = Number(value)
+    return Number.isNaN(n) ? null : n
+  }
+  return null
+}
+
+function mapUniversityDto(data: Record<string, unknown>): University {
+  return {
+    ...(data as unknown as University),
+    dataProgressPercentage: parseDataProgressPercentage(data.dataProgressPercentage),
+  }
+}
 
 /** Search/combobox result: id + name only. @see GET /api/universities/search */
 export interface UniversityLookupDto {
@@ -31,6 +48,7 @@ export interface UniversityListItem {
   cities?: string[]
   websiteUrl?: string | null
   linkedInUrl?: string | null
+  dataProgressPercentage?: number | null
 }
 
 export interface UniversitiesListResponse {
@@ -51,6 +69,8 @@ export interface FetchUniversitiesParams {
   ranking?: Ranking
   pageNumber: number
   pageSize: number
+  minDataProgressPercentage?: number
+  maxDataProgressPercentage?: number
 }
 
 export interface CreateUniversityDto {
@@ -166,12 +186,26 @@ export async function fetchUniversitiesFiltered(
   if (params.countryIds?.length) {
     params.countryIds.forEach((id) => search.append("countryIds", String(id)))
   }
+  if (params.minDataProgressPercentage != null) {
+    search.set("minDataProgressPercentage", String(params.minDataProgressPercentage))
+  }
+  if (params.maxDataProgressPercentage != null) {
+    search.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
+  }
   const url = `${API_BASE_URL}/api/universities?${search.toString()}`
   const response = await fetch(url)
   if (!response.ok) {
-    throw new Error(`Failed to fetch universities: ${response.status}`)
+    const text = await response.text()
+    throw new Error(`Failed to fetch universities: ${response.status} — ${text}`)
   }
-  return response.json()
+  const data = (await response.json()) as UniversitiesListResponse
+  return {
+    ...data,
+    items: data.items.map((item) => ({
+      ...item,
+      dataProgressPercentage: parseDataProgressPercentage(item.dataProgressPercentage),
+    })),
+  }
 }
 
 export async function fetchUniversityById(id: number): Promise<University> {
@@ -182,7 +216,29 @@ export async function fetchUniversityById(id: number): Promise<University> {
   if (!response.ok) {
     throw new Error(`Failed to fetch university: ${response.status}`)
   }
-  return response.json()
+  const data = await response.json()
+  return mapUniversityDto(data as Record<string, unknown>)
+}
+
+export async function fetchUniversityDataProgress(
+  universityId: number,
+  signal?: AbortSignal,
+): Promise<UniversityDataProgressResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/universities/${universityId}/data-progress`,
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal,
+    },
+  )
+  if (response.status === 404) throw new Error("Not found")
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`University data progress failed (${response.status}): ${text}`)
+  }
+  return response.json() as Promise<UniversityDataProgressResponse>
 }
 
 export async function deleteUniversityLocation(
@@ -214,7 +270,8 @@ export async function createUniversity(body: CreateUniversityDto): Promise<Unive
     const text = await response.text()
     throw new Error(`Failed to create university: ${response.status} — ${text}`)
   }
-  return response.json()
+  const data = await response.json()
+  return mapUniversityDto(data as Record<string, unknown>)
 }
 
 export async function updateUniversity(
@@ -233,7 +290,8 @@ export async function updateUniversity(
     const text = await response.text()
     throw new Error(`Failed to update university: ${response.status} — ${text}`)
   }
-  return response.json()
+  const data = await response.json()
+  return mapUniversityDto(data as Record<string, unknown>)
 }
 
 export async function deleteUniversity(id: number): Promise<void> {

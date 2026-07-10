@@ -56,6 +56,13 @@ import {
   Certification,
 } from "@/lib/types/certification"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
+import {
+  formatDataProgressPercentage,
+  getDataProgressBadgeClasses,
+  getDataProgressStatus,
+  normalizeProgress,
+} from "@/lib/utils/data-progress"
 
 interface CertificationsTableProps {
   certifications: Certification[]
@@ -78,6 +85,28 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100]
 
+function CertificationDataProgressBadge({ certification }: { certification: Certification }) {
+  const normalized = normalizeProgress(certification.dataProgressPercentage)
+  const badgeColors = getDataProgressBadgeClasses(normalized)
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center justify-center",
+        "h-7 min-w-[44px] px-2 rounded-full",
+        "text-xs font-semibold border",
+        "cursor-default transition-colors",
+        badgeColors.bg,
+        badgeColors.border,
+        badgeColors.text,
+      )}
+      title={`Data progress: ${getDataProgressStatus(normalized)}`}
+    >
+      {formatDataProgressPercentage(certification.dataProgressPercentage)}
+    </div>
+  )
+}
+
 export function CertificationsTable({
   certifications,
   isLoading = false,
@@ -99,6 +128,9 @@ export function CertificationsTable({
   const [certificationToDelete, setCertificationToDelete] = useState<Certification | null>(null)
   const getSortValue = (cert: Certification, key: SortKey): string | number => {
     if (key === "issuerName") return cert.issuer?.name ?? ""
+    if (key === "dataProgressPercentage") {
+      return normalizeProgress(cert.dataProgressPercentage)
+    }
     const val = cert[key as keyof Certification]
     if (val === null || val === undefined) return ""
     if (typeof val === "object") return ""
@@ -210,6 +242,9 @@ export function CertificationsTable({
               <TableHead>
                 <SortButton column="issuerName">Issuing Body</SortButton>
               </TableHead>
+              <TableHead className="hidden lg:table-cell w-[88px]">
+                <SortButton column="dataProgressPercentage">Data Progress</SortButton>
+              </TableHead>
               <TableHead className="w-[60px]" title="View Candidates">Candidates</TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
@@ -229,6 +264,9 @@ export function CertificationsTable({
                   ) : (
                     <span className="text-muted-foreground text-sm">N/A</span>
                   )}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  <CertificationDataProgressBadge certification={certification} />
                 </TableCell>
                 <TableCell>
                   <Button

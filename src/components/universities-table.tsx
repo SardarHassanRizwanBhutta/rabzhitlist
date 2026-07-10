@@ -67,6 +67,13 @@ import {
 } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
 import { UniversityDetailsModal } from "@/components/university-details-modal"
+import { cn } from "@/lib/utils"
+import {
+  formatDataProgressPercentage,
+  getDataProgressBadgeClasses,
+  getDataProgressStatus,
+  normalizeProgress,
+} from "@/lib/utils/data-progress"
 
 interface UniversitiesTableProps {
   universities: University[]
@@ -90,7 +97,7 @@ const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 const UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN = 7
 
 /** Campus sub-rows (no row-level menu): merge Country through Actions. */
-const UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN = 8
+const UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN = 9
 
 type UniversityExternalLinkKind = "website" | "linkedin"
 
@@ -136,6 +143,29 @@ function UniversityExternalIconLink({
         <Linkedin className="h-4 w-4" aria-hidden />
       )}
     </Button>
+  )
+}
+
+function UniversityDataProgressBadge({ university }: { university: University }) {
+  const normalized = normalizeProgress(university.dataProgressPercentage)
+  const badgeColors = getDataProgressBadgeClasses(normalized)
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center justify-center",
+        "h-7 min-w-[44px] px-2 rounded-full",
+        "text-xs font-semibold border",
+        "cursor-default transition-colors",
+        badgeColors.bg,
+        badgeColors.border,
+        badgeColors.text,
+      )}
+      title={`Data progress: ${getDataProgressStatus(normalized)}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {formatDataProgressPercentage(university.dataProgressPercentage)}
+    </div>
   )
 }
 
@@ -196,6 +226,9 @@ export function UniversitiesTable({
 
   const getSortValue = (uni: University, key: SortKey): string | number => {
     if (key === "jobSuccessRatio") return 0
+    if (key === "dataProgressPercentage") {
+      return normalizeProgress(uni.dataProgressPercentage)
+    }
     if (key === "country") return uni.country?.name ?? ""
     if (key === "ranking") return uni.ranking ?? -1
     const v = uni[key as keyof University]
@@ -342,6 +375,9 @@ export function UniversitiesTable({
               <TableHead className="w-[80px] text-center">Website</TableHead>
               <TableHead className="w-[80px] text-center">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View University Graduates">Graduates</TableHead>
+              <TableHead className="hidden lg:table-cell w-[88px]">
+                <SortButton column="dataProgressPercentage">Data Progress</SortButton>
+              </TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -454,6 +490,9 @@ export function UniversitiesTable({
                           <GraduationCapIcon className="h-4 w-4" aria-hidden />
                         </Link>
                       </Button>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <UniversityDataProgressBadge university={university} />
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
@@ -570,6 +609,7 @@ export function UniversitiesTable({
                         </div>
                       </TableCell>
                       <TableCell colSpan={UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN} className="p-0" />
+                      <TableCell className="hidden lg:table-cell p-0" aria-hidden />
                       <TableCell />
                     </TableRow>
                   )}

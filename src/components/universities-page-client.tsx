@@ -74,6 +74,7 @@ function mapListItemToUniversity(item: UniversityListItem): University {
     country: item.country,
     ranking: parseUniversityRankingFromList(item.ranking),
     locations: mapListItemLocations(item),
+    dataProgressPercentage: item.dataProgressPercentage ?? null,
     createdAt: "",
     updatedAt: "",
   }
@@ -86,6 +87,8 @@ const initialFilters: UniversityFilters = {
   rankings: [],
   city: "",
   minJobSuccessRatio: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function UniversitiesPageClient() {
@@ -112,6 +115,12 @@ export function UniversitiesPageClient() {
         filters.rankings.length > 0 && filters.rankings[0] in LABEL_TO_RANKING
           ? LABEL_TO_RANKING[filters.rankings[0]]
           : undefined
+      const minDataProgress = filters.dataProgressMin.trim()
+        ? parseFloat(filters.dataProgressMin)
+        : undefined
+      const maxDataProgress = filters.dataProgressMax.trim()
+        ? parseFloat(filters.dataProgressMax)
+        : undefined
       const res = await fetchUniversitiesFiltered({
         name: filters.name.trim() || undefined,
         city: filters.city.trim() || undefined,
@@ -119,11 +128,20 @@ export function UniversitiesPageClient() {
         ranking: rankingParam,
         pageNumber: 1,
         pageSize: 100,
+        minDataProgressPercentage:
+          minDataProgress != null && !Number.isNaN(minDataProgress)
+            ? minDataProgress
+            : undefined,
+        maxDataProgressPercentage:
+          maxDataProgress != null && !Number.isNaN(maxDataProgress)
+            ? maxDataProgress
+            : undefined,
       })
       setUniversities(res.items.map(mapListItemToUniversity))
     } catch (error) {
       console.error("Failed to fetch universities:", error)
-      toast.error("Failed to load universities.")
+      const message = error instanceof Error ? error.message : "Failed to load universities."
+      toast.error(message)
     } finally {
       setUniversitiesLoading(false)
     }

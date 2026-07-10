@@ -26,6 +26,9 @@ export interface UniversityFilters {
   rankings: UniversityRanking[]
   city: string
   minJobSuccessRatio: string  // Minimum job success ratio (e.g., "80" for 80%)
+  /** Min/max stored profile completion 0–100 → API filter params. */
+  dataProgressMin: string
+  dataProgressMax: string
 }
 
 interface UniversitiesFilterDialogProps {
@@ -49,6 +52,8 @@ const initialFilters: UniversityFilters = {
   rankings: [],
   city: "",
   minJobSuccessRatio: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function UniversitiesFilterDialog({
@@ -73,7 +78,9 @@ export function UniversitiesFilterDialog({
     filters.countries.length +
     filters.rankings.length +
     (filters.city.trim() ? 1 : 0) +
-    (filters.minJobSuccessRatio ? 1 : 0)
+    (filters.minJobSuccessRatio ? 1 : 0) +
+    (filters.dataProgressMin.trim() ? 1 : 0) +
+    (filters.dataProgressMax.trim() ? 1 : 0)
 
   React.useEffect(() => {
     setTempFilters(filters)
@@ -83,7 +90,30 @@ export function UniversitiesFilterDialog({
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
+  const validateDataProgressPercentage = (): string | null => {
+    const minRaw = tempFilters.dataProgressMin.trim()
+    const maxRaw = tempFilters.dataProgressMax.trim()
+    if (!minRaw && !maxRaw) return null
+
+    const min = minRaw ? parseFloat(minRaw) : null
+    const max = maxRaw ? parseFloat(maxRaw) : null
+
+    if (minRaw && (min == null || Number.isNaN(min) || min < 0 || min > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (maxRaw && (max == null || Number.isNaN(max) || max < 0 || max > 100)) {
+      return "Data progress must be between 0 and 100."
+    }
+    if (min != null && max != null && !Number.isNaN(min) && !Number.isNaN(max) && max < min) {
+      return "Maximum data progress cannot be less than minimum."
+    }
+    return null
+  }
+
+  const dataProgressError = validateDataProgressPercentage()
+
   const handleApplyFilters = () => {
+    if (dataProgressError) return
     onFiltersChange(tempFilters)
     setOpen(false)
   }
@@ -104,7 +134,9 @@ export function UniversitiesFilterDialog({
     tempFilters.countries.length > 0 ||
     tempFilters.rankings.length > 0 ||
     tempFilters.city.trim() !== "" ||
-    tempFilters.minJobSuccessRatio !== ""
+    tempFilters.minJobSuccessRatio !== "" ||
+    tempFilters.dataProgressMin.trim() !== "" ||
+    tempFilters.dataProgressMax.trim() !== ""
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -201,6 +233,70 @@ export function UniversitiesFilterDialog({
                 />
                 <p className="text-xs text-muted-foreground">
                   Filter universities with at least this job success percentage
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Data Progress</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="universityDataProgressMin" className="text-xs text-muted-foreground">
+                      Minimum (%)
+                    </Label>
+                    <Input
+                      id="universityDataProgressMin"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="0"
+                      value={tempFilters.dataProgressMin}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === "") {
+                          handleFilterChange("dataProgressMin", value)
+                          return
+                        }
+                        const n = parseFloat(value)
+                        if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                          handleFilterChange("dataProgressMin", value)
+                        }
+                      }}
+                      className={dataProgressError ? "border-red-500" : ""}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="universityDataProgressMax" className="text-xs text-muted-foreground">
+                      Maximum (%)
+                    </Label>
+                    <Input
+                      id="universityDataProgressMax"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      placeholder="100"
+                      value={tempFilters.dataProgressMax}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        if (value === "") {
+                          handleFilterChange("dataProgressMax", value)
+                          return
+                        }
+                        const n = parseFloat(value)
+                        if (!Number.isNaN(n) && n >= 0 && n <= 100) {
+                          handleFilterChange("dataProgressMax", value)
+                        }
+                      }}
+                      className={dataProgressError ? "border-red-500" : ""}
+                    />
+                  </div>
+                </div>
+                {dataProgressError && (
+                  <p className="text-xs text-red-500">{dataProgressError}</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Filter universities by stored profile completion (`dataProgressPercentage`, 0–100%)
                 </p>
               </div>
             </div>

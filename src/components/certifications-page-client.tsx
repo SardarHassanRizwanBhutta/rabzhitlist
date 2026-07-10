@@ -20,6 +20,8 @@ export function CertificationsPageClient() {
   const [filters, setFilters] = useState<CertificationFilters>({
     certificationNameSearch: "",
     issuerIds: [],
+    dataProgressMin: "",
+    dataProgressMax: "",
   })
 
   const [items, setItems] = useState<Certification[]>([])
@@ -37,11 +39,25 @@ export function CertificationsPageClient() {
   const loadCertifications = useCallback(async (page: number, size: number) => {
     try {
       setCertificationsLoading(true)
+      const minDataProgress = filters.dataProgressMin.trim()
+        ? parseFloat(filters.dataProgressMin)
+        : undefined
+      const maxDataProgress = filters.dataProgressMax.trim()
+        ? parseFloat(filters.dataProgressMax)
+        : undefined
       const data = await fetchCertificationsPage({
         name: filters.certificationNameSearch.trim() || undefined,
         issuerIds: filters.issuerIds.length > 0 ? filters.issuerIds : undefined,
         pageNumber: page,
         pageSize: size,
+        minDataProgressPercentage:
+          minDataProgress != null && !Number.isNaN(minDataProgress)
+            ? minDataProgress
+            : undefined,
+        maxDataProgressPercentage:
+          maxDataProgress != null && !Number.isNaN(maxDataProgress)
+            ? maxDataProgress
+            : undefined,
       })
       setItems(data.items)
       setTotalCount(data.totalCount)
@@ -52,11 +68,12 @@ export function CertificationsPageClient() {
       setHasNext(data.hasNext)
     } catch (error) {
       console.error("Failed to fetch certifications:", error)
-      toast.error("Failed to load certifications.")
+      const message = error instanceof Error ? error.message : "Failed to load certifications."
+      toast.error(message)
     } finally {
       setCertificationsLoading(false)
     }
-  }, [filters.certificationNameSearch, filters.issuerIds])
+  }, [filters.certificationNameSearch, filters.issuerIds, filters.dataProgressMin, filters.dataProgressMax])
 
   useEffect(() => {
     loadCertifications(pageNumber, pageSize)
@@ -163,6 +180,8 @@ export function CertificationsPageClient() {
     setFilters({
       certificationNameSearch: "",
       issuerIds: [],
+      dataProgressMin: "",
+      dataProgressMax: "",
     })
     setPageNumber(1)
   }
