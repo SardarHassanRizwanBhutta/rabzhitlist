@@ -6,8 +6,8 @@ Handoff for implementing **per-employer Data Progress** (Phase 1). Mirrors candi
 **Frontend handoff:** [`employer_data_progress_frontend_integration.md`](./employer_data_progress_frontend_integration.md)  
 **Locations API:** [`EmployerApiReference.md`](./EmployerApiReference.md)
 
-**Status:** Not implemented — contract for implementation.  
-**Phasing:** Phase 1 only (dashboard `employers` module = Phase 2).
+**Status:** Backend Phase 1 **implemented** (2026-07).  
+**Phasing:** Phase 1 (entity) **shipped**. Dashboard `employers` module = **Phase 2** — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md).
 
 ---
 
@@ -24,7 +24,7 @@ Handoff for implementing **per-employer Data Progress** (Phase 1). Mirrors candi
 | **E7** | DPL Competitive: only `is_dpl_competitor = true` earns weight |
 | **E8** | List returns `dataProgressPercentage`; filter `minDataProgressPercentage` / `maxDataProgressPercentage` |
 | **E9** | Recalc on employer + junction + location + layoff mutations |
-| **E10** | Dashboard `employers` **unchanged** in Phase 1 (`available: false`) |
+| **E10** | Dashboard `employers` **unchanged** in Phase 1 (`available: false`). Flip in Phase 2 — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) |
 
 ---
 
@@ -247,5 +247,6 @@ Do NOT enable dashboard employers module (Phase 2). Mirror university/candidate 
 | Document | Purpose |
 |----------|---------|
 | [`EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | Locked weights & algorithms |
-| [`employer_data_progress_frontend_integration.md`](./employer_data_progress_frontend_integration.md) | Frontend agent guide |
+| [`employer_data_progress_frontend_integration.md`](./employer_data_progress_frontend_integration.md) | Frontend Phase 1 guide |
+| [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) | Dashboard employers Phase 2 |
 | [`EmployerApiReference.md`](./EmployerApiReference.md) | Location CRUD |

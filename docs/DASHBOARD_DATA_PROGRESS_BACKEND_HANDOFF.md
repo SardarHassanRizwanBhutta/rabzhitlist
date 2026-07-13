@@ -15,8 +15,8 @@ Handoff for the **backend AI agent** implementing **`GET /api/dashboard/data-pro
 
 | # | Decision | Status |
 |---|----------|--------|
-| **D1** | **Progress-enabled modules:** `candidates`, `projects`, `universities`, `certifications` (shipped). **`employers`** Phase 2 — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) (entity Phase 1 first). | **Locked** |
-| **D2** | Entity columns: `candidates`, `projects`, `universities`, `certifications` (shipped); **`employers`** per [`EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md). Dashboard aggregation for employers = **Phase 2**. | **Locked** |
+| **D1** | **Progress-enabled modules (dashboard `available: true`):** all five — `candidates`, `projects`, `universities`, `certifications`, **`employers`** (shipped). Employers dashboard Phase 2 — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md). | **Locked** |
+| **D2** | Entity `data_progress_percentage` columns: `candidates`, `projects`, `universities`, `certifications`, **`employers`** (all shipped). Dashboard aggregation for all five modules shipped. | **Locked** |
 | **D3** | **Yes** — universities and certifications `recordCount` and `newInPeriod` (and `daily[].newRecords`) come from **this endpoint** via `created_at` on those tables. | **Locked** |
 | **D4** | **Single dashboard API call.** Frontend drops `GET /api/dashboard/intake` and uses only `GET /api/dashboard/data-progress`. Intake fields live in `summary.modules` (+ `daily[].newRecords` for selected module). See §0.1. | **Locked** |
 | **D5** | **Persisted daily snapshots** required (§5). Scheduled job is the recommended way to build immutable historical days; see §5.2 for why and alternatives. | **Locked** |
@@ -362,7 +362,7 @@ Return **all five** modules on every request.
 | `recordCount` | Fleet now (`deleted_at IS NULL`) |
 | `newInPeriod` | `SUM(newRecords)` over user `from`..`to` (from `daily[]` subset) |
 | `avgDataProgressDelta` | See §4.9 |
-| `available` | `true` for all progress-enabled modules (D1). Until Employers Phase 2 ships: **`employers.available = false`** → **`avgDataProgress` = `0`**, **`avgDataProgressDelta` = `null`** (C5) |
+| `available` | `true` for all five progress-enabled modules (D1), including **`employers`** after [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md). Modules with `available: false` → **`avgDataProgress` = `0`**, **`avgDataProgressDelta` = `null`** (C5). |
 
 **Former intake parity (candidates, employers, projects):** `recordCount` / `newInPeriod` must match the rules previously implemented on `GET /api/dashboard/intake` (for regression comparison during migration only).
 
@@ -512,13 +512,13 @@ Store in snapshot row; serve via API `daily[]`.
 
 ## 6. Module → database mapping (D2, C2)
 
-| Module | Table (expected) | Fleet filter | Progress column (v1) | `newRecords` |
-|--------|------------------|--------------|----------------------|--------------|
-| `candidates` | `candidates` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` |
-| `employers` | `employers` | `deleted_at IS NULL` | None (D2) — `available: false` | `created_at`; ignore `deleted_at` |
-| `projects` | `projects` | `deleted_at IS NULL` | `data_progress_percentage` ✓ (Phase 2 dashboard — [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)) | `created_at`; ignore `deleted_at` |
-| `universities` | `universities` | `deleted_at IS NULL` (C2) | None (D2) | `created_at`; ignore `deleted_at` (C2) |
-| `certifications` | Confirm table name with schema | `deleted_at IS NULL` (C2) | None (D2) | `created_at`; ignore `deleted_at` (C2) |
+| Module | Table (expected) | Fleet filter | Progress column | `newRecords` | Dashboard `available` |
+|--------|------------------|--------------|-----------------|--------------|------------------------|
+| `candidates` | `candidates` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped) |
+| `employers` | `employers` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md)) |
+| `projects` | `projects` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped — [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)) |
+| `universities` | `universities` | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` (C2) | `true` (shipped — [`DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md)) |
+| `certifications` | Confirm table name with schema | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` (C2) | `true` (shipped — same UC Phase 2 doc) |
 
 ---
 

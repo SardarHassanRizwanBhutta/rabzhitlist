@@ -1,8 +1,8 @@
 # Dashboard Employers Data Progress — Phase 2 Backend Handoff
 
-**Status:** Not implemented — contract for backend work.  
+**Status:** Backend Phase 2 **implemented** (2026-07-13). Smoke-tested on local `:5103`.  
 **Audience:** Backend AI agent / engineer.  
-**Depends on:** Entity Phase 1 shipped (`employers.data_progress_percentage`).
+**Depends on:** Entity Phase 1 **shipped** (`employers.data_progress_percentage`) — [`EMPLOYER_DATA_PROGRESS_BACKEND_HANDOFF.md`](./EMPLOYER_DATA_PROGRESS_BACKEND_HANDOFF.md).
 
 **Parent contracts (unchanged API shape):**
 
@@ -73,11 +73,12 @@ Drive UI from `available` only. No list-table changes.
 
 ## 6. Backend checklist
 
-- [ ] `IsProgressModule` includes employers
-- [ ] Snapshot backfill 150 days for `module=employers`
-- [ ] Today upsert on entity mutations
-- [ ] `avgDataProgressDelta` + H1 null when `to !== today`
-- [ ] Regression: other modules unchanged
+- [x] `IsProgressModule` includes employers
+- [x] Snapshot backfill 150 days for `module=employers` (Option A: historical zeros left as-is)
+- [x] Today upsert on entity mutations (incl. location/layoff) and DELETE
+- [x] `avgDataProgressDelta` + H1 null when `to !== today`
+- [x] Regression: other modules unchanged
+- [x] Smoke tests §7 (2026-07-13)
 
 ---
 

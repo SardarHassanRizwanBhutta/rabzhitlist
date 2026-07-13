@@ -16,11 +16,11 @@
 ---
 
 ## 1. Summary
-Imp
+
 | Item | Phase 2 change |
 |------|----------------|
 | Progress-enabled modules | **`candidates`**, **`projects`**, **`universities`**, **`certifications`** (`available: true`) |
-| Still disabled | **`employers`** only — `available: false`, progress fields **0**, `avgDataProgressDelta: null` (C5) |
+| Still disabled **in this phase** | **`employers`** only — `available: false`, progress fields **0**, `avgDataProgressDelta: null` (C5). **Superseded for employers by** [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) (do not treat “employers remain false” as the current global target after that doc ships). |
 | Progress source | `universities.data_progress_percentage`, `certifications.data_progress_percentage` |
 | Snapshots | Backfill **`module = universities`** and **`module = certifications`** in `dashboard_module_daily_snapshots` (C3/C4) |
 | Recalc triggers | University/certification mutations → refresh **today’s** snapshot for that module |
@@ -41,7 +41,7 @@ Ship **both** dashboard modules in **one** backend deploy.
 | **UC2-D3** | Snapshot rules **identical**: today upsert (C3), 150-day backfill (C4), `Asia/Karachi` |
 | **UC2-D4** | Entity mutations trigger today snapshot upsert for respective module |
 | **UC2-D5** | Historical backfill uses **current** stored `%` at EOD — same first-deploy flat-then-jump caveat as projects |
-| **UC2-D6** | **Employers** remain `available: false` |
+| **UC2-D6** | **Employers** remain `available: false` **for this universities/certifications Phase 2 ship** (historical). Current employers dashboard work: [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) |
 | **UC2-D7** | Frontend verification only — no new dashboard components |
 | **UC2-D8** | Deploy backend before frontend |
 
@@ -144,7 +144,7 @@ Only when **`to` = today** in timezone; else **`null`** (H1).
 
 | Check | Expected |
 |-------|----------|
-| Overview cards | Live avg % when `available: true`; employers still 0% |
+| Overview cards | Live avg % when `available: true`; employers still 0% **at the time of this ship** (see employers Phase 2 for flip) |
 | Detail KPIs | `summary.current` stock + flow gained from `daily[]` |
 | Chart | Same semantics as candidates/projects |
 | First deploy | Historical zeros then jump on today — **not a UI bug** |
@@ -158,7 +158,7 @@ Only when **`to` = today** in timezone; else **`null`** (H1).
 - [ ] Snapshot backfill both modules (150 days)
 - [ ] Today upsert on entity mutations
 - [ ] `avgDataProgressDelta` + H1 null when `to !== today`
-- [ ] Employers still `available: false`
+- [ ] Employers still `available: false` (**acceptance for this UC Phase 2 ship only**)
 - [ ] Smoke tests §8
 
 ---
@@ -172,7 +172,7 @@ GET /api/dashboard/data-progress?module=certifications&from={today}&to={today}&t
 
 - `summary.modules[universities].available === true`
 - `summary.modules[certifications].available === true`
-- `summary.modules[employers].available === false`
+- `summary.modules[employers].available === false` (**expected for this UC Phase 2 ship**; later flipped by employers Phase 2)
 - `summary.current` matches fleet sum/avg from entity table
 - Candidates and projects **unchanged** (regression)
 
@@ -203,4 +203,5 @@ Deploy backend before frontend verification.
 | [`UNIVERSITY_DATA_PROGRESS_BACKEND_HANDOFF.md`](./UNIVERSITY_DATA_PROGRESS_BACKEND_HANDOFF.md) | Entity Phase 1 universities |
 | [`CERTIFICATION_DATA_PROGRESS_BACKEND_HANDOFF.md`](./CERTIFICATION_DATA_PROGRESS_BACKEND_HANDOFF.md) | Entity Phase 1 certifications |
 | [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) | Prior Phase 2 pattern (projects) |
+| [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) | Next / employers dashboard Phase 2 (supersedes “employers remain false” as global target) |
 | [`university_certification_data_progress_frontend_integration_phase2.md`](./university_certification_data_progress_frontend_integration_phase2.md) | Frontend verify guide |
