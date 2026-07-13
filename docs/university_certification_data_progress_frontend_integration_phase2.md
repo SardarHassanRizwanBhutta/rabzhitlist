@@ -27,7 +27,7 @@
 | `summary.modules[certifications].available` | `false` | **`true`** |
 | Overview avg % (U / C) | Forced `0.0%` (C5) | **Live fleet avg** from API |
 | Detail KPIs / chart | Zeros | **Real values** — same UX as Candidates/Projects |
-| **Employers** | `available: false` | **Unchanged** (still disabled) |
+| **Employers** | `available: false` at UC Phase 2 ship | **Later flipped** — see [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) / [`employer_data_progress_frontend_integration_phase2.md`](./employer_data_progress_frontend_integration_phase2.md) |
 | List tables | Already have `dataProgressPercentage` | **Unchanged** — no list work in Phase 2 |
 | Client-side scoring | Never | **Never** |
 
@@ -45,7 +45,7 @@
 | `projects` | `true` | Live fleet sum / avg / daily series |
 | `universities` | **`true`** (new) | Live fleet sum / avg / daily series |
 | `certifications` | **`true`** (new) | Live fleet sum / avg / daily series |
-| `employers` | `false` | `avgDataProgress: 0`, `avgDataProgressDelta: null` |
+| `employers` | **`true`** (after employers dashboard Phase 2, 2026-07-13) | Live fleet sum / avg / daily series — see [`employer_data_progress_frontend_integration_phase2.md`](./employer_data_progress_frontend_integration_phase2.md) |
 
 ### 2.2 Request (unchanged)
 
@@ -76,7 +76,7 @@ Reuse existing `DataProgressResponse` types. **No new fields.**
 | `summary.current` | `totalDataProgress: 4800`, `avgDataProgress: 87.3`, `recordCount: 55` |
 | `universities.available` | `true` |
 | `universities.avgDataProgressDelta` | `87.3` (pp vs prior window — first-deploy jump) |
-| `employers.available` | `false`, `avgDataProgress: 0` |
+| `employers.available` | Was `false` at UC Phase 2 verify (2026-07-10); **now `true`** after employers Phase 2 |
 | `daily` | 7 rows; Jul 4–9 zeros; Jul 10 → 4800 gained |
 
 ### Certifications (`module=certifications`, Today)
@@ -101,7 +101,8 @@ const isProgressModule = (m) =>
   m.module === "candidates" || m.module === "projects"
 ```
 
-| UI area | When `available: true` | When `available: false` (employers) |
+| UI area | When `available: true` | When `available: false` |
+|---------|------------------------|-------------------------|
 |---------|------------------------|-------------------------------------|
 | Overview card avg % | Show `avgDataProgress` (1 decimal) | Show **`0.0%`** |
 | Overview delta pill | Show `avgDataProgressDelta` when not `null` | Show **—** |
@@ -170,7 +171,7 @@ Cause: snapshot rows for universities/certifications already existed from the or
 | 3 | Select **Universities** | Detail KPIs match `summary.current` | 4800 / 55 |
 | 4 | Select **Certifications** | Detail KPIs match `summary.current` | 7900 / 79 |
 | 5 | Progress gained chart | Non-zero when API `daily[].progressPointsGained` non-zero | Today bar |
-| 6 | **Employers** | Still `0.0%`, delta **—**, `available: false` | Pass |
+| 6 | **Employers** | At UC Phase 2 ship: `0.0%` / `available: false`. **Now live** after employers Phase 2 — see that guide | Historical pass |
 | 7 | **Candidates** / **Projects** | Unchanged (regression) | 8.9% / 65.4% |
 | 8 | Historical range (`to < today`) | Overview delta **—** (H1) | Manual UI |
 
@@ -187,7 +188,7 @@ GET /api/dashboard/data-progress?module=certifications&from={today}&to={today}&t
 |---|--------|-------|
 | 1 | `universities.available === true` | Pass |
 | 2 | `certifications.available === true` | Pass |
-| 3 | `employers.available === false`, `avgDataProgress === 0` | Pass |
+| 3 | `employers.available === false` at UC Phase 2 ship (2026-07-10) | Pass then; **superseded** — employers Phase 2 sets `true` |
 | 4 | `summary.current` populated for selected module | Pass |
 | 5 | `daily.length === 7` for Today preset | Pass |
 | 6 | Candidates / projects unchanged | Pass |
@@ -203,6 +204,7 @@ GET /api/dashboard/data-progress?module=certifications&from={today}&to={today}&t
 | [`DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md) | Backend Phase 2 handoff |
 | [`university_certification_data_progress_frontend_integration.md`](./university_certification_data_progress_frontend_integration.md) | Entity Phase 1 frontend |
 | [`project_data_progress_frontend_integration_phase2.md`](./project_data_progress_frontend_integration_phase2.md) | Prior dashboard verify pattern |
+| [`employer_data_progress_frontend_integration_phase2.md`](./employer_data_progress_frontend_integration_phase2.md) | Employers dashboard Phase 2 (all five modules `available: true`) |
 | [`DASHBOARD_REQUIREMENTS_LOCKED.md`](./DASHBOARD_REQUIREMENTS_LOCKED.md) | KPI / chart semantics |
 
 ---

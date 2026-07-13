@@ -1,6 +1,6 @@
 # Dashboard Employers Data Progress — Frontend Integration Guide (Phase 2)
 
-**Status:** Not implemented — verify when backend Phase 2 ships.  
+**Status:** Backend Phase 2 **implemented** (2026-07-13). Frontend **verified** — no code changes required (module-agnostic UI).  
 **Audience:** Frontend / Next.js AI agent.  
 **Scope:** Dashboard only — **verify and fix** if anything blocks `employers`; **no new dashboard features** unless broken.
 
@@ -48,18 +48,20 @@ Drive all progress UI from **`summary.modules[].available`**, not module name.
 | Overview delta pill | `avgDataProgressDelta` when not `null` |
 | Detail KPIs / chart | Live API values |
 
-First-deploy chart: historical zeros then jump on today — **expected**.
+First-deploy chart: historical zeros then jump on today — **expected** (Option A; historical snapshot zeros left as-is).
+
+**Code status (verified):** `dashboard-data-progress-section.tsx` uses `summary?.available === false ? 0 : summary?.avgDataProgress`. No employer-name progress guards. Types include `employers`. No list-table changes.
 
 ---
 
-## 4. Files to verify
+## 4. Files verified
 
-| File | Check |
-|------|-------|
-| `dashboard-data-progress-section.tsx` | Uses `available` |
-| `data-progress-api.ts` | `module=employers` |
-| `data-progress-metrics.ts` | Module-agnostic |
-| `types/data-progress.ts` | Includes `employers` |
+| File | Check | Result |
+|------|-------|--------|
+| `dashboard-data-progress-section.tsx` | Uses `available` | Pass |
+| `data-progress-api.ts` | `module=employers` supported | Pass |
+| `data-progress-metrics.ts` | Module-agnostic | Pass |
+| `types/data-progress.ts` | Includes `employers` | Pass |
 
 **Do not change** employers list/table (Phase 1).
 
@@ -67,15 +69,24 @@ First-deploy chart: historical zeros then jump on today — **expected**.
 
 ## 5. Checklist
 
-- [ ] Overview **Employers** live avg (not 0%)
-- [ ] Select Employers → detail KPIs match `summary.current`
-- [ ] Chart non-zero when API daily gains non-zero
-- [ ] Candidates / projects / universities / certifications regression
-- [ ] Historical `to < today` → delta **—** (H1)
+| # | Task | Local API (2026-07-13) |
+|---|------|------------------------|
+| 1 | Overview **Employers** live avg (not 0%) | **Pass** — 9.2% (164 employers, total 1503) |
+| 2 | Select Employers → detail KPIs match `summary.current` | **Pass** (API) |
+| 3 | Chart: historical zeros → jump on today | **Expected** (Option A) |
+| 4 | Candidates / projects / universities / certifications still `available: true` | **Pass** |
+| 5 | Historical `to < today` → delta **—** (H1) | **Pass** — `avgDataProgressDelta: null` |
 
 ---
 
-## 6. Agent prompt (frontend Phase 2)
+## 6. Deploy note
+
+- **No Amplify frontend code change** required for Phase 2 (UI already drives off `available`).
+- Dashboard shows live Employers progress once the Amplify `NEXT_PUBLIC_API_URL` host has this backend Phase 2 (same flip as universities/projects).
+
+---
+
+## 7. Agent prompt (frontend Phase 2)
 
 ```
 Verify Dashboard Employers Data Progress Phase 2 per

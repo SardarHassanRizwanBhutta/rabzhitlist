@@ -1,6 +1,6 @@
 # Employer Data Progress — Frontend Integration Guide (Phase 1)
 
-**Status:** Backend Phase 1 **implemented** (2026-07). Frontend Phase 1 — implement per this guide.  
+**Status:** Backend Phase 1 **implemented** (2026-07). Frontend Phase 1 **implemented** (2026-07).  
 **Audience:** Frontend / Next.js AI agent.  
 **Scope:** Employers table column + min/max filters only.
 
