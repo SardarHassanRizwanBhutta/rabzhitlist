@@ -149,4 +149,6 @@ When `available: false`: show **`0.0%` avg completion**, `avgDataProgressDelta: 
 | [`UNIVERSITY_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./UNIVERSITY_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | University entity progress (Phase 1) |
 | [`CERTIFICATION_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./CERTIFICATION_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | Certification entity progress (Phase 1) |
 | [`DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md) | Dashboard universities + certifications (Phase 2) |
+| [`EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md`](./EMPLOYER_DATA_PROGRESS_REQUIREMENTS_LOCKED.md) | Employer entity progress (Phase 1) |
+| [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md) | Dashboard employers (Phase 2) |
 | [`candidate_data_progress_frontend_integration.md`](./candidate_data_progress_frontend_integration.md) | Per-candidate progress (entity level) |

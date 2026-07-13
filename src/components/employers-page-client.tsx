@@ -165,6 +165,8 @@ const initialFilters: EmployerFilters = {
   minLayoffEmployees: "",
   avgJobTenureMin: "",
   avgJobTenureMax: "",
+  dataProgressMin: "",
+  dataProgressMax: "",
 }
 
 export function EmployersPageClient({ employers: initialEmployers = [] }: EmployersPageClientProps) {
@@ -239,6 +241,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     const minLayoffEmployees = parseOptionalNonNegativeInt(filters.minLayoffEmployees)
     const avgJobTenureMin = parseOptionalDouble(filters.avgJobTenureMin)
     const avgJobTenureMax = parseOptionalDouble(filters.avgJobTenureMax)
+    const minDataProgress = filters.dataProgressMin.trim()
+      ? parseFloat(filters.dataProgressMin)
+      : undefined
+    const maxDataProgress = filters.dataProgressMax.trim()
+      ? parseFloat(filters.dataProgressMax)
+      : undefined
 
     return {
       pageNumber,
@@ -281,6 +289,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         : {}),
       ...(filters.layoffDateEnd ? { layoffDateEnd: formatDateOnlyLocal(filters.layoffDateEnd) } : {}),
       ...(minLayoffEmployees != null ? { minLayoffEmployees } : {}),
+      ...(minDataProgress != null && !Number.isNaN(minDataProgress)
+        ? { minDataProgressPercentage: minDataProgress }
+        : {}),
+      ...(maxDataProgress != null && !Number.isNaN(maxDataProgress)
+        ? { maxDataProgressPercentage: maxDataProgress }
+        : {}),
     }
   }, [pageNumber, pageSize, filters, countries, timeSupportZonesLookup, clientLocationsLookup])
 

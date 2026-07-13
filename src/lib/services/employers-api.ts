@@ -5,6 +5,7 @@
  */
 
 import type { Employer, EmployerLocation, Layoff } from "@/lib/types/employer"
+import type { EmployerDataProgressResponse } from "@/lib/types/employer-data-progress"
 import {
   employerBenefitToApiValueFields,
   type BenefitUnit,
@@ -193,6 +194,8 @@ export interface EmployerListItemDto {
   maxEmployees?: number | null
   /** Employer-level policy when API provides it. */
   salaryPolicy?: string | null
+  /** Stored profile completion 0–100 (always present from list API). */
+  dataProgressPercentage: number
 }
 
 export interface EmployerListItemLocationDto {
@@ -232,6 +235,8 @@ export interface EmployerDto {
   maxEmployees?: number | null
   /** Employer-level salary policy enum when API stores it on the employer. */
   salaryPolicy?: number | null
+  /** Present when API includes stored completion on detail GET. */
+  dataProgressPercentage?: number
 }
 
 export interface EmployerLocationDto {
@@ -397,6 +402,9 @@ export interface FetchEmployersParams {
   layoffDateStart?: string
   layoffDateEnd?: string
   minLayoffEmployees?: number
+  /** Stored completion filter 0–100 inclusive. */
+  minDataProgressPercentage?: number
+  maxDataProgressPercentage?: number
 }
 
 function appendNumberList(q: URLSearchParams, key: string, values?: number[]) {
@@ -471,7 +479,24 @@ function buildQueryString(params: FetchEmployersParams): string {
   if (params.layoffDateEnd) q.set("layoffDateEnd", params.layoffDateEnd)
   if (params.minLayoffEmployees != null) q.set("minLayoffEmployees", String(params.minLayoffEmployees))
 
+  if (params.minDataProgressPercentage != null) {
+    q.set("minDataProgressPercentage", String(params.minDataProgressPercentage))
+  }
+  if (params.maxDataProgressPercentage != null) {
+    q.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
+  }
+
   return q.toString()
+}
+
+/** Coerce list/detail progress to a finite number (API always sends a number on list). */
+function parseDataProgressPercentage(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value)
+    if (Number.isFinite(n)) return n
+  }
+  return 0
 }
 
 async function get<T>(path: string): Promise<T> {
@@ -520,11 +545,43 @@ async function del(path: string): Promise<void> {
 // --- API calls ---
 export async function fetchEmployers(params: FetchEmployersParams): Promise<PagedResult<EmployerListItemDto>> {
   const qs = buildQueryString(params)
-  return get<PagedResult<EmployerListItemDto>>(`/api/employers?${qs}`)
+  const result = await get<PagedResult<EmployerListItemDto>>(`/api/employers?${qs}`)
+  return {
+    ...result,
+    items: result.items.map((item) => ({
+      ...item,
+      dataProgressPercentage: parseDataProgressPercentage(item.dataProgressPercentage),
+    })),
+  }
 }
 
 export async function fetchEmployerById(id: number): Promise<EmployerDto> {
   return get<EmployerDto>(`/api/employers/${id}`)
+}
+
+/**
+ * Live data-progress breakdown for an employer.
+ * 404 = employer unavailable for progress (missing, soft-deleted, or hard-deleted).
+ */
+export async function fetchEmployerDataProgress(
+  employerId: number,
+  signal?: AbortSignal,
+): Promise<EmployerDataProgressResponse> {
+  const path = `/api/employers/${employerId}/data-progress`
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+    signal,
+  })
+  if (res.status === 404) {
+    throw new Error("Employer unavailable for progress")
+  }
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Employers API ${path}: ${res.status} — ${text}`)
+  }
+  return res.json() as Promise<EmployerDataProgressResponse>
 }
 
 export async function createEmployer(dto: CreateEmployerDto): Promise<EmployerDto> {
@@ -766,6 +823,7 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     isDPLCompetitive: item.isDPLCompetitive ?? false,
     minEmployees: item.minEmployees ?? item.locations[0]?.minSize ?? null,
     maxEmployees: item.maxEmployees ?? item.locations[0]?.maxSize ?? null,
+    dataProgressPercentage: parseDataProgressPercentage(item.dataProgressPercentage),
     createdAt: new Date(),
     updatedAt: new Date(),
   }
@@ -860,6 +918,7 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     tags: dto.tags?.map((t) => t.name) ?? [],
     benefits,
     layoffs,
+    dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
   }
