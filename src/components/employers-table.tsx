@@ -68,6 +68,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { EmployerDetailsModal } from "@/components/employer-details-modal"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
+import {
+  formatDataProgressPercentage,
+  getDataProgressBadgeClasses,
+  getDataProgressStatus,
+  normalizeProgress,
+} from "@/lib/utils/data-progress"
 
 import {
   Employer,
@@ -195,7 +202,7 @@ interface EmployersTableProps {
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
-type SortKey = keyof Employer | 'size' | 'applicants'
+type SortKey = keyof Employer | "size" | "applicants" | "dataProgressPercentage"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
@@ -221,6 +228,29 @@ const getEmployerWorkModes = (employer: Employer): string[] =>
     : []
 const getEmployerTimeSupportZones = (employer: Employer): string[] =>
   employer.timeSupportZones ?? []
+
+function EmployerDataProgressBadge({ employer }: { employer: Employer }) {
+  const normalized = normalizeProgress(employer.dataProgressPercentage)
+  const badgeColors = getDataProgressBadgeClasses(normalized)
+
+  return (
+    <div
+      className={cn(
+        "inline-flex items-center justify-center",
+        "h-7 min-w-[44px] px-2 rounded-full",
+        "text-xs font-semibold border",
+        "cursor-default transition-colors",
+        badgeColors.bg,
+        badgeColors.border,
+        badgeColors.text,
+      )}
+      title={`Data progress: ${getDataProgressStatus(normalized)}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {formatDataProgressPercentage(employer.dataProgressPercentage)}
+    </div>
+  )
+}
 
 export function EmployersTable({
   employers,
@@ -321,6 +351,9 @@ export function EmployersTable({
       } else if (sortKey === "employerType") {
         aValue = employerTypesSortKey(a)
         bValue = employerTypesSortKey(b)
+      } else if (sortKey === "dataProgressPercentage") {
+        aValue = normalizeProgress(a.dataProgressPercentage)
+        bValue = normalizeProgress(b.dataProgressPercentage)
       } else if (sortKey === 'applicants' || sortKey === 'avgJobTenure') {
         aValue = 0
         bValue = 0
@@ -495,6 +528,9 @@ export function EmployersTable({
               <TableHead className="w-[80px] text-center">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View Employer Projects">Projects</TableHead>
               <TableHead className="w-[80px]" title="View Employer Candidates">Candidates</TableHead>
+              <TableHead className="hidden lg:table-cell w-[88px]">
+                <SortButton column="dataProgressPercentage">Data Progress</SortButton>
+              </TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -733,6 +769,9 @@ export function EmployersTable({
                         <UsersIcon className="h-4 w-4" />
                       </Button>
                     </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <EmployerDataProgressBadge employer={employer} />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {onView && (
@@ -819,7 +858,7 @@ export function EmployersTable({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell colSpan={15} className="text-muted-foreground text-sm">
+                      <TableCell colSpan={16} className="text-muted-foreground text-sm">
                         —
                       </TableCell>
                       <TableCell>
@@ -873,7 +912,7 @@ export function EmployersTable({
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell colSpan={16} className="text-muted-foreground text-sm" />
+                      <TableCell colSpan={17} className="text-muted-foreground text-sm" />
                     </TableRow>
                   )}
                 </React.Fragment>

@@ -102,6 +102,8 @@ export interface Employer {
   avgJobTenure?: number  // Manually set average job tenure in years (calculated from work experience data)
   tags?: string[]  // e.g., ["Enterprise", "Startup"] (DPL Competitive is now a separate field)
   layoffs?: Layoff[]  // One-to-many relationship with Layoffs
+  /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). Always a number from list API. */
+  dataProgressPercentage: number
   createdAt: Date
   updatedAt: Date
 }
