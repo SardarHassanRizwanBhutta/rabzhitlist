@@ -56,7 +56,6 @@ import {
   Check,
   ChevronsUpDown,
   X,
-  FolderOpen,
   ShieldCheck,
   Code,
   Building2,
@@ -231,11 +230,8 @@ export interface CandidateFormData {
   githubUrl: string
   source: string
   
-  // Work Experience - dynamic array
+  // Work Experience - dynamic array (includes orphan WE rows with nested projects)
   workExperiences: WorkExperience[]
-  
-  // Standalone Projects - dynamic array (projects not associated with work experience)
-  projects: CandidateStandaloneProject[]
   
   // Certifications - dynamic array
   certifications: CandidateCertification[]
@@ -665,84 +661,6 @@ function WorkExperienceProjectCombobox({
   )
 }
 
-function StandaloneProjectCombobox({
-  index,
-  project,
-  disabled,
-  error,
-  onLinkedProjectChange,
-  projectLookups,
-  onCreateTechStack,
-  onCreateTechnicalAspect,
-  onCreateClientLocation,
-}: {
-  index: number
-  project: CandidateStandaloneProject
-  disabled: boolean
-  error: boolean
-  onLinkedProjectChange: (idx: number, sel: SelectedProject) => void
-  projectLookups?: ProjectLookups
-  onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
-  onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
-}) {
-  const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    setPreloadedName(null)
-    if (project.projectId == null) return
-    if (project.projectName?.trim()) return
-    let cancelled = false
-    fetchProjectById(project.projectId)
-      .then((p) => {
-        if (!cancelled) setPreloadedName(p.name)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [project.id, project.projectId, project.projectName])
-
-  React.useEffect(() => {
-    if (
-      preloadedName &&
-      project.projectId != null &&
-      !project.projectName?.trim()
-    ) {
-      onLinkedProjectChange(index, {
-        id: project.projectId,
-        name: preloadedName,
-      })
-    }
-  }, [preloadedName, project.projectId, project.projectName, project.id, index, onLinkedProjectChange])
-
-  const value: SelectedProject =
-    project.projectId == null
-      ? null
-      : project.projectName?.trim() || preloadedName
-        ? {
-            id: project.projectId,
-            name: (project.projectName?.trim() || preloadedName)!,
-          }
-        : null
-
-  return (
-    <ProjectCombobox
-      id={`standalone-project-${index}`}
-      label="Project *"
-      value={value}
-      onChange={(sel) => onLinkedProjectChange(index, sel)}
-      disabled={disabled}
-      error={error}
-      parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
-      projectLookups={projectLookups}
-      onCreateTechStack={onCreateTechStack}
-      onCreateTechnicalAspect={onCreateTechnicalAspect}
-      onCreateClientLocation={onCreateClientLocation}
-    />
-  )
-}
-
 /** Preloads certification label/issuer by ID when editing a row that has certificationId but no cached name. */
 function CandidateCertificationComboboxRow({
   index,
@@ -912,7 +830,7 @@ interface CandidateCreationDialogProps {
 
 export type { EmployerComboboxNestedCreationProps as NestedEmployerCreationProps }
 
-/** Lookups and create handlers for nested project creation from work-experience / standalone project rows. */
+/** Lookups and create handlers for nested project creation from work-experience rows. */
 export interface NestedProjectCreationProps {
   lookups: {
     clientLocations: LookupItem[]
@@ -984,13 +902,6 @@ const achievementTypeOptions: ComboboxOption[] = (Object.entries(ACHIEVEMENT_TYP
   ([value, label]) => ({ value, label })
 )
 
-const createEmptyStandaloneProject = (): CandidateStandaloneProject => ({
-  id: crypto.randomUUID(),
-  projectId: null,
-  projectName: "",
-  contributionNotes: "",
-})
-
 const createEmptyEducation = (): CandidateEducation => ({
   id: crypto.randomUUID(),
   universityLocationId: "",
@@ -1017,7 +928,6 @@ const initialFormData: CandidateFormData = {
   githubUrl: "",
   source: "",
   workExperiences: [],
-  projects: [],
   certifications: [],
   educations: [],
   techStacks: [],
@@ -1066,13 +976,6 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
         unit: b.unit || null,
       })) || [],
     })) || [],
-    projects:
-      candidate.projects?.map((proj) => ({
-        id: proj.id,
-        projectId: proj.projectId ?? null,
-        projectName: proj.projectName || "",
-        contributionNotes: proj.contributionNotes ?? "",
-      })) || [],
     certifications:
       candidate.certifications?.map((cert) => ({
         id: cert.id,
@@ -1204,7 +1107,6 @@ export function CandidateCreationDialog({
     { id: "basic", sectionId: "basic-info", label: "Basic Information", shortLabel: "Basic" },
     { id: "work-experience", sectionId: "work-experience", label: "Work Experience", shortLabel: "Experience" },
     { id: "tech-stacks", sectionId: "tech-stacks", label: "Tech Stacks", shortLabel: "Tech" },
-    { id: "projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
@@ -1212,7 +1114,6 @@ export function CandidateCreationDialog({
 
   const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
   const [techStacksOpen, setTechStacksOpen] = useState(true)
-  const [projectsOpen, setProjectsOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
@@ -1342,7 +1243,6 @@ export function CandidateCreationDialog({
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
       }
     }
-    projects?: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> }
     achievements?: { [index: number]: Partial<Record<keyof Achievement, string>> }
     certifications?: { [index: number]: Partial<Record<keyof CandidateCertification, string>> }
     educations?: { [index: number]: Partial<Record<keyof CandidateEducation, string>> }
@@ -1385,20 +1285,18 @@ export function CandidateCreationDialog({
     let total = basicFields.length
     let verified = basicFields.filter(f => verifiedFields.has(f)).length
     
-    // Work experiences
+    // Work experiences (includes nested projects)
     formData.workExperiences.forEach((_, idx) => {
       const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
       })
-    })
-    
-    // Projects
-    formData.projects.forEach((_, idx) => {
-      total += 2 // projectId, contributionNotes
-      if (verifiedFields.has(`projects.${idx}.projectId`)) verified++
-      if (verifiedFields.has(`projects.${idx}.contributionNotes`)) verified++
+      formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
+        total += 2 // projectId, contributionNotes
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectId`)) verified++
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
+      })
     })
     
     // Certifications
@@ -1520,24 +1418,6 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.workExperiences])
 
-  const projectsProgress = useMemo(() => {
-    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
-    let total = 0
-    let verified = 0
-    
-    formData.projects.forEach((_, idx) => {
-      total += 2 // projectId, contributionNotes
-      if (verifiedFields.has(`projects.${idx}.projectId`)) verified++
-      if (verifiedFields.has(`projects.${idx}.contributionNotes`)) verified++
-    })
-    
-    return { 
-      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
-      verified,
-      total
-    }
-  }, [showVerification, verifiedFields, formData.projects])
-
   const educationProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     let total = 0
@@ -1624,8 +1504,6 @@ export function CandidateCreationDialog({
         return workExperienceProgress
       case 'tech-stacks':
         return techStacksProgress
-      case 'projects':
-        return projectsProgress
       case 'education':
         return educationProgress
       case 'certifications':
@@ -1723,9 +1601,6 @@ export function CandidateCreationDialog({
       } else if (sectionKey === "tech-stacks" && !techStacksOpen) {
         setTechStacksOpen(true)
         needsExpansion = true
-      } else if (sectionKey === "projects" && !projectsOpen) {
-        setProjectsOpen(true)
-        needsExpansion = true
       } else if (sectionKey === "education" && !educationOpen) {
         setEducationOpen(true)
         needsExpansion = true
@@ -1740,7 +1615,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, projectsOpen, educationOpen, certificationsOpen, competitionsOpen, scrollToElement])
+  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1803,7 +1678,7 @@ export function CandidateCreationDialog({
       })
       observer.disconnect()
     }
-  }, [open, sections, formData.workExperiences.length, formData.projects.length, formData.educations.length, formData.certifications.length])
+  }, [open, sections, formData.workExperiences.length, formData.educations.length, formData.certifications.length])
   
   // Toggle field verification
   const toggleFieldVerification = useCallback((fieldPath: string) => {
@@ -1853,15 +1728,6 @@ export function CandidateCreationDialog({
       
       case 'tech-stacks':
         fields.push('techStacks')
-        break
-      
-      case 'projects':
-        formData.projects.forEach((_, idx) => {
-          fields.push(
-            `projects.${idx}.projectId`,
-            `projects.${idx}.contributionNotes`
-          )
-        })
         break
       
       case 'education':
@@ -1991,7 +1857,7 @@ export function CandidateCreationDialog({
     return 'Save & Verify'
   }
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'projects' | 'achievements' | 'competitions'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     markFieldModified(field)
     // Clear error when user starts typing
@@ -2076,37 +1942,6 @@ export function CandidateCreationDialog({
                   projectName: undefined,
                 },
               },
-            },
-          },
-        }
-      })
-    },
-    [markFieldModified]
-  )
-
-  const handleStandaloneLinkedProjectChange = useCallback(
-    (index: number, sel: SelectedProject) => {
-      setFormData((prev) => ({
-        ...prev,
-        projects: prev.projects.map((p, i) =>
-          i === index
-            ? { ...p, projectId: sel?.id ?? null, projectName: sel?.name ?? "" }
-            : p
-        ),
-      }))
-      markFieldModified(`projects.${index}.projectId`)
-      markFieldModified(`projects.${index}.projectName`)
-      setErrors((prev) => {
-        const pe = prev.projects?.[index]
-        if (!pe?.projectId && !pe?.projectName) return prev
-        return {
-          ...prev,
-          projects: {
-            ...prev.projects,
-            [index]: {
-              ...pe,
-              projectId: undefined,
-              projectName: undefined,
             },
           },
         }
@@ -2496,57 +2331,6 @@ export function CandidateCreationDialog({
     }
   }
 
-  const handleStandaloneProjectChange = (
-    index: number,
-    field: keyof CandidateStandaloneProject,
-    value: string
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      projects: prev.projects.map((project, i) =>
-        i === index ? { ...project, [field]: value } : project
-      )
-    }))
-    
-    // Clear error when user starts typing
-    if (errors.projects?.[index]?.[field]) {
-      setErrors(prev => ({
-        ...prev,
-        projects: {
-          ...prev.projects,
-          [index]: {
-            ...prev.projects?.[index],
-            [field]: undefined
-          }
-        }
-      }))
-    }
-  }
-
-  const addStandaloneProject = () => {
-    setFormData(prev => ({
-      ...prev,
-      projects: [...prev.projects, createEmptyStandaloneProject()]
-    }))
-  }
-
-  const removeStandaloneProject = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      projects: prev.projects.filter((_, i) => i !== index)
-    }))
-    
-    // Clear errors for removed project
-    if (errors.projects?.[index]) {
-      const newProjectErrors = { ...errors.projects }
-      delete newProjectErrors[index]
-      setErrors(prev => ({
-        ...prev,
-        projects: newProjectErrors
-      }))
-    }
-  }
-
   const validateForm = (): boolean => {
     const basicErrors: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>> = {}
     const workExperienceErrors: { 
@@ -2596,7 +2380,8 @@ export function CandidateCreationDialog({
         exp.workMode ||
         exp.timeSupportZones.length > 0
 
-      if (hasAnyData) {
+      // Orphan WE rows may have empty employer/jobTitle when they hold nested projects
+      if (hasAnyData && exp.projects.length === 0) {
         if (exp.employerId == null) expErrors.employerId = "Employer is required"
         if (!exp.jobTitle.trim()) expErrors.jobTitle = "Job title is required"
       }
@@ -2631,24 +2416,6 @@ export function CandidateCreationDialog({
           ...expErrors,
           ...(Object.keys(projectErrors).length > 0 ? { projects: projectErrors } : {})
         }
-      }
-    })
-
-    // Standalone Projects validation (only validate if projects exist)
-    const projectErrors: { [index: number]: Partial<Record<keyof CandidateStandaloneProject, string>> } = {}
-    formData.projects.forEach((project, index) => {
-      const projErrors: Partial<Record<keyof CandidateStandaloneProject, string>> = {}
-      
-      // Only validate if at least one field is filled (user started entering data)
-      const hasAnyData =
-        project.projectId != null || !!(project.contributionNotes && String(project.contributionNotes).trim())
-
-      if (hasAnyData) {
-        if (project.projectId == null) projErrors.projectId = "Project is required"
-      }
-      
-      if (Object.keys(projErrors).length > 0) {
-        projectErrors[index] = projErrors
       }
     })
 
@@ -2721,14 +2488,13 @@ export function CandidateCreationDialog({
     const newErrors = {
       basic: Object.keys(basicErrors).length > 0 ? basicErrors : undefined,
       workExperiences: Object.keys(workExperienceErrors).length > 0 ? workExperienceErrors : undefined,
-      projects: Object.keys(projectErrors).length > 0 ? projectErrors : undefined,
       certifications: Object.keys(certificationErrors).length > 0 ? certificationErrors : undefined,
       educations: Object.keys(educationErrors).length > 0 ? educationErrors : undefined,
       achievements: Object.keys(achievementErrors).length > 0 ? achievementErrors : undefined,
     }
 
     setErrors(newErrors)
-    return !newErrors.basic && !newErrors.workExperiences && !newErrors.projects && !newErrors.certifications && !newErrors.educations && !newErrors.achievements
+    return !newErrors.basic && !newErrors.workExperiences && !newErrors.certifications && !newErrors.educations && !newErrors.achievements
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2860,7 +2626,6 @@ export function CandidateCreationDialog({
       setResumeUploadError(null)
       setWorkExperienceOpen(true)
       setTechStacksOpen(true)
-      setProjectsOpen(true)
       setCertificationsOpen(true)
       setEducationOpen(true)
       return
@@ -2889,7 +2654,6 @@ export function CandidateCreationDialog({
         setResumeUploadError(null)
         setWorkExperienceOpen(true)
         setTechStacksOpen(true)
-        setProjectsOpen(true)
         setCertificationsOpen(true)
         setEducationOpen(true)
       }
@@ -2913,7 +2677,6 @@ export function CandidateCreationDialog({
     setResumeUploadError(null)
     setWorkExperienceOpen(false)
     setTechStacksOpen(false)
-    setProjectsOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
   }
@@ -3884,141 +3647,7 @@ export function CandidateCreationDialog({
             </CollapsibleContent>
           </Collapsible>
           </div>
-          {/* Section 4: Standalone Projects (Collapsible) */}
-          <div id="projects">
-          <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen}>
-            <div className="flex items-center gap-2">
-              <CollapsibleTrigger asChild className="flex-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <FolderOpen className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-lg font-medium">Projects</span>
-                    {formData.projects.length > 0 && (
-                      <Badge variant="secondary" className="ml-2">
-                        {formData.projects.length}
-                      </Badge>
-                    )}
-                    <SectionProgressBadge 
-                      percentage={projectsProgress.percentage}
-                      verified={projectsProgress.verified}
-                      total={projectsProgress.total}
-                    />
-                  </div>
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform duration-200 ${
-                      projectsOpen ? "transform rotate-180" : ""
-                    }`}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              {showVerification && (
-                <div 
-                  className="flex items-center gap-2 px-2" 
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Checkbox
-                    id="verify-all-projects"
-                    checked={isSectionFullyVerified('projects')}
-                    onCheckedChange={(checked) => handleVerifyAllSection('projects', !!checked)}
-                    aria-label="Verify all fields in Projects section"
-                  />
-                  <Label 
-                    htmlFor="verify-all-projects"
-                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
-                  >
-                    Verify All
-                  </Label>
-                </div>
-              )}
-            </div>
-            <CollapsibleContent className="space-y-4 mt-4">
-              <div className="flex items-center justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addStandaloneProject}
-                  className="flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Project
-                </Button>
-              </div>
-
-              {formData.projects.map((project, index) => (
-                <Card key={project.id} className="relative">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center justify-between text-base">
-                      <span>Project {index + 1}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeStandaloneProject(index)}
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0 space-y-4">
-                    <div className="space-y-2 scroll-mt-28" id={`prefill-anchor-sp-${index}`}>
-                      <StandaloneProjectCombobox
-                        index={index}
-                        project={project}
-                        disabled={isLoading}
-                        error={!!errors.projects?.[index]?.projectId}
-                        onLinkedProjectChange={handleStandaloneLinkedProjectChange}
-                        projectLookups={projectCreateLookups}
-                        onCreateTechStack={onCreateTechStack}
-                        onCreateTechnicalAspect={nestedProjectCreation?.onCreateTechnicalAspect}
-                        onCreateClientLocation={nestedProjectCreation?.onCreateClientLocation}
-                      />
-                      {errors.projects?.[index]?.projectId && (
-                        <p className="text-sm text-red-500">{errors.projects[index].projectId}</p>
-                      )}
-                      <VerificationCheckbox fieldPath={`projects.${index}.projectId`} />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`standalone-contributionNotes-${index}`}>Contribution</Label>
-                      <Textarea
-                        id={`standalone-contributionNotes-${index}`}
-                        placeholder="Describe your key contributions, achievements, and responsibilities in this project..."
-                        value={project.contributionNotes}
-                        onChange={(e) => handleStandaloneProjectChange(index, "contributionNotes", e.target.value)}
-                        className="min-h-[80px] resize-none"
-                      />
-                      <VerificationCheckbox fieldPath={`projects.${index}.contributionNotes`} />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {formData.projects.length === 0 && (
-                <div className="rounded-lg border border-dashed p-6 text-center">
-                  <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No projects added yet</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addStandaloneProject}
-                    className="cursor-pointer"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Your First Project
-                  </Button>
-                </div>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
-          </div>
-          {/* Section 5: Education (Collapsible) */}
+          {/* Section 4: Education (Collapsible) */}
           <div id="education">
           <Collapsible open={educationOpen} onOpenChange={setEducationOpen}>
             <div className="flex items-center gap-2">

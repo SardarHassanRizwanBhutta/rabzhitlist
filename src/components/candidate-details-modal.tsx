@@ -108,8 +108,6 @@ import {
   removeWeTimeSupportZone,
   upsertWeBenefit,
   removeWeBenefit,
-  upsertCandidateProject,
-  removeCandidateProject,
   upsertWeProject,
   removeWeProject,
 } from "@/lib/services/candidates-api"
@@ -4016,7 +4014,7 @@ export function CandidateDetailsModal({
   onCandidateUpdated,
 }: CandidateDetailsModalProps) {
   const router = useRouter()
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "independent-projects", "education", "certifications", "competitions", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
@@ -4132,7 +4130,7 @@ export function CandidateDetailsModal({
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ 
-    type: 'independent' | 'workExperience' | 'education' | 'certification' | 'workExperienceEntry' | 'achievement'
+    type: 'workExperience' | 'education' | 'certification' | 'workExperienceEntry' | 'achievement'
     index: number
     workExperienceIndex?: number
     itemName: string 
@@ -4143,7 +4141,6 @@ export function CandidateDetailsModal({
     { id: "basic", sectionId: "basic-info", label: "Basic Information", shortLabel: "Basic" },
     { id: "work-experience", sectionId: "work-experience", label: "Work Experience", shortLabel: "Experience" },
     { id: "tech-stacks", sectionId: "tech-stacks", label: "Tech Stacks", shortLabel: "Tech" },
-    { id: "independent-projects", sectionId: "projects", label: "Projects", shortLabel: "Projects" },
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
@@ -4478,22 +4475,6 @@ export function CandidateDetailsModal({
     }
   }, [])
 
-  // Handle independent project deletion - show confirmation dialog
-  const handleDeleteProject = (projectIndex: number) => {
-    if (!resolvedCandidate) return
-    
-    const project = resolvedCandidate.projects?.[projectIndex]
-    if (!project) return
-    
-    // Set project to delete and open confirmation dialog
-    setItemToDelete({
-      type: 'independent',
-      index: projectIndex,
-      itemName: project.projectName || 'Unnamed Project'
-    })
-    setDeleteDialogOpen(true)
-  }
-
   // Handle work experience project deletion - show confirmation dialog
   const handleDeleteWorkExperienceProject = (workExperienceIndex: number, projectIndex: number) => {
     if (!resolvedCandidate) return
@@ -4596,11 +4577,7 @@ export function CandidateDetailsModal({
     if (!candidate || !itemToDelete) return
     
     try {
-      if (itemToDelete.type === 'independent') {
-        // In real app, this would call API to delete the independent project
-        // await deleteCandidateProject(candidate.id, candidate.projects[itemToDelete.index].id)
-        toast.success(`Project "${itemToDelete.itemName}" deleted successfully`)
-      } else if (itemToDelete.type === 'workExperience' && itemToDelete.workExperienceIndex !== undefined) {
+      if (itemToDelete.type === 'workExperience' && itemToDelete.workExperienceIndex !== undefined) {
         // In real app, this would call API to delete the work experience project
         // await deleteWorkExperienceProject(candidate.id, itemToDelete.workExperienceIndex, itemToDelete.index)
         toast.success(`Project "${itemToDelete.itemName}" deleted successfully`)
@@ -5191,52 +5168,6 @@ export function CandidateDetailsModal({
     }
   }
 
-  const handleStandaloneProjectLinkSave = async (
-    projectIndex: number,
-    selection: SelectedProject,
-    shouldVerify: boolean
-  ) => {
-    if (!selection?.id || !candidate) return
-    const candidateId = Number(candidate.id)
-    if (!Number.isFinite(candidateId)) {
-      toast.error("Invalid candidate id.")
-      return
-    }
-    const proj = (fullCandidate ?? candidate).projects?.[projectIndex]
-    if (!proj) return
-
-    try {
-      const oldProjectId = proj.projectId
-      const contribution = proj.contributionNotes ?? null
-
-      if (oldProjectId != null && oldProjectId !== selection.id) {
-        await removeCandidateProject(candidateId, oldProjectId)
-      }
-      await upsertCandidateProject(candidateId, selection.id, contribution)
-
-      setFullCandidate((prev) => {
-        const base = prev ?? candidate
-        if (!base.projects?.[projectIndex]) return prev ?? base
-        const nextProjects = [...base.projects]
-        nextProjects[projectIndex] = {
-          ...nextProjects[projectIndex],
-          projectId: selection.id,
-          projectName: selection.name,
-        }
-        return { ...base, projects: nextProjects }
-      })
-
-      toast.success(
-        shouldVerify ? "Project updated and verified ✓" : "Project updated"
-      )
-      await refreshFullCandidate()
-      onCandidateUpdated?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update project.")
-      throw err
-    }
-  }
-
   const handleWorkExperienceProjectLinkSave = async (
     weIndex: number,
     projectIndex: number,
@@ -5578,20 +5509,6 @@ export function CandidateDetailsModal({
     return calculateSectionProgress(['techStacks'])
   }, [verifications, resolvedCandidate])
 
-  const independentProjectsProgress = useMemo(() => {
-    if (!resolvedCandidate?.projects || resolvedCandidate.projects.length === 0) {
-      return { percentage: 0, verified: 0, total: 0 }
-    }
-    
-    const fields: string[] = []
-    resolvedCandidate.projects.forEach((proj, idx) => {
-      fields.push(`projects[${idx}].projectId`)
-      fields.push(`projects[${idx}].contributionNotes`)
-    })
-    
-    return calculateSectionProgress(fields)
-  }, [verifications, resolvedCandidate])
-
   const educationProgress = useMemo(() => {
     if (!resolvedCandidate?.educations || resolvedCandidate.educations.length === 0) {
       return { percentage: 0, verified: 0, total: 0 }
@@ -5667,8 +5584,6 @@ export function CandidateDetailsModal({
         return workExperienceProgress
       case 'tech-stacks':
         return techStacksProgress
-      case 'projects':
-        return independentProjectsProgress
       case 'education':
         return educationProgress
       case 'certifications':
@@ -5818,7 +5733,6 @@ export function CandidateDetailsModal({
   }
 
   const workExperiences = viewCandidate.workExperiences || []
-  const independentProjects = viewCandidate.projects || []
   const educations = viewCandidate.educations || []
   const certifications = viewCandidate.certifications || []
   // Use achievements if available, otherwise fall back to competitions (legacy)
@@ -6597,106 +6511,6 @@ export function CandidateDetailsModal({
           </Collapsible>
           </section>
 
-          {/* Independent Projects */}
-          <section id="projects">
-            <Collapsible 
-              open={expandedSections.has("independent-projects")} 
-              onOpenChange={() => toggleSection("independent-projects")}
-            >
-              <Card>
-              <CollapsibleTrigger className="w-full">
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <FolderOpen className="size-5" />
-                      Projects
-                      {independentProjects.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          {independentProjects.length}
-                        </Badge>
-                      )}
-                      <SectionProgressBadge 
-                        percentage={independentProjectsProgress.percentage}
-                        verified={independentProjectsProgress.verified}
-                        total={independentProjectsProgress.total}
-                      />
-                    </CardTitle>
-                    {expandedSections.has("independent-projects") ? (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-6">
-                  {independentProjects.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No projects recorded</p>
-                  ) : (
-                    independentProjects.map((project, idx) => (
-                      <div key={project.id}>
-                        {idx > 0 && <Separator className="my-6" />}
-                        <div className="space-y-3">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="mb-2 w-full min-w-0">
-                                <InlineEditableProject
-                                  project={project}
-                                  comboboxId={`standalone-project-${idx}`}
-                                  fieldName={`projects[${idx}].projectId`}
-                                  onSave={(selection, shouldVerify) =>
-                                    handleStandaloneProjectLinkSave(idx, selection, shouldVerify)
-                                  }
-                                  onProjectClick={handleProjectClick}
-                                  verificationIndicator={
-                                    <VerificationIndicator
-                                      fieldName={`projects[${idx}].projectId`}
-                                    />
-                                  }
-                                  getFieldVerification={getFieldVerification}
-                                  projectLookups={projectLookups}
-                                />
-                              </div>
-                              {project.projectName && (
-                                <DomainBadges
-                                  projectName={project.projectName}
-                                  {...getProjectDetails(project.projectName)}
-                                />
-                              )}
-                                <InlineEditableTextarea
-                                value={project.contributionNotes ?? ''}
-                                  fieldName={`projects[${idx}].contributionNotes`}
-                                  onSave={handleFieldSave}
-                                  maxLength={100}
-                                  className="mt-2"
-                                  verificationIndicator={
-                                    <VerificationIndicator fieldName={`projects[${idx}].contributionNotes`} />
-                                  }
-                                  getFieldVerification={getFieldVerification}
-                                />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteProject(idx)}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
-                              title="Delete project"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-          </section>
-
           {/* Education */}
           <section id="education">
             <Collapsible 
@@ -7266,7 +7080,6 @@ export function CandidateDetailsModal({
               {itemToDelete ? (
                 <>
                   This will permanently delete{' '}
-                  {itemToDelete.type === 'independent' && 'the independent project'}
                   {itemToDelete.type === 'workExperience' && 'the work experience project'}
                   {itemToDelete.type === 'education' && 'the education entry'}
                   {itemToDelete.type === 'certification' && 'the certification'}

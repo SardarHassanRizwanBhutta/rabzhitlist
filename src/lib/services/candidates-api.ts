@@ -122,7 +122,6 @@ export interface CreateCandidateDto {
   /** Optional; API defaults to false when omitted. */
   isTopDeveloper?: boolean
   techStackIds?: number[]
-  projects?: CreateCandidateProjectDto[]
   educations?: CreateCandidateEducationDto[]
   certifications?: CreateCandidateCertificationDto[]
   achievements?: CreateCandidateAchievementDto[]
@@ -170,8 +169,8 @@ interface CreateCandidateWorkExperienceBenefitDto {
 }
 
 interface CreateCandidateWorkExperienceDto {
-  employerId: number
-  jobTitle: string
+  employerId: number | null
+  jobTitle: string | null
   startDate?: string | null
   endDate?: string | null
   shiftType?: number | null
@@ -342,23 +341,6 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
       : (raw.workMode as WorkExperience["workMode"]) ?? "",
     timeSupportZones,
     benefits,
-  }
-}
-
-function mapStandaloneProject(raw: Record<string, unknown>, idx: number): CandidateStandaloneProject {
-  const pid = raw.projectId
-  const catalog = parseLinkedProjectCatalogFromApi(raw)
-  return {
-    id: String(raw.id ?? `sp-${idx}`),
-    projectId: typeof pid === "number" && Number.isFinite(pid) ? pid : pid != null ? Number(pid) || null : null,
-    projectName: String(raw.projectName ?? raw.name ?? ""),
-    contributionNotes:
-      raw.contribution != null
-        ? String(raw.contribution)
-        : raw.contributionNotes != null
-          ? String(raw.contributionNotes)
-          : "",
-    ...catalog,
   }
 }
 
@@ -857,10 +839,8 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
   const workExperiences = Array.isArray(weRaw)
     ? weRaw.map((w, i) => mapWorkExperience(asRecord(w) ?? {}, i))
     : []
-  const projRaw = data.projects
-  const projects = Array.isArray(projRaw)
-    ? projRaw.map((p, i) => mapStandaloneProject(asRecord(p) ?? {}, i))
-    : []
+  // Top-level projects[] removed (CSP); keep empty for phase-2 consumers of Candidate.projects
+  const projects: CandidateStandaloneProject[] = []
   const techRaw = data.techStacks
   const techStacks = Array.isArray(techRaw)
     ? techRaw.map((t) => {
@@ -1020,13 +1000,6 @@ export function candidateFormDataToCreateDto(
     .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
     .filter((id): id is number => id != null)
 
-  const projects: CreateCandidateProjectDto[] = (data.projects ?? [])
-    .filter((p) => p.projectId != null)
-    .map((p) => ({
-      projectId: p.projectId!,
-      contribution: nullIfEmpty(p.contributionNotes ?? ""),
-    }))
-
   const educations: CreateCandidateEducationDto[] = (data.educations ?? [])
     .filter((e) => e.universityLocationId)
     .map((e) => ({
@@ -1064,7 +1037,22 @@ export function candidateFormDataToCreateDto(
     }))
 
   const workExperiences: CreateCandidateWorkExperienceDto[] = (data.workExperiences ?? [])
-    .filter((we) => we.employerId != null)
+    .filter((we) => {
+      const hasEmployer = we.employerId != null || !!(we.employerName && we.employerName.trim())
+      const hasJob = !!(we.jobTitle && we.jobTitle.trim())
+      const hasProjects = (we.projects ?? []).some(
+        (p) => p.projectId != null || !!(p.projectName && p.projectName.trim())
+      )
+      const hasOther =
+        !!we.startDate ||
+        !!we.endDate ||
+        (we.techStacks?.length ?? 0) > 0 ||
+        !!we.shiftType ||
+        !!we.workMode ||
+        (we.timeSupportZones?.length ?? 0) > 0 ||
+        (we.benefits?.length ?? 0) > 0
+      return hasEmployer || hasJob || hasProjects || hasOther
+    })
     .map((we) => {
       const weProjects: CreateCandidateProjectDto[] = (we.projects ?? [])
         .filter((p) => p.projectId != null)
@@ -1096,9 +1084,10 @@ export function candidateFormDataToCreateDto(
           return acc
         }, [])
 
+      const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
       return {
-        employerId: we.employerId!,
-        jobTitle: we.jobTitle.trim(),
+        employerId: we.employerId ?? null,
+        jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
         startDate: formatDateForApi(we.startDate),
         endDate: formatDateForApi(we.endDate),
         shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
@@ -1128,7 +1117,6 @@ export function candidateFormDataToCreateDto(
     resumeUrl: null,
     isTopDeveloper: data.isTopDeveloper === true,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
-    projects: projects.length > 0 ? projects : undefined,
     educations: educations.length > 0 ? educations : undefined,
     certifications: certifications.length > 0 ? certifications : undefined,
     achievements: achievements.length > 0 ? achievements : undefined,
@@ -1460,15 +1448,6 @@ export function removeCandidateTechStack(candidateId: number, techStackId: numbe
   return subDelete(`/api/candidates/${candidateId}/tech-stacks/${techStackId}`)
 }
 
-// --- Standalone Projects ---
-
-export function upsertCandidateProject(candidateId: number, projectId: number, contribution: string | null) {
-  return subPut(`/api/candidates/${candidateId}/projects/${projectId}`, { projectId, contribution })
-}
-export function removeCandidateProject(candidateId: number, projectId: number) {
-  return subDelete(`/api/candidates/${candidateId}/projects/${projectId}`)
-}
-
 // --- Educations ---
 
 export function createCandidateEducation(candidateId: number, body: CreateCandidateEducationDto) {
@@ -1505,8 +1484,8 @@ export function deleteCandidateAchievement(candidateId: number, achievementId: n
 // --- Work Experiences ---
 
 interface CreateWorkExperienceBody {
-  employerId: number
-  jobTitle: string
+  employerId: number | null
+  jobTitle: string | null
   startDate?: string | null
   endDate?: string | null
   shiftType?: number | null
@@ -1588,19 +1567,6 @@ export async function syncCandidateSubResources(
     if (!newTsIds.has(id)) tsOps.push(safe("Remove tech stack", () => removeCandidateTechStack(candidateId, id)))
   }
 
-  // --- Standalone Projects ---
-  const oldProjIds = new Set((existing.projects ?? []).map(p => p.projectId).filter((id): id is number => id != null))
-  const projOps: Promise<void>[] = []
-  for (const p of formData.projects ?? []) {
-    if (p.projectId != null) {
-      projOps.push(safe("Upsert project", () => upsertCandidateProject(candidateId, p.projectId!, nullIfEmpty(p.contributionNotes ?? ""))))
-      oldProjIds.delete(p.projectId)
-    }
-  }
-  for (const id of oldProjIds) {
-    projOps.push(safe("Remove project", () => removeCandidateProject(candidateId, id)))
-  }
-
   // --- Educations ---
   const oldEduMap = new Map((existing.educations ?? []).map(e => [Number(e.id), e]))
   const seenEduIds = new Set<number>()
@@ -1680,10 +1646,25 @@ export async function syncCandidateSubResources(
   const weOps: Promise<void>[] = []
 
   for (const we of formData.workExperiences ?? []) {
-    if (we.employerId == null) continue
+    const hasEmployer = we.employerId != null
+    const hasJob = !!(we.jobTitle && we.jobTitle.trim())
+    const hasProjects = (we.projects ?? []).some(
+      (p) => p.projectId != null || !!(p.projectName && p.projectName.trim())
+    )
+    const hasOther =
+      !!we.startDate ||
+      !!we.endDate ||
+      (we.techStacks?.length ?? 0) > 0 ||
+      !!we.shiftType ||
+      !!we.workMode ||
+      (we.timeSupportZones?.length ?? 0) > 0 ||
+      (we.benefits?.length ?? 0) > 0
+    if (!hasEmployer && !hasJob && !hasProjects && !hasOther) continue
+
+    const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
     const weBasic: CreateWorkExperienceBody = {
-      employerId: we.employerId,
-      jobTitle: we.jobTitle.trim(),
+      employerId: we.employerId ?? null,
+      jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
       startDate: formatDateForApi(we.startDate),
       endDate: formatDateForApi(we.endDate),
       shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
@@ -1713,7 +1694,7 @@ export async function syncCandidateSubResources(
   }
 
   // Execute all sections in parallel
-  await Promise.all([...tsOps, ...projOps, ...eduOps, ...certOps, ...achOps, ...weOps])
+  await Promise.all([...tsOps, ...eduOps, ...certOps, ...achOps, ...weOps])
 
   if (errors.length > 0) {
     throw new Error(`Some updates failed:\n${errors.join("\n")}`)

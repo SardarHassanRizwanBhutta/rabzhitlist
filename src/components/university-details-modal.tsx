@@ -1100,15 +1100,15 @@ export function UniversityDetailsModal({
 }: UniversityDetailsModalProps) {
   const [localUniversity, setLocalUniversity] = useState<University>(university)
   const [detailLoading, setDetailLoading] = useState(false)
-
+  
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "statistics"]))
-
+  
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [locationToDelete, setLocationToDelete] = useState<{
     locationId: number
     locationName: string
   } | null>(null)
-
+  
   useEffect(() => {
     if (!open || !university?.id) {
       setDetailLoading(false)
@@ -1584,14 +1584,14 @@ export function UniversityDetailsModal({
                 )}
               >
                 Created: {formatUniversityDate(localUniversity.createdAt)}
-              </div>
+            </div>
               <div
                 className={cn(
                   isInlineFieldValueEmpty(localUniversity.updatedAt) && "italic"
                 )}
               >
                 Updated: {formatUniversityDate(localUniversity.updatedAt)}
-              </div>
+          </div>
             </div>
           </div>
           </>

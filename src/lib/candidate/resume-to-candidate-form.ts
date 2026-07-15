@@ -1,7 +1,6 @@
 import type {
   CandidateFormData,
   WorkExperience,
-  CandidateStandaloneProject,
   CandidateCertification,
   CandidateEducation,
   ProjectExperience,
@@ -231,20 +230,29 @@ function mapWorkExperiences(raw: unknown): WorkExperience[] {
   return out
 }
 
-function mapStandaloneProjects(raw: unknown): CandidateStandaloneProject[] {
+function mapStandaloneProjectsAsWeProjects(raw: unknown): ProjectExperience[] {
   if (!Array.isArray(raw)) return []
-  const out: CandidateStandaloneProject[] = []
+  const out: ProjectExperience[] = []
   for (const item of raw) {
     const o = asRecord(item)
-    const name = str(o ? pick(o, ["name", "projectName", "title"]) : item)
+    // Flask / LLM schema uses project_name + contribution_notes (see API_DOCUMENTATION.md).
+    const name = str(
+      o ? pick(o, ["name", "projectName", "project_name", "title", "project"]) : item
+    )
     if (!name) continue
-    const notes = str(o ? pick(o, ["description", "contributionNotes", "summary"]) : "")
-    out.push({
-      id: crypto.randomUUID(),
-      projectId: null,
-      projectName: name,
-      contributionNotes: notes,
-    })
+    const notes = str(
+      o
+        ? pick(o, [
+            "contribution_notes",
+            "contributionNotes",
+            "contribution",
+            "description",
+            "summary",
+            "notes",
+          ])
+        : ""
+    )
+    out.push(newProjectRow(name, notes))
   }
   return out
 }
@@ -431,11 +439,26 @@ export function resumeJsonToPartialCandidateForm(raw: unknown): Partial<Candidat
     "jobs",
   ])
   const workRows = mapWorkExperiences(work ?? [])
-  if (workRows.length) partial.workExperiences = workRows
 
   const projectsRaw = pick(root, ["projects", "standaloneProjects", "standalone_projects", "personalProjects"])
-  const projRows = mapStandaloneProjects(projectsRaw ?? [])
-  if (projRows.length) partial.projects = projRows
+  const orphanWeProjects = mapStandaloneProjectsAsWeProjects(projectsRaw ?? [])
+  if (orphanWeProjects.length > 0) {
+    workRows.push({
+      id: crypto.randomUUID(),
+      employerId: null,
+      employerName: "",
+      jobTitle: "",
+      projects: orphanWeProjects,
+      startDate: undefined,
+      endDate: undefined,
+      techStacks: [],
+      shiftType: "",
+      workMode: "",
+      timeSupportZones: [],
+      benefits: [],
+    })
+  }
+  if (workRows.length) partial.workExperiences = workRows
 
   const tech = pick(root, ["techStacks", "skills", "technologies", "technicalSkills", "technical_skills"])
   const techList = mapTechStacks(tech ?? [])
@@ -461,7 +484,6 @@ export function hasPrefillContent(p: Partial<CandidateFormData>): boolean {
   if (str(p.email)) return true
   if (str(p.contactNumber)) return true
   if ((p.workExperiences?.length ?? 0) > 0) return true
-  if ((p.projects?.length ?? 0) > 0) return true
   if ((p.techStacks?.length ?? 0) > 0) return true
   if ((p.educations?.length ?? 0) > 0) return true
   if ((p.certifications?.length ?? 0) > 0) return true
@@ -484,7 +506,6 @@ export function mergeCandidatePrefill(
       partial.workExperiences && partial.workExperiences.length > 0
         ? partial.workExperiences
         : base.workExperiences,
-    projects: partial.projects && partial.projects.length > 0 ? partial.projects : base.projects,
     certifications:
       partial.certifications && partial.certifications.length > 0
         ? partial.certifications
@@ -534,16 +555,6 @@ export function collectUnresolvedCatalogRefs(data: CandidateFormData): Unresolve
         })
       }
     })
-  })
-
-  data.projects.forEach((p, i) => {
-    if (p.projectId == null && p.projectName?.trim()) {
-      out.push({
-        id: `sp-${i}`,
-        label: `Project — ${p.projectName.trim()}`,
-        anchorId: `prefill-anchor-sp-${i}`,
-      })
-    }
   })
 
   data.educations.forEach((edu, i) => {
