@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, Loader2, Sparkles, User, Briefcase, Code, FolderOpen, GraduationCap, Award, Trophy } from "lucide-react"
+import { FileText, Loader2, Sparkles, User, Briefcase, Code, GraduationCap, Award, Trophy } from "lucide-react"
 import { toast } from "sonner"
 import { assertFlaskResumeParseResponse, parseResume } from "@/lib/services/resume-parser-api"
 import {
@@ -304,23 +304,6 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
                   </div>
                 )
               })}
-            </CardContent>
-          </Card>
-        )}
-
-        {(partial.projects?.length ?? 0) > 0 && (
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <FolderOpen className="h-4 w-4" /> Projects
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <ul className="list-inside list-disc text-sm">
-                {partial.projects!.map((p) => (
-                  <li key={p.id}>{p.projectName}</li>
-                ))}
-              </ul>
             </CardContent>
           </Card>
         )}

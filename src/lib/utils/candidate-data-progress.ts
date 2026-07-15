@@ -61,7 +61,6 @@ export const DATA_PROGRESS_SECTION_ORDER = [
   "basicInformation",
   "workExperience",
   "technicalSkills",
-  "independentProjects",
   "education",
   "certifications",
   "achievements",
