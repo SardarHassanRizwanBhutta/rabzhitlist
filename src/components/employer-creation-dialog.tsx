@@ -71,7 +71,6 @@ export interface LayoffFormData {
   numberOfEmployeesLaidOff: string
   reason: LayoffReasonDb
   reasonOther: string
-  source: string
 }
 
 export interface EmployerFormData {
@@ -87,12 +86,11 @@ export interface EmployerFormData {
   /** Company-wide salary policy (DB enum value for API). */
   salaryPolicy: SalaryPolicyDb | ""
   timeSupportZones: string[]
-  tags: string[]
+  awards: string[]
   benefits: EmployerBenefit[]
   isDPLCompetitive: boolean
-  /** Company-wide headcount range (strings for controlled inputs). */
-  minEmployees: string
-  maxEmployees: string
+  /** Company-wide headcount (string for controlled input). */
+  headcount: string
   locations: EmployerLocationFormData[]
   layoffs: LayoffFormData[]
 }
@@ -106,10 +104,10 @@ export interface EmployerVerificationState {
 type DialogMode = "create" | "edit"
 
 export interface EmployerLookups {
-  /** Tags from API; "+ Add Tag" calls onCreateTag when provided. */
-  tags?: LookupItem[]
   /** Time support zones from API; "+ Add Time Zone" calls onCreateTimeSupportZone when provided. */
   timeSupportZones?: LookupItem[]
+  /** Awards from API; "+ Add Award" calls onCreateAward when provided. */
+  awards?: LookupItem[]
   /** Benefits from API; "Add Benefit" in BenefitsSelector calls onCreateBenefit when provided. */
   benefits?: LookupItem[]
 }
@@ -131,10 +129,10 @@ interface EmployerCreationDialogProps {
   /** Normalized countries for location country combobox (from API). */
   countries?: Country[]
   countriesLoading?: boolean
-  /** When provided, Tags / Time Support Zones use lookups; "+ Add" handlers create new items. */
+  /** When provided, Time Support Zones / Benefits use lookups; "+ Add" handlers create new items. */
   lookups?: EmployerLookups
-  onCreateTag?: (name: string) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateAward?: (name: string) => Promise<void>
   /** When BenefitsSelector "Add Benefit" is used; return new EmployerBenefit to add to form. */
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
   /** When provided, allows adding a new country from location country combobox when not found. Should create and return the new country. */
@@ -155,7 +153,6 @@ const createEmptyLayoff = (): LayoffFormData => ({
   numberOfEmployeesLaidOff: "",
   reason: "cost_reduction",
   reasonOther: "",
-  source: "",
 })
 
 const initialFormData: EmployerFormData = {
@@ -170,11 +167,10 @@ const initialFormData: EmployerFormData = {
   ranking: "",
   salaryPolicy: "",
   timeSupportZones: [],
-  tags: [],
+  awards: [],
   benefits: [],
   isDPLCompetitive: false,
-  minEmployees: "",
-  maxEmployees: "",
+  headcount: "",
   locations: [createEmptyLocation()], // Start with one location
   layoffs: [],
 }
@@ -208,7 +204,7 @@ const employerTypeOptions: MultiSelectOption[] = (Object.entries(EMPLOYER_TYPE_D
 )
 
 // Helper function to convert Employer to EmployerFormData
-const employerToFormData = (employer: Employer): EmployerFormData => {
+export const employerToFormData = (employer: Employer): EmployerFormData => {
   const employerTypes: EmployerTypeDb[] = employer.employerTypes?.length
     ? [...employer.employerTypes]
     : employer.employerType
@@ -219,8 +215,7 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     : employer.status
       ? [EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]]
       : []
-  const minEmployeesStr = employer.minEmployees != null ? String(employer.minEmployees) : ""
-  const maxEmployeesStr = employer.maxEmployees != null ? String(employer.maxEmployees) : ""
+  const headcountStr = employer.headcount != null ? String(employer.headcount) : ""
   const salaryPolicyDb: SalaryPolicyDb | "" =
     employer.salaryPolicy != null && String(employer.salaryPolicy).trim()
       ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(employer.salaryPolicy))]
@@ -239,11 +234,10 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
     ranking: employer.ranking ? RANKING_DISPLAY_TO_DB[employer.ranking] : "",
     salaryPolicy: salaryPolicyDb,
     timeSupportZones: employer.timeSupportZones ?? [],
-    tags: employer.tags ?? [],
+    awards: employer.awards ?? [],
     benefits: getEmployerBenefits(employer),
     isDPLCompetitive: employer.isDPLCompetitive || false,
-    minEmployees: minEmployeesStr,
-    maxEmployees: maxEmployeesStr,
+    headcount: headcountStr,
     locations: employer.locations.map(loc => ({
       id: loc.id,
       country: loc.country || "",
@@ -257,7 +251,6 @@ const employerToFormData = (employer: Employer): EmployerFormData => {
       numberOfEmployeesLaidOff: layoff.numberOfEmployeesLaidOff.toString(),
       reason: LAYOFF_REASON_DISPLAY_TO_DB[layoff.reason],
       reasonOther: layoff.reasonOther || "",
-      source: layoff.source,
     }))
   }
 }
@@ -269,15 +262,14 @@ const EMPLOYER_VERIFICATION_FIELDS = [
   'foundedYear',
   'employerTypes',
   'ranking',
-  'minEmployees',
-  'maxEmployees',
+  'headcount',
   'websiteUrl',
   'linkedinUrl',
   'isDPLCompetitive',
 ]
 
-// Work Arrangements & Tags section fields
-const WORK_ARRANGEMENTS_TAGS_FIELDS = ['workMode', 'shiftType', 'timeSupportZones', 'tags']
+// Work Arrangements section fields
+const WORK_ARRANGEMENTS_FIELDS = ['workMode', 'shiftType', 'timeSupportZones', 'awards']
 
 // Benefits & Salary Policy section fields
 const BENEFITS_SALARY_POLICY_FIELDS = ['benefits', 'salaryPolicy']
@@ -305,8 +297,8 @@ export function EmployerCreationDialog({
   countries = [],
   countriesLoading = false,
   lookups,
-  onCreateTag,
   onCreateTimeSupportZone,
+  onCreateAward,
   onCreateBenefit,
   onCreateCountry,
 }: EmployerCreationDialogProps) {
@@ -327,7 +319,7 @@ export function EmployerCreationDialog({
   
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["basic-info", "work-arrangements-tags", "benefits-salary-policy", "locations"])
+    new Set(["basic-info", "work-arrangements", "benefits-salary-policy", "locations"])
   )
 
   // Location country combobox: which location's popover is open (null = none)
@@ -340,13 +332,13 @@ export function EmployerCreationDialog({
     return countries.filter((c) => c.name.toLowerCase().includes(q))
   }, [countries, locationCountrySearchQuery])
 
-  const tagOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.tags?.map((l) => ({ value: l.name, label: l.name })) ?? [],
-    [lookups?.tags]
-  )
   const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
     () => lookups?.timeSupportZones?.map((l) => ({ value: l.name, label: l.name })) ?? [],
     [lookups?.timeSupportZones]
+  )
+  const awardOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.awards?.map((l) => ({ value: l.name, label: l.name })) ?? [],
+    [lookups?.awards]
   )
 
   // Use controlled or internal open state
@@ -579,23 +571,10 @@ export function EmployerCreationDialog({
       employerErrors.linkedinUrl = "LinkedIn URL must start with http:// or https://"
     }
 
-    if (formData.minEmployees.trim()) {
-      const minEmpNum = parseInt(formData.minEmployees, 10)
-      if (Number.isNaN(minEmpNum) || minEmpNum <= 0) {
-        employerErrors.minEmployees = "Minimum employees must be a positive number"
-      }
-    }
-
-    if (formData.maxEmployees.trim()) {
-      const maxEmpNum = parseInt(formData.maxEmployees, 10)
-      const minEmpNum = formData.minEmployees.trim()
-        ? parseInt(formData.minEmployees, 10)
-        : NaN
-      if (Number.isNaN(maxEmpNum) || maxEmpNum <= 0) {
-        employerErrors.maxEmployees = "Maximum employees must be a positive number"
-      } else if (!Number.isNaN(minEmpNum) && maxEmpNum < minEmpNum) {
-        employerErrors.maxEmployees =
-          "Maximum employees must be greater than or equal to minimum employees"
+    if (formData.headcount.trim()) {
+      const headcountNum = parseInt(formData.headcount, 10)
+      if (Number.isNaN(headcountNum) || headcountNum < 1) {
+        employerErrors.headcount = "Headcount must be an integer of at least 1"
       }
     }
 
@@ -688,8 +667,8 @@ export function EmployerCreationDialog({
     [verifiedFields]
   )
 
-  const workArrangementsTagsProgress = useMemo(() =>
-    calculateSectionProgress(WORK_ARRANGEMENTS_TAGS_FIELDS),
+  const workArrangementsProgress = useMemo(() =>
+    calculateSectionProgress(WORK_ARRANGEMENTS_FIELDS),
     [verifiedFields]
   )
 
@@ -726,8 +705,7 @@ export function EmployerCreationDialog({
         `layoffs[${idx}].layoffDate`,
         `layoffs[${idx}].numberOfEmployeesLaidOff`,
         `layoffs[${idx}].reason`,
-        `layoffs[${idx}].source`
-      ]
+              ]
       layoffFields.forEach(fieldName => {
         total++
         if (verifiedFields.has(fieldName)) verified++
@@ -766,8 +744,7 @@ export function EmployerCreationDialog({
         `layoffs[${idx}].layoffDate`,
         `layoffs[${idx}].numberOfEmployeesLaidOff`,
         `layoffs[${idx}].reason`,
-        `layoffs[${idx}].source`
-      ]
+              ]
       total += layoffFields.length
       layoffFields.forEach(fieldName => {
         if (verifiedFields.has(fieldName)) verified++
@@ -782,8 +759,8 @@ export function EmployerCreationDialog({
     if (sectionId === 'basic-info') {
       return EMPLOYER_VERIFICATION_FIELDS
     }
-    if (sectionId === 'work-arrangements-tags') {
-      return WORK_ARRANGEMENTS_TAGS_FIELDS
+    if (sectionId === 'work-arrangements') {
+      return WORK_ARRANGEMENTS_FIELDS
     }
     if (sectionId === 'benefits-salary-policy') {
       return BENEFITS_SALARY_POLICY_FIELDS
@@ -802,8 +779,7 @@ export function EmployerCreationDialog({
           `layoffs[${idx}].layoffDate`,
           `layoffs[${idx}].numberOfEmployeesLaidOff`,
           `layoffs[${idx}].reason`,
-          `layoffs[${idx}].source`
-        )
+                  )
       })
       return fields
     }
@@ -1167,37 +1143,20 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="minEmployees">Minimum Employees</Label>
+                          <Label htmlFor="headcount">Headcount</Label>
                           <Input
-                            id="minEmployees"
-                            type="number"
-                            placeholder="10"
-                            min={1}
-                            value={formData.minEmployees}
-                            onChange={(e) => handleInputChange("minEmployees", e.target.value)}
-                            className={errors.employer?.minEmployees ? "border-red-500" : ""}
-                          />
-                          {errors.employer?.minEmployees && (
-                            <p className="text-sm text-red-500">{errors.employer.minEmployees}</p>
-                          )}
-                          <VerificationCheckbox fieldName="minEmployees" />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="maxEmployees">Maximum Employees</Label>
-                          <Input
-                            id="maxEmployees"
+                            id="headcount"
                             type="number"
                             placeholder="50"
                             min={1}
-                            value={formData.maxEmployees}
-                            onChange={(e) => handleInputChange("maxEmployees", e.target.value)}
-                            className={errors.employer?.maxEmployees ? "border-red-500" : ""}
+                            value={formData.headcount}
+                            onChange={(e) => handleInputChange("headcount", e.target.value)}
+                            className={errors.employer?.headcount ? "border-red-500" : ""}
                           />
-                          {errors.employer?.maxEmployees && (
-                            <p className="text-sm text-red-500">{errors.employer.maxEmployees}</p>
+                          {errors.employer?.headcount && (
+                            <p className="text-sm text-red-500">{errors.employer.headcount}</p>
                           )}
-                          <VerificationCheckbox fieldName="maxEmployees" />
+                          <VerificationCheckbox fieldName="headcount" />
                         </div>
 
                         <div className="space-y-2">
@@ -1254,10 +1213,10 @@ export function EmployerCreationDialog({
                 </Card>
               </Collapsible>
 
-              {/* Work Arrangements & Tags Section */}
+              {/* Work Arrangements Section */}
               <Collapsible
-                open={expandedSections.has("work-arrangements-tags")}
-                onOpenChange={() => toggleSection("work-arrangements-tags")}
+                open={expandedSections.has("work-arrangements")}
+                onOpenChange={() => toggleSection("work-arrangements")}
               >
                 <Card>
                   <CardHeader className="!flex flex-row flex-wrap items-center justify-between gap-2 py-3">
@@ -1267,16 +1226,16 @@ export function EmployerCreationDialog({
                         className="flex w-full min-w-0 cursor-pointer items-center justify-between gap-2 rounded-md text-left outline-none transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <CardTitle className="text-base flex min-w-0 flex-1 items-center gap-2 font-semibold leading-none">
-                          Work Arrangements &amp; Tags
+                          Work Arrangements
                           {showVerification && (
                             <SectionProgressBadge
-                              percentage={workArrangementsTagsProgress.percentage}
-                              verified={workArrangementsTagsProgress.verified}
-                              total={workArrangementsTagsProgress.total}
+                              percentage={workArrangementsProgress.percentage}
+                              verified={workArrangementsProgress.verified}
+                              total={workArrangementsProgress.total}
                             />
                           )}
                         </CardTitle>
-                        {expandedSections.has("work-arrangements-tags") ? (
+                        {expandedSections.has("work-arrangements") ? (
                           <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
                         ) : (
                           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
@@ -1286,13 +1245,13 @@ export function EmployerCreationDialog({
                     {showVerification && (
                       <div className="flex shrink-0 items-center gap-2">
                         <Checkbox
-                          id="verify-all-work-arrangements-tags"
-                          checked={isSectionFullyVerified("work-arrangements-tags")}
-                          onCheckedChange={(checked) => handleVerifyAllSection("work-arrangements-tags", checked === true)}
+                          id="verify-all-work-arrangements"
+                          checked={isSectionFullyVerified("work-arrangements")}
+                          onCheckedChange={(checked) => handleVerifyAllSection("work-arrangements", checked === true)}
                           className="h-4 w-4"
                         />
                         <Label
-                          htmlFor="verify-all-work-arrangements-tags"
+                          htmlFor="verify-all-work-arrangements"
                           className="text-xs text-muted-foreground cursor-pointer font-normal"
                         >
                           Verify All
@@ -1380,25 +1339,25 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="tags">Tags</Label>
+                          <Label htmlFor="awards">Awards</Label>
                           <MultiSelect
-                            items={tagOptions}
-                            selected={formData.tags}
+                            items={awardOptions}
+                            selected={formData.awards}
                             onChange={(values) => {
-                              setFormData(prev => ({ ...prev, tags: values }))
+                              setFormData(prev => ({ ...prev, awards: values }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("tags"))
-                                setVerifiedFields(prev => new Set(prev).add("tags"))
+                                setModifiedFields(prev => new Set(prev).add("awards"))
+                                setVerifiedFields(prev => new Set(prev).add("awards"))
                               }
                             }}
-                            placeholder="Select tags..."
-                            searchPlaceholder="Search tags..."
-                            maxDisplay={3}
+                            placeholder="Select awards..."
+                            searchPlaceholder="Search awards..."
+                            maxDisplay={5}
                             creatable={true}
-                            createLabel="Add Tag"
-                            onCreateNew={onCreateTag ? (name) => onCreateTag(name) : undefined}
+                            createLabel="+ Add Award"
+                            onCreateNew={onCreateAward ? (name) => onCreateAward(name) : undefined}
                           />
-                          <VerificationCheckbox fieldName="tags" />
+                          <VerificationCheckbox fieldName="awards" />
                         </div>
                       </div>
                     </CardContent>
@@ -1981,21 +1940,6 @@ export function EmployerCreationDialog({
                                 </div>
                               )}
                               <VerificationCheckbox fieldName={`layoffs[${index}].reason`} />
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor={`source-${index}`}>Source *</Label>
-                              <Input
-                                id={`source-${index}`}
-                                value={layoff.source}
-                                onChange={(e) => handleLayoffChange(index, "source", e.target.value)}
-                                placeholder="e.g., Company announcement, News article"
-                                className={errors.layoffs?.[index]?.source ? "border-red-500" : ""}
-                              />
-                              {errors.layoffs?.[index]?.source && (
-                                <p className="text-sm text-red-500">{errors.layoffs[index].source}</p>
-                              )}
-                              <VerificationCheckbox fieldName={`layoffs[${index}].source`} />
                             </div>
                           </div>
                         </CardContent>

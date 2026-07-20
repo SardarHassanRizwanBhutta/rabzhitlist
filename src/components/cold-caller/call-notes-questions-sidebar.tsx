@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   AlertCircle,
   Check,
@@ -12,10 +12,18 @@ import {
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
-import type { CandidateCertification, CandidateEducation, CandidateStandaloneProject, WorkExperience } from "@/lib/types/candidate"
+import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
 import { SECTION_LABELS } from "@/types/cold-caller"
 import { ProjectCatalogCollapsible } from "@/components/cold-caller/project-catalog-collapsible"
 import { EnrichmentQuestionChrome } from "@/components/cold-caller/enrichment-question-chrome"
@@ -27,8 +35,12 @@ import {
   groupQuestionsForDisplay,
   type QuestionDisplayBlock,
 } from "@/lib/utils/question-accordion-layout"
-import { catalogDetailsLabel } from "@/lib/utils/project-catalog-fields"
-import { certificationCatalogDetailsLabel, countMissingFieldsForCertificationCard, formatCertificationCardSubtitle, summarizeCertificationsMissingFields } from "@/lib/utils/certification-questions"
+import {
+  certificationCatalogDetailsLabel,
+  countMissingFieldsForCertificationCard,
+  formatCertificationCardSubtitle,
+  summarizeCertificationsMissingFields,
+} from "@/lib/utils/certification-questions"
 import {
   countMissingFieldsForEducationCard,
   educationCampusGroupLabel,
@@ -36,12 +48,17 @@ import {
   formatEducationCardSubtitle,
   summarizeEducationsMissingFields,
 } from "@/lib/utils/education-questions"
-import {
-  countMissingFieldsForIndependentProjectCard,
-  formatIndependentProjectCardSubtitle,
-  summarizeIndependentProjectsMissingFields,
-} from "@/lib/utils/independent-project-questions"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
+import {
+  buildQuestionEntryNavItems,
+  defaultQuestionEntryNavId,
+  filterBlocksForEntryNav,
+  isOverviewContentEmpty,
+  resolveQuestionEntryNavChrome,
+  splitAccordionBlocks,
+  type QuestionEntryNavId,
+  type QuestionEntryNavSection,
+} from "@/lib/utils/question-entry-nav"
 import {
   countMissingFieldsForWorkExperienceCard,
   formatWorkExperienceCardSubtitle,
@@ -61,7 +78,6 @@ interface CallNotesQuestionsSidebarProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  standaloneProjects?: CandidateStandaloneProject[]
   section?: FieldSection
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
@@ -210,7 +226,6 @@ export function CallNotesQuestionsSidebar({
   workExperiences,
   educations,
   certifications,
-  standaloneProjects,
   section,
   activeQuestionField,
   onQuestionSelect,
@@ -218,6 +233,7 @@ export function CallNotesQuestionsSidebar({
   className,
 }: CallNotesQuestionsSidebarProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [activeEntryNavId, setActiveEntryNavId] = useState<QuestionEntryNavId>("overview")
 
   const fieldMetaByApiName = useMemo(
     () => buildQuestionFieldLabelMap(emptyFields),
@@ -237,15 +253,78 @@ export function CallNotesQuestionsSidebar({
   )
 
   const useAccordionLayout =
-    section === "projects" ||
     section === "workExperience" ||
     section === "certifications" ||
     section === "education"
+
+  const entryNavSection: QuestionEntryNavSection | null =
+    section === "workExperience" || section === "education" || section === "certifications"
+      ? section
+      : null
 
   const displayBlocks = useMemo(() => {
     if (!useAccordionLayout || !section) return null
     return groupQuestionsForDisplay(section, sortedQuestions)
   }, [section, sortedQuestions, useAccordionLayout])
+
+  const accordionSplit = useMemo(() => {
+    if (!displayBlocks) return null
+    return splitAccordionBlocks(displayBlocks)
+  }, [displayBlocks])
+
+  const entryNavChrome = useMemo(() => {
+    if (!accordionSplit) return "hidden" as const
+    return resolveQuestionEntryNavChrome(
+      accordionSplit.entryCount,
+      accordionSplit.hasOverviewQuestions,
+    )
+  }, [accordionSplit])
+
+  const entryNavItems = useMemo(() => {
+    if (!entryNavSection || !accordionSplit || entryNavChrome === "hidden") return []
+    const missing = uniqueMissingFields ?? []
+    const countEntryMissing = (index: number) => {
+      if (entryNavSection === "workExperience") {
+        return countMissingFieldsForWorkExperienceCard(missing, index)
+      }
+      if (entryNavSection === "education") {
+        return countMissingFieldsForEducationCard(missing, index)
+      }
+      return countMissingFieldsForCertificationCard(missing, index)
+    }
+    return buildQuestionEntryNavItems({
+      section: entryNavSection,
+      entryBlocks: accordionSplit.entryBlocks,
+      includeOverview: true,
+      missingFields: uniqueMissingFields,
+      countEntryMissing,
+      workExperiences,
+      educations,
+      certifications,
+    })
+  }, [
+    entryNavSection,
+    accordionSplit,
+    entryNavChrome,
+    uniqueMissingFields,
+    workExperiences,
+    educations,
+    certifications,
+  ])
+
+  useEffect(() => {
+    if (!accordionSplit) {
+      setActiveEntryNavId("overview")
+      return
+    }
+    setActiveEntryNavId(defaultQuestionEntryNavId(entryNavChrome, accordionSplit.entryBlocks))
+  }, [section, entryNavChrome, accordionSplit])
+
+  const visibleBlocks = useMemo(() => {
+    if (!displayBlocks) return null
+    if (entryNavChrome === "hidden") return displayBlocks
+    return filterBlocksForEntryNav(displayBlocks, activeEntryNavId)
+  }, [displayBlocks, entryNavChrome, activeEntryNavId])
 
   const handleCopy = (apiFieldName: string, text: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -304,7 +383,11 @@ export function CallNotesQuestionsSidebar({
     return { nodes, nextIndex: idx }
   }
 
-  const renderBlocks = (blocks: QuestionDisplayBlock[]) => {
+  const renderBlocks = (
+    blocks: QuestionDisplayBlock[],
+    options?: { hideEntryCardChrome?: boolean },
+  ) => {
+    const hideEntryCardChrome = options?.hideEntryCardChrome ?? false
     let globalIndex = 0
     const sections: React.ReactNode[] = []
 
@@ -372,20 +455,28 @@ export function CallNotesQuestionsSidebar({
         })
 
         sections.push(
-          <div key={`role-${block.roleIndex}`} className="space-y-2 rounded-md border border-border/60 p-2">
-            <div className="px-1">
-              <p className="text-xs font-semibold text-foreground">{block.title}</p>
-              {cardSubtitle && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
-                  {cardSubtitle}
-                </p>
-              )}
-              {cardMissingCount > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {cardMissingCount} missing
-                </p>
-              )}
-            </div>
+          <div
+            key={`role-${block.roleIndex}`}
+            className={cn(
+              "space-y-2",
+              !hideEntryCardChrome && "rounded-md border border-border/60 p-2",
+            )}
+          >
+            {!hideEntryCardChrome && (
+              <div className="px-1">
+                <p className="text-xs font-semibold text-foreground">{block.title}</p>
+                {cardSubtitle && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
+                    {cardSubtitle}
+                  </p>
+                )}
+                {cardMissingCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {cardMissingCount} missing
+                  </p>
+                )}
+              </div>
+            )}
             {linkRendered.nodes.length > 0 && (
               <ul className="space-y-1" role="list">
                 {linkRendered.nodes}
@@ -425,60 +516,6 @@ export function CallNotesQuestionsSidebar({
         continue
       }
 
-      if (block.type === "independent-project-block") {
-        const cardMissingCount =
-          section === "projects" && uniqueMissingFields
-            ? countMissingFieldsForIndependentProjectCard(uniqueMissingFields, block.projectIndex)
-            : 0
-        const cardSubtitle =
-          section === "projects"
-            ? formatIndependentProjectCardSubtitle(
-                standaloneProjects?.[block.projectIndex]?.projectName,
-              )
-            : null
-
-        const linkRendered = renderQuestionList(block.linkQuestions, globalIndex)
-        globalIndex = linkRendered.nextIndex
-        const catalogRendered = renderQuestionList(block.catalogQuestions, globalIndex)
-        globalIndex = catalogRendered.nextIndex
-
-        sections.push(
-          <div
-            key={`project-${block.projectIndex}`}
-            className="space-y-2 rounded-md border border-border/60 p-2"
-          >
-            <div className="px-1">
-              <p className="text-xs font-semibold text-foreground">{block.title}</p>
-              {cardSubtitle && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
-                  {cardSubtitle}
-                </p>
-              )}
-              {cardMissingCount > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {cardMissingCount} missing
-                </p>
-              )}
-            </div>
-            {linkRendered.nodes.length > 0 && (
-              <ul className="space-y-1" role="list">
-                {linkRendered.nodes}
-              </ul>
-            )}
-            {block.catalogQuestions.length > 0 && (
-              <ProjectCatalogCollapsible
-                label={catalogDetailsLabel(block.catalogQuestions.length)}
-              >
-                <ul className="space-y-1 w-full" role="list">
-                  {catalogRendered.nodes}
-                </ul>
-              </ProjectCatalogCollapsible>
-            )}
-          </div>,
-        )
-        continue
-      }
-
       if (block.type === "certification-block") {
         const cardMissingCount =
           section === "certifications" && uniqueMissingFields
@@ -497,21 +534,26 @@ export function CallNotesQuestionsSidebar({
         sections.push(
           <div
             key={`cert-${block.certIndex}`}
-            className="space-y-2 rounded-md border border-border/60 p-2"
+            className={cn(
+              "space-y-2",
+              !hideEntryCardChrome && "rounded-md border border-border/60 p-2",
+            )}
           >
-            <div className="px-1">
-              <p className="text-xs font-semibold text-foreground">{block.title}</p>
-              {cardSubtitle && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
-                  {cardSubtitle}
-                </p>
-              )}
-              {cardMissingCount > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {cardMissingCount} missing
-                </p>
-              )}
-            </div>
+            {!hideEntryCardChrome && (
+              <div className="px-1">
+                <p className="text-xs font-semibold text-foreground">{block.title}</p>
+                {cardSubtitle && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
+                    {cardSubtitle}
+                  </p>
+                )}
+                {cardMissingCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {cardMissingCount} missing
+                  </p>
+                )}
+              </div>
+            )}
             {linkRendered.nodes.length > 0 && (
               <ul className="space-y-1" role="list">
                 {linkRendered.nodes}
@@ -570,21 +612,26 @@ export function CallNotesQuestionsSidebar({
         sections.push(
           <div
             key={`edu-${block.eduIndex}`}
-            className="space-y-2 rounded-md border border-border/60 p-2"
+            className={cn(
+              "space-y-2",
+              !hideEntryCardChrome && "rounded-md border border-border/60 p-2",
+            )}
           >
-            <div className="px-1">
-              <p className="text-xs font-semibold text-foreground">{block.title}</p>
-              {cardSubtitle && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
-                  {cardSubtitle}
-                </p>
-              )}
-              {cardMissingCount > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {cardMissingCount} missing
-                </p>
-              )}
-            </div>
+            {!hideEntryCardChrome && (
+              <div className="px-1">
+                <p className="text-xs font-semibold text-foreground">{block.title}</p>
+                {cardSubtitle && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
+                    {cardSubtitle}
+                  </p>
+                )}
+                {cardMissingCount > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {cardMissingCount} missing
+                  </p>
+                )}
+              </div>
+            )}
             {linkRendered.nodes.length > 0 && (
               <ul className="space-y-1" role="list">
                 {linkRendered.nodes}
@@ -617,6 +664,86 @@ export function CallNotesQuestionsSidebar({
     }
 
     return sections
+  }
+
+  const renderEntryNavChrome = () => {
+    if (entryNavChrome === "hidden" || entryNavItems.length === 0) return null
+
+    if (entryNavChrome === "select") {
+      return (
+        <div className="px-2 pb-1">
+          <Select
+            value={activeEntryNavId}
+            onValueChange={(value) => setActiveEntryNavId(value as QuestionEntryNavId)}
+          >
+            <SelectTrigger size="sm" className="w-full max-w-full">
+              <SelectValue placeholder="Select entry" />
+            </SelectTrigger>
+            <SelectContent>
+              {entryNavItems.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.optionLabel}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )
+    }
+
+    return (
+      <div className="px-2 pb-1">
+        <Tabs
+          value={activeEntryNavId}
+          onValueChange={(value) => setActiveEntryNavId(value as QuestionEntryNavId)}
+        >
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+            {entryNavItems.map((item) => (
+              <TabsTrigger
+                key={item.id}
+                value={item.id}
+                className="max-w-full text-[11px] px-2 py-1 h-auto whitespace-normal text-left"
+                title={item.label}
+              >
+                <span className="truncate">{item.label}</span>
+                {item.missingCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="ml-1 h-4 px-1 text-[9px] tabular-nums shrink-0"
+                  >
+                    {item.missingCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+    )
+  }
+
+  const renderAccordionQuestions = () => {
+    if (!visibleBlocks) return null
+
+    const hideEntryCardChrome = entryNavChrome !== "hidden"
+    const overviewEmpty =
+      activeEntryNavId === "overview" &&
+      entryNavChrome !== "hidden" &&
+      accordionSplit != null &&
+      isOverviewContentEmpty(accordionSplit.overviewBlocks)
+
+    return (
+      <div className="space-y-2">
+        {renderEntryNavChrome()}
+        {overviewEmpty ? (
+          <div className="px-2 py-6 text-center">
+            <p className="text-sm text-muted-foreground">No overview questions.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">{renderBlocks(visibleBlocks, { hideEntryCardChrome })}</div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -683,10 +810,6 @@ export function CallNotesQuestionsSidebar({
               <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
                 {summarizeWorkExperienceMissingFields(uniqueMissingFields)}
               </p>
-            ) : section === "projects" ? (
-              <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
-                {summarizeIndependentProjectsMissingFields(uniqueMissingFields)}
-              </p>
             ) : section === "certifications" ? (
               <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
                 {summarizeCertificationsMissingFields(uniqueMissingFields)}
@@ -733,53 +856,36 @@ export function CallNotesQuestionsSidebar({
           </div>
         ) : (
           <div className="p-2 space-y-2">
-            {uniqueMissingFields && uniqueMissingFields.length > 0 && (
-              <div className="px-2 pb-1 min-w-0">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                  Missing fields
-                </p>
-                {section === "workExperience" ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {summarizeWorkExperienceMissingFields(uniqueMissingFields)}
-                  </p>
-                ) : section === "projects" ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {summarizeIndependentProjectsMissingFields(uniqueMissingFields)}
-                  </p>
-                ) : section === "certifications" ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {summarizeCertificationsMissingFields(uniqueMissingFields)}
-                  </p>
-                ) : section === "education" ? (
-                  <p className="text-[10px] text-muted-foreground">
-                    {summarizeEducationsMissingFields(uniqueMissingFields)}
-                  </p>
-                ) : (
-                <div className="flex flex-wrap gap-1 min-w-0">
-                  {uniqueMissingFields.map((fieldKey) => {
-                    const meta = resolveQuestionFieldMeta(fieldKey, emptyFields)
-                    return (
-                      <Badge
-                        key={fieldKey}
-                        variant="secondary"
-                        className="text-[10px] max-w-full truncate"
-                        title={meta.label}
-                      >
-                        {meta.label}
-                      </Badge>
-                    )
-                  })}
-                </div>
-                )}
-              </div>
-            )}
-
             {useAccordionLayout && displayBlocks ? (
-              <div className="space-y-2">{renderBlocks(displayBlocks)}</div>
+              renderAccordionQuestions()
             ) : (
-              <ul className="space-y-1" role="list">
-                {renderQuestionList(sortedQuestions, 0).nodes}
-              </ul>
+              <>
+                {uniqueMissingFields && uniqueMissingFields.length > 0 && (
+                  <div className="px-2 pb-1 min-w-0">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                      Missing fields
+                    </p>
+                    <div className="flex flex-wrap gap-1 min-w-0">
+                      {uniqueMissingFields.map((fieldKey) => {
+                        const meta = resolveQuestionFieldMeta(fieldKey, emptyFields)
+                        return (
+                          <Badge
+                            key={fieldKey}
+                            variant="secondary"
+                            className="text-[10px] max-w-full truncate"
+                            title={meta.label}
+                          >
+                            {meta.label}
+                          </Badge>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+                <ul className="space-y-1" role="list">
+                  {renderQuestionList(sortedQuestions, 0).nodes}
+                </ul>
+              </>
             )}
           </div>
         )}

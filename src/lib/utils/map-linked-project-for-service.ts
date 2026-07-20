@@ -1,6 +1,5 @@
 import type { LinkedProjectFields } from "@/lib/types/candidate"
 import type {
-  StandaloneProjectForService,
   WorkExperienceProjectForService,
 } from "@/types/question-generation"
 import { PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
@@ -102,7 +101,12 @@ export function parseLinkedProjectCatalogFromApi(
     horizontalDomains: parseStringArray(nested.horizontalDomains),
     verticalDomains: parseStringArray(nested.verticalDomains),
     description: nested.description != null ? String(nested.description) : null,
-    notes: nested.notes != null ? String(nested.notes) : null,
+    latestUpdate:
+      nested.latestUpdate != null
+        ? String(nested.latestUpdate)
+        : nested.notes != null
+          ? String(nested.notes)
+          : null,
     startDate: parseIsoDate(nested.startDate),
     endDate: parseIsoDate(nested.endDate),
     link:
@@ -141,7 +145,7 @@ export function mapLinkedProjectToServicePayload(
     projectName: string
     contributionNotes: string | null
   },
-): StandaloneProjectForService & WorkExperienceProjectForService {
+): WorkExperienceProjectForService {
   return {
     projectName: emptyToNull(project.projectName) ?? project.projectName,
     contributionNotes: emptyToNull(project.contributionNotes),
@@ -160,7 +164,7 @@ export function mapLinkedProjectToServicePayload(
     horizontalDomains: stringArray(project.horizontalDomains),
     verticalDomains: stringArray(project.verticalDomains),
     description: emptyToNull(project.description),
-    notes: emptyToNull(project.notes),
+    latestUpdate: emptyToNull(project.latestUpdate),
     startDate: toIsoDate(project.startDate),
     endDate: toIsoDate(project.endDate),
     link: emptyToNull(project.link),
@@ -172,7 +176,7 @@ export function mapLinkedProjectToServicePayload(
 
 /** For tests / debugging — read mapped payload value by api suffix. */
 export function servicePayloadValueForApiSuffix(
-  payload: StandaloneProjectForService,
+  payload: WorkExperienceProjectForService,
   apiSuffix: string,
 ): unknown {
   const payloadKey = apiSuffix === "projectLink" ? "link" : apiSuffix

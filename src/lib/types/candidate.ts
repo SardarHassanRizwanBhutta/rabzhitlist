@@ -18,7 +18,7 @@ export interface LinkedProjectFields {
   horizontalDomains?: string[]
   verticalDomains?: string[]
   description?: string | null
-  notes?: string | null
+  latestUpdate?: string | null
   startDate?: Date | undefined
   endDate?: Date | undefined
   link?: string | null
@@ -47,7 +47,6 @@ export interface WorkExperienceLayoffRow {
   layoffDate?: Date | null
   affectedEmployees?: number | null
   reason?: string | null
-  source?: string | null
 }
 
 export interface WorkExperience {
@@ -75,7 +74,6 @@ export interface WorkExperience {
   linkedinUrl?: string | null
   isDplCompetitor?: boolean | null
   salaryPolicy?: string | null
-  tags?: string[]
   locations?: WorkExperienceOfficeLocation[]
   layoffs?: WorkExperienceLayoffRow[]
 }
@@ -127,15 +125,6 @@ export interface CandidateEducation {
   locations?: EducationCampusLocation[]
 }
 
-export interface CandidateStandaloneProject extends LinkedProjectFields {
-  id: string
-  /** Linked project id for API payloads; null when not selected. */
-  projectId: number | null
-  /** Cached display name (from API or combobox). */
-  projectName: string
-  contributionNotes: string | null
-}
-
 export interface OrganizationalRole {
   id: string
   organizationName: string  // e.g., "PASHA"
@@ -179,8 +168,7 @@ export interface MatchedTeamSizeDto {
 
 /** Headcount range on a matched employer (`matchedEmployers[].size`). */
 export interface MatchedEmployerSizeDto {
-  minEmployees?: number
-  maxEmployees?: number
+  headcount?: number
 }
 
 /** Per-education row match summary from GET /api/candidates list (`matchedEducations`). */
@@ -317,12 +305,9 @@ export interface Candidate {
   resumeFileSizeBytes?: number | null
   resumeUploadedAt?: string | null
   workExperiences?: WorkExperience[] 
-  projects?: CandidateStandaloneProject[] // Standalone projects not associated with work experience
   certifications?: CandidateCertification[] | null
   educations?: CandidateEducation[] 
   techStacks?: string[] // Standalone tech stacks (overall technical skills, not tied to specific employer)
-  /** Top developer screening flag from API (`isTopDeveloper`). */
-  isTopDeveloper?: boolean
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
   achievements?: Achievement[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms, Open Source contributions, Awards, Medals)

@@ -1,4 +1,4 @@
-import type { Candidate } from "@/lib/types/candidate"
+﻿import type { Candidate } from "@/lib/types/candidate"
 import type { CandidateFilters } from "@/components/candidates-filter-dialog"
 import type { Project } from "@/lib/types/project"
 import {
@@ -79,7 +79,7 @@ function candidateCityContainsNeedle(candidate: Candidate, cityNeedle: string): 
   return cand.includes(needle)
 }
 
-/** Stored profile completion (`dataProgressPercentage`, 0–100) within filter bounds. */
+/** Stored profile completion (`dataProgressPercentage`, 0â€“100) within filter bounds. */
 function candidateMatchesDataProgressFilter(candidate: Candidate, filters: CandidateFilters): boolean {
   if (!filters.dataProgressMin.trim() && !filters.dataProgressMax.trim()) return false
   if (candidate.dataProgressPercentage == null || Number.isNaN(candidate.dataProgressPercentage)) {
@@ -148,8 +148,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.timeSupportZones.length > 0 ||
-    filters.workedWithTopDeveloper === true ||
-    filters.isTopDeveloper !== null ||
     filters.jobTitle ||
     filters.yearsOfExperienceMin ||
     filters.yearsOfExperienceMax ||
@@ -272,17 +270,15 @@ function calculateWorkModeYears(candidate: Candidate, workMode: string): number 
 }
 
 /**
- * Get candidate's projects (from work experience and standalone)
+ * Get candidate's projects (from work experience nested projects only).
  */
 function getCandidateProjects(candidate: Candidate) {
   const workExperienceProjectNames = candidate.workExperiences?.flatMap(we => 
     we.projects.map(p => p.projectName)
   ) || []
-  const standaloneProjectNames = candidate.projects?.map(p => p.projectName) || []
-  const candidateProjectNames = [...workExperienceProjectNames, ...standaloneProjectNames]
   
   return sampleProjects.filter(project => 
-    candidateProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
+    workExperienceProjectNames.some(name => name.toLowerCase() === project.projectName.toLowerCase())
   )
 }
 
@@ -344,13 +340,7 @@ function formatTeamSizeBadge(teamSize: MatchedTeamSizeDto): string {
 }
 
 function formatEmployerSizeBadge(size: MatchedEmployerSizeDto): string {
-  const min = size.minEmployees
-  const max = size.maxEmployees
-  if (min != null && max != null) {
-    return min === max ? `${min} employees` : `${min}-${max} employees`
-  }
-  if (min != null) return `${min} employees`
-  if (max != null) return `${max} employees`
+  if (size.headcount != null) return `${size.headcount} employees`
   return ""
 }
 
@@ -407,16 +397,16 @@ function resolveEmployerRankingLabel(domain: MatchedDomainDto): string {
 
 function formatDownloadCountThreshold(filterValue: string): string {
   const n = Number(filterValue.replace(/,/g, "").trim())
-  if (!Number.isFinite(n) || n <= 0) return `≥ ${filterValue.trim()}`
+  if (!Number.isFinite(n) || n <= 0) return `â‰¥ ${filterValue.trim()}`
   if (n >= 1_000_000) {
     const m = n / 1_000_000
-    return `≥ ${Number.isInteger(m) ? m : m.toFixed(1)}M`
+    return `â‰¥ ${Number.isInteger(m) ? m : m.toFixed(1)}M`
   }
   if (n >= 1_000) {
     const k = n / 1_000
-    return `≥ ${Number.isInteger(k) ? k : k.toFixed(1)}K`
+    return `â‰¥ ${Number.isInteger(k) ? k : k.toFixed(1)}K`
   }
-  return `≥ ${n.toLocaleString()}`
+  return `â‰¥ ${n.toLocaleString()}`
 }
 
 function formatProjectStartDateBadge(iso: string): string {
@@ -429,7 +419,7 @@ function hasPublishRelatedFilter(filters: CandidateFilters): boolean {
   return filters.hasPublishedProject === true || filters.publishPlatforms.length > 0
 }
 
-/** Active list filters that drive backend `matchedProjects` (Phases 1–3). */
+/** Active list filters that drive backend `matchedProjects` (Phases 1â€“3). */
 function hasBackendMatchedProjectFilterDrivers(filters: CandidateFilters): boolean {
   return (
     filters.verticalDomains.length > 0 ||
@@ -1149,7 +1139,7 @@ export function getCandidateMatchContext(
         hasMatch = true
       }
 
-      // Project status, tech stacks, domains, type — skip mock path when backend matchedProjects is used
+      // Project status, tech stacks, domains, type â€” skip mock path when backend matchedProjects is used
       if (!useBackendMatchedProjects) {
       if (filters.projectStatus.includes(project.status)) {
         matchedCriteria.push({
@@ -1236,7 +1226,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'projects',
         label: 'Project Expertise',
-        icon: '📊',
+        icon: 'ðŸ“Š',
         color: 'blue',
         count: projectItems.length,
         items: projectItems
@@ -1361,32 +1351,21 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
 
-        // Employer size match
+        // Employer size match (company-wide headcount)
         if (filters.employerSizeMin || filters.employerSizeMax) {
-          let totalMinSize: number
-          let totalMaxSize: number
-          if (employer.minEmployees != null || employer.maxEmployees != null) {
-            totalMinSize = employer.minEmployees ?? employer.maxEmployees ?? 0
-            totalMaxSize = employer.maxEmployees ?? employer.minEmployees ?? 0
-          } else {
-            totalMinSize = employer.locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
-            totalMaxSize = employer.locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
-          }
+          const headcount = employer.headcount
+          if (headcount != null) {
+            const filterMinSize = filters.employerSizeMin ? parseInt(filters.employerSizeMin) : 0
+            const filterMaxSize = filters.employerSizeMax ? parseInt(filters.employerSizeMax) : Infinity
 
-          const filterMinSize = filters.employerSizeMin ? parseInt(filters.employerSizeMin) : 0
-          const filterMaxSize = filters.employerSizeMax ? parseInt(filters.employerSizeMax) : Infinity
-          
-          // Check if the employer's size range overlaps with the filter range
-          if (totalMaxSize >= filterMinSize && totalMinSize <= filterMaxSize) {
-            const sizeDisplay = totalMinSize === totalMaxSize 
-              ? `${totalMinSize}` 
-              : `${totalMinSize}-${totalMaxSize}`
-            matchedCriteria.push({
-              type: 'size',
-              label: 'Company Size',
-              values: [`${sizeDisplay} employees`]
-            })
-            hasMatch = true
+            if (headcount >= filterMinSize && headcount <= filterMaxSize) {
+              matchedCriteria.push({
+                type: 'size',
+                label: 'Company Size',
+                values: [`${headcount} employees`]
+              })
+              hasMatch = true
+            }
           }
         }
       }
@@ -1409,7 +1388,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'employers',
         label: 'Employer Experience',
-        icon: '🏢',
+        icon: 'ðŸ¢',
         color: 'purple',
         count: employerItems.length,
         items: employerItems
@@ -1566,7 +1545,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'education',
         label: 'Education Background',
-        icon: '🎓',
+        icon: 'ðŸŽ“',
         color: 'green',
         count: educationItems.length,
         items: educationItems
@@ -1585,7 +1564,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'certifications',
         label: 'Certifications',
-        icon: '📜',
+        icon: 'ðŸ“œ',
         color: 'orange',
         count: certificationItems.length,
         items: certificationItems
@@ -1604,7 +1583,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'competitions',
         label: 'Achievements',
-        icon: '🏆',
+        icon: 'ðŸ†',
         color: 'purple',
         count: achievementItems.length,
         items: achievementItems
@@ -1622,8 +1601,7 @@ export function getCandidateMatchContext(
     filters.expectedSalaryMin ||
     filters.expectedSalaryMax ||
     filters.dataProgressMin ||
-    filters.dataProgressMax ||
-    filters.isTopDeveloper !== null
+    filters.dataProgressMax
   )
 
   if (hasBasicFilters) {
@@ -1700,17 +1678,6 @@ export function getCandidateMatchContext(
       })
     }
 
-    if (filters.isTopDeveloper !== null) {
-      const isTopDeveloper = candidate.isTopDeveloper === true
-      if (filters.isTopDeveloper === isTopDeveloper) {
-        matchedCriteria.push({
-          type: 'topDeveloper',
-          label: 'Top Developer',
-          values: [isTopDeveloper ? 'Yes' : 'No'],
-        })
-      }
-    }
-
     if (matchedCriteria.length > 0) {
       basicItems.push({
         name: 'Basic Information',
@@ -1721,7 +1688,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'basic',
         label: 'Basic Information',
-        icon: 'ℹ️',
+        icon: 'â„¹ï¸',
         color: 'gray',
         count: basicItems.length,
         items: basicItems
@@ -1900,206 +1867,10 @@ export function getCandidateMatchContext(
       categories.push({
         type: "workExperience",
         label: "Work Experience",
-        icon: "💼",
+        icon: "ðŸ’¼",
         color: "indigo",
         count: workExperienceItems.length,
         items: workExperienceItems,
-      })
-    }
-  }
-
-  // Worked with Top Developer Match Context
-  if (filters.workedWithTopDeveloper === true) {
-    const collaborationItems: MatchItem[] = []
-    
-    // Check if tolerance window should be applied
-    const useTolerance = filters.workedWithTopDeveloperUseTolerance ?? true
-    const toleranceDays = useTolerance 
-      ? (filters.joinedProjectFromStartToleranceDays || 30)
-      : Infinity  // No limit when tolerance is disabled
-    
-    // Find all top developers
-    const topDevelopers = sampleCandidates.filter(c => c.isTopDeveloper === true)
-    
-    // Find which top developers worked on the same projects
-    topDevelopers.forEach(topDev => {
-      if (topDev.id === candidate.id) return // Skip if the candidate is themselves a top developer
-      
-      // Track shared projects
-      const sharedProjects: Array<{ projectName: string; employerName: string | null }> = []
-      
-      // Check candidate's work experiences
-      candidate.workExperiences?.forEach(candidateWE => {
-        // If employer filter is active, only check projects at matching employers
-        if (filters.employers.length > 0) {
-          if (!workExperienceMatchesEmployerFilter(candidateWE, filters.employers)) return
-          // If tolerance is enabled, require startDate; if disabled, startDate is optional
-          if (useTolerance && !candidateWE.startDate) return
-        } else {
-          // If tolerance is enabled, require startDate; if disabled, startDate is optional
-          if (useTolerance && !candidateWE.startDate) return
-        }
-        
-        candidateWE.projects.forEach(candidateProj => {
-          if (!candidateProj.projectName) return
-          
-          const candidateProjName = candidateProj.projectName.toLowerCase().trim()
-          
-          // Check against top developer's work experiences
-          topDev.workExperiences?.forEach(topDevWE => {
-            // If employer filter is active, only check projects at matching employers
-            if (filters.employers.length > 0) {
-              if (!workExperienceMatchesEmployerFilter(topDevWE, filters.employers)) return
-              // If tolerance is enabled, require startDate; if disabled, startDate is optional
-              if (useTolerance && !topDevWE.startDate) return
-            } else {
-              // If tolerance is enabled, require startDate; if disabled, startDate is optional
-              if (useTolerance && !topDevWE.startDate) return
-            }
-            
-            // Check if same project and same employer
-            topDevWE.projects.forEach(topDevProj => {
-              if (!topDevProj.projectName) return
-              
-              const topDevProjName = topDevProj.projectName.toLowerCase().trim()
-              
-              if (candidateProjName === topDevProjName &&
-                  candidateWE.employerName.toLowerCase().trim() === 
-                  topDevWE.employerName.toLowerCase().trim()) {
-                
-                // If tolerance is disabled, match immediately
-                if (!useTolerance) {
-                  sharedProjects.push({
-                    projectName: candidateProj.projectName,
-                    employerName: candidateWE.employerName
-                  })
-                  return
-                }
-                
-                // If tolerance is enabled, compare both work experience start dates with project start date
-                // Find the project to get its start date
-                const project = sampleProjects.find(p => 
-                  p.projectName.trim().toLowerCase() === candidateProjName
-                )
-                
-                if (project && project.startDate && candidateWE.startDate && topDevWE.startDate) {
-                  const projectStart = new Date(project.startDate)
-                  const candidateStart = new Date(candidateWE.startDate)
-                  const topDevStart = new Date(topDevWE.startDate)
-                  
-                  // Normalize dates to start of day for accurate comparison
-                  projectStart.setHours(0, 0, 0, 0)
-                  candidateStart.setHours(0, 0, 0, 0)
-                  topDevStart.setHours(0, 0, 0, 0)
-                  
-                  // Calculate absolute difference in days between each person's work start and project start
-                  const candidateDiffTime = Math.abs(candidateStart.getTime() - projectStart.getTime())
-                  const candidateDiffDays = Math.ceil(candidateDiffTime / (1000 * 60 * 60 * 24))
-                  
-                  const topDevDiffTime = Math.abs(topDevStart.getTime() - projectStart.getTime())
-                  const topDevDiffDays = Math.ceil(topDevDiffTime / (1000 * 60 * 60 * 24))
-                  
-                  // They worked together if both are within tolerance window of project start date
-                  if (candidateDiffDays <= toleranceDays && topDevDiffDays <= toleranceDays) {
-                    sharedProjects.push({
-                      projectName: candidateProj.projectName,
-                      employerName: candidateWE.employerName
-                    })
-                  }
-                }
-              }
-            })
-          })
-        })
-      })
-      
-      // Check standalone projects only if no employer filter is set
-      // Note: For standalone projects, we can't check work experience dates,
-      // so we maintain backward compatibility by allowing matches without timeline check
-      if (filters.employers.length === 0) {
-        const candidateStandaloneProjects = new Set<string>()
-        candidate.projects?.forEach(p => {
-          if (p.projectName) {
-            candidateStandaloneProjects.add(p.projectName.toLowerCase().trim())
-          }
-        })
-        
-        topDev.projects?.forEach(topDevProj => {
-          if (!topDevProj.projectName) return
-          
-          const topDevProjName = topDevProj.projectName.toLowerCase().trim()
-          
-          if (candidateStandaloneProjects.has(topDevProjName)) {
-            sharedProjects.push({
-              projectName: topDevProj.projectName,
-              employerName: null
-            })
-          }
-        })
-      }
-      
-      if (sharedProjects.length > 0) {
-        // Collect all unique project names and employers
-        const allProjectNames = Array.from(new Set(sharedProjects.map(sp => sp.projectName)))
-        const uniqueEmployers = Array.from(new Set(
-          sharedProjects
-            .map(sp => sp.employerName)
-            .filter((emp): emp is string => emp !== null)
-        ))
-        
-        const matchedCriteria: MatchCriterion[] = [
-          {
-            type: 'sharedProject',
-            label: 'Shared Project',
-            values: allProjectNames
-          }
-        ]
-        
-        // Add employer context if any projects have employers
-        if (uniqueEmployers.length > 0) {
-          matchedCriteria.push({
-            type: 'employer',
-            label: 'At Employer',
-            values: uniqueEmployers
-          })
-        }
-        
-        // Add tolerance window info if applicable
-        if (useTolerance && toleranceDays !== 30) {
-          matchedCriteria.push({
-            type: 'toleranceWindow',
-            label: 'Within Tolerance',
-            values: [`${toleranceDays} days`]
-          })
-        } else if (!useTolerance) {
-          matchedCriteria.push({
-            type: 'toleranceWindow',
-            label: 'Tolerance',
-            values: ['Disabled (any date)']
-          })
-        }
-        
-        collaborationItems.push({
-          name: `Collaborated with ${topDev.name}`,
-          matchedCriteria,
-          context: {
-            topDeveloperId: topDev.id,
-            topDeveloperName: topDev.name,
-            employers: uniqueEmployers.length > 0 ? uniqueEmployers : undefined,
-            sharedProjects: allProjectNames
-          }
-        })
-      }
-    })
-    
-    if (collaborationItems.length > 0) {
-      categories.push({
-        type: 'collaboration',
-        label: 'Top Developer Collaboration',
-        icon: '🌟',
-        color: 'yellow',
-        count: collaborationItems.length,
-        items: collaborationItems
       })
     }
   }
@@ -2169,7 +1940,7 @@ export function getCandidateMatchContext(
         categories.push({
           type: 'collaboration',
           label: 'Mutual Connections with DPL',
-          icon: '🤝',
+          icon: 'ðŸ¤',
           color: 'blue',
           count: connectionItems.length,
           items: connectionItems
@@ -2232,7 +2003,7 @@ export function getCandidateMatchContext(
       categories.push({
         type: 'published',
         label: 'Published Apps',
-        icon: '📱',
+        icon: 'ðŸ“±',
         color: 'green',
         count: publishedItems.length,
         items: publishedItems
@@ -2275,7 +2046,7 @@ export function getCandidateMatchContext(
         categories.push({
           type: 'employers', // Reuse type
           label: 'Tech Stack Experience',
-          icon: '⚡',
+          icon: 'âš¡',
           color: 'blue',
           count: techStackYearsItems.length,
           items: techStackYearsItems
@@ -2319,7 +2090,7 @@ export function getCandidateMatchContext(
         categories.push({
           type: 'employers', // Reuse type
           label: 'Work Mode Experience',
-          icon: '🏠',
+          icon: 'ðŸ ',
           color: 'purple',
           count: workModeYearsItems.length,
           items: workModeYearsItems

@@ -208,9 +208,6 @@ const defaultFilters: CandidateFilters = {
     minYears: ""
   },
   timeSupportZones: [],
-  workedWithTopDeveloper: null,
-  workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
-  isTopDeveloper: null,
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",

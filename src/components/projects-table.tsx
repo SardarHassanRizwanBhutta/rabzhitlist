@@ -108,7 +108,6 @@ import {
   PUBLISH_PLATFORM_FILTER_OPTIONS,
   type ProjectStatus,
 } from "@/lib/types/project"
-import { sampleCandidates } from "@/lib/sample-data/candidates"
 import {
   VERTICAL_DOMAINS,
   HORIZONTAL_DOMAINS,
@@ -122,6 +121,8 @@ import {
   buildCreateEmployerDto,
 } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import { fetchAwards, createAward } from "@/lib/services/awards-api"
+import type { LookupItem } from "@/lib/services/lookups-api"
 import type { ProjectLookups, SelectedEmployer } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
@@ -185,9 +186,9 @@ const validateTeamSize = (size: string): string | null => {
   return 'Invalid format. Use "5" or "20-30"'
 }
 
-const validateNotes = (notes: string): string | null => {
-  if (notes.length > 500) {
-    return 'Notes must be less than 500 characters'
+const validateLatestUpdate = (value: string): string | null => {
+  if (value.length > 500) {
+    return 'Latest Update must be less than 500 characters'
   }
   return null
 }
@@ -277,24 +278,6 @@ function ProjectDataProgressBadge({ project }: { project: Project }) {
       {formatProjectDataProgress(project.dataProgressPercentage)}
     </div>
   )
-}
-
-// Helper function to calculate team size for a project
-const calculateTeamSize = (projectName: string): number => {
-  return sampleCandidates.filter(candidate => {
-    // Check work experience projects
-    const workExperienceProjects = candidate.workExperiences?.flatMap(we => 
-      we.projects.map(p => p.projectName)
-    ) || []
-    // Check standalone projects
-    const standaloneProjects = candidate.projects?.map(p => p.projectName) || []
-    // Combine both
-    const candidateProjects = [...workExperienceProjects, ...standaloneProjects]
-    // Check if this candidate has the project
-    return candidateProjects.some(proj => 
-      proj.toLowerCase() === projectName.toLowerCase()
-    )
-  }).length
 }
 
 export function ProjectsTable({
@@ -2473,11 +2456,40 @@ const InlineEditableEmployerField: React.FC<InlineEditableEmployerFieldProps> = 
   const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
   const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
   const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
+  const [awardsLookup, setAwardsLookup] = useState<LookupItem[]>([])
   const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const employerAbortRef = useRef<AbortController | null>(null)
 
   const verificationStatus = getFieldVerification?.(fieldName)
   const isCurrentlyVerified = verificationStatus === "verified"
+
+  useEffect(() => {
+    if (!addEmployerDialogOpen) return
+    let cancelled = false
+    fetchAwards()
+      .then((awards) => {
+        if (!cancelled) setAwardsLookup(awards)
+      })
+      .catch(() => {
+        if (!cancelled) setAwardsLookup([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [addEmployerDialogOpen])
+
+  const handleCreateAward = React.useCallback(async (name: string) => {
+    try {
+      const created = await createAward(name)
+      setAwardsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add award")
+      throw e
+    }
+  }, [])
 
   useEffect(() => {
     if (!isEditing) {
@@ -2753,10 +2765,12 @@ const InlineEditableEmployerField: React.FC<InlineEditableEmployerFieldProps> = 
         open={addEmployerDialogOpen}
         onOpenChange={setAddEmployerDialogOpen}
         initialName={employerSearchQuery}
+        lookups={{ awards: awardsLookup }}
+        onCreateAward={handleCreateAward}
         onSubmit={async (formData) => {
           const dto = buildCreateEmployerDto(formData, {
-            tagsLookup: [],
             timeSupportZonesLookup: [],
+            awardsLookup,
           })
           const created = await createEmployer(dto)
           return created ? { id: created.id, name: created.name } : undefined
@@ -3329,13 +3343,13 @@ function ProjectDetailDialog({
           />
 
           <InlineEditField
-            label="Notes"
-            value={localProject.notes || ""}
-            fieldName="notes"
+            label="Latest Update"
+            value={localProject.latestUpdate || ""}
+            fieldName="latestUpdate"
             fieldType="text"
-            validation={validateNotes}
+            validation={validateLatestUpdate}
             onSave={handleFieldSave}
-            placeholder="Additional notes about the project"
+            placeholder="Recent project updates or comments"
             getFieldVerification={getFieldVerification}
           />
 

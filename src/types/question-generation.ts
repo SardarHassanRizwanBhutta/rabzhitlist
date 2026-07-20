@@ -4,7 +4,6 @@ export type QuestionSectionId =
   | "basic_information"
   | "work_experience"
   | "independent_tech_stacks"
-  | "independent_projects"
   | "education"
   | "certifications"
   | "achievements"
@@ -77,7 +76,7 @@ export interface LinkedProjectForService {
   horizontalDomains?: string[]
   verticalDomains?: string[]
   description?: string | null
-  notes?: string | null
+  latestUpdate?: string | null
   startDate?: string | null
   endDate?: string | null
   link?: string | null
@@ -87,8 +86,6 @@ export interface LinkedProjectForService {
 }
 
 export type WorkExperienceProjectForService = LinkedProjectForService
-
-export type StandaloneProjectForService = LinkedProjectForService
 
 export interface WorkExperienceOfficeForService {
   country?: string | null
@@ -101,7 +98,6 @@ export interface WorkExperienceLayoffForService {
   layoffDate?: string | null
   affectedEmployees?: number | null
   reason?: string | null
-  source?: string | null
 }
 
 export interface WorkExperienceForService {
@@ -125,7 +121,6 @@ export interface WorkExperienceForService {
   linkedInUrl?: string | null
   isDplCompetitor?: boolean | null
   salaryPolicy?: string | null
-  tags?: string[]
   locations?: WorkExperienceOfficeForService[]
   layoffs?: WorkExperienceLayoffForService[]
 }
@@ -188,9 +183,7 @@ export interface CandidateDataForQuestionService {
   expectedSalary?: number | null
   source?: string | null
   personalityType?: string | null
-  isTopDeveloper?: boolean | null
   techStacks?: string[]
-  projects?: StandaloneProjectForService[]
   workExperiences?: WorkExperienceForService[]
   educations?: EducationForService[]
   certifications?: CertificationForService[]

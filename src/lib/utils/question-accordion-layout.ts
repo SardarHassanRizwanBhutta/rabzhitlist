@@ -1,22 +1,15 @@
 import type { GeneratedQuestion } from "@/types/cold-caller"
 import {
-  PROJECT_CATALOG_FIELD_SUFFIXES,
   PROJECT_CATALOG_FIELD_LABELS,
   catalogDetailsLabel,
 } from "@/lib/utils/project-catalog-fields"
 import { groupCertificationQuestions } from "@/lib/utils/certification-questions"
 import { groupEducationQuestions } from "@/lib/utils/education-questions"
 import {
-  groupIndependentProjectQuestions,
-  type IndependentProjectQuestionGroup,
-} from "@/lib/utils/independent-project-questions"
-import {
   groupWorkExperienceQuestions,
   nestedProjectAccordionLabel,
   sortQuestionsByPriority,
 } from "@/lib/utils/work-experience-questions"
-
-export type { IndependentProjectQuestionGroup }
 
 export interface FlatQuestionBlock {
   type: "flat"
@@ -33,14 +26,6 @@ export interface ProjectQuestionAccordion {
   linkQuestions: GeneratedQuestion[]
   catalogQuestions: GeneratedQuestion[]
   accordionQuestions: GeneratedQuestion[]
-}
-
-export interface IndependentProjectQuestionBlock {
-  type: "independent-project-block"
-  projectIndex: number
-  title: string
-  linkQuestions: GeneratedQuestion[]
-  catalogQuestions: GeneratedQuestion[]
 }
 
 export interface RoleQuestionBlock {
@@ -83,7 +68,6 @@ export interface EducationQuestionBlock {
 
 export type QuestionDisplayBlock =
   | FlatQuestionBlock
-  | IndependentProjectQuestionBlock
   | RoleQuestionBlock
   | ProjectQuestionAccordion
   | CertificationQuestionBlock
@@ -109,29 +93,6 @@ function buildNestedWorkExperienceProjectAccordion(
     catalogQuestions: [],
     accordionQuestions: questions,
   }
-}
-
-function groupIndependentProjectDisplayBlocks(
-  questions: GeneratedQuestion[],
-): QuestionDisplayBlock[] {
-  const { sectionOpener, cards } = groupIndependentProjectQuestions(questions)
-  const blocks: QuestionDisplayBlock[] = []
-
-  if (sectionOpener) {
-    blocks.push({ type: "flat", questions: [sectionOpener] })
-  }
-
-  for (const card of cards) {
-    blocks.push({
-      type: "independent-project-block",
-      projectIndex: card.index,
-      title: card.title,
-      linkQuestions: card.linkQuestions,
-      catalogQuestions: card.catalogQuestions,
-    })
-  }
-
-  return blocks
 }
 
 function groupWorkExperienceDisplayBlocks(questions: GeneratedQuestion[]): QuestionDisplayBlock[] {
@@ -210,12 +171,9 @@ function groupEducationDisplayBlocks(questions: GeneratedQuestion[]): QuestionDi
 
 /** Group API questions for accordion UI — uses response only (no client mock merge). */
 export function groupQuestionsForDisplay(
-  section: "projects" | "workExperience" | "certifications" | "education",
+  section: "workExperience" | "certifications" | "education",
   questions: GeneratedQuestion[],
 ): QuestionDisplayBlock[] {
-  if (section === "projects") {
-    return groupIndependentProjectDisplayBlocks(questions)
-  }
   if (section === "certifications") {
     return groupCertificationDisplayBlocks(questions)
   }

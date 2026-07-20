@@ -70,6 +70,7 @@ import { mergeStacksFromAspectSelections } from "@/lib/utils/technical-aspect-ty
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { searchEmployers, fetchEmployerById, createEmployer, buildCreateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
+import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
   getVerificationsForProject,
@@ -89,7 +90,7 @@ export interface ProjectFormData {
   endDate: Date | undefined
   status: ProjectStatus | ""
   description: string
-  notes: string
+  latestUpdate: string
   projectLink: string
   isPublished: boolean
   publishPlatforms: string[]
@@ -156,7 +157,7 @@ const initialFormData: ProjectFormData = {
   endDate: undefined,
   status: "",
   description: "",
-  notes: "",
+  latestUpdate: "",
   projectLink: "",
   isPublished: false,
   publishPlatforms: [],
@@ -246,7 +247,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
     endDate: project.endDate ? new Date(project.endDate) : undefined,
     status: project.status || "",
     description: project.description || "",
-    notes: project.notes || "",
+    latestUpdate: project.latestUpdate || "",
     projectLink: project.projectLink || "",
     isPublished: project.isPublished || false,
     publishPlatforms: project.publishPlatforms ? [...project.publishPlatforms] : [],
@@ -265,7 +266,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
 // All verifiable fields for projects
 const PROJECT_VERIFICATION_FIELDS = [
   'projectName', 'selectedEmployer', 'projectType', 'minTeamSize', 'maxTeamSize', 'status',
-  'startDate', 'endDate', 'description', 'notes', 'projectLink',
+  'startDate', 'endDate', 'description', 'latestUpdate', 'projectLink',
   'isPublished', 'publishPlatforms', 'downloadCount',
   'techStacks',
   'technicalAspectTypeIds',
@@ -320,6 +321,7 @@ export function ProjectCreationDialog({
   const [employerSearchResults, setEmployerSearchResults] = useState<EmployerLookupDto[]>([])
   const [employerSearchLoading, setEmployerSearchLoading] = useState(false)
   const [addEmployerDialogOpen, setAddEmployerDialogOpen] = useState(false)
+  const [awardsLookup, setAwardsLookup] = useState<LookupItem[]>([])
   const employerDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const employerAbortRef = useRef<AbortController | null>(null)
   const employerComboboxPrevOpenRef = useRef(false)
@@ -333,6 +335,34 @@ export function ProjectCreationDialog({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic-info", "dates", "tech-stack", "domains", "content"])
   )
+
+  useEffect(() => {
+    if (!addEmployerDialogOpen) return
+    let cancelled = false
+    fetchAwards()
+      .then((awards) => {
+        if (!cancelled) setAwardsLookup(awards)
+      })
+      .catch(() => {
+        if (!cancelled) setAwardsLookup([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [addEmployerDialogOpen])
+
+  const handleCreateAward = React.useCallback(async (name: string) => {
+    try {
+      const created = await createAward(name)
+      setAwardsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add award")
+      throw e
+    }
+  }, [])
 
   // Use controlled or internal open state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen
@@ -832,7 +862,7 @@ export function ProjectCreationDialog({
   )
 
   const contentProgress = useMemo(() => 
-    calculateSectionProgress(['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']),
+    calculateSectionProgress(['description', 'latestUpdate', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']),
     [verifiedFields]
   )
 
@@ -850,7 +880,7 @@ export function ProjectCreationDialog({
       'dates': ['startDate', 'endDate'],
       'tech-stack': ['techStacks', 'technicalAspectTypeIds'],
       'domains': ['verticalDomains', 'horizontalDomains', 'technicalDomains'],
-      'content': ['description', 'notes', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']
+      'content': ['description', 'latestUpdate', 'projectLink', 'isPublished', 'publishPlatforms', 'downloadCount']
     }
     return fieldMap[sectionId] || []
   }
@@ -1825,17 +1855,17 @@ export function ProjectCreationDialog({
                         <VerificationCheckbox fieldName="description" />
                       </div>
 
-                      {/* Notes */}
+                      {/* Latest Update */}
                       <div className="space-y-2">
-                        <Label htmlFor="notes">Notes</Label>
+                        <Label htmlFor="latestUpdate">Latest Update</Label>
                         <Input
-                          id="notes"
+                          id="latestUpdate"
                           type="text"
-                          placeholder="Additional notes, requirements, or comments..."
-                          value={formData.notes}
-                          onChange={(e) => handleInputChange("notes", e.target.value)}
+                          placeholder="Recent project updates, requirements, or comments..."
+                          value={formData.latestUpdate}
+                          onChange={(e) => handleInputChange("latestUpdate", e.target.value)}
                         />
-                        <VerificationCheckbox fieldName="notes" />
+                        <VerificationCheckbox fieldName="latestUpdate" />
                       </div>
 
                       {/* Link */}
@@ -1933,10 +1963,12 @@ export function ProjectCreationDialog({
         open={addEmployerDialogOpen}
         onOpenChange={setAddEmployerDialogOpen}
         initialName={employerSearchQuery}
+        lookups={{ awards: awardsLookup }}
+        onCreateAward={handleCreateAward}
         onSubmit={async (formData) => {
           const dto = buildCreateEmployerDto(formData, {
-            tagsLookup: [],
             timeSupportZonesLookup: [],
+            awardsLookup,
           })
           const created = await createEmployer(dto)
           return created ? { id: created.id, name: created.name } : undefined

@@ -184,14 +184,14 @@ export interface EmployerListItemDto {
   benefits?: string[]
   /** Time support zone names (e.g. "PST", "EST"). */
   timeSupportZones?: string[]
+  /** Award names. */
+  awards?: string[]
   locations: EmployerListItemLocationDto[]
   /** @deprecated Not persisted on employers for now; may be absent. */
   techStacks?: string[]
-  tags: string[]
   isDPLCompetitive: boolean
-  /** When present, company-wide range (preferred over per-location list values). */
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  /** Company-wide headcount when API provides it. */
+  headcount?: number | null
   /** Employer-level policy when API provides it. */
   salaryPolicy?: string | null
   /** Stored profile completion 0–100 (always present from list API). */
@@ -202,9 +202,6 @@ export interface EmployerListItemLocationDto {
   id: number
   country: string
   city: string
-  /** @deprecated Prefer employer-level min/max; may be absent after API migration. */
-  minSize?: number | null
-  maxSize?: number | null
   /** @deprecated Prefer employer-level salary policy. */
   salaryPolicy?: string | null
 }
@@ -224,15 +221,14 @@ export interface EmployerDto {
   layoffs: EmployerLayoffDto[]
   benefits: EmployerBenefitDto[]
   timeSupportZones: { id: number; name: string }[]
-  tags: { id: number; name: string }[]
+  awards: { id: number; name: string }[]
   techStacks: { id: number; name: string }[]
   /** First entry maps to question-service `status` (Open=0, Closed=1, Flagged=2). */
   status?: number[] | null
   createdAt: string
   updatedAt: string
-  /** Company-wide headcount range when API stores it on the employer. */
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  /** Company-wide headcount when API stores it on the employer. */
+  headcount?: number | null
   /** Employer-level salary policy enum when API stores it on the employer. */
   salaryPolicy?: number | null
   /** Present when API includes stored completion on detail GET. */
@@ -246,8 +242,6 @@ export interface EmployerLocationDto {
   city: string
   address: string | null
   salaryPolicy: number | null
-  minEmployees: number | null
-  maxEmployees: number | null
   isHeadquarters: boolean
   createdAt: string
 }
@@ -258,7 +252,6 @@ export interface EmployerLayoffDto {
   layoffDate: string | null
   affectedEmployees: number | null
   reason: number | null
-  source: string | null
   createdAt: string
 }
 
@@ -282,13 +275,12 @@ export interface CreateEmployerDto {
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). Stored in employer_statuses. */
   status?: number[] | null
   employerTypes?: number[] | null
-  tagIds?: number[] | null
   timeSupportZoneIds?: number[] | null
+  awardIds?: number[] | null
   benefits?: CreateEmployerBenefitDto[] | null
   locations?: CreateEmployerLocationDto[] | null
   layoffs?: CreateEmployerLayoffDto[] | null
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  headcount?: number | null
   salaryPolicy?: number | null
 }
 
@@ -304,8 +296,6 @@ export interface CreateEmployerLocationDto {
   city: string
   address?: string | null
   salaryPolicy?: number | null
-  minEmployees?: number | null
-  maxEmployees?: number | null
   isHeadquarters: boolean
 }
 
@@ -321,7 +311,6 @@ export interface CreateEmployerLayoffDto {
   layoffDate: string
   affectedEmployees: number
   reason: number
-  source?: string | null
 }
 
 /** Body for POST /api/employers/{employerId}/layoffs — do not send employerId; employer is from URL. */
@@ -329,7 +318,6 @@ export interface AddEmployerLayoffDto {
   layoffDate: string
   affectedEmployees: number
   reason: number
-  source?: string | null
 }
 
 export interface UpdateEmployerDto {
@@ -344,11 +332,10 @@ export interface UpdateEmployerDto {
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). */
   status?: number[] | null
   types?: number[] | null
-  /** Same as create body; replaces employer tag links when sent. */
-  tagIds?: number[] | null
   timeSupportZoneIds?: number[] | null
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  /** Replaces employer award links; always send an array (empty clears). */
+  awardIds: number[]
+  headcount?: number | null
   salaryPolicy?: number | null
 }
 
@@ -373,7 +360,6 @@ export interface FetchEmployersParams {
   employerTypes?: number[]
   salaryPolicies?: number[]
   rankings?: number[]
-  tags?: string[]
   isDPLCompetitive?: boolean
   sizeMin?: number
   sizeMax?: number
@@ -387,6 +373,8 @@ export interface FetchEmployersParams {
   workModes?: number[]
   /** `time_support_zone_id` values on employer (server `long[]`). */
   timeSupportZones?: number[]
+  /** `award_id` values on employer (server `long[]`); any-match. */
+  awards?: number[]
   avgJobTenureMin?: number
   avgJobTenureMax?: number
   verticalDomains?: number[]
@@ -440,7 +428,6 @@ function buildQueryString(params: FetchEmployersParams): string {
   appendNumberList(q, "employerTypes", params.employerTypes)
   appendNumberList(q, "salaryPolicies", params.salaryPolicies)
   appendNumberList(q, "rankings", params.rankings)
-  appendTrimmedStrings(q, "tags", params.tags)
   appendTrimmedStrings(q, "benefits", params.benefits)
 
   if (params.isDPLCompetitive != null) {
@@ -455,6 +442,7 @@ function buildQueryString(params: FetchEmployersParams): string {
   appendNumberList(q, "shiftTypes", params.shiftTypes)
   appendNumberList(q, "workModes", params.workModes)
   appendNumberList(q, "timeSupportZones", params.timeSupportZones)
+  appendNumberList(q, "awards", params.awards)
 
   if (params.avgJobTenureMin != null) q.set("avgJobTenureMin", String(params.avgJobTenureMin))
   if (params.avgJobTenureMax != null) q.set("avgJobTenureMax", String(params.avgJobTenureMax))
@@ -655,8 +643,6 @@ export function buildCreateEmployerLocationDtoFromFormRow(
     city: loc.city.trim(),
     address: loc.address.trim() || null,
     salaryPolicy: null,
-    minEmployees: null,
-    maxEmployees: null,
     isHeadquarters: loc.isHeadquarters,
   }
 }
@@ -747,7 +733,6 @@ export function buildAddEmployerLayoffDto(lay: LayoffFormData): AddEmployerLayof
     layoffDate: lay.layoffDate.toISOString().slice(0, 10),
     affectedEmployees: n,
     reason: lay.reason in LAYOFF_REASON_TO_API ? LAYOFF_REASON_TO_API[lay.reason] : 0,
-    source: lay.source?.trim() || null,
   }
 }
 
@@ -812,17 +797,14 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       address: null,
       isHeadquarters: false,
       salaryPolicy: employerSalaryPolicy,
-      minSize: loc.minSize ?? null,
-      maxSize: loc.maxSize ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
-    tags: item.tags ?? [],
     benefits: benefitsList.length ? benefitsList : undefined,
     timeSupportZones: item.timeSupportZones?.length ? item.timeSupportZones : undefined,
+    awards: item.awards?.length ? item.awards : undefined,
     isDPLCompetitive: item.isDPLCompetitive ?? false,
-    minEmployees: item.minEmployees ?? item.locations[0]?.minSize ?? null,
-    maxEmployees: item.maxEmployees ?? item.locations[0]?.maxSize ?? null,
+    headcount: item.headcount ?? null,
     dataProgressPercentage: parseDataProgressPercentage(item.dataProgressPercentage),
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -854,8 +836,6 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     address: loc.address ?? null,
     isHeadquarters: loc.isHeadquarters,
     salaryPolicy: employerSalaryPolicy,
-    minSize: loc.minEmployees ?? null,
-    maxSize: loc.maxEmployees ?? null,
     createdAt: new Date(loc.createdAt),
     updatedAt: new Date(loc.createdAt),
   }))
@@ -876,7 +856,6 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
       layoffDate: lay.layoffDate ? new Date(lay.layoffDate) : new Date(0),
       numberOfEmployeesLaidOff: lay.affectedEmployees ?? 0,
       reason: labels[reasonDb],
-      source: lay.source ?? "",
       createdAt: new Date(lay.createdAt),
       updatedAt: new Date(lay.createdAt),
     }
@@ -912,10 +891,9 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     employerTypes: employerTypesDb,
     locations,
     salaryPolicy: employerSalaryPolicy,
-    minEmployees: dto.minEmployees ?? null,
-    maxEmployees: dto.maxEmployees ?? null,
+    headcount: dto.headcount ?? null,
     timeSupportZones: dto.timeSupportZones?.map((z) => z.name) ?? [],
-    tags: dto.tags?.map((t) => t.name) ?? [],
+    awards: dto.awards?.map((a) => a.name) ?? [],
     benefits,
     layoffs,
     dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
@@ -926,16 +904,16 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
 
 // --- Build CreateEmployerDto from form + lookups ---
 export interface BuildCreateEmployerDtoOptions {
-  tagsLookup: LookupItem[]
   timeSupportZonesLookup: LookupItem[]
+  awardsLookup: LookupItem[]
   /** Resolve country name to country id. If not provided, 0 is used (backend may validate). */
   getCountryId?: (countryName: string) => number
 }
 
-/** Lookups required to map tag / time zone names from the form to API ids on update. */
+/** Lookups required to map time zone / award names from the form to API ids on update. */
 export type BuildUpdateEmployerDtoOptions = Pick<
   BuildCreateEmployerDtoOptions,
-  "tagsLookup" | "timeSupportZonesLookup"
+  "timeSupportZonesLookup" | "awardsLookup"
 >
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -957,13 +935,13 @@ export function buildCreateEmployerDto(
     throw new Error(`Founded year must be between 1800 and ${CURRENT_YEAR}.`)
   }
 
-  const { tagsLookup, timeSupportZonesLookup, getCountryId = () => 0 } = options
+  const { timeSupportZonesLookup, awardsLookup, getCountryId = () => 0 } = options
 
-  const tagIds = formData.tags
-    .map((name) => tagsLookup.find((t) => t.name === name)?.id)
-    .filter((id): id is number => id != null)
   const timeSupportZoneIds = formData.timeSupportZones
     .map((name) => timeSupportZonesLookup.find((t) => t.name === name)?.id)
+    .filter((id): id is number => id != null)
+  const awardIds = formData.awards
+    .map((name) => awardsLookup.find((a) => a.name === name)?.id)
     .filter((id): id is number => id != null)
 
   const benefits: CreateEmployerBenefitDto[] = formData.benefits
@@ -975,10 +953,8 @@ export function buildCreateEmployerDto(
     })
     .filter((b): b is CreateEmployerBenefitDto => b != null)
 
-  const minEmpTrim = formData.minEmployees.trim()
-  const maxEmpTrim = formData.maxEmployees.trim()
-  const minEmployeesParsed = minEmpTrim ? parseInt(minEmpTrim, 10) : null
-  const maxEmployeesParsed = maxEmpTrim ? parseInt(maxEmpTrim, 10) : null
+  const headcountTrim = formData.headcount.trim()
+  const headcountParsed = headcountTrim ? parseInt(headcountTrim, 10) : null
 
   const locations: CreateEmployerLocationDto[] = formData.locations
     .filter((loc) => loc.city.trim() || loc.country.trim())
@@ -987,8 +963,6 @@ export function buildCreateEmployerDto(
       city: loc.city.trim() || "",
       address: loc.address.trim() || null,
       salaryPolicy: null,
-      minEmployees: null,
-      maxEmployees: null,
       isHeadquarters: loc.isHeadquarters,
     }))
 
@@ -1002,7 +976,6 @@ export function buildCreateEmployerDto(
       layoffDate: lay.layoffDate!.toISOString().slice(0, 10),
       affectedEmployees: parseInt(String(lay.numberOfEmployeesLaidOff), 10),
       reason: lay.reason in LAYOFF_REASON_TO_API ? LAYOFF_REASON_TO_API[lay.reason] : 0,
-      source: lay.source?.trim() || null,
     }))
 
   const dto: CreateEmployerDto = {
@@ -1020,15 +993,13 @@ export function buildCreateEmployerDto(
     employerTypes: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
-    tagIds: tagIds.length ? tagIds : null,
     timeSupportZoneIds: timeSupportZoneIds.length ? timeSupportZoneIds : null,
+    awardIds: awardIds.length ? awardIds : null,
     benefits: benefits.length ? benefits : null,
     locations: locations.length ? locations : null,
     layoffs: layoffs.length ? layoffs : null,
-    minEmployees:
-      minEmployeesParsed != null && !Number.isNaN(minEmployeesParsed) ? minEmployeesParsed : null,
-    maxEmployees:
-      maxEmployeesParsed != null && !Number.isNaN(maxEmployeesParsed) ? maxEmployeesParsed : null,
+    headcount:
+      headcountParsed != null && !Number.isNaN(headcountParsed) ? headcountParsed : null,
     salaryPolicy:
       formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API
         ? SALARY_POLICY_TO_API[formData.salaryPolicy]
@@ -1041,13 +1012,13 @@ export function buildUpdateEmployerDto(
   formData: EmployerFormData,
   options: BuildUpdateEmployerDtoOptions
 ): UpdateEmployerDto {
-  const { tagsLookup, timeSupportZonesLookup } = options
+  const { timeSupportZonesLookup, awardsLookup } = options
 
-  const tagIds = formData.tags
-    .map((name) => tagsLookup.find((t) => t.name === name)?.id)
-    .filter((id): id is number => id != null)
   const timeSupportZoneIds = formData.timeSupportZones
     .map((name) => timeSupportZonesLookup.find((t) => t.name === name)?.id)
+    .filter((id): id is number => id != null)
+  const awardIds = formData.awards
+    .map((name) => awardsLookup.find((a) => a.name === name)?.id)
     .filter((id): id is number => id != null)
 
   return {
@@ -1065,13 +1036,10 @@ export function buildUpdateEmployerDto(
     types: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
-    tagIds: tagIds.length ? tagIds : null,
     timeSupportZoneIds: timeSupportZoneIds.length ? timeSupportZoneIds : null,
-    minEmployees: formData.minEmployees.trim()
-      ? parseInt(formData.minEmployees.trim(), 10)
-      : null,
-    maxEmployees: formData.maxEmployees.trim()
-      ? parseInt(formData.maxEmployees.trim(), 10)
+    awardIds,
+    headcount: formData.headcount.trim()
+      ? parseInt(formData.headcount.trim(), 10)
       : null,
     salaryPolicy:
       formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API

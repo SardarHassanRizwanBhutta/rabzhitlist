@@ -28,7 +28,7 @@
 1. **Overall** completeness is **0–100%** (one decimal), sum of **field weights** earned.
 2. **Denominator is always 100%** — Office Locations (10%) and Layoffs (10%) count toward max even when there are **zero** rows (those sections earn 0%).
 3. **“Filled”** for strings/URLs: **non-null** and **non-empty after trim**. No URL format validation for scoring.
-4. **Multiselect / collections:** **≥1** value earns the **full** field weight (Status, Type, Time Support Zones, Tags, Benefits).
+4. **Multiselect / collections:** **≥1** value earns the **full** field weight (Status, Type, Time Support Zones, Benefits).
 5. **DPL Competitive:** earns only when `is_dpl_competitor` / `isDplCompetitor` / `isDPLCompetitive` is **`true`** (`false` or null does not earn).
 6. **Office Locations** and **Layoffs** each score **one** selected row per employer per recalc (§3.4, §3.5) — not stacking beyond section max.
 7. **Office Country:** earned when location **`country_id` / `countryId` is non-null** (linked country FK), not merely a free-text name.
@@ -46,20 +46,22 @@
 | Status | `Status` | 2.5 | ≥1 row in employer statuses junction (`statuses`) |
 | Type | `Type` | 2.5 | ≥1 row in employer types junction (`employerTypes` / `types`) |
 | Ranking | `Ranking` | 2.5 | `ranking` enum non-null |
-| Minimum Employees | `Minimum Employees` | 1.5 | `min_employees` / `minEmployees` non-null |
-| Maximum Employees | `Maximum Employees` | 1 | `max_employees` / `maxEmployees` non-null |
+| Headcount | `Headcount` | **2.5** | `headcount` non-null |
 | Website URL | `Website URL` | 2.5 | `website_url` / `websiteUrl` non-null and non-empty after trim |
 | LinkedIn URL | `LinkedIn URL` | 2.5 | `linked_in_url` / `linkedInUrl` non-null and non-empty after trim |
 | DPL Competitive | `DPL Competitive` | 2.5 | `is_dpl_competitor` / `isDplCompetitor` = **true** |
 
-### 3.2 Work Arrangements & Tags — section max **17.5%**
+> **Note (2026-07-18):** Min/Max employees replaced by single **Headcount** (2.5 pts; was 1.5 + 1). Basic Information section max remains **22.5%**.
+
+### 3.2 Work Arrangements — section max **17.5%**
 
 | UI label | `missingFields` key | Weight % | Earned when |
 |----------|---------------------|----------|-------------|
-| Work Mode | `Work Mode` | 5 | `work_mode` / `workMode` enum non-null |
+| Work Mode | `Work Mode` | **7.5** | `work_mode` / `workMode` enum non-null |
 | Shift Type | `Shift Type` | 5 | `shift_type` / `shiftType` enum non-null |
 | Time Support Zones | `Time Support Zones` | 5 | ≥1 time support zone |
-| Tags | `Tags` | 2.5 | ≥1 tag |
+
+> **Note (2026-07):** Tags (+2.5) removed; weight added to Work Mode (5 → 7.5). Section key is `workArrangements` (was `workArrangementsAndTags`).
 
 ### 3.3 Benefits & Salary Policy — section max **40%**
 
@@ -108,16 +110,17 @@ Per-field weights (apply to **one** selected layoff row only):
 |----------|---------------------|----------|-------------------------------|
 | Date | `Date` | 2.5 | `layoff_date` / `layoffDate` non-null |
 | No. of Affected Employees | `No. of Affected Employees` | 2.5 | count non-null **and > 0** |
-| Reason | `Reason` | 2.5 | `reason` enum non-null (including `other` — **`reasonOther` not required** for scoring) |
-| Source | `Source` | 2.5 | `source` non-null and non-empty after trim |
+| Reason | `Reason` | **5** | `reason` enum non-null (including `other` — **`reasonOther` not required** for scoring) |
+
+> **Note (2026-07):** Source (+2.5) removed; weight added to Reason (2.5 → 5).
 
 #### 3.5.1 Layoff scoring algorithm (locked)
 
 **Step A — full credit (10%):**  
-If **any** layoff has **all four** filled on the **same row** → earn **10%**. `missingFields` = empty.
+If **any** layoff has **all three** filled on the **same row** (Date + Affected Employees + Reason) → earn **10%**. `missingFields` = empty.
 
 **Step B — zero layoffs:**  
-If there are **no** layoff rows → section earns **0%**. `missingFields` = `["Date", "No. of Affected Employees", "Reason", "Source"]`.
+If there are **no** layoff rows → section earns **0%**. `missingFields` = `["Date", "No. of Affected Employees", "Reason"]`.
 
 **Step C — partial credit:**
 
@@ -140,7 +143,7 @@ Five sections match `EmployerCreationDialog` accordions:
 | `sectionKey` | `sectionName` | Max weight % |
 |--------------|---------------|--------------|
 | `basicInformation` | Basic Information | 22.5 |
-| `workArrangementsAndTags` | Work Arrangements & Tags | 17.5 |
+| `workArrangements` | Work Arrangements | 17.5 |
 | `benefitsAndSalaryPolicy` | Benefits & Salary Policy | 40 |
 | `officeLocations` | Office Locations | 10 |
 | `layoffs` | Layoffs | 10 |
@@ -165,7 +168,7 @@ Per section:
 | `GET /api/employers` items | Include `dataProgressPercentage` |
 | `GET /api/employers/{id}/data-progress` | Section breakdown + `missingFields` |
 
-**Recalc:** After every employer create/update/delete and mutations to: statuses, types, tags, time support zones, benefits, locations, layoffs.
+**Recalc:** After every employer create/update/delete and mutations to: statuses, types, time support zones, benefits, locations, layoffs.
 
 **Precision:** One decimal, same as other modules.
 

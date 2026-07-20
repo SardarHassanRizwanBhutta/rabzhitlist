@@ -45,7 +45,6 @@ export type FieldSection =
   | 'certifications' 
   | 'achievements' 
   | 'techStacks'
-  | 'projects'
   | 'preferences'
 
 // Field status for tracking progress during Fields View cold call
@@ -140,7 +139,6 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   certifications: 'Certifications',
   achievements: 'Achievements',
   techStacks: 'Independent Tech Stacks',
-  projects: 'Independent Projects',
   preferences: 'Preferences',
 }
 
@@ -152,7 +150,6 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   certifications: 'Award',
   achievements: 'Trophy',
   techStacks: 'Code',
-  projects: 'FolderOpen',
   preferences: 'SlidersHorizontal',
 }
 

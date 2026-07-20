@@ -7,7 +7,6 @@ import {
 } from "@/lib/utils/project-catalog-fields"
 import { formatCertificationFieldLabel } from "@/lib/utils/certification-questions"
 import { formatEducationFieldLabel } from "@/lib/utils/education-questions"
-import { formatIndependentProjectFieldLabel } from "@/lib/utils/independent-project-questions"
 import { formatWorkExperienceFieldLabel } from "@/lib/utils/work-experience-questions"
 
 const BASIC_FIELD_LABELS: Record<string, string> = {
@@ -24,7 +23,6 @@ const BASIC_FIELD_LABELS: Record<string, string> = {
   expectedSalary: "Expected salary",
   source: "Source",
   personalityType: "Personality type",
-  isTopDeveloper: "Top developer",
 }
 
 /** Python section-opener keys — no editable field; questions only. @see docs/CANDIDATE_DATA_MAPPING.md */
@@ -39,10 +37,6 @@ export const SECTION_OPENER_API_FIELDS: Record<
   techStacks: {
     label: `${SECTION_LABELS.techStacks} (overview)`,
     section: "techStacks",
-  },
-  projects: {
-    label: `${SECTION_LABELS.projects} (overview)`,
-    section: "projects",
   },
   educations: {
     label: `${SECTION_LABELS.education} (overview)`,
@@ -79,7 +73,6 @@ const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?
   { pattern: /^work_experience_\d+_linkedInUrl$/, label: "LinkedIn URL", section: "workExperience" },
   { pattern: /^work_experience_\d+_isDplCompetitor$/, label: "DPL competitor", section: "workExperience" },
   { pattern: /^work_experience_\d+_salaryPolicy$/, label: "Salary policy", section: "workExperience" },
-  { pattern: /^work_experience_\d+_tags$/, label: "Tags", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_country$/, label: "Country", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_city$/, label: "City", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_address$/, label: "Address", section: "workExperience" },
@@ -87,7 +80,6 @@ const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?
   { pattern: /^work_experience_\d+_layoff_\d+_layoffDate$/, label: "Layoff date", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_affectedEmployees$/, label: "Affected employees", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_reason$/, label: "Reason", section: "workExperience" },
-  { pattern: /^work_experience_\d+_layoff_\d+_source$/, label: "Source", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_projectName$/, label: "Name", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_contributionNotes$/, label: "Contribution", section: "workExperience" },
   { pattern: /^certification_\d+_name$/, label: "Name", section: "certifications" },
@@ -97,13 +89,6 @@ const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?
   { pattern: /^certification_\d+_level$/, label: "Level", section: "certifications" },
   { pattern: /^certification_\d+_issuingBody$/, label: "Issuer body", section: "certifications" },
   { pattern: /^certification_\d+_issuingBodyUrl$/, label: "Issuer body URL", section: "certifications" },
-  { pattern: /^project_\d+_projectName$/, label: "Name", section: "projects" },
-  { pattern: /^project_\d+_contributionNotes$/, label: "Contribution", section: "projects" },
-  ...PROJECT_CATALOG_FIELD_SUFFIXES.map((suffix) => ({
-    pattern: new RegExp(`^project_\\d+_${suffix}$`),
-    label: PROJECT_CATALOG_FIELD_LABELS[suffix],
-    section: "projects" as FieldSection,
-  })),
   ...[...PROJECT_LINK_FIELD_SUFFIXES, ...PROJECT_CATALOG_FIELD_SUFFIXES].map((suffix) => ({
     pattern: new RegExp(`^work_experience_\\d+_project_\\d+_${suffix}$`),
     label: PROJECT_CATALOG_FIELD_LABELS[suffix],
@@ -176,14 +161,6 @@ export function resolveQuestionFieldMeta(
       label: formatEducationFieldLabel(apiFieldName),
       isSectionOpener: apiFieldName === "educations",
       section: "education",
-    }
-  }
-
-  if (apiFieldName === "projects" || /^project_\d+_/.test(apiFieldName)) {
-    return {
-      label: formatIndependentProjectFieldLabel(apiFieldName),
-      isSectionOpener: apiFieldName === "projects",
-      section: "projects",
     }
   }
 

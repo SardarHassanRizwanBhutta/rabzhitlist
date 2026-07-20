@@ -81,7 +81,7 @@ If only one side is present, section earns **0%** and missing field lists `Techn
 | UI label | `missingFields` key | Weight % | Earned when |
 |----------|---------------------|----------|-------------|
 | Description | `Description` | 10 | `description` not null |
-| Notes | `Notes` | 1 | `notes` not null |
+| Latest Update | `Latest Update` | 1 | `latest_update` / `latestUpdate` not null |
 | Link | `Link` | 5 | `link` not null |
 | Published App | `Published App` | 1 | `is_published = true` |
 | Platforms | `Platforms` | 1 | ≥1 publish platform |
@@ -141,17 +141,15 @@ Per section:
 
 ---
 
-## 7. Dashboard (Phase 2)
-
-**Handoff:** [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)
+## 7. Dashboard (Phase 2 — deferred)
 
 When Phase 2 ships:
 
 - `GET /api/dashboard/data-progress` → `summary.modules[projects].available = true`
 - Aggregate `projects.data_progress_percentage` like candidates (fleet sum, avg, snapshots)
-- Frontend: verify existing dashboard UI (no new components)
+- Update [`DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_IMPLEMENTATION.md) C5 exception list
 
-Employers / universities / certifications remain `available: false`.
+Phase 1 **must not** break dashboard; projects module stays `available: false` until Phase 2.
 
 ---
 
@@ -162,6 +160,4 @@ Employers / universities / certifications remain `available: false`.
 | [`PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md`](./PROJECT_DATA_PROGRESS_BACKEND_HANDOFF.md) | Backend implementation contract |
 | [`project_data_progress_frontend_integration.md`](./project_data_progress_frontend_integration.md) | Frontend wiring guide |
 | [`candidate_data_progress_frontend_integration.md`](./candidate_data_progress_frontend_integration.md) | Reference pattern (candidates) |
-| [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md) | Dashboard Phase 2 backend handoff |
-| [`project_data_progress_frontend_integration_phase2.md`](./project_data_progress_frontend_integration_phase2.md) | Dashboard Phase 2 frontend verification |
-| [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md) | Full dashboard API contract |
+| [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md) | Dashboard module (Phase 2) |

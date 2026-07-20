@@ -32,10 +32,11 @@
 | `basic_information` | `basic` | Basic Information |
 | `work_experience` | `workExperience` | Work Experience |
 | `independent_tech_stacks` | `techStacks` | Tech Stacks |
-| `independent_projects` | `projects` | Independent Projects |
 | `education` | `education` | Education |
 | `certifications` | `certifications` | Certifications |
 | `achievements` | `achievements` | Achievements |
+
+> **Removed:** `independent_projects`. Top-level `projects[]` is ignored if present. Projects are scored only via `workExperiences[].projects`.
 
 ---
 
@@ -171,66 +172,23 @@ Resume-parsed stacks may be incomplete; cold callers should ask for **additional
 
 **Work experience role tech stacks** — same enrichment rule for `work_experience_{i}_techStacks` when `workExperiences[i].techStacks[]` is populated.
 
-#### Independent Projects
-
-| apiFieldName | Payload check | Main app source |
-|---|---|---|
-| `projects` | empty top-level `projects[]` | no standalone projects — **also emits synthetic `project_0_*` keys** (see below) |
-| `project_{i}_projectName` | `projects[i].projectName` | ASP.NET `Project.Name` (candidate link) |
-| `project_{i}_contributionNotes` | `projects[i].contributionNotes` | `CandidateProject` junction (candidate link) |
-| `project_{i}_employerName` | `projects[i].employerName` | `Project.Employer` navigation name |
-| `project_{i}_clientLocations` | `projects[i].clientLocations` | `Project.ClientLocations` → `string[]` |
-| `project_{i}_projectType` | `projects[i].projectType` | `Project.Type` enum |
-| `project_{i}_status` | `projects[i].status` | `Project.Status` enum |
-| `project_{i}_minTeamSize` | `projects[i].minTeamSize` | `Project.MinTeamSize` (weight 2.5; team size group 5 total) |
-| `project_{i}_maxTeamSize` | `projects[i].maxTeamSize` | `Project.MaxTeamSize` (weight 2.5) |
-| `project_{i}_startDate` | `projects[i].startDate` | `Project.StartDate` |
-| `project_{i}_endDate` | `projects[i].endDate` | `Project.EndDate` |
-| `project_{i}_verticalDomains` | `projects[i].verticalDomains` | `Project.VerticalDomains` collection |
-| `project_{i}_horizontalDomains` | `projects[i].horizontalDomains` | `Project.HorizontalDomains` collection |
-| `project_{i}_technicalDomains` | `projects[i].technicalDomains` | `Project.TechnicalDomains` collection |
-| `project_{i}_description` | `projects[i].description` | `Project.Description` |
-| `project_{i}_notes` | `projects[i].notes` | `Project.Notes` |
-| `project_{i}_projectLink` | `projects[i].link` | `Project.Link` (payload **`link`**, apiFieldName **`projectLink`**) |
-| `project_{i}_isPublished` | `projects[i].isPublished` | `Project.IsPublished` (`false` = present, not missing) |
-| `project_{i}_publishPlatforms` | `projects[i].publishPlatforms` | `Project.PublishPlatforms` collection |
-| `project_{i}_downloadCount` | `projects[i].downloadCount` | `Project.DownloadCount` (`0` = present, not missing) |
-| `project_{i}_technicalAspects` | `projects[i].technicalAspects` | `Project.TechnicalAspects` collection |
-| `project_{i}_techStacks` | `projects[i].techStacks` | `Project.TechStacks` collection |
-
-**Link field weights (Tier A — always visible, fixed UI order Name → Contribution):** `projectName` 4, `contributionNotes` 1.
-
-### Empty independent projects section (synthetic first row)
-
-When top-level `projects[]` is **empty**, the server emits **22 missing-field keys**:
-
-| apiFieldName | UI label | Purpose |
-|---|---|---|
-| `projects` | — | Section opener |
-| `project_0_projectName` | Name | Candidate link (weight 4) |
-| `project_0_contributionNotes` | Contribution | Candidate link (weight 1) |
-| `project_0_employerName` … `project_0_techStacks` | (catalog) | Accordion — see master table |
-
-- **21 `project_0_*` field keys** per synthetic row (2 link + 19 catalog).
-- Questions are **LLM-generated** (one per key); server fills gaps with templates.
-- **`project_0_*` applies only to the first entry** while the array is empty. After rows are added and generation re-runs, missing keys use real indices (`project_1_*`, etc.).
-- **UI (Cold Caller):** see [FRONTEND_INTEGRATION_CONTRACT.md § 4.11](./FRONTEND_INTEGRATION_CONTRACT.md#411-independent-projects-tab-rendering-spec) — section opener → per project: **Name + Contribution visible** → collapsible **Complete project details** for catalog. Enrichment § 4.10.
+> **Removed:** Independent Projects section / top-level `projects` / `project_{i}_*` keys. If a legacy request still includes top-level `candidate_data.projects`, the QG service **ignores** it. All projects are scored via `workExperiences[].projects` only.
 
 ### Project enrichment (Option B)
 
-When `projects[]` or nested `workExperiences[i].projects[]` is **populated**:
+When nested `workExperiences[i].projects[]` is **populated**:
 
 | Field | Enrichment when |
 |---|---|
-| `projects` / `work_experience_{i}_projects` | List non-empty — ask for **more** projects |
-| `*_projectName` | Value present — verify/correct name |
-| `*_contributionNotes` | Value present — add/correct contribution |
+| `work_experience_{i}_projects` | List non-empty — ask for **more** projects |
+| `work_experience_{i}_project_{j}_projectName` | Value present — verify/correct name |
+| `work_experience_{i}_project_{j}_contributionNotes` | Value present — add/correct contribution |
 
 Enrichment fields are **not** in `missing_fields`. Catalog suffixes remain missing-only. See [FRONTEND_INTEGRATION_CONTRACT.md § 4.10](./FRONTEND_INTEGRATION_CONTRACT.md#410-project-enrichment-prompts-option-b).
 
 ### Work experience nested projects (catalog fields)
 
-When `workExperiences[i].projects[]` is **empty**, the server emits `work_experience_{i}_projects` plus **21** synthetic `work_experience_{i}_project_0_*` keys (same suffixes as independent projects).
+When `workExperiences[i].projects[]` is **empty**, the server emits `work_experience_{i}_projects` plus **21** synthetic `work_experience_{i}_project_0_*` keys.
 
 When nested projects exist, missing keys use `work_experience_{i}_project_{j}_{suffix}` for each empty catalog/link field on that row.
 
@@ -238,7 +196,9 @@ When nested projects exist, missing keys use `work_experience_{i}_project_{j}_{s
 |---|---|
 | `work_experience_{i}_project_{j}_projectName` | Nested project name |
 | `work_experience_{i}_project_{j}_contributionNotes` | Nested contribution |
-| `work_experience_{i}_project_{j}_employerName` | … all catalog suffixes same as `project_{i}_*` |
+| `work_experience_{i}_project_{j}_employerName` | … all catalog suffixes |
+
+**Link field weights (Tier A — fixed UI order Name → Contribution):** `projectName` 4, `contributionNotes` 1.
 
 **UI:** nested under the Work Experience card — projects opener visible; Name + Contribution inside accordion. Enrichment rules § 4.10 when rows populated from resume.
 
@@ -575,24 +535,24 @@ const payload = mapMainAppCandidateToQuestionService(candidate)
 | 4 | Treat `resume: "attached"` as **present** (not missing) | ✅ `_is_resume_missing()` |
 | 5 | Accept benefits with `unit` values `"PKR"` and `"percent"`; ignore `id` / `hasValue` | ✅ (no validation rejects them) |
 | 6 | Priority weights use api suffixes: cert `name`/`level`/`url`, achievement `type` | ✅ |
-| 7 | Return **7 sections** always in `sections[]` with snake_case `section` ids | ✅ |
+| 7 | Return **6 sections** always in `sections[]` with snake_case `section` ids | ✅ |
 | 8 | Keep demo `candidates_table.html` priority weights aligned with Python | ✅ |
 | 9 | Update `sample_candidates.py` if examples use old certification/achievement field keys in test assertions | ⬜ optional |
 | 10 | Empty `achievements[]`: emit `achievements` + `achievement_0_*` synthetic keys; LLM section opener + field mini-questions | ✅ |
 | 11 | Empty `certifications[]`: emit `certifications` + `certification_0_*` synthetic keys (**8** total incl. catalog); § 4.8 UI | ✅ |
 | 17 | Certification catalog: `issuingBody`, `issuingBodyUrl` on flat payload row; accordion in UI | ✅ |
 | 18 | Tech stack enrichment: always prompt when populated; `prompt_type: enrichment`; exclude from `missing_fields` | ✅ |
-| 19 | Project enrichment (Option B): openers + Name/Contribution when populated; catalog missing-only | ✅ |
-| 20 | Independent Projects tab UI spec § 4.11 (grouped cards, no flat missing-field dump) | ✅ docs |
+| 19 | Project enrichment (Option B): WE nested openers + Name/Contribution when populated; catalog missing-only | ✅ |
+| 20 | Independent Projects section **removed** (QG consolidation); § 4.11 REMOVED | ✅ |
 | 21 | Certification catalog: `issuingBody` present → skip `issuingBodyUrl`; URL present → skip `issuingBody` (existing rows only) | ✅ |
 | 22 | Certification link enrichment: opener + present link fields when `certifications[]` populated; `prompt_type: enrichment` | ✅ |
 | 12 | Empty `educations[]`: emit `educations` + `education_0_*` synthetic keys (**16** total incl. catalog + campus_0); § 4.12 UI | ✅ |
 | 23 | Education university catalog: country, ranking, websiteUrl, linkedinUrl flat on row; locations[] campuses; accordion in UI | ✅ |
 | 24 | Education link enrichment: opener + present link fields when `educations[]` populated; `prompt_type: enrichment` | ✅ |
-| 13 | Empty top-level `projects[]`: emit `projects` + **21** `project_0_*` synthetic keys | ✅ |
+| 13 | Top-level `projects[]` **ignored** if present; never emit `projects` / `project_*` keys | ✅ |
 | 26 | Basic information always-ask: `currentSalary`, `expectedSalary`, `linkedinUrl` — enrichment when populated (§ 4.14) | ✅ |
 | 14 | Empty `workExperiences[]`: emit `work_experiences` + link + catalog + office_0 + layoff_0 + projects (**51** keys) | ✅ |
-| 15 | Linked project rows: detect missing catalog fields on `projects[]` and nested `workExperiences[].projects[]` | ✅ |
+| 15 | Linked project rows: detect missing catalog fields on nested `workExperiences[].projects[]` only | ✅ |
 | 16 | Payload `link` → apiFieldName `projectLink`; `isPublished: false` and `downloadCount: 0` are **present** | ✅ |
 
 ### Python implementation map (`question_generator.py`)

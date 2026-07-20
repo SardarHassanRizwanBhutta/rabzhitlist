@@ -1,4 +1,4 @@
-import type { GeneratedQuestion, FieldSection, ColdCallerSectionQuestions } from "@/types/cold-caller"
+import type { GeneratedQuestion, ColdCallerSectionQuestions } from "@/types/cold-caller"
 import type {
   ApiGeneratedQuestion,
   GenerateQuestionsResponse,

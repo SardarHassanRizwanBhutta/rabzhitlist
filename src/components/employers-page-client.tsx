@@ -20,11 +20,10 @@ import { fetchClientLocations, type LookupItem } from "@/lib/services/lookups-ap
 import type { PublishPlatform, ProjectStatus } from "@/lib/types/project"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
 import {
-  fetchTags,
-  createTag,
   fetchTimeSupportZones,
   createTimeSupportZone,
 } from "@/lib/services/tags-timesupportzones-api"
+import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import {
@@ -146,8 +145,8 @@ const initialFilters: EmployerFilters = {
   shiftTypes: [],
   workModes: [],
   timeSupportZones: [],
+  awards: [],
   rankings: [],
-  tags: [],
   isDPLCompetitive: null,
   employeeCity: "",
   verticalDomains: [],
@@ -183,8 +182,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [hasNext, setHasNext] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [employerToEdit, setEmployerToEdit] = useState<Employer | null>(null)
-  const [tagsLookup, setTagsLookup] = useState<LookupItem[]>([])
   const [timeSupportZonesLookup, setTimeSupportZonesLookup] = useState<LookupItem[]>([])
+  const [awardsLookup, setAwardsLookup] = useState<LookupItem[]>([])
   const [benefitsLookup, setBenefitsLookup] = useState<LookupItem[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
@@ -195,6 +194,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     const foundedYears = foundedYearStringToInts(filters.foundedYear)
     const countryIds = countryNamesToIds(filters.countries, countries)
     const timeZoneIds = lookupNamesToIds(filters.timeSupportZones, timeSupportZonesLookup)
+    const awardIds = lookupNamesToIds(filters.awards, awardsLookup)
     const clientLocIds = lookupNamesToIds(filters.clientLocations, clientLocationsLookup)
     const technicalInts = labelsToTechnicalDomainInts(filters.technicalDomains)
     const verticalInts = filters.verticalDomains
@@ -204,7 +204,6 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       .map((l) => horizontalDomainLabelToInt(l))
       .filter((v): v is number => v != null)
 
-    const tags = filters.tags.map((t) => t.trim()).filter(Boolean)
     const benefits = filters.benefits.map((t) => t.trim()).filter(Boolean)
 
     const statusInts = filters.status.map((s) => EMPLOYER_STATUS_TO_API[EMPLOYER_STATUS_DISPLAY_TO_DB[s]])
@@ -259,7 +258,6 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       ...(employerTypeInts.length ? { employerTypes: employerTypeInts } : {}),
       ...(salaryInts.length ? { salaryPolicies: salaryInts } : {}),
       ...(rankingInts.length ? { rankings: rankingInts } : {}),
-      ...(tags.length ? { tags } : {}),
       ...(filters.isDPLCompetitive !== null ? { isDPLCompetitive: filters.isDPLCompetitive } : {}),
       ...(sizeMin != null ? { sizeMin } : {}),
       ...(sizeMax != null ? { sizeMax } : {}),
@@ -270,6 +268,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       ...(shiftInts.length ? { shiftTypes: shiftInts } : {}),
       ...(workModeInts.length ? { workModes: workModeInts } : {}),
       ...(timeZoneIds.length ? { timeSupportZones: timeZoneIds } : {}),
+      ...(awardIds.length ? { awards: awardIds } : {}),
       ...(avgJobTenureMin != null ? { avgJobTenureMin } : {}),
       ...(avgJobTenureMax != null ? { avgJobTenureMax } : {}),
       ...(verticalInts.length ? { verticalDomains: verticalInts } : {}),
@@ -296,16 +295,16 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         ? { maxDataProgressPercentage: maxDataProgress }
         : {}),
     }
-  }, [pageNumber, pageSize, filters, countries, timeSupportZonesLookup, clientLocationsLookup])
+  }, [pageNumber, pageSize, filters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup])
 
   const timeSupportZoneFilterOptions = useMemo(
     () => timeSupportZonesLookup.map((z) => ({ value: z.name, label: z.name })),
     [timeSupportZonesLookup]
   )
 
-  const tagFilterOptions = useMemo(
-    () => tagsLookup.map((t) => ({ value: t.name, label: t.name })),
-    [tagsLookup]
+  const awardFilterOptions = useMemo(
+    () => awardsLookup.map((a) => ({ value: a.name, label: a.name })),
+    [awardsLookup]
   )
 
   const clientLocationFilterOptions = useMemo(
@@ -321,16 +320,16 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      fetchTags(),
       fetchTimeSupportZones(),
+      fetchAwards(),
       fetchBenefits(),
       ensureTechnicalDomainsCatalogLoaded(),
       fetchClientLocations(),
     ])
-      .then(([tags, timeSupportZones, benefits, tdCatalog, clientLocations]) => {
+      .then(([timeSupportZones, awards, benefits, tdCatalog, clientLocations]) => {
         if (!cancelled) {
-          setTagsLookup(tags)
           setTimeSupportZonesLookup(timeSupportZones)
+          setAwardsLookup(awards)
           setBenefitsLookup(benefits)
           setTechnicalDomainSelectOptions(technicalDomainCatalogToSelectOptions(tdCatalog))
           setClientLocationsLookup(clientLocations)
@@ -338,8 +337,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       })
       .catch(() => {
         if (!cancelled) {
-          setTagsLookup([])
           setTimeSupportZonesLookup([])
+          setAwardsLookup([])
           setBenefitsLookup([])
           setTechnicalDomainSelectOptions([])
           setClientLocationsLookup([])
@@ -370,21 +369,21 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     }
   }, [])
 
-  const handleCreateTag = useCallback(async (name: string) => {
-    try {
-      const created = await createTag(name)
-      setTagsLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add tag")
-    }
-  }, [])
-
   const handleCreateTimeSupportZone = useCallback(async (name: string) => {
     try {
       const created = await createTimeSupportZone(name)
       setTimeSupportZonesLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add time zone")
+    }
+  }, [])
+
+  const handleCreateAward = useCallback(async (name: string) => {
+    try {
+      const created = await createAward(name)
+      setAwardsLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add award")
     }
   }, [])
 
@@ -445,8 +444,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         if (employerToEdit) {
           const id = Number(employerToEdit.id)
           const dto = buildUpdateEmployerDto(data, {
-            tagsLookup,
             timeSupportZonesLookup,
+            awardsLookup,
           })
           await updateEmployer(id, dto)
           await syncEmployerLocationsFromEditForm(id, data, employerToEdit, (name) => {
@@ -460,8 +459,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           toast.success("Employer updated successfully.")
         } else {
           const dto = buildCreateEmployerDto(data, {
-            tagsLookup,
             timeSupportZonesLookup,
+            awardsLookup,
             getCountryId: (name) => countries.find((c) => c.name === name)?.id ?? 0,
           })
           await createEmployer(dto)
@@ -475,7 +474,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         throw e
       }
     },
-    [employerToEdit, tagsLookup, timeSupportZonesLookup, countries, refetchEmployers]
+    [employerToEdit, timeSupportZonesLookup, awardsLookup, countries, refetchEmployers]
   )
 
   const handleFiltersChange = useCallback((newFilters: EmployerFilters) => {
@@ -543,7 +542,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
             lookupOptions={{
               technicalDomains: technicalDomainSelectOptions,
               timeSupportZones: timeSupportZoneFilterOptions,
-              tags: tagFilterOptions,
+              awards: awardFilterOptions,
               clientLocations: clientLocationFilterOptions,
               countries: countryFilterOptions,
             }}
@@ -553,12 +552,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
             countries={countries}
             countriesLoading={countriesLoading}
             lookups={{
-              tags: tagsLookup,
               timeSupportZones: timeSupportZonesLookup,
+              awards: awardsLookup,
               benefits: benefitsLookup,
             }}
-            onCreateTag={handleCreateTag}
             onCreateTimeSupportZone={handleCreateTimeSupportZone}
+            onCreateAward={handleCreateAward}
             onCreateBenefit={handleCreateBenefit}
             onCreateCountry={handleCreateCountry}
           />
@@ -599,12 +598,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         countriesLoading={countriesLoading}
         onCreateCountry={handleCreateCountry}
         lookups={{
-          tags: tagsLookup,
           timeSupportZones: timeSupportZonesLookup,
+          awards: awardsLookup,
           benefits: benefitsLookup,
         }}
-        onCreateTag={handleCreateTag}
         onCreateTimeSupportZone={handleCreateTimeSupportZone}
+        onCreateAward={handleCreateAward}
         onCreateBenefit={handleCreateBenefit}
       />
 
@@ -622,12 +621,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           countries={countries}
           countriesLoading={countriesLoading}
           lookups={{
-            tags: tagsLookup,
             timeSupportZones: timeSupportZonesLookup,
+            awards: awardsLookup,
             benefits: benefitsLookup,
           }}
-          onCreateTag={handleCreateTag}
           onCreateTimeSupportZone={handleCreateTimeSupportZone}
+          onCreateAward={handleCreateAward}
           onCreateBenefit={handleCreateBenefit}
           onCreateCountry={handleCreateCountry}
         />

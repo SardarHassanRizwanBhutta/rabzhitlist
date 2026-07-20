@@ -21,7 +21,7 @@ import {
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { CallNotesWorkspace } from "./call-notes-workspace"
 import { isSectionComplete } from "@/lib/utils/question-generation-response"
-import type { WorkExperience, CandidateCertification, CandidateEducation, CandidateStandaloneProject } from "@/lib/types/candidate"
+import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
 
 const TAB_TRIGGER_CLASS = cn(
   "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12",
@@ -42,7 +42,6 @@ interface ColdCallerCallNotesViewProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  standaloneProjects?: CandidateStandaloneProject[]
   groupedFields: Map<FieldSection, EmptyField[]>
   sectionsWithFields: FieldSection[]
   rawNotesDraft: string
@@ -53,8 +52,9 @@ interface ColdCallerCallNotesViewProps {
   isLoadingQuestions: boolean
   questionsError: string | null
   onRetryGenerateQuestions?: () => void
-  onAnalyzeNotes?: (rawNotes: string) => void | Promise<void>
-  isAnalyzing?: boolean
+  onSaveNotes: () => void | Promise<void>
+  isSaving?: boolean
+  notesEditorDisabled?: boolean
 }
 
 function getSectionQuestionCount(
@@ -81,7 +81,6 @@ export function ColdCallerCallNotesView({
   workExperiences,
   educations,
   certifications,
-  standaloneProjects,
   groupedFields,
   sectionsWithFields,
   rawNotesDraft,
@@ -92,8 +91,9 @@ export function ColdCallerCallNotesView({
   isLoadingQuestions,
   questionsError,
   onRetryGenerateQuestions,
-  onAnalyzeNotes,
-  isAnalyzing = false,
+  onSaveNotes,
+  isSaving = false,
+  notesEditorDisabled = false,
 }: ColdCallerCallNotesViewProps) {
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
@@ -119,24 +119,19 @@ export function ColdCallerCallNotesView({
     setActiveQuestionField(apiFieldName)
   }, [])
 
-  const handleAnalyze = useCallback(async () => {
+  const handleSave = useCallback(async () => {
     const trimmed = rawNotesDraft.trim()
     if (!trimmed) {
-      toast.error("Enter call notes before analyzing.")
+      toast.error("Enter call notes before saving.")
       return
     }
 
-    if (onAnalyzeNotes) {
-      try {
-        await onAnalyzeNotes(trimmed)
-      } catch {
-        toast.error("Failed to submit notes for analysis.")
-      }
-      return
+    try {
+      await onSaveNotes()
+    } catch {
+      // Parent shows toast with API message
     }
-
-    toast.info("Note analysis will be available once the backend session API is connected.")
-  }, [rawNotesDraft, onAnalyzeNotes])
+  }, [rawNotesDraft, onSaveNotes])
 
   const activeSectionResult = activeTab ? sectionResultsByField.get(activeTab) : undefined
   const activeSectionQuestions =
@@ -171,8 +166,9 @@ export function ColdCallerCallNotesView({
     rawNotesDraft,
     onDraftChange,
     showDraftSavedHint,
-    onAnalyze: handleAnalyze,
-    isAnalyzing,
+    onSave: handleSave,
+    isSaving,
+    notesEditorDisabled,
     questions: activeSectionQuestions,
     sectionMissingFields: activeSectionResult?.missingFields,
     sectionComplete: activeSectionResult != null && isSectionComplete(activeSectionResult),
@@ -182,7 +178,6 @@ export function ColdCallerCallNotesView({
     workExperiences,
     educations,
     certifications,
-    standaloneProjects,
     activeQuestionField,
     onQuestionSelect: handleQuestionSelect,
     onRetryGenerateQuestions,

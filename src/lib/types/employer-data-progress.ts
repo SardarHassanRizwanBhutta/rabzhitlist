@@ -2,7 +2,7 @@
 
 export type EmployerDataProgressSectionKey =
   | "basicInformation"
-  | "workArrangementsAndTags"
+  | "workArrangements"
   | "benefitsAndSalaryPolicy"
   | "officeLocations"
   | "layoffs"
@@ -25,7 +25,7 @@ export interface EmployerDataProgressResponse {
 /** Canonical section order for future detail UI. */
 export const EMPLOYER_DATA_PROGRESS_SECTION_ORDER: EmployerDataProgressSectionKey[] = [
   "basicInformation",
-  "workArrangementsAndTags",
+  "workArrangements",
   "benefitsAndSalaryPolicy",
   "officeLocations",
   "layoffs",

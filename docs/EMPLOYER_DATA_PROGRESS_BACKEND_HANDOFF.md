@@ -52,10 +52,10 @@ Implement `IEmployerDataProgressService` / `EmployerDataProgressCalculator`.
 
 Load employer with:
 
-- Scalars: `name`, `founded_year`, `ranking`, `min_employees`, `max_employees`, `website_url`, `linked_in_url`, `is_dpl_competitor`, `work_mode`, `shift_type`, `salary_policy`
-- Junctions / collections: statuses, employer types, tags, time support zones, benefits
+- Scalars: `name`, `founded_year`, `ranking`, `headcount`, `website_url`, `linked_in_url`, `is_dpl_competitor`, `work_mode`, `shift_type`, `salary_policy`
+- Junctions / collections: statuses, employer types, time support zones, benefits
 - Locations: `id`, `country_id`, `city`, `address`, `is_headquarters`
-- Layoffs: `id`, `layoff_date`, `number_of_employees_laid_off`, `reason`, `source`
+- Layoffs: `id`, `layoff_date`, `number_of_employees_laid_off`, `reason`
 
 ### 2.2 Field rules (implement exactly)
 
@@ -77,7 +77,7 @@ bool AffectedFilled(Layoff x) =>
 | `sectionKey` | Max |
 |--------------|-----|
 | `basicInformation` | 22.5 |
-| `workArrangementsAndTags` | 17.5 |
+| `workArrangements` | 17.5 |
 | `benefitsAndSalaryPolicy` | 40 |
 | `officeLocations` | 10 |
 | `layoffs` | 10 |
@@ -91,7 +91,7 @@ bool AffectedFilled(Layoff x) =>
 After successful commit of:
 
 - `POST` / `PUT` / `DELETE` `/api/employers`
-- Mutations to statuses, types, tags, time support zones, benefits (via employer PUT joins)
+- Mutations to statuses, types, time support zones, benefits (via employer PUT joins)
 - `POST` / `PUT` / `DELETE` `/api/employers/{id}/locations/...`
 - Layoff create/update/delete endpoints (whatever routes exist today)
 
@@ -146,12 +146,12 @@ GET /api/employers/{employerId}/data-progress
       "missingFields": ["DPL Competitive"]
     },
     {
-      "sectionKey": "workArrangementsAndTags",
-      "sectionName": "Work Arrangements & Tags",
+      "sectionKey": "workArrangements",
+      "sectionName": "Work Arrangements",
       "score": 15.0,
       "maxScore": 17.5,
       "percentage": 85.7,
-      "missingFields": ["Tags"]
+      "missingFields": ["Work Mode"]
     },
     {
       "sectionKey": "benefitsAndSalaryPolicy",
@@ -175,7 +175,7 @@ GET /api/employers/{employerId}/data-progress
       "score": 0,
       "maxScore": 10,
       "percentage": 0,
-      "missingFields": ["Date", "No. of Affected Employees", "Reason", "Source"]
+      "missingFields": ["Date", "No. of Affected Employees", "Reason"]
     }
   ]
 }

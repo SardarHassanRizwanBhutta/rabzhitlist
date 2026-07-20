@@ -159,6 +159,21 @@ function isEmpty(value: unknown): boolean {
   return false
 }
 
+/** Context label for WE empty fields — blank for orphan WE rows (projects only). */
+function formatWorkExperienceEmptyFieldContext(
+  we: NonNullable<Candidate["workExperiences"]>[number],
+): string {
+  const employer = we.employerName?.trim() ?? ""
+  const job = we.jobTitle?.trim() ?? ""
+  if (employer && job) return `${employer} - ${job}`
+  if (employer) return employer
+  if (job) return job
+  if ((we.projects?.length ?? 0) > 0) {
+    return we.projects[0]?.projectName?.trim() ?? ""
+  }
+  return ""
+}
+
 /**
  * Get all empty/null fields from a candidate profile
  */
@@ -294,7 +309,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
   } else {
     // Existing work experiences - check for empty fields within them
     candidate.workExperiences.forEach((we, index) => {
-      const context = `${we.employerName} - ${we.jobTitle}`
+      const context = formatWorkExperienceEmptyFieldContext(we)
       
       const weFields: Array<{
         path: string
@@ -813,40 +828,6 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     })
   }
 
-  // Independent Projects (Standalone projects not associated with work experience)
-  if (!candidate.projects || candidate.projects.length === 0) {
-    emptyFields.push(...buildLinkedProjectEmptyFields({
-      section: 'projects',
-      fieldPathPrefix: 'projects[0]',
-      apiPrefix: 'project_0',
-      parentIndex: 0,
-    }))
-  } else {
-    let hasEmptyFields = false
-    candidate.projects.forEach((project, index) => {
-      const context = project.projectName || 'Unnamed Project'
-      const missing = collectMissingLinkedProjectFields(project, {
-        section: 'projects',
-        fieldPathPrefix: `projects[${index}]`,
-        apiPrefix: `project_${index}`,
-        parentIndex: index,
-        context,
-      })
-      if (missing.length > 0) hasEmptyFields = true
-      emptyFields.push(...missing)
-    })
-
-    if (!hasEmptyFields) {
-      const newIndex = candidate.projects.length
-      emptyFields.push(...buildLinkedProjectEmptyFields({
-        section: 'projects',
-        fieldPathPrefix: `projects[${newIndex}]`,
-        apiPrefix: `project_${newIndex}`,
-        parentIndex: newIndex,
-      }))
-    }
-  }
-
   // Standalone Tech Stacks
   if (isEmpty(candidate.techStacks)) {
     emptyFields.push({
@@ -867,7 +848,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
  * This is used when users manually add new entries in Cold Caller mode
  */
 export function createEntryFields(
-  section: 'workExperience' | 'education' | 'certifications' | 'achievements' | 'projects',
+  section: 'workExperience' | 'education' | 'certifications' | 'achievements',
   index: number
 ): EmptyField[] {
   const fields: EmptyField[] = []
@@ -1156,17 +1137,6 @@ export function createEntryFields(
           currentValue: null,
           parentIndex: index,
         }
-      )
-      break
-      
-    case 'projects':
-      fields.push(
-        ...buildLinkedProjectEmptyFields({
-          section: 'projects',
-          fieldPathPrefix: `projects[${index}]`,
-          apiPrefix: `project_${index}`,
-          parentIndex: index,
-        }),
       )
       break
   }

@@ -50,8 +50,9 @@ import {
 } from "@/lib/types/employer"
 import type { Country } from "@/lib/types/country"
 import type { LookupItem } from "@/lib/services/lookups-api"
-import { fetchEmployerById, employerDtoToEmployer } from "@/lib/services/employers-api"
+import { fetchEmployerById, employerDtoToEmployer, updateEmployer, buildUpdateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
+import { employerToFormData } from "@/components/employer-creation-dialog"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 import type { Project } from "@/lib/types/project"
 import type { Candidate } from "@/lib/types/candidate"
@@ -1706,8 +1707,8 @@ export interface EmployerDetailsModalProps {
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
   lookups?: EmployerLookups
-  onCreateTag?: (name: string) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateAward?: (name: string) => Promise<void>
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
@@ -1725,8 +1726,8 @@ export function EmployerDetailsModal({
   countriesLoading = false,
   onCreateCountry,
   lookups,
-  onCreateTag,
   onCreateTimeSupportZone,
+  onCreateAward,
   onCreateBenefit,
 }: EmployerDetailsModalProps) {
   const router = useRouter()
@@ -1748,13 +1749,13 @@ export function EmployerDetailsModal({
   const employerProjects = React.useMemo((): Project[] => [], [employer.name])
   const employerCandidates = React.useMemo((): Candidate[] => [], [employer.name])
 
-  const tagOptions: MultiSelectOption[] = useMemo(
-    () => lookups?.tags?.map((t) => ({ value: t.name, label: t.name })) ?? [],
-    [lookups?.tags]
-  )
   const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
     () => lookups?.timeSupportZones?.map((z) => ({ value: z.name, label: z.name })) ?? [],
     [lookups?.timeSupportZones]
+  )
+  const awardOptions: MultiSelectOption[] = useMemo(
+    () => lookups?.awards?.map((a) => ({ value: a.name, label: a.name })) ?? [],
+    [lookups?.awards]
   )
 
   useEffect(() => {
@@ -1911,6 +1912,30 @@ export function EmployerDetailsModal({
     }
   }
 
+  const handleAwardsSave = async (_fieldName: string, newValue: string[], verify: boolean) => {
+    const previous = localEmployer
+    try {
+      setLocalEmployer((prev) => ({
+        ...prev,
+        awards: newValue,
+      }))
+      const formData = {
+        ...employerToFormData(localEmployer),
+        awards: newValue,
+      }
+      const dto = buildUpdateEmployerDto(formData, {
+        timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
+        awardsLookup: lookups?.awards ?? [],
+      })
+      await updateEmployer(Number(localEmployer.id), dto)
+      toast.success(`Awards updated${verify ? " and verified" : ""}`)
+    } catch (error) {
+      setLocalEmployer(previous)
+      toast.error(error instanceof Error ? error.message : "Failed to save awards")
+      throw error
+    }
+  }
+
   const handleEmployerTypesSave = async (fieldName: string, types: string[], verify: boolean) => {
     try {
       const employerTypes = types as EmployerTypeDb[]
@@ -1991,7 +2016,7 @@ export function EmployerDetailsModal({
   }
 
   const handleHeadcountSave = async (
-    fieldName: "minEmployees" | "maxEmployees",
+    fieldName: "headcount",
     newValue: string | number,
     verify: boolean
   ) => {
@@ -2002,14 +2027,20 @@ export function EmployerDetailsModal({
           : typeof newValue === "number"
             ? newValue
             : parseInt(String(newValue), 10)
+      if (parsed != null && (Number.isNaN(parsed) || parsed < 1)) {
+        toast.error("Headcount must be an integer of at least 1")
+        throw new Error("Invalid headcount")
+      }
       setLocalEmployer((prev) => ({
         ...prev,
-        [fieldName]: parsed != null && !Number.isNaN(parsed) ? parsed : null,
+        headcount: parsed,
       }))
-      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+      toast.success(`Headcount updated${verify ? " and verified" : ""}`)
     } catch (error) {
       setLocalEmployer(employer)
-      toast.error("Failed to save field")
+      if (!(error instanceof Error && error.message === "Invalid headcount")) {
+        toast.error("Failed to save field")
+      }
       throw error
     }
   }
@@ -2321,26 +2352,14 @@ export function EmployerDetailsModal({
                     />
 
                     <InlineEditField
-                      label="Minimum Employees"
-                      value={localEmployer.minEmployees ?? ""}
-                      fieldName="minEmployees"
+                      label="Headcount"
+                      value={localEmployer.headcount ?? ""}
+                      fieldName="headcount"
                       fieldType="number"
                       onSave={async (fieldName, newValue, verify) => {
-                        await handleHeadcountSave("minEmployees", newValue, verify)
+                        await handleHeadcountSave("headcount", newValue, verify)
                       }}
-                      placeholder="e.g., 50"
-                      getFieldVerification={getFieldVerification}
-                    />
-
-                    <InlineEditField
-                      label="Maximum Employees"
-                      value={localEmployer.maxEmployees ?? ""}
-                      fieldName="maxEmployees"
-                      fieldType="number"
-                      onSave={async (fieldName, newValue, verify) => {
-                        await handleHeadcountSave("maxEmployees", newValue, verify)
-                      }}
-                      placeholder="e.g., 500"
+                      placeholder="e.g., 200"
                       getFieldVerification={getFieldVerification}
                     />
 
@@ -2380,18 +2399,18 @@ export function EmployerDetailsModal({
                     />
 
                     <InlineEditableMultiSelectField
-                      label="Tags"
-                      selected={localEmployer.tags ?? []}
-                      fieldName="tags"
-                      items={tagOptions}
-                      onSave={handleArrayFieldSave}
+                      label="Awards"
+                      selected={localEmployer.awards ?? []}
+                      fieldName="awards"
+                      items={awardOptions}
+                      onSave={handleAwardsSave}
                       getFieldVerification={getFieldVerification}
-                      placeholder="Select tags..."
-                      searchPlaceholder="Search tags..."
-                      maxDisplay={3}
-                      creatable={!!onCreateTag}
-                      createLabel="Add Tag"
-                      onCreateNew={onCreateTag}
+                      placeholder="Select awards..."
+                      searchPlaceholder="Search awards..."
+                      maxDisplay={5}
+                      creatable={!!onCreateAward}
+                      createLabel="+ Add Award"
+                      onCreateNew={onCreateAward}
                     />
 
                     {/* Benefits - Full Width */}
@@ -2799,7 +2818,6 @@ export function EmployerDetailsModal({
                               <th className="text-left p-2 font-medium">Date</th>
                               <th className="text-left p-2 font-medium">Employees</th>
                               <th className="text-left p-2 font-medium">Reason</th>
-                              <th className="text-left p-2 font-medium">Source</th>
                               <th className="text-right p-2 font-medium">Actions</th>
                             </tr>
                           </thead>
@@ -2816,14 +2834,6 @@ export function EmployerDetailsModal({
                                     {layoff.reason === "Other" && layoff.reasonOther
                                       ? `${LAYOFF_REASON_LABELS[layoff.reason]}: ${layoff.reasonOther}`
                                       : LAYOFF_REASON_LABELS[layoff.reason]}
-                                  </td>
-                                  <td
-                                    className={cn(
-                                      "p-2",
-                                      isInlineFieldValueEmpty(layoff.source) && "text-muted-foreground italic"
-                                    )}
-                                  >
-                                    {formatInlineFieldDisplayValue(layoff.source)}
                                   </td>
                                   <td className="p-2">
                                     <div className="flex justify-end gap-2">
@@ -2944,7 +2954,6 @@ function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDial
   )
   const [reason, setReason] = useState<LayoffReason>(layoff?.reason || "Cost reduction")
   const [reasonOther, setReasonOther] = useState<string>(layoff?.reasonOther || "")
-  const [source, setSource] = useState<string>(layoff?.source || "")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
 
@@ -2954,14 +2963,12 @@ function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDial
       setNumberOfEmployeesLaidOff(layoff.numberOfEmployeesLaidOff.toString())
       setReason(layoff.reason)
       setReasonOther(layoff.reasonOther || "")
-      setSource(layoff.source)
     } else {
       // Reset form for new layoff
       setLayoffDate(undefined)
       setNumberOfEmployeesLaidOff("")
       setReason("Cost reduction")
       setReasonOther("")
-      setSource("")
     }
     setErrors({})
   }, [layoff, open])
@@ -2988,10 +2995,6 @@ function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDial
       }
     }
 
-    if (!source || source.trim() === "") {
-      newErrors.source = "Source is required"
-    }
-
     if (reason === "Other" && (!reasonOther || reasonOther.trim() === "")) {
       newErrors.reasonOther = "Please specify the reason"
     }
@@ -3015,7 +3018,6 @@ function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDial
         numberOfEmployeesLaidOff: parseInt(numberOfEmployeesLaidOff),
         reason,
         reasonOther: reason === "Other" ? reasonOther : undefined,
-        source: source.trim()
       })
       onOpenChange(false)
     } catch (error) {
@@ -3112,20 +3114,7 @@ function LayoffFormDialog({ open, onOpenChange, layoff, onSave }: LayoffFormDial
             )}
           </div>
 
-          {/* Source */}
-          <div className="space-y-2">
-            <Label htmlFor="source">Source *</Label>
-            <Input
-              id="source"
-              value={source}
-              onChange={(e) => setSource(e.target.value)}
-              placeholder="e.g., Company announcement, News article"
-              className={errors.source ? "border-destructive" : ""}
-            />
-            {errors.source && (
-              <p className="text-sm text-destructive">{errors.source}</p>
-            )}
-          </div>
+          {/* Reason Other */}
 
           <DialogFooter>
             <Button

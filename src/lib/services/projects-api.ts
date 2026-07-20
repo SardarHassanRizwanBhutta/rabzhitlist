@@ -18,7 +18,7 @@ export interface ProjectListItemDto {
   status?: number | null
   link?: string | null
   description?: string | null
-  notes?: string | null
+  latestUpdate?: string | null
   startDate?: string | null
   endDate?: string | null
   isPublished?: boolean
@@ -62,7 +62,7 @@ export interface ProjectDto {
   status: number | null
   link: string | null
   description: string | null
-  notes: string | null
+  latestUpdate: string | null
   startDate: string | null
   endDate: string | null
   isPublished: boolean
@@ -94,7 +94,7 @@ export interface CreateProjectDto {
   status?: number | null
   link?: string | null
   description?: string | null
-  notes?: string | null
+  latestUpdate?: string | null
   startDate?: string | null
   endDate?: string | null
   isPublished?: boolean
@@ -118,7 +118,7 @@ export interface UpdateProjectDto {
   status?: number | null
   link?: string | null
   description?: string | null
-  notes?: string | null
+  latestUpdate?: string | null
   startDate?: string | null
   endDate?: string | null
   isPublished: boolean
@@ -556,7 +556,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     endDate: dto.endDate ? new Date(dto.endDate) : null,
     status: statusStr,
     description: dto.description ?? null,
-    notes: dto.notes ?? null,
+    latestUpdate: dto.latestUpdate ?? null,
     projectLink: dto.link ?? null,
     projectType: typeStr,
     isPublished: dto.isPublished ?? false,
@@ -593,7 +593,7 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     endDate: dto.endDate ? new Date(dto.endDate) : null,
     status: statusStr,
     description: dto.description ?? null,
-    notes: dto.notes ?? null,
+    latestUpdate: dto.latestUpdate ?? null,
     projectLink: dto.link ?? null,
     projectType: typeStr,
     isPublished: dto.isPublished ?? false,
@@ -735,7 +735,7 @@ export interface ProjectFormDataLike {
   endDate: Date | undefined
   status: string
   description: string
-  notes: string
+  latestUpdate: string
   projectLink: string
   isPublished: boolean
   publishPlatforms: string[]
@@ -787,7 +787,7 @@ export function buildCreateProjectDto(
     status: statusNum,
     link: form.projectLink?.trim() || null,
     description: form.description?.trim() || null,
-    notes: form.notes?.trim() || null,
+    latestUpdate: form.latestUpdate?.trim() || null,
     startDate: toDateString(form.startDate),
     endDate: toDateString(form.endDate),
     isPublished: form.isPublished ?? false,

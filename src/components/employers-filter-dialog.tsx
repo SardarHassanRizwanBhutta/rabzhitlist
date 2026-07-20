@@ -69,8 +69,9 @@ export interface EmployerFilters {
   workModes: string[]
   /** Time zone names; page client maps to ids for `timeSupportZones` query (employer join). */
   timeSupportZones: string[]
+  /** Award names; page client maps to ids for `awards` query (employer join). */
+  awards: string[]
   rankings: EmployerRanking[]  // Employer ranking filter
-  tags: string[]  // Filter by tags like "Enterprise", "Startup" (DPL Competitive is now a separate boolean field)
   isDPLCompetitive: boolean | null  // null = no filter, true = is DPL Competitive, false = is not DPL Competitive
 
   // Project-based filters
@@ -103,8 +104,8 @@ export interface EmployerFilterLookupOptions {
   technicalDomains: MultiSelectOption[]
   /** Time support zone names from the lookups API (preferred over sample data). */
   timeSupportZones?: MultiSelectOption[]
-  /** Tag names from the tags API (preferred over sample employers). */
-  tags?: MultiSelectOption[]
+  /** Award names from GET /api/awards (preferred). */
+  awards?: MultiSelectOption[]
   /** Client location names from GET /api/clientlocations (preferred over sample projects). */
   clientLocations?: MultiSelectOption[]
   /** Country names from GET countries API (preferred over sample employers). */
@@ -207,19 +208,6 @@ const rankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABE
   label
 }))
 
-// Extract unique tags from employers
-const extractUniqueTags = (): string[] => {
-  const tags = new Set<string>()
-  sampleEmployers.forEach(employer => {
-    employer.tags?.forEach(tag => {
-      if (tag && tag.trim()) {
-        tags.add(tag.trim())
-      }
-    })
-  })
-  return Array.from(tags).sort()
-}
-
 // Employer-based filter options
 const benefitOptions: MultiSelectOption[] = extractUniqueBenefits().map(benefit => ({
   value: benefit,
@@ -269,8 +257,8 @@ const initialFilters: EmployerFilters = {
   shiftTypes: [],
   workModes: [],
   timeSupportZones: [],
+  awards: [],
   rankings: [],
-  tags: [],
   isDPLCompetitive: null,
   // Project-based filters
   verticalDomains: [],
@@ -308,11 +296,10 @@ export function EmployersFilterDialog({
     () => lookupOptions?.timeSupportZones ?? [],
     [lookupOptions?.timeSupportZones]
   )
-
-  const tagSelectItems = useMemo(() => {
-    if (lookupOptions?.tags?.length) return lookupOptions.tags
-    return extractUniqueTags().map((tag) => ({ value: tag, label: tag }))
-  }, [lookupOptions?.tags])
+  const awardSelectItems = useMemo(
+    () => lookupOptions?.awards ?? [],
+    [lookupOptions?.awards]
+  )
 
   const clientLocationSelectItems = useMemo(() => {
     if (lookupOptions?.clientLocations?.length) return lookupOptions.clientLocations
@@ -350,8 +337,8 @@ export function EmployersFilterDialog({
     filters.shiftTypes.length +
     filters.workModes.length +
     filters.timeSupportZones.length +
+    filters.awards.length +
     filters.rankings.length +
-    filters.tags.length +
     (filters.minApplicants ? 1 : 0) +
     (filters.isDPLCompetitive !== null ? 1 : 0) +
     (filters.employeeCity.trim() ? 1 : 0) +
@@ -439,8 +426,8 @@ export function EmployersFilterDialog({
     tempFilters.shiftTypes.length > 0 ||
     tempFilters.workModes.length > 0 ||
     tempFilters.timeSupportZones.length > 0 ||
+    tempFilters.awards.length > 0 ||
     tempFilters.rankings.length > 0 ||
-    tempFilters.tags.length > 0 ||
     tempFilters.minApplicants ||
     tempFilters.isDPLCompetitive !== null ||
     !!tempFilters.employeeCity.trim() ||
@@ -728,21 +715,21 @@ export function EmployersFilterDialog({
                   />
 
                   <MultiSelect
+                    items={awardSelectItems}
+                    selected={tempFilters.awards}
+                    onChange={(values) => handleFilterChange("awards", values)}
+                    placeholder="Filter by awards..."
+                    label="Awards"
+                    searchPlaceholder="Search awards..."
+                    maxDisplay={5}
+                  />
+
+                  <MultiSelect
                     items={rankingOptions}
                     selected={tempFilters.rankings}
                     onChange={(values) => handleFilterChange("rankings", values)}
                     placeholder="Filter by ranking..."
                     label="Company Ranking"
-                    maxDisplay={3}
-                  />
-
-                  <MultiSelect
-                    items={tagSelectItems}
-                    selected={tempFilters.tags}
-                    onChange={(values) => handleFilterChange("tags", values)}
-                    placeholder="Filter by tags..."
-                    label="Tags"
-                    searchPlaceholder="Search tags..."
                     maxDisplay={3}
                   />
                 </div>

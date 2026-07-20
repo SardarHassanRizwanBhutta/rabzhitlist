@@ -14,17 +14,29 @@ export interface UseCallNotesDraftResult {
   setDraft: (value: string) => void
   /** True briefly after a debounced save to sessionStorage */
   showDraftSavedHint: boolean
+  /**
+   * Apply editor value after server load (or GET failure fallback).
+   * Sets React state and sessionStorage without the “draft saved” hint flash.
+   */
+  hydrate: (value: string) => void
+  /** Remove sessionStorage draft only; keeps current editor text. */
+  clearDraftStorage: () => void
+  /** Clear sessionStorage and reset editor to "". */
   clearDraft: () => void
+  /** Read current sessionStorage draft for this candidate (sync). */
+  readStoredDraft: () => string
 }
 
 /**
  * Persists unsent call-notes draft per candidate in sessionStorage.
- * Restores when the dialog opens for the same candidate; clears on explicit clearDraft (after session submit in Phase 2).
+ * With `deferHydration`, does not restore on open — parent hydrates after GET.
  */
 export function useCallNotesDraft(
   candidateId: string | number,
   dialogOpen: boolean,
+  options?: { deferHydration?: boolean },
 ): UseCallNotesDraftResult {
+  const deferHydration = options?.deferHydration ?? false
   const [draft, setDraftState] = useState("")
   const [showDraftSavedHint, setShowDraftSavedHint] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -32,7 +44,6 @@ export function useCallNotesDraft(
   const prevCandidateRef = useRef<string | number | null>(null)
   const restoredForCandidateRef = useRef<string | number | null>(null)
 
-  // Restore draft when dialog opens or candidate changes
   useEffect(() => {
     if (!dialogOpen) return
 
@@ -41,10 +52,14 @@ export function useCallNotesDraft(
 
     if (candidateChanged || restoredForCandidateRef.current !== candidateId) {
       restoredForCandidateRef.current = candidateId
-      setDraftState(readCallNotesDraft(candidateId))
+      if (deferHydration) {
+        setDraftState("")
+      } else {
+        setDraftState(readCallNotesDraft(candidateId))
+      }
       setShowDraftSavedHint(false)
     }
-  }, [dialogOpen, candidateId])
+  }, [dialogOpen, candidateId, deferHydration])
 
   const setDraft = useCallback(
     (value: string) => {
@@ -61,12 +76,33 @@ export function useCallNotesDraft(
     [candidateId],
   )
 
+  const hydrate = useCallback(
+    (value: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      setDraftState(value)
+      writeCallNotesDraft(candidateId, value)
+      setShowDraftSavedHint(false)
+    },
+    [candidateId],
+  )
+
+  const clearDraftStorage = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    clearCallNotesDraft(candidateId)
+    setShowDraftSavedHint(false)
+  }, [candidateId])
+
   const clearDraft = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
     clearCallNotesDraft(candidateId)
     setDraftState("")
     setShowDraftSavedHint(false)
   }, [candidateId])
+
+  const readStoredDraft = useCallback(
+    () => readCallNotesDraft(candidateId),
+    [candidateId],
+  )
 
   useEffect(() => {
     return () => {
@@ -75,5 +111,13 @@ export function useCallNotesDraft(
     }
   }, [])
 
-  return { draft, setDraft, showDraftSavedHint, clearDraft }
+  return {
+    draft,
+    setDraft,
+    showDraftSavedHint,
+    hydrate,
+    clearDraftStorage,
+    clearDraft,
+    readStoredDraft,
+  }
 }

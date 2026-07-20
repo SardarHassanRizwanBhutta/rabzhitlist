@@ -9,7 +9,6 @@ import type {
   Candidate,
   CandidateCertification,
   CandidateEducation,
-  CandidateStandaloneProject,
   MatchedDomainDto,
   MatchedEmployerDto,
   MatchedEmployerSizeDto,
@@ -86,8 +85,6 @@ export interface CandidateListItemDto {
   resumeUploadedAt?: string | null
   createdAt: string
   updatedAt: string
-  /** Same as detail GET — for list badges/filters without an extra fetch. */
-  isTopDeveloper?: boolean
   dataProgressPercentage?: number | null
   /** Backend-computed project/domain matches when domain filters are active. */
   matchedProjects?: MatchedProjectDto[]
@@ -119,8 +116,6 @@ export interface CreateCandidateDto {
   source?: number | null
   status?: string
   resumeUrl?: string | null
-  /** Optional; API defaults to false when omitted. */
-  isTopDeveloper?: boolean
   techStackIds?: number[]
   educations?: CreateCandidateEducationDto[]
   certifications?: CreateCandidateCertificationDto[]
@@ -197,7 +192,6 @@ export interface UpdateCandidateDto {
   source: number | null
   status: string
   resumeUrl: string | null
-  isTopDeveloper: boolean
 }
 
 function mbtiIndexToLabel(index: number | null | undefined): string | null {
@@ -496,16 +490,12 @@ function mapMatchedTeamSize(raw: unknown): MatchedTeamSizeDto | null {
 function mapMatchedEmployerSize(raw: unknown): MatchedEmployerSizeDto | null {
   if (raw == null || typeof raw !== "object") return null
   const item = raw as Record<string, unknown>
-  const minEmployees =
-    item.minEmployees != null && Number.isFinite(Number(item.minEmployees))
-      ? Number(item.minEmployees)
+  const headcount =
+    item.headcount != null && Number.isFinite(Number(item.headcount))
+      ? Number(item.headcount)
       : undefined
-  const maxEmployees =
-    item.maxEmployees != null && Number.isFinite(Number(item.maxEmployees))
-      ? Number(item.maxEmployees)
-      : undefined
-  if (minEmployees == null && maxEmployees == null) return null
-  return { minEmployees, maxEmployees }
+  if (headcount == null) return null
+  return { headcount }
 }
 
 function mapMatchedEducations(raw: unknown): MatchedEducationDto[] {
@@ -805,12 +795,9 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
     workExperiences: [],
-    projects: [],
     certifications: [],
     educations: [],
     techStacks: [],
-    isTopDeveloper:
-      typeof row.isTopDeveloper === "boolean" ? row.isTopDeveloper : false,
     dataProgressPercentage:
       typeof row.dataProgressPercentage === "number"
         ? row.dataProgressPercentage
@@ -839,8 +826,6 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
   const workExperiences = Array.isArray(weRaw)
     ? weRaw.map((w, i) => mapWorkExperience(asRecord(w) ?? {}, i))
     : []
-  // Top-level projects[] removed (CSP); keep empty for phase-2 consumers of Candidate.projects
-  const projects: CandidateStandaloneProject[] = []
   const techRaw = data.techStacks
   const techStacks = Array.isArray(techRaw)
     ? techRaw.map((t) => {
@@ -890,11 +875,9 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     createdAt: parseIsoDate(data.createdAt) ?? new Date(),
     updatedAt: parseIsoDate(data.updatedAt) ?? new Date(),
     workExperiences,
-    projects,
     certifications,
     educations,
     techStacks,
-    isTopDeveloper: typeof data.isTopDeveloper === "boolean" ? data.isTopDeveloper : false,
     dataProgressPercentage:
       typeof data.dataProgressPercentage === "number"
         ? data.dataProgressPercentage
@@ -1115,7 +1098,6 @@ export function candidateFormDataToCreateDto(
     source: sourceFormToApi(data.source),
     status: "sourced",
     resumeUrl: null,
-    isTopDeveloper: data.isTopDeveloper === true,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
     educations: educations.length > 0 ? educations : undefined,
     certifications: certifications.length > 0 ? certifications : undefined,
@@ -1145,7 +1127,6 @@ export function candidateFormDataToUpdateDto(
     source: base.source ?? null,
     status: existing.status,
     resumeUrl: existing.resume ?? null,
-    isTopDeveloper: base.isTopDeveloper ?? false,
   }
 }
 
@@ -1161,7 +1142,6 @@ export async function fetchCandidatesPage(
     city?: string
     personalityTypes?: string[]
     source?: number
-    isTopDeveloper?: boolean
     currentSalaryMin?: number
     currentSalaryMax?: number
     expectedSalaryMin?: number
@@ -1243,7 +1223,6 @@ export async function fetchCandidatesPage(
   if (options?.city?.trim()) params.set("city", options.city.trim())
   appendStringList("personalityTypes", options?.personalityTypes)
   if (options?.source != null) params.set("source", String(options.source))
-  if (options?.isTopDeveloper != null) params.set("isTopDeveloper", String(options.isTopDeveloper))
   if (options?.currentSalaryMin != null) params.set("currentSalaryMin", String(options.currentSalaryMin))
   if (options?.currentSalaryMax != null) params.set("currentSalaryMax", String(options.currentSalaryMax))
   if (options?.expectedSalaryMin != null) params.set("expectedSalaryMin", String(options.expectedSalaryMin))

@@ -187,4 +187,5 @@ Do not invent product rules beyond the locked decisions table.
 | [`CANDIDATE-API-REFERENCE.md`](./CANDIDATE-API-REFERENCE.md) | Pre-change API (update after ship) |
 | [`CandidateFilterIntegration.md`](./CandidateFilterIntegration.md) | Filter joins |
 | [`CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md`](./CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md) | Payload shape (drop standalone projects) |
+| [`CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md`](./CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md) | Python QG: stop emitting `independent_projects` |
 | [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) | Resume parser still may emit `standalone_projects` (FE remaps) |

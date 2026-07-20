@@ -15,7 +15,6 @@ const SECTION_ORDER: FieldSection[] = [
   "certifications",
   "achievements",
   "techStacks",
-  "projects",
 ]
 
 export type CallNotesSidebarFieldStatus = "missing" | "answered"
