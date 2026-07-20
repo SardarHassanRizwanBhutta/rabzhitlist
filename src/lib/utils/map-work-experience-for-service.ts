@@ -124,13 +124,10 @@ export interface EmployerCatalogFromApi {
   status: string | null
   types: string[]
   ranking: string | null
-  minEmployees: number | null
-  maxEmployees: number | null
   websiteUrl: string | null
   linkedinUrl: string | null
   isDplCompetitor: boolean | null
   salaryPolicy: string | null
-  tags: string[]
   workMode: string | null
   shiftType: string | null
   timeSupportZones: string[]
@@ -175,7 +172,6 @@ export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromAp
       layoffDate: lay.layoffDate ? new Date(lay.layoffDate) : null,
       affectedEmployees: lay.affectedEmployees ?? null,
       reason,
-      source: emptyToNull(lay.source),
     }
   })
 
@@ -184,13 +180,10 @@ export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromAp
     status,
     types,
     ranking,
-    minEmployees: dto.minEmployees ?? null,
-    maxEmployees: dto.maxEmployees ?? null,
     websiteUrl: emptyToNull(dto.websiteUrl),
     linkedinUrl: emptyToNull(dto.linkedInUrl),
     isDplCompetitor: typeof dto.isDplCompetitor === "boolean" ? dto.isDplCompetitor : null,
     salaryPolicy,
-    tags: (dto.tags ?? []).map((t) => t.name).filter((n) => n.trim() !== ""),
     workMode:
       dto.workMode != null && dto.workMode in WORK_MODE_FROM_API
         ? WORK_MODE_FROM_API[dto.workMode]
@@ -230,13 +223,10 @@ export function mergeEmployerCatalogIntoWorkExperience(
     status: we.status ?? catalog.status,
     types: (we.types?.length ?? 0) > 0 ? we.types : catalog.types,
     ranking: we.ranking ?? catalog.ranking,
-    minEmployees: we.minEmployees ?? catalog.minEmployees,
-    maxEmployees: we.maxEmployees ?? catalog.maxEmployees,
     websiteUrl: we.websiteUrl ?? catalog.websiteUrl,
     linkedinUrl: we.linkedinUrl ?? catalog.linkedinUrl,
     isDplCompetitor: we.isDplCompetitor ?? catalog.isDplCompetitor,
     salaryPolicy: we.salaryPolicy ?? catalog.salaryPolicy,
-    tags: (we.tags?.length ?? 0) > 0 ? we.tags : catalog.tags,
     shiftType: we.shiftType ? we.shiftType : (catalog.shiftType as WorkExperience["shiftType"]),
     workMode: we.workMode ? we.workMode : (catalog.workMode as WorkExperience["workMode"]),
     timeSupportZones:
@@ -299,7 +289,6 @@ function mapLayoffToService(lay: WorkExperienceLayoffRow): WorkExperienceLayoffF
     layoffDate: toIsoDate(lay.layoffDate ?? undefined),
     affectedEmployees: lay.affectedEmployees ?? null,
     reason: emptyToNull(lay.reason),
-    source: emptyToNull(lay.source),
   }
 }
 
@@ -325,7 +314,6 @@ export function mapWorkExperienceToServicePayload(we: WorkExperience): WorkExper
     linkedInUrl: emptyToNull(we.linkedinUrl),
     isDplCompetitor: we.isDplCompetitor ?? null,
     salaryPolicy: emptyToNull(we.salaryPolicy),
-    tags: we.tags ?? [],
     locations: (we.locations ?? []).map(mapOfficeToService),
     layoffs: (we.layoffs ?? []).map(mapLayoffToService),
   }

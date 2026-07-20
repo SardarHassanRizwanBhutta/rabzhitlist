@@ -1,15 +1,10 @@
 /**
- * Tags and Time Support Zones APIs for employer (and candidate) dropdowns.
- * List all / create new when user clicks "+ Add Tag" or "+ Add Time Zone".
+ * Time Support Zones API for employer (and candidate) dropdowns.
+ * List all / create new when user clicks "+ Add Time Zone".
  * @see Tags-and-TimeSupportZones-API-Reference.md
  */
 
 import { API_BASE_URL } from "@/lib/config/api"
-
-export interface TagDto {
-  id: number
-  name: string
-}
 
 export interface TimeSupportZoneDto {
   id: number
@@ -39,16 +34,6 @@ async function createItem<T extends { id: number; name: string }>(
     throw new Error(`Failed to create ${path}: ${response.status} — ${text}`)
   }
   return response.json()
-}
-
-// --- Tags ---
-
-export async function fetchTags(): Promise<TagDto[]> {
-  return getList<TagDto>("/api/tags")
-}
-
-export async function createTag(name: string): Promise<TagDto> {
-  return createItem<TagDto>("/api/tags", name)
 }
 
 // --- Time Support Zones ---

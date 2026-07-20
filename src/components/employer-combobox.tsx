@@ -30,8 +30,8 @@ export interface EmployerComboboxNestedCreationProps {
   countries: Country[]
   countriesLoading?: boolean
   lookups: EmployerLookups
-  onCreateTag: (name: string) => Promise<void>
   onCreateTimeSupportZone: (name: string) => Promise<void>
+  onCreateAward: (name: string) => Promise<void>
   onCreateBenefit: (name: string) => Promise<EmployerBenefit | null | void>
   onCreateCountry: (name: string) => Promise<Country | null>
 }
@@ -56,8 +56,8 @@ export interface EmployerComboboxProps {
 }
 
 const defaultCreateLookups: BuildCreateEmployerDtoOptions = {
-  tagsLookup: [],
   timeSupportZonesLookup: [],
+  awardsLookup: [],
 }
 
 export function EmployerCombobox({
@@ -215,8 +215,8 @@ export function EmployerCombobox({
         countries={nestedEmployerCreation?.countries}
         countriesLoading={nestedEmployerCreation?.countriesLoading}
         lookups={nestedEmployerCreation?.lookups}
-        onCreateTag={nestedEmployerCreation?.onCreateTag}
         onCreateTimeSupportZone={nestedEmployerCreation?.onCreateTimeSupportZone}
+        onCreateAward={nestedEmployerCreation?.onCreateAward}
         onCreateBenefit={nestedEmployerCreation?.onCreateBenefit}
         onCreateCountry={nestedEmployerCreation?.onCreateCountry}
         onSubmit={async (formData: EmployerFormData) => {

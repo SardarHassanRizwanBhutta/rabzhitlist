@@ -38,20 +38,20 @@ export function EnrichmentQuestionChrome({
       >
         Reminder
       </Badge>
-      {values.map((value) => {
+      {values.map((value, index) => {
         const display = formatAlwaysAskExistingValue(question.field, value)
         return (
-        <Badge
-          key={value}
-          variant="secondary"
-          className={cn(
-            "text-[9px] px-1 py-0 h-4 max-w-[8rem] truncate font-normal",
-            isActive && "bg-primary-foreground/15 text-primary-foreground",
-          )}
-          title={display}
-        >
-          {display}
-        </Badge>
+          <Badge
+            key={`${index}-${value}`}
+            variant="secondary"
+            className={cn(
+              "text-[9px] px-1 py-0 h-4 max-w-[8rem] truncate font-normal",
+              isActive && "bg-primary-foreground/15 text-primary-foreground",
+            )}
+            title={display}
+          >
+            {display}
+          </Badge>
         )
       })}
     </div>

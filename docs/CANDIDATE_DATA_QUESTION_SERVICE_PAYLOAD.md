@@ -26,6 +26,8 @@ The browser sends:
 
 `missing_fields` is **not** sent; the Python service computes gaps from `candidate_data`.
 
+**Always-ask on cold call:** `currentSalary`, `expectedSalary`, `linkedinUrl` — question generated every time; enrichment when populated (§ 4.14).
+
 ---
 
 ## Pipeline (frontend)
@@ -43,7 +45,7 @@ flowchart LR
 | 1 | `src/lib/services/candidates-api.ts` | Loads main-app `Candidate` from ASP.NET API |
 | 2 | `src/lib/services/questions-api.ts` → `generateQuestions()` | Orchestrates the POST |
 | 3 | `src/lib/utils/map-education-for-service.ts` → `enrichEducationsWithUniversityCatalog()` | For each education row with `universityId`, fetches `GET /api/universities/{id}` and merges catalog + campuses **before** mapping |
-| 3b | `src/lib/utils/map-work-experience-for-service.ts` → `enrichWorkExperiencesWithEmployerCatalog()` | For each work experience row with `employerId`, fetches `GET /api/employers/{id}` and merges employer catalog + `locations[]` + `layoffs[]` **before** mapping |
+| 3b | `src/lib/utils/map-work-experience-for-service.ts` → `enrichWorkExperiencesWithEmployerCatalog()` *(planned)* | For each work experience row with `employerId`, fetches `GET /api/employers/{id}` and merges employer catalog + `locations[]` + `layoffs[]` **before** mapping |
 | 4 | `src/lib/utils/map-candidate-for-question-service.ts` → `mapMainAppCandidateToQuestionService()` | Produces the `candidate_data` object |
 | 5 | Sub-mappers | `map-education-for-service.ts`, `map-certification-for-service.ts`, `map-linked-project-for-service.ts` |
 
@@ -57,9 +59,8 @@ Type definition: `src/types/question-generation.ts` → `CandidateDataForQuestio
 |---|---|
 | Empty strings | Trimmed; `""` → `null` (`emptyToNull`) |
 | Dates | `Date` → ISO-8601 string (`toISOString()`); missing → `null` |
-| Arrays | Missing → `[]` (never omitted for `techStacks`, `projects`, etc.) |
+| Arrays | Missing → `[]` (never omitted for `techStacks`, nested `workExperiences[].projects`, etc.) |
 | `resume` | `hasResume === true` → `"attached"`; otherwise `null` (not a file URL) |
-| `isTopDeveloper` | Defaults to `false` when unset |
 | Achievements | Uses `candidate.achievements` when present; falls back to legacy `candidate.competitions` with `achievementType: "competition"` |
 | Education ranking | UI/API labels normalized to service values: `tier_1`, `tier_2`, `tier_3`, `dpl_favourite` |
 | Certification `issuingBody` | `cert.issuingBody` ?? `cert.certificationIssuerName` |
@@ -85,13 +86,13 @@ Type: `CandidateDataForQuestionService`
 | `expectedSalary` | `number \| null` | `candidate.expectedSalary` |
 | `source` | `string \| null` | `candidate.source` |
 | `personalityType` | `string \| null` | `candidate.personalityType` (e.g. `ESTJ`) |
-| `isTopDeveloper` | `boolean \| null` | `candidate.isTopDeveloper` |
 | `techStacks` | `string[]` | Standalone tech stacks (`candidate.techStacks`) |
-| `projects` | `StandaloneProjectForService[]` | `candidate.projects` (independent / non-WE projects) |
-| `workExperiences` | `WorkExperienceForService[]` | `candidate.workExperiences` |
+| `workExperiences` | `WorkExperienceForService[]` | `candidate.workExperiences` (includes nested `projects[]`) |
 | `educations` | `EducationForService[]` | `candidate.educations` (after university catalog enrichment) |
 | `certifications` | `CertificationForService[]` | `candidate.certifications` |
 | `achievements` | `AchievementForService[]` | `candidate.achievements` or legacy `competitions` |
+
+> **Removed:** top-level `projects`. If a legacy client still sends `candidate_data.projects`, the QG service **ignores** it (silent). All projects are under `workExperiences[].projects`.
 
 ### Not included in `candidate_data`
 
@@ -110,7 +111,7 @@ These exist on the main-app `Candidate` but are **stripped** by the mapper:
 
 ### `workExperiences[]` → `WorkExperienceForService`
 
-**Pre-step:** `enrichWorkExperiencesWithEmployerCatalog()` merges employer catalog from `GET /api/employers/{employerId}` when the row has a linked id. GET candidate returns flat link fields only; employer catalog is not on the ASP.NET work-experience DTO.
+**Pre-step (planned):** `enrichWorkExperiencesWithEmployerCatalog()` merges employer catalog from `GET /api/employers/{employerId}` when the row has a linked id. GET candidate returns flat link fields only; employer catalog is not on the ASP.NET work-experience DTO.
 
 #### Link fields (visible in UI; enrichment when populated — § 4.13.2a)
 
@@ -177,9 +178,11 @@ apiFieldName pattern: `work_experience_{i}_office_{j}_country`, `_city`, `_addre
 
 apiFieldName pattern: `work_experience_{i}_layoff_{j}_*`. Synthetic `layoff_0_*` when `layoffs[]` is empty.
 
-### `projects[]` and `workExperiences[].projects[]` → `LinkedProjectForService`
+### `workExperiences[].projects[]` → `LinkedProjectForService`
 
-Mapped by `mapLinkedProjectToServicePayload` (standalone and nested projects share this shape).
+Mapped by `mapLinkedProjectToServicePayload` (nested under work experience only).
+
+> **Removed:** top-level `candidate_data.projects`. Legacy top-level arrays are ignored if present.
 
 | Property | Type |
 |---|---|
@@ -279,32 +282,7 @@ Illustrative `candidate_data` after mapping (abbreviated nested arrays):
   "expectedSalary": 350000,
   "source": "linkedin",
   "personalityType": "INTJ",
-  "isTopDeveloper": false,
   "techStacks": ["TypeScript", "React"],
-  "projects": [
-    {
-      "projectName": "Side CLI",
-      "contributionNotes": "Built the parser",
-      "employerName": null,
-      "projectType": "Personal",
-      "status": "Development",
-      "teamSize": "1",
-      "minTeamSize": 1,
-      "maxTeamSize": 1,
-      "techStacks": ["Go"],
-      "technicalAspects": [],
-      "horizontalDomains": [],
-      "verticalDomains": [],
-      "description": null,
-      "notes": null,
-      "startDate": "2024-01-01T00:00:00.000Z",
-      "endDate": null,
-      "link": null,
-      "isPublished": false,
-      "publishPlatforms": [],
-      "downloadCount": null
-    }
-  ],
   "workExperiences": [
     {
       "employerName": "Acme Corp",
@@ -316,7 +294,30 @@ Illustrative `candidate_data` after mapping (abbreviated nested arrays):
       "workMode": "hybrid",
       "timeSupportZones": ["EST"],
       "benefits": [{ "name": "Health Insurance", "amount": null, "unit": null }],
-      "projects": []
+      "projects": [
+        {
+          "projectName": "Side CLI",
+          "contributionNotes": "Built the parser",
+          "employerName": null,
+          "projectType": "Personal",
+          "status": "Development",
+          "teamSize": "1",
+          "minTeamSize": 1,
+          "maxTeamSize": 1,
+          "techStacks": ["Go"],
+          "technicalAspects": [],
+          "horizontalDomains": [],
+          "verticalDomains": [],
+          "description": null,
+          "notes": null,
+          "startDate": "2024-01-01T00:00:00.000Z",
+          "endDate": null,
+          "link": null,
+          "isPublished": false,
+          "publishPlatforms": [],
+          "downloadCount": null
+        }
+      ]
     }
   ],
   "educations": [
@@ -373,7 +374,7 @@ Illustrative `candidate_data` after mapping (abbreviated nested arrays):
 | Root mapper | `src/lib/utils/map-candidate-for-question-service.ts` |
 | Education + university fetch | `src/lib/utils/map-education-for-service.ts` |
 | Certifications | `src/lib/utils/map-certification-for-service.ts` |
-| Projects (standalone + nested) | `src/lib/utils/map-linked-project-for-service.ts` |
+| Projects (nested under work experience) | `src/lib/utils/map-linked-project-for-service.ts` |
 | TypeScript types | `src/types/question-generation.ts` |
 | Main-app → in-memory candidate | `src/lib/services/candidates-api.ts` (`mapCandidate`, `mapEducation`, `mapCertification`, …) |
 | Cold Caller entry | `src/components/cold-caller/cold-caller-dialog.tsx` → `generateQuestions()` |

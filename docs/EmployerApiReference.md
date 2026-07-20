@@ -6,7 +6,7 @@ This document describes all **Employer**-related HTTP APIs in this solution, wit
 
 ## Important: locations are **not** updated via `PUT /api/employers/{id}`
 
-`UpdateEmployerDto` **does not include** a `locations` field. `EmployerService.UpdateAsync` only updates employer **scalar** fields plus **types**, **statuses**, **tags**, **time support zones**, and **benefits** via `IEmployerRepository.UpdateAsync`.
+`UpdateEmployerDto` **does not include** a `locations` field. `EmployerService.UpdateAsync` only updates employer **scalar** fields plus **types**, **statuses**, **time support zones**, and **benefits** via `IEmployerRepository.UpdateAsync`.
 
 **Implication:** If the front-end only calls **`PUT /api/employers/{id}`** expecting to add or change locations, **nothing will happen to locations**. That is expected server behavior, not a bug.
 
@@ -34,7 +34,7 @@ This document describes all **Employer**-related HTTP APIs in this solution, wit
 |--------|------|-------------|
 | **GET** | `/api/employers` | Paged, filtered list (`EmployerFilterRequest` query string). Returns `PagedResult<EmployerListItemDto>`. |
 | **GET** | `/api/employers/search` | Lightweight name search (`search`, `limit`). |
-| **GET** | `/api/employers/{id}` | Full employer **`EmployerDto`** including nested `locations`, benefits, tags, etc. |
+| **GET** | `/api/employers/{id}` | Full employer **`EmployerDto`** including nested `locations`, benefits, etc. |
 | **POST** | `/api/employers` | Create employer + optional nested data (see **`CreateEmployerDto`**). **Returns `201`** with `Location` header. |
 | **PUT** | `/api/employers/{id}` | Update employer **without** locations (see **`UpdateEmployerDto`**). **Returns `200`** or **`404`**. |
 | **DELETE** | `/api/employers/{id}` | Soft-delete (or hard per repository). **Returns `204`** or **`404`**. |
@@ -58,8 +58,8 @@ Locations are created **together** with the employer in one `CreateAsync` call.
 
 Body: **`UpdateEmployerDto`** — includes:
 
-- Core: `name`, `websiteUrl`, `linkedInUrl`, `foundedYear`, `workMode`, `shiftType`, `isDplCompetitor`, `ranking`, `salaryPolicy`, `minEmployees`, `maxEmployees`
-- Joins: `types`, `status`, `tagIds`, `timeSupportZoneIds`, `benefits`
+- Core: `name`, `websiteUrl`, `linkedInUrl`, `foundedYear`, `workMode`, `shiftType`, `isDplCompetitor`, `ranking`, `salaryPolicy`, `headcount`
+- Joins: `types`, `status`, `timeSupportZoneIds`, `awardIds`, `benefits`
 
 **There is no `locations` property.** Use the **locations** sub-API below for any location change after create.
 

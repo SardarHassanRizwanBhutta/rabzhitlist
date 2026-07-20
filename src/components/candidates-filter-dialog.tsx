@@ -116,11 +116,6 @@ export interface CandidateFilters {
   }
   /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
-  // Worked with Top Developer filter
-  workedWithTopDeveloper: boolean | null
-  workedWithTopDeveloperUseTolerance: boolean  // true = apply tolerance, false = ignore dates
-  // Top Developer filter
-  isTopDeveloper: boolean | null  // null = no filter, true = only top developers
   // Job title filter
   jobTitle: string
   // Years of experience filters
@@ -396,11 +391,6 @@ const initialFilters: CandidateFilters = {
   },
   // Candidate work experience time support zones
   timeSupportZones: [],
-  // Worked with Top Developer filter
-  workedWithTopDeveloper: null,
-  workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
-  // Top Developer filter
-  isTopDeveloper: null,
   // Job title filter
   jobTitle: "",
   // Years of experience filters
@@ -906,9 +896,6 @@ export function CandidatesFilterDialog({
             minYears: ""
           }
           updated.timeSupportZones = []
-            updated.workedWithTopDeveloper = null
-            updated.workedWithTopDeveloperUseTolerance = true
-          updated.isTopDeveloper = null
           updated.jobTitle = ""
             updated.yearsOfExperienceMin = ""
             updated.yearsOfExperienceMax = ""
@@ -1050,8 +1037,6 @@ export function CandidatesFilterDialog({
           tempFilters.workModes.length +
           ((tempFilters.workModeMinYears?.workModes.length || 0) > 0 && tempFilters.workModeMinYears?.minYears ? 1 : 0) +
           tempFilters.timeSupportZones.length +
-          (tempFilters.workedWithTopDeveloper !== null ? 1 : 0) +
-          (tempFilters.isTopDeveloper !== null ? 1 : 0) +
           (tempFilters.jobTitle ? 1 : 0) +
           (tempFilters.yearsOfExperienceMin ? 1 : 0) +
           (tempFilters.yearsOfExperienceMax ? 1 : 0) +
@@ -1238,7 +1223,6 @@ export function CandidatesFilterDialog({
     tempFilters.workModes.length > 0 ||
     (tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears) ||
     tempFilters.timeSupportZones.length > 0 ||
-    tempFilters.workedWithTopDeveloper !== null ||
     tempFilters.jobTitle ||
     tempFilters.yearsOfExperienceMin ||
     tempFilters.yearsOfExperienceMax ||
@@ -1834,98 +1818,6 @@ export function CandidatesFilterDialog({
                   Time zone names load from the same master list as the candidate form once lookups are available.
                 </p>
               )}
-
-              {/* Worked with Top Developer Filter */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="workedWithTopDeveloper"
-                    checked={tempFilters.workedWithTopDeveloper === true}
-                    onCheckedChange={(checked) => 
-                      handleFilterChange("workedWithTopDeveloper", checked ? true : null)
-                    }
-                  />
-                  <Label htmlFor="workedWithTopDeveloper" className="text-sm font-medium cursor-pointer">
-                    Worked with Top Developer
-                  </Label>
-                </div>
-                
-                {/* Tolerance Window Options - appears when checkbox is checked */}
-                {tempFilters.workedWithTopDeveloper === true && (
-                  <div className="space-y-3 pl-6">
-                    {/* Checkbox to enable/disable tolerance window */}
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="workedWithTopDeveloperUseTolerance"
-                        checked={tempFilters.workedWithTopDeveloperUseTolerance ?? true}
-                        onCheckedChange={(checked) => 
-                          handleFilterChange("workedWithTopDeveloperUseTolerance", checked)
-                        }
-                      />
-                      <Label htmlFor="workedWithTopDeveloperUseTolerance" className="text-xs text-muted-foreground cursor-pointer">
-                        Apply Tolerance Window
-                      </Label>
-                    </div>
-                    
-                    {/* Tolerance Window Input - only shown when tolerance is enabled */}
-                    {tempFilters.workedWithTopDeveloperUseTolerance && (
-                      <div className="space-y-2 pl-6">
-                        <Label htmlFor="workedWithTopDeveloperToleranceDays" className="text-xs text-muted-foreground">
-                          Tolerance Window (days)
-                        </Label>
-                        <Input
-                          id="workedWithTopDeveloperToleranceDays"
-                          type="number"
-                          placeholder="e.g., 30"
-                          value={tempFilters.joinedProjectFromStartToleranceDays?.toString() || "30"}
-                          onChange={(e) => {
-                            const value = e.target.value
-                            const numValue = value === "" ? 30 : parseInt(value) || 30
-                            handleFilterChange("joinedProjectFromStartToleranceDays", numValue)
-                          }}
-                          min="0"
-                          max="365"
-                          className="w-full"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Maximum days difference between candidate and top developer work experience start dates (default: 30 days). 
-                          Only matches candidates who started working on the same project within this window.
-                        </p>
-                      </div>
-                    )}
-                    
-                    {!tempFilters.workedWithTopDeveloperUseTolerance && (
-                      <p className="text-xs text-muted-foreground pl-6">
-                        Matching by project name only - no date restriction applied.
-                      </p>
-                    )}
-                  </div>
-                )}
-                
-                <p className="text-xs text-muted-foreground pl-6">
-                  Find candidates who worked on the same projects as top developers. 
-                  Combine with Employers filter to narrow by company (e.g., DPL).
-                </p>
-              </div>
-
-              {/* Top Developer Filter */}
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="isTopDeveloper"
-                    checked={tempFilters.isTopDeveloper === true}
-                    onCheckedChange={(checked) => 
-                      handleFilterChange("isTopDeveloper", checked ? true : null)
-                    }
-                  />
-                  <Label htmlFor="isTopDeveloper" className="text-sm font-medium cursor-pointer">
-                    Top Developer
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground pl-6">
-                  Filter for candidates who are marked as top developers.
-                </p>
-              </div>
 
               {/* Job Title Filter */}
               <div className="space-y-3">

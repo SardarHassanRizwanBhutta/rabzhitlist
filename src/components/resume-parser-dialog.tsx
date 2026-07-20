@@ -391,7 +391,7 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
     previewBody = (
       <TabPanelState>
         <span className="max-w-xs text-foreground">No preview yet</span>
-        <span>Choose a file and select Parse resume to see mapped candidate fields here.</span>
+        <span>Choose a file and select Auto-Profile to see mapped candidate fields here.</span>
       </TabPanelState>
     )
   }
@@ -434,7 +434,7 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
         {children ?? (
           <Button type="button" variant="outline" className="cursor-pointer">
             <FileText className="h-4 w-4 mr-2" />
-            Resume Parser
+            Auto-Profiler
           </Button>
         )}
       </DialogTrigger>
@@ -442,7 +442,7 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
         <DialogHeader className="shrink-0 border-b px-6 pb-3 pt-5">
           <DialogTitle className="flex items-center gap-2 pr-8">
             <Sparkles className="h-5 w-5 shrink-0 text-primary" />
-            Resume Parser
+            Auto-Profiler
           </DialogTitle>
           <DialogDescription className="sr-only">
             Choose a resume file, parse it, review the preview, then apply to create a candidate.
@@ -474,7 +474,7 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
               )}
               <Button type="button" size="sm" onClick={() => void handleParseFile()} disabled={parsing || !file}>
                 {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Parse resume
+                {parsing ? null : "Auto-Profile"}
               </Button>
             </div>
           </div>

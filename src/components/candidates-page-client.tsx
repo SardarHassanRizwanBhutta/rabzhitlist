@@ -37,11 +37,10 @@ import {
 } from "@/lib/services/lookups-api"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
 import {
-  fetchTags,
-  createTag,
   fetchTimeSupportZones,
   createTimeSupportZone,
 } from "@/lib/services/tags-timesupportzones-api"
+import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import { fetchDegrees, createDegree, fetchMajors, createMajor } from "@/lib/services/majors-degrees-api"
 import {
@@ -128,9 +127,6 @@ const initialFilters: CandidateFilters = {
     minYears: "",
   },
   timeSupportZones: [],
-  workedWithTopDeveloper: null,
-  workedWithTopDeveloperUseTolerance: true,
-  isTopDeveloper: null,
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
@@ -233,6 +229,7 @@ export function CandidatesPageClient() {
   const [timeSupportZonesLookup, setTimeSupportZonesLookup] = useState<
     NonNullable<CandidateLookups["timeSupportZones"]>
   >([])
+  const [awardsLookup, setAwardsLookup] = useState<LookupItem[]>([])
   const [benefitsLookup, setBenefitsLookup] = useState<NonNullable<CandidateLookups["benefits"]>>([])
   const [degreesLookup, setDegreesLookup] = useState<NonNullable<CandidateLookups["degrees"]>>([])
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
@@ -241,7 +238,6 @@ export function CandidatesPageClient() {
   const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<
     MultiSelectOption[]
   >([])
-  const [tagsLookup, setTagsLookup] = useState<LookupItem[]>([])
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
   const [certificationIssuersLookup, setCertificationIssuersLookup] = useState<CertificationIssuer[]>([])
@@ -272,8 +268,8 @@ export function CandidatesPageClient() {
     let cancelled = false
     Promise.all([
       fetchTechStacks(),
-      fetchTags(),
       fetchTimeSupportZones(),
+      fetchAwards(),
       fetchBenefits(),
       fetchDegrees(),
       fetchMajors(),
@@ -282,11 +278,11 @@ export function CandidatesPageClient() {
       fetchTechnicalAspectTypes(),
       fetchCertificationIssuers(),
     ])
-      .then(([techStacks, tags, timeSupportZones, benefits, degrees, majors, clientLocs, technicalAspects, aspectTypes, issuers]) => {
+      .then(([techStacks, timeSupportZones, awards, benefits, degrees, majors, clientLocs, technicalAspects, aspectTypes, issuers]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
-          setTagsLookup(tags)
           setTimeSupportZonesLookup(timeSupportZones)
+          setAwardsLookup(awards)
           setBenefitsLookup(benefits)
           setDegreesLookup(degrees)
           setMajorsLookup(majors)
@@ -301,8 +297,8 @@ export function CandidatesPageClient() {
       .catch(() => {
         if (!cancelled) {
           setTechStacksLookup([])
-          setTagsLookup([])
           setTimeSupportZonesLookup([])
+          setAwardsLookup([])
           setBenefitsLookup([])
           setDegreesLookup([])
           setMajorsLookup([])
@@ -512,7 +508,6 @@ export function CandidatesPageClient() {
           ? combinedFiltersForBackend.personalityTypes
           : undefined,
       source,
-      isTopDeveloper: combinedFiltersForBackend.isTopDeveloper ?? undefined,
       currentSalaryMin: toOptionalNumber(combinedFiltersForBackend.currentSalaryMin),
       currentSalaryMax: toOptionalNumber(combinedFiltersForBackend.currentSalaryMax),
       expectedSalaryMin: toOptionalNumber(combinedFiltersForBackend.expectedSalaryMin),
@@ -657,18 +652,6 @@ export function CandidatesPageClient() {
     []
   )
 
-  const handleCreateTag = useCallback(async (name: string) => {
-    try {
-      const created = await createTag(name)
-      setTagsLookup((prev) => [
-        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
-        created,
-      ])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add tag")
-    }
-  }, [])
-
   const handleCreateCountry = useCallback(async (name: string): Promise<Country | null> => {
     try {
       const newCountry = await createCountry(name)
@@ -694,6 +677,19 @@ export function CandidatesPageClient() {
       ])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add time zone")
+      throw e
+    }
+  }, [])
+
+  const handleCreateAward = useCallback(async (name: string) => {
+    try {
+      const created = await createAward(name)
+      setAwardsLookup((prev) => [
+        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        created,
+      ])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add award")
       throw e
     }
   }, [])
@@ -778,23 +774,23 @@ export function CandidatesPageClient() {
       countries,
       countriesLoading,
       lookups: {
-        tags: tagsLookup,
         timeSupportZones: timeSupportZonesLookup,
+        awards: awardsLookup,
         benefits: benefitsLookup,
       },
-      onCreateTag: handleCreateTag,
       onCreateTimeSupportZone: handleCreateTimeSupportZone,
+      onCreateAward: handleCreateAward,
       onCreateBenefit: handleCreateBenefit,
       onCreateCountry: handleCreateCountry,
     }),
     [
       countries,
       countriesLoading,
-      tagsLookup,
       timeSupportZonesLookup,
+      awardsLookup,
       benefitsLookup,
-      handleCreateTag,
       handleCreateTimeSupportZone,
+      handleCreateAward,
       handleCreateBenefit,
       handleCreateCountry,
     ],

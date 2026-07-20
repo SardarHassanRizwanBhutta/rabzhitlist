@@ -158,13 +158,6 @@ export interface ProjectExperience {
   contributionNotes: string
 }
 
-export interface CandidateStandaloneProject {
-  id: string
-  projectId: number | null
-  projectName: string
-  contributionNotes: string
-}
-
 export interface WorkExperienceBenefit {
   id: string
   name: string
@@ -241,8 +234,6 @@ export interface CandidateFormData {
   
   // Standalone Tech Stacks - overall technical skills (not tied to specific employer)
   techStacks: string[]
-  // Top Developer flag
-  isTopDeveloper: boolean
   // Personality Type
   personalityType: string
   // Achievements - dynamic array (renamed from competitions)
@@ -931,7 +922,6 @@ const initialFormData: CandidateFormData = {
   certifications: [],
   educations: [],
   techStacks: [],
-  isTopDeveloper: false,
   personalityType: "",
     achievements: [],
     competitions: [],
@@ -1005,7 +995,6 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       isCheetah: edu.isCheetah ?? false,
     })) || [],
     techStacks: candidate.techStacks || [],
-    isTopDeveloper: candidate.isTopDeveloper ?? false,
     personalityType: candidate.personalityType || "",
     achievements: candidate.achievements?.map(ach => ({
       id: ach.id,
@@ -1120,9 +1109,9 @@ export function CandidateCreationDialog({
   
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
-      tagsLookup: nestedEmployerCreation?.lookups.tags ?? [],
       timeSupportZonesLookup:
         nestedEmployerCreation?.lookups.timeSupportZones ?? lookups?.timeSupportZones ?? [],
+      awardsLookup: nestedEmployerCreation?.lookups.awards ?? [],
       getCountryId: (countryName: string) =>
         nestedEmployerCreation?.countries.find((c) => c.name === countryName)?.id ?? 0,
     }),
@@ -3045,25 +3034,6 @@ export function CandidateCreationDialog({
                   <p className="text-sm text-red-500">{errors.basic.personalityType}</p>
                 )}
                 <VerificationCheckbox fieldPath="personalityType" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="isTopDeveloper"
-                    checked={formData.isTopDeveloper}
-                    onCheckedChange={(checked) => {
-                      setFormData(prev => ({ ...prev, isTopDeveloper: !!checked }))
-                      if (showVerification) {
-                        setModifiedFields(prev => new Set(prev).add("isTopDeveloper"))
-                        setVerifiedFields(prev => new Set(prev).add("isTopDeveloper"))
-                      }
-                    }}
-                  />
-                  <Label htmlFor="isTopDeveloper" className="text-sm font-normal cursor-pointer">
-                    Top Developer
-                  </Label>
-                </div>
-                <VerificationCheckbox fieldPath="isTopDeveloper" />
               </div>
               {mode === "edit" && candidateData?.hasResume && !resumeFile && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2">

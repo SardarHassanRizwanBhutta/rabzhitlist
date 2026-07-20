@@ -64,6 +64,10 @@ import { ColdCallerCallNotesView } from "./cold-caller-call-notes-view"
 import { ProjectEntryFields } from "./project-entry-fields"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { useCallNotesDraft } from "@/hooks/useCallNotesDraft"
+import {
+  fetchCandidateCallNotes,
+  patchCandidateCallNotes,
+} from "@/lib/services/candidate-call-notes-api"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
 import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
@@ -122,8 +126,81 @@ export function ColdCallerDialog({
     draft: rawNotesDraft,
     setDraft: setRawNotesDraft,
     showDraftSavedHint,
-  } = useCallNotesDraft(candidate.id, open)
-  
+    hydrate: hydrateCallNotesDraft,
+    clearDraftStorage,
+    readStoredDraft,
+  } = useCallNotesDraft(candidate.id, open, { deferHydration: showCallNotesTab })
+  const [isSavingCallNotes, setIsSavingCallNotes] = useState(false)
+  const [callNotesLoadState, setCallNotesLoadState] = useState<"idle" | "loading" | "ready">("idle")
+
+  useEffect(() => {
+    if (!open || !showCallNotesTab) {
+      setCallNotesLoadState("idle")
+      return
+    }
+
+    const candidateIdNum = Number(candidate.id)
+    if (!Number.isFinite(candidateIdNum)) {
+      hydrateCallNotesDraft(readStoredDraft())
+      setCallNotesLoadState("ready")
+      return
+    }
+
+    let cancelled = false
+    setCallNotesLoadState("loading")
+
+    fetchCandidateCallNotes(candidateIdNum)
+      .then((dto) => {
+        if (cancelled) return
+        if (dto.call_notes != null) {
+          hydrateCallNotesDraft(dto.call_notes)
+        } else {
+          hydrateCallNotesDraft(readStoredDraft())
+        }
+        setCallNotesLoadState("ready")
+      })
+      .catch((e) => {
+        if (cancelled) return
+        toast.error(e instanceof Error ? e.message : "Failed to load call notes.")
+        hydrateCallNotesDraft(readStoredDraft())
+        setCallNotesLoadState("ready")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    open,
+    showCallNotesTab,
+    candidate.id,
+    hydrateCallNotesDraft,
+    readStoredDraft,
+  ])
+
+  const handleSaveCallNotes = useCallback(async () => {
+    const candidateIdNum = Number(candidate.id)
+    if (!Number.isFinite(candidateIdNum)) {
+      toast.error("Invalid candidate id.")
+      throw new Error("Invalid candidate id.")
+    }
+    if (!rawNotesDraft.trim()) {
+      toast.error("Enter call notes before saving.")
+      throw new Error("Empty call notes.")
+    }
+
+    setIsSavingCallNotes(true)
+    try {
+      await patchCandidateCallNotes(candidateIdNum, rawNotesDraft)
+      clearDraftStorage()
+      toast.success("Notes saved.")
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save call notes.")
+      throw e
+    } finally {
+      setIsSavingCallNotes(false)
+    }
+  }, [candidate.id, rawNotesDraft, clearDraftStorage])
+
   // Track manually added entries for dynamic sections
   const [manuallyAddedFields, setManuallyAddedFields] = useState<EmptyField[]>([])
   
@@ -158,7 +235,7 @@ export function ColdCallerDialog({
   
   // Get sections that have empty fields OR have data (for dynamic sections to allow adding entries)
   const sectionsWithFields = useMemo(() => {
-    const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements', 'projects']
+    const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements']
     const sectionsWithEmptyFields = Array.from(groupedFields.keys()).filter(section => {
       const fields = groupedFields.get(section)
       return fields && fields.length > 0
@@ -174,8 +251,6 @@ export function ColdCallerDialog({
       } else if (section === 'certifications' && (candidate.certifications?.length || 0) > 0) {
         sectionsWithData.push(section)
       } else if (section === 'achievements' && (candidate.achievements?.length || 0) > 0) {
-        sectionsWithData.push(section)
-      } else if (section === 'projects' && (candidate.projects?.length || 0) > 0) {
         sectionsWithData.push(section)
       }
     })
@@ -572,15 +647,15 @@ export function ColdCallerDialog({
   // Handle adding a new entry to a dynamic section
   const handleAddEntry = useCallback((section: FieldSection) => {
     // Only allow adding entries to dynamic sections
-    const dynamicSections: ('workExperience' | 'education' | 'certifications' | 'achievements' | 'projects')[] = 
-      ['workExperience', 'education', 'certifications', 'achievements', 'projects']
+    const dynamicSections: ('workExperience' | 'education' | 'certifications' | 'achievements')[] =
+      ['workExperience', 'education', 'certifications', 'achievements']
     if (!dynamicSections.includes(section as typeof dynamicSections[number])) {
       toast.error(`Cannot add entries to ${SECTION_LABELS[section]}`)
       return
     }
 
     // Type assertion: section is guaranteed to be one of the valid types after the check above
-    const validSection = section as 'workExperience' | 'education' | 'certifications' | 'achievements' | 'projects'
+    const validSection = section as 'workExperience' | 'education' | 'certifications' | 'achievements'
 
     // Get current fields for this section
     const currentFields = groupedFields.get(section) || []
@@ -609,9 +684,6 @@ export function ColdCallerDialog({
         break
       case 'achievements':
         candidateMaxIndex = (candidate.achievements?.length || 0) - 1
-        break
-      case 'projects':
-        candidateMaxIndex = (candidate.projects?.length || 0) - 1
         break
     }
     
@@ -983,7 +1055,6 @@ export function ColdCallerDialog({
               workExperiences={candidate.workExperiences ?? undefined}
               educations={candidate.educations ?? undefined}
               certifications={candidate.certifications ?? undefined}
-              standaloneProjects={candidate.projects ?? undefined}
               groupedFields={groupedFields}
               sectionsWithFields={sectionsWithFields}
               rawNotesDraft={rawNotesDraft}
@@ -994,6 +1065,9 @@ export function ColdCallerDialog({
               isLoadingQuestions={isLoadingQuestions}
               questionsError={questionsError}
               onRetryGenerateQuestions={handleGenerateQuestions}
+              onSaveNotes={handleSaveCallNotes}
+              isSaving={isSavingCallNotes}
+              notesEditorDisabled={callNotesLoadState === "loading"}
             />
           ) : allFieldsComplete ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">
@@ -1167,7 +1241,7 @@ export function ColdCallerDialog({
                         <div className="flex-1 overflow-y-auto overscroll-contain p-6">
                           {(() => {
                             // Group fields by entry index for dynamic sections
-                            const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements', 'projects']
+                            const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements']
                             const isDynamicSection = dynamicSections.includes(section)
                             
                             if (isDynamicSection) {
@@ -1347,7 +1421,7 @@ export function ColdCallerDialog({
                                 )
                               }
                               
-                              // For other dynamic sections (education, certifications, achievements, projects)
+                              // For other dynamic sections (education, certifications, achievements)
                               return (
                                 <div className="space-y-6">
                                   {entryIndices.map((entryIndex) => {
@@ -1370,41 +1444,6 @@ export function ColdCallerDialog({
                                           </div>
                                         )}
                                         
-                                        {/* Entry Fields */}
-                                        {section === 'projects' ? (
-                                          <ProjectEntryFields
-                                            fields={entryFields}
-                                            renderField={(field) => {
-                                              const state = fieldStates.get(field.fieldPath)
-                                              const question = questionsMap.get(field.apiFieldName)
-                                              const isFieldVerified = verifiedFields.has(field.fieldPath)
-
-                                              return (
-                                                <div
-                                                  ref={(el) => {
-                                                    if (el) {
-                                                      fieldRefs.current.set(field.fieldPath, el)
-                                                    }
-                                                  }}
-                                                >
-                                                  <QuestionFieldCard
-                                                    field={field}
-                                                    question={question}
-                                                    status={state?.status || 'pending'}
-                                                    value={state?.value ?? field.currentValue}
-                                                    onValueChange={handleFieldChange}
-                                                    onSave={handleFieldSave}
-                                                    onStatusChange={handleStatusChange}
-                                                    isVerified={isFieldVerified}
-                                                    onVerificationToggle={handleVerificationToggle}
-                                                    showPriority={true}
-                                                    onCreateEntity={handleCreateEntity}
-                                                  />
-                                                </div>
-                                              )
-                                            }}
-                                          />
-                                        ) : (
                                         <div className="space-y-4">
                                           {entryFields.map((field) => {
                                             const state = fieldStates.get(field.fieldPath)
@@ -1437,7 +1476,6 @@ export function ColdCallerDialog({
                                             )
                                           })}
                                         </div>
-                                        )}
                                       </div>
                                     )
                                   })}

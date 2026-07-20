@@ -1,5 +1,7 @@
 # Call Notes Extraction — Frontend API Contract and Integration Rules
 
+> **Status note (2026-07-17):** Persisting raw call notes to the DB is a **separate** feature — see [`CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md). Python AI **extract** remains **deferred**; do not use extract as the save path.
+
 ## 1. Purpose
 
 This document defines the complete frontend integration contract for the temporary Call Notes extraction flow:

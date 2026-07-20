@@ -1,6 +1,6 @@
-# Employer list filters — front-end integration guide
+# Employer list filters â€” front-end integration guide
 
-This document describes **`GET /api/employers`**, which returns a **paged** list of employers. All filters are passed as **query string** parameters and are combined with **logical AND** (an employer must satisfy every filter that is “active”).
+This document describes **`GET /api/employers`**, which returns a **paged** list of employers. All filters are passed as **query string** parameters and are combined with **logical AND** (an employer must satisfy every filter that is â€œactiveâ€).
 
 The API model is `EmployerFilterRequest` (`MyApp.Application/DTOs/EmployerFilterRequest.cs`). Server-side behavior is implemented in `EmployerRepository.GetFilteredAsync` unless noted otherwise.
 
@@ -11,11 +11,11 @@ The API model is `EmployerFilterRequest` (`MyApp.Application/DTOs/EmployerFilter
 | Item | Value |
 |------|--------|
 | **Method / path** | `GET /api/employers` |
-| **Binding** | `[FromQuery] EmployerFilterRequest` — standard ASP.NET Core model binding (property names are **case-insensitive**) |
+| **Binding** | `[FromQuery] EmployerFilterRequest` â€” standard ASP.NET Core model binding (property names are **case-insensitive**) |
 | **Soft-deleted employers** | Excluded (`DeletedAt == null` only) |
 | **Default sort** | `Name` ascending |
 
-**Separate lookup (not the filter list):** `GET /api/employers/search?search=…&limit=…` — typeahead on employer name (minimum **2** characters after trim, capped limit). This is **not** the same as the `name` filter on the list endpoint.
+**Separate lookup (not the filter list):** `GET /api/employers/search?search=â€¦&limit=â€¦` â€” typeahead on employer name (minimum **2** characters after trim, capped limit). This is **not** the same as the `name` filter on the list endpoint.
 
 ---
 
@@ -44,7 +44,7 @@ The handler returns `PagedResult<EmployerListItemDto>` (JSON property names are 
 
 ### `EmployerListItemDto` (summary row)
 
-Each item includes: `id`, `name`, `websiteUrl`, `linkedInUrl`, `status`, `foundedYear`, `ranking`, `employerType`, `workMode`, `shiftType`, `salaryPolicy`, `minEmployees`, `maxEmployees`, `locations` (array of `{ id, country, city, address, isHeadquarters }`), `tags`, `benefits`, `timeSupportZones`, `isDPLCompetitive`.
+Each item includes: `id`, `name`, `websiteUrl`, `linkedInUrl`, `status`, `foundedYear`, `ranking`, `employerType`, `workMode`, `shiftType`, `salaryPolicy`, `headcount`, `locations` (array of `{ id, country, city, address, isHeadquarters }`), `benefits`, `timeSupportZones`, `awards`, `isDPLCompetitive`.
 
 Display strings for enums (e.g. ranking tier labels) are **server-normalized** in the DTO; do not assume they match raw C# enum names.
 
@@ -55,7 +55,7 @@ Display strings for enums (e.g. ranking tier labels) are **server-normalized** i
 - **Omitted** or **null** parameters: that constraint is **not** applied.
 - **Empty arrays** (`[]`): treated as **no constraint** for that filter (same as omitting), except where noted.
 - **Strings**: leading/trailing whitespace is usually **trimmed** where documented.
-- **Text matching**: `name`, `city`, and `employeeCity` use **case-insensitive substring** match (`ILIKE '%value%'` in PostgreSQL). `%` and `_` in the user’s string behave as SQL wildcards.
+- **Text matching**: `name`, `city`, and `employeeCity` use **case-insensitive substring** match (`ILIKE '%value%'` in PostgreSQL). `%` and `_` in the userâ€™s string behave as SQL wildcards.
 
 ---
 
@@ -73,10 +73,10 @@ Display strings for enums (e.g. ranking tier labels) are **server-normalized** i
 | `employerTypes` | `EmployerType[]?` | Length > 0 | Has **at least one** of the listed employer types. |
 | `salaryPolicies` | `SalaryPolicy[]?` | Length > 0 | Employer-level `SalaryPolicy` is **not null** and is in the list. |
 | `rankings` | `Ranking[]?` | Length > 0 | `Ranking` is **not null** and is in the list. |
-| `workModes` | `WorkMode[]?` | Length > 0 | Employer row’s **`WorkMode`** is **not null** and is in the list (same idea as `rankings` / `salaryPolicies`). |
-| `shiftTypes` | `ShiftType[]?` | Length > 0 | Employer row’s **`ShiftType`** is **not null** and is in the list (same idea as `workModes`). |
+| `workModes` | `WorkMode[]?` | Length > 0 | Employer rowâ€™s **`WorkMode`** is **not null** and is in the list (same idea as `rankings` / `salaryPolicies`). |
+| `shiftTypes` | `ShiftType[]?` | Length > 0 | Employer rowâ€™s **`ShiftType`** is **not null** and is in the list (same idea as `workModes`). |
 | `timeSupportZones` | `long[]?` | Length > 0 | Employer has **at least one** row in **`employer_time_support_zones`** whose `time_support_zone_id` is in the list. |
-| `tags` | `string[]?` | After trim, at least one non-empty entry | Employer has a tag whose name matches one of the patterns with `ILIike` **without** automatic `%` wrapping — in practice treat as **case-insensitive match to the literal string** unless the UI sends wildcards. |
+| `awards` | `long[]?` | Length > 0 | Employer has **at least one** row in **`employer_awards`** whose `award_id` is in the list. |
 | `isDPLCompetitive` | `bool?` | Has value | Must equal employer `IsDplCompetitor`. |
 
 **`EmployerStatus` values (query / enum names):** `Open`, `Closed`, `Flagged`
@@ -87,18 +87,14 @@ Display strings for enums (e.g. ranking tier labels) are **server-normalized** i
 
 **`Ranking` values:** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`
 
-**`WorkMode` values (query / enum):** `Onsite`, `Remote`, `Hybrid` — repeated keys may use enum names or underlying integer (`0`, `1`, `2`) per ASP.NET binding.
-
-**`ShiftType` values:** `Day`, `Night`, `Evening`, `Rotational`, `Flexible`, `OnCall`
-
 ---
 
 ### Size and locations
 
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
-| `sizeMin` | `int?` | Has value | `(MaxEmployees ?? MinEmployees ?? 0) >= sizeMin` (employer-level headcount range). |
-| `sizeMax` | `int?` | Has value | `(MinEmployees ?? MaxEmployees ?? 0) <= sizeMax` |
+| `sizeMin` | `int?` | Has value | `Headcount` is **not null** and `Headcount >= sizeMin`. |
+| `sizeMax` | `int?` | Has value | `Headcount` is **not null** and `Headcount <= sizeMax`. |
 | `minLocationsCount` | `int?` | Has value | Count of employer locations `>=` value. |
 | `minCitiesCount` | `int?` | Has value | Distinct city strings across locations `>=` value. If `countries` is also set, distinct cities are counted **only** among locations in those countries. |
 
@@ -111,14 +107,14 @@ Data comes from **`CandidateWorkExperience`** rows linked to the employer (`Empl
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
 | `employeeCity` | `string?` | Non-whitespace after trim | At least one work experience whose candidate has a **non-null** city containing substring (case-insensitive). |
-| `benefits` | `string[]?` | After trim, at least one non-empty | Employer-level benefit **or** any candidate work-experience benefit name matches one entry (same `ILIke` semantics as `tags`). |
-| `avgJobTenureMin` / `avgJobTenureMax` | `double?` | Either set | Per-employer **average** tenure in years over all that employer’s candidate work experiences (computed in SQL). Open-ended roles use “today” for end date in the average. |
+| `benefits` | `string[]?` | After trim, at least one non-empty | Employer-level benefit **or** any candidate work-experience benefit name matches one entry (`ILIke` without automatic % wrapping). |
+| `avgJobTenureMin` / `avgJobTenureMax` | `double?` | Either set | Per-employer **average** tenure in years over all that employerâ€™s candidate work experiences (computed in SQL). Open-ended roles use â€œtodayâ€ for end date in the average. |
 
 ---
 
-### Project-based (employer’s `Projects`)
+### Project-based (employerâ€™s `Projects`)
 
-Unless stated, “match” means: employer has **at least one** project satisfying the predicate.
+Unless stated, â€œmatchâ€ means: employer has **at least one** project satisfying the predicate.
 
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
@@ -139,7 +135,7 @@ Unless stated, “match” means: employer has **at least one** project satisfyi
 
 **`PublishedPlatform` values:** `AppStore`, `PlayStore`, `Web`, `Desktop`
 
-**Domain enums** (`VerticalDomain`, `HorizontalDomain`, `TechnicalDomain`, `TechnicalAspect`) have many members — use the same names as in `MyApp.Domain/Enums/*.cs` (PascalCase). Prefer **Swagger** (`/swagger`) or a shared OpenAPI spec to stay in sync.
+**Domain enums** (`VerticalDomain`, `HorizontalDomain`, `TechnicalDomain`, `TechnicalAspect`) have many members â€” use the same names as in `MyApp.Domain/Enums/*.cs` (PascalCase). Prefer **Swagger** (`/swagger`) or a shared OpenAPI spec to stay in sync.
 
 ---
 
@@ -181,7 +177,7 @@ For **`int[]`**, **`long[]`**, **`short[]`** you can usually pass numeric string
 |------|------|
 | Query DTO | `MyApp.Application/DTOs/EmployerFilterRequest.cs` |
 | Domain filter | `MyApp.Domain/Models/EmployerListFilter.cs` |
-| Mapping DTO → domain | `MyApp.Application/Services/EmployerService.cs` (`GetFilteredAsync`) |
+| Mapping DTO â†’ domain | `MyApp.Application/Services/EmployerService.cs` (`GetFilteredAsync`) |
 | Query logic | `MyApp.Infrastructure/Repositories/EmployerRepository.cs` (`GetFilteredAsync`) |
 | Controller | `MyApp.API/Controllers/EmployersController.cs` |
 | Paged wrapper | `MyApp.Application/Common/PagedResult.cs` |

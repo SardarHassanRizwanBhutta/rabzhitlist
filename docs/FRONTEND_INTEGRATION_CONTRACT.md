@@ -46,7 +46,7 @@ Reference: [.env.frontend.example](../.env.frontend.example)
 
 ### 2.1 `POST /api/generate-questions`
 
-Generates cold-call questions for **missing** candidate fields, grouped into **7 sections**.
+Generates cold-call questions for **missing** candidate fields, grouped into **6 sections**.
 
 **Request headers**
 
@@ -74,7 +74,6 @@ Content-Type: application/json
     "mobileNo": null,
     "workExperiences": [],
     "techStacks": ["TypeScript"],
-    "projects": [],
     "educations": [],
     "certifications": [],
     "achievements": []
@@ -118,10 +117,11 @@ Content-Type: application/json
 1. `basic_information`
 2. `work_experience`
 3. `independent_tech_stacks`
-4. `independent_projects`
-5. `education`
-6. `certifications`
-7. `achievements`
+4. `education`
+5. `certifications`
+6. `achievements`
+
+**Removed:** `independent_projects` (all candidate projects live under Work Experience nested `projects[]`).
 
 **Example response (abbreviated)**
 
@@ -178,7 +178,6 @@ export type QuestionSectionId =
   | 'basic_information'
   | 'work_experience'
   | 'independent_tech_stacks'
-  | 'independent_projects'
   | 'education'
   | 'certifications'
   | 'achievements';
@@ -232,12 +231,14 @@ export interface CandidateDataForQuestionService {
   personalityType?: string | null;
   isTopDeveloper?: boolean | null;
   techStacks?: string[];
-  projects?: StandaloneProject[];
   workExperiences?: WorkExperience[];
   educations?: Education[];
   certifications?: Certification[];
   achievements?: Achievement[];
 }
+
+/** @deprecated Top-level standalone projects removed. Use workExperiences[].projects only. */
+export type StandaloneProject = WorkExperienceProject;
 
 export interface WorkExperience {
   employerName?: string | null;
@@ -401,14 +402,13 @@ Do **not** send the main-app shape directly unless it already matches `Candidate
 
 ### 4.3 UI — Generate Questions modal
 
-Implement a **7-tab** modal matching section ids:
+Implement a **6-tab** modal matching section ids:
 
 | Tab label | `section` id |
 |---|---|
 | Basic Information | `basic_information` |
 | Work Experience | `work_experience` |
 | Independent Tech Stacks | `independent_tech_stacks` |
-| Independent Projects | `independent_projects` |
 | Education | `education` |
 | Certifications | `certifications` |
 | Achievements | `achievements` |
@@ -425,9 +425,7 @@ Implement a **7-tab** modal matching section ids:
 - Flat numbered questions list (already priority-sorted by API).
 - Each question: **bold** question text, gray `context` line, small human **field label** (never raw `apiFieldName`).
 
-**Work Experience tab** — follow **[§ 4.7 Work Experience tab rendering spec](#47-work-experience-tab-rendering-spec)** (grouped cards, not a flat list).
-
-**Independent Projects tab** — follow **[§ 4.11 Independent Projects tab rendering spec](#411-independent-projects-tab-rendering-spec)** (grouped project cards, not a flat missing-fields list).
+**Work Experience tab** — follow **[§ 4.7 Work Experience tab rendering spec](#47-work-experience-tab-rendering-spec)** (grouped cards, not a flat list). Nested projects only — no Independent Projects tab.
 
 **Education tab** — follow **[§ 4.12 Education tab rendering spec](#412-education-tab-rendering-spec)** (link fields visible, university catalog + campuses in accordion; link enrichment § 4.12.2a).
 
@@ -435,7 +433,7 @@ Implement a **7-tab** modal matching section ids:
 
 **Basic information always-ask** — `currentSalary`, `expectedSalary`, `linkedinUrl` always return a question; **Reminder** when populated. See **[§ 4.14](#414-basic-information-always-ask-enrichment)**.
 
-**Project enrichment** — Independent Projects openers + per-row Name/Contribution + Work Experience project openers/nested Name/Contribution. See **[§ 4.10](#410-project-enrichment-prompts-option-b)**.
+**Project enrichment** — Work Experience project openers + nested Name/Contribution only. See **[§ 4.10](#410-project-enrichment-prompts-option-b)**. Top-level `projects` / `independent_projects` are **not** emitted.
 
 **Header summary:**
 
@@ -446,7 +444,7 @@ Implement a **7-tab** modal matching section ids:
 
 **Error state:** show message + retry button; display `error.message`.
 
-**Empty profile:** if every section is complete, still show all 7 tabs with “Section complete”.
+**Empty profile:** if every section is complete, still show all 6 tabs with “Section complete”.
 
 ### 4.4 Display order
 
@@ -599,7 +597,7 @@ flowchart TB
 - This is the conversational entry: *“Did you work on any projects in this role…?”*
 - When the role already has parsed projects, this opener uses `prompt_type: 'enrichment'` (§ 4.10) — ask for **additional** projects, with **Reminder** badge.
 
-**Do not** render `projectName` or `contributionNotes` outside the accordion on this tab. That differs from **Independent Projects** (§ 4.3) by design.
+**Do not** render `projectName` or `contributionNotes` outside the accordion on this tab.
 
 **Accordion (per project index `j`):**
 
@@ -811,17 +809,7 @@ export function dedupeQuestionsByField(
 | Current role (`endDate` null on first such row) | Server may omit `endDate` from missing fields; UI simply omits that question. |
 | API returns question without matching card | Should not happen if parser matches server keys; log in dev. |
 
-### 4.7.11 Work Experience vs Independent Projects
-
-| Aspect | Work Experience (nested) | Independent Projects |
-|---|---|---|
-| Parent | `Work Experience {n}` card | Tab root |
-| Projects entry | `work_experience_{i}_projects` **visible** | `projects` section opener |
-| Name + Contribution | **Inside** accordion | **Visible** outside accordion |
-| Accordion contents | Name, Contribution, then catalog | Catalog only (Name/Contribution already outside) |
-| Card label | Work Experience {n} | Project {n} (§ 4.11) |
-
-### 4.7.12 Anti-patterns (do not ship)
+### 4.7.11 Anti-patterns (do not ship)
 
 - Flattening all `work_experience_*` questions into one list sorted only by priority.
 - Showing `work_experience_0_projects` at tab bottom while also showing project fields under a card.
@@ -831,7 +819,7 @@ export function dedupeQuestionsByField(
 - Client-side missing-field detection that hides the API call or filters `questions[]`.
 - Re-sorting nested project accordion with Name/Contribution by weight instead of fixed order.
 
-### 4.7.13 Frontend checklist (Work Experience tab)
+### 4.7.12 Frontend checklist (Work Experience tab)
 
 - [ ] Implement `groupWorkExperienceQuestions()` (or equivalent) per § 4.7.9
 - [ ] `dedupeQuestionsByField()` before grouping
@@ -1208,30 +1196,28 @@ Resume-parsed projects may be incomplete or incorrect. The API **always** genera
 
 | Field key | When populated | Section |
 |---|---|---|
-| `projects` | `projects[]` not empty | Independent Projects |
 | `work_experience_{i}_projects` | `workExperiences[i].projects[]` not empty | Work Experience |
-| `project_{i}_projectName` | name present on row | Independent Projects |
-| `project_{i}_contributionNotes` | contribution present on row | Independent Projects |
 | `work_experience_{r}_project_{p}_projectName` | name present on nested row | Work Experience |
 | `work_experience_{r}_project_{p}_contributionNotes` | contribution present on nested row | Work Experience |
 
 **Not enrichment:** project catalog fields (`employerName`, domains, dates, etc.) — missing-only when empty.
 
+**Removed:** Independent Projects (`projects`, `project_{i}_*`). Top-level `candidate_data.projects` is ignored if present.
+
 **Mixed row example** (name present, contribution empty):
 
 | Field | `prompt_type` | In `missing_fields`? |
 |---|---|---|
-| `project_0_projectName` | `enrichment` | No |
-| `project_0_contributionNotes` | `missing` | Yes |
+| `work_experience_0_project_0_projectName` | `enrichment` | No |
+| `work_experience_0_project_0_contributionNotes` | `missing` | Yes |
 
 ### 4.10.2 Opener enrichment
 
-When project lists exist, openers ask for **additional** projects beyond resume:
+When nested WE project lists exist, openers ask for **additional** projects beyond resume:
 
-- **Independent:** field `projects` — *“We already have {names} on file — any other independent projects to add?”*
 - **Work experience:** field `work_experience_{i}_projects` — *“For this role we already have {names} on file — any other projects in this role?”*
 
-When lists are **empty**, openers stay **missing** (current synthetic `project_0_*` / nested keys behavior).
+When lists are **empty**, openers stay **missing** (synthetic `work_experience_{i}_project_0_*` behavior).
 
 ### 4.10.3 Name / Contribution enrichment
 
@@ -1242,36 +1228,35 @@ When **present** on a row:
 
 When **empty** → standard **missing** gap-fill question.
 
-### 4.10.4 UI placement (with § 4.7 / § 4.11)
+### 4.10.4 UI placement (with § 4.7)
 
 | Location | Opener | Name / Contribution |
 |---|---|---|
-| **Independent Projects** | Flat at tab top (§ 4.11) | Visible outside accordion; Reminder when enrichment |
 | **Work Experience** | Visible per card (§ 4.7) | Inside “Complete project details” accordion; Reminder when enrichment |
 
-Same **Reminder** badge rules as § 4.9.3. Tab badge and section-complete rules unchanged.
+Same **Reminder** badge rules as § 4.9.3. Tab badge and section-complete rules unchanged. No Independent Projects tab.
 
 ### 4.10.5 API example
 
 ```json
 {
-  "section": "independent_projects",
-  "missing_fields": ["project_0_contributionNotes"],
+  "section": "work_experience",
+  "missing_fields": ["work_experience_0_project_0_contributionNotes"],
   "questions": [
     {
-      "field": "projects",
+      "field": "work_experience_0_projects",
       "prompt_type": "enrichment",
       "existing_values": ["E-commerce App", "Portfolio Site"],
-      "question": "We already have E-commerce App, Portfolio Site on file from your resume — are there any other independent projects you'd like to add?"
+      "question": "We already have E-commerce App, Portfolio Site on file for this role — are there any other projects you'd like to add?"
     },
     {
-      "field": "project_0_projectName",
+      "field": "work_experience_0_project_0_projectName",
       "prompt_type": "enrichment",
       "existing_values": ["E-commerce App"],
       "question": "We have \"E-commerce App\" on file — is that the correct project name, or should we update it?"
     },
     {
-      "field": "project_0_contributionNotes",
+      "field": "work_experience_0_project_0_contributionNotes",
       "prompt_type": "missing",
       "question": "What was your contribution or role in this project?"
     }
@@ -1282,299 +1267,23 @@ Same **Reminder** badge rules as § 4.9.3. Tab badge and section-complete rules 
 ### 4.10.6 Frontend checklist (projects)
 
 - [ ] Reminder badge for all `prompt_type === 'enrichment'` project questions
-- [ ] Independent Projects: opener + per-row Name/Contribution enrichment outside accordion (§ 4.11)
 - [ ] Work Experience: opener visible; Name/Contribution enrichment inside project accordion (§ 4.7)
 - [ ] Do not count enrichment project fields toward tab badge
-- [ ] Manual test: parsed project with name only → Name enrichment + Contribution missing
+- [ ] Do not render Independent Projects tab or top-level `project_*` keys
+- [ ] Manual test: nested WE project with name only → Name enrichment + Contribution missing
 
 ---
 
-## 4.11 Independent Projects tab rendering spec
+## 4.11 Independent Projects tab — REMOVED
 
-Authoritative UI spec for the `independent_projects` tab in Cold Caller / Generate Questions modal. Supersedes generic “flat missing-fields + flat questions” guidance in § 4.3 for this tab.
+**Status:** Removed from the QG API and Cold Caller UI contract.
 
-**Related:** field keys → [CANDIDATE_DATA_MAPPING.md](./CANDIDATE_DATA_MAPPING.md). Enrichment → § 4.10. Weights → § 6. Reference demo → `candidates_table.html` (`renderIndependentProjectsSection`).
+- Do **not** emit or render section `independent_projects`.
+- Do **not** emit missing-field keys `projects` or `project_{j}_*`.
+- All projects are under `workExperiences[].projects` → `work_experience_{i}_project_{j}_*` (§ 4.7 + § 4.10).
+- If a legacy request still includes top-level `candidate_data.projects`, the Python service **ignores** it (no 4xx).
 
-### 4.11.1 Goals
-
-| Goal | Rule |
-|---|---|
-| Interview flow | Group by **project index** (`project_0`, `project_1`, …) so the caller completes one project before the next. |
-| No duplication | Each `field` key renders **exactly once**. Never list a field in a tab-level chip list **and** inside a project card. |
-| No flat inventory | **Do not** render `missing_fields` as a long comma-separated chip list (duplicate labels like “Employer” × N). |
-| Human labels only | Never show raw `apiFieldName` (e.g. `project_0_technicalDomains`) to cold callers. |
-| Name before catalog | **Name** and **Contribution** visible outside accordion; catalog fields collapsed. |
-| Enrichment | Honor `prompt_type: 'enrichment'` + **Reminder** badge per § 4.10. |
-| Trust the API | Render `questions[]` from response; tab badge = `missing_fields.length` only. |
-
-### 4.11.2 API inputs (`independent_projects` section)
-
-From `SectionQuestionResult` where `section === 'independent_projects'`:
-
-| Field | Use |
-|---|---|
-| `missing_fields` | Tab badge count; optional per-project subset counts. **Not** a flat UI chip list. |
-| `questions` | All question text; group by parsing `question.field`. |
-| `questions[].priority` | Sort catalog fields inside accordion (high → low). |
-| `questions[].prompt_type` | `'missing'` vs `'enrichment'` (§ 4.10). |
-| `questions[].existing_values` | Optional display for enrichment (e.g. parsed project name). |
-
-**Guarantees from the API:**
-
-- One question per `field` key (server deduplicates).
-- When `projects[]` is **empty**: `projects` opener + synthetic `project_0_*` (**22** keys).
-- When `projects[]` has rows: keys use real indices (`project_1_*`, …); missing catalog/link fields per row; enrichment for opener + populated Name/Contribution (§ 4.10).
-
-### 4.11.3 Field key taxonomy
-
-Parse every `question.field` (first match wins):
-
-| Pattern | Regex | Example | Bucket |
-|---|---|---|---|
-| Section opener | `^projects$` | `projects` | **Tab root** (flat) |
-| Project field | `^project_(\d+)_(.+)$` | `project_2_verticalDomains` | **Project {i+1}** |
-
-**Link suffixes (Tier A — visible outside accordion):**
-
-`projectName`, `contributionNotes`
-
-**Catalog suffixes (Tier B — inside accordion):**
-
-`employerName`, `clientLocations`, `projectType`, `status`, `minTeamSize`, `maxTeamSize`, `startDate`, `endDate`, `verticalDomains`, `horizontalDomains`, `technicalDomains`, `description`, `notes`, `projectLink`, `isPublished`, `publishPlatforms`, `downloadCount`, `technicalAspects`, `techStacks`
-
-Full mapping → [CANDIDATE_DATA_MAPPING.md](./CANDIDATE_DATA_MAPPING.md).
-
-### 4.11.4 Visual hierarchy
-
-```
-Independent Projects tab
-│
-├── [A] Section opener (field: projects)
-│     Missing when projects[] empty; enrichment when projects[] populated (§ 4.10)
-│
-├── [B] Project 1 card
-│     ├── Name (project_0_projectName) — visible, fixed position 1
-│     ├── Contribution (project_0_contributionNotes) — visible, fixed position 2
-│     └── Accordion: "Complete project details" (N questions)
-│           └── Catalog fields sorted by priority
-│
-├── [B] Project 2 card
-│     └── …
-│
-└── (never a tab-level flat list of all missing field labels)
-```
-
-```mermaid
-flowchart TB
-  subgraph tab [Independent Projects tab]
-    opener[Section opener projects]
-    P1[Project 1 card]
-    P2[Project 2 card]
-  end
-
-  subgraph p1 [Project 1]
-    name[Name visible]
-    contrib[Contribution visible]
-    acc[Accordion catalog fields]
-  end
-
-  P1 --> name
-  P1 --> contrib
-  P1 --> acc
-```
-
-### 4.11.5 Rendering rules
-
-#### Section opener (`projects`)
-
-- Render **once** at tab top, outside project cards.
-- **`prompt_type: 'missing'`** when `projects[]` empty (broad “any projects to add?”).
-- **`prompt_type: 'enrichment'`** when `projects[]` populated — ask for **additional** projects beyond resume (§ 4.10) + **Reminder** badge.
-
-#### Project cards
-
-- One card per distinct index `i` from `project_{i}_*` keys in `questions[]`.
-- **Card title:** `Project {i + 1}` (1-based).
-- Optional subtitle from payload: `projectName` when present in mapped candidate data.
-
-#### Visible link fields (outside accordion)
-
-- Render **Name** then **Contribution** in **fixed order** (not weight-sorted among themselves).
-- Show **Reminder** badge when `prompt_type === 'enrichment'`.
-- Show normal missing styling when `prompt_type === 'missing'` (default).
-
-#### Accordion (“Complete project details”)
-
-- Contains **catalog suffixes only** (Tier B) for that project index.
-- **Header:** `Complete project details` + meta `{N} question(s)`.
-- **Default:** collapsed.
-- **Sort inside accordion:** by server `priority` descending; tie-break by suffix name.
-- **Do not** put Name or Contribution inside the accordion on this tab (differs from Work Experience nested projects — § 4.7).
-
-#### Tab summary (replace flat missing-fields list)
-
-**Do not render:**
-
-```
-Missing fields: Vertical Domains, Horizontal Domains, project_0_technicalDomains, …
-```
-
-**Recommended:**
-
-```
-Independent Projects — 42 fields missing across 3 projects
-```
-
-Optional per card: `Project 2 · 14 missing`
-
-Count per card = `missing_fields` entries matching `project_{i}_*` for that `i` (exclude enrichment-only keys).
-
-#### Section complete
-
-- Show “Section complete” only when `missing_fields.length === 0` **and** `questions.length === 0`.
-- If only enrichment questions remain (`missing_fields` empty, `questions` non-empty), render questions — not section complete.
-
-### 4.11.6 Human field labels
-
-Use suffix → label (never raw keys). Same suffixes as Work Experience project fields:
-
-| Suffix | Label |
-|---|---|
-| `projectName` | Name |
-| `contributionNotes` | Contribution |
-| `employerName` | Project employer |
-| `clientLocations` | Client locations |
-| `projectType` | Project type |
-| `status` | Status |
-| `minTeamSize` | Min team size |
-| `maxTeamSize` | Max team size |
-| `startDate` | Start date |
-| `endDate` | End date |
-| `verticalDomains` | Vertical domains |
-| `horizontalDomains` | Horizontal domains |
-| `technicalDomains` | Technical domains |
-| `description` | Description |
-| `notes` | Notes |
-| `projectLink` | Project link |
-| `isPublished` | Published |
-| `publishPlatforms` | Publish platforms |
-| `downloadCount` | Download count |
-| `technicalAspects` | Technical aspects |
-| `techStacks` | Tech stacks |
-
-Implement `formatIndependentProjectFieldLabel(field: string): string` — parse `project_{i}_{suffix}`, return label for `suffix`.
-
-### 4.11.7 Grouping algorithm (reference)
-
-```typescript
-const PROJECT_LINK_ORDER = ['projectName', 'contributionNotes'] as const;
-const PROJECT_CATALOG_SUFFIXES = new Set([
-  'employerName', 'clientLocations', 'projectType', 'status',
-  'minTeamSize', 'maxTeamSize', 'startDate', 'endDate',
-  'verticalDomains', 'horizontalDomains', 'technicalDomains',
-  'description', 'notes', 'projectLink', 'isPublished',
-  'publishPlatforms', 'downloadCount', 'technicalAspects', 'techStacks',
-]);
-
-export interface IndependentProjectQuestionGroup {
-  index: number;
-  title: string;
-  linkQuestions: GeneratedQuestion[];
-  catalogQuestions: GeneratedQuestion[];
-}
-
-export function groupIndependentProjectQuestions(
-  questions: GeneratedQuestion[],
-): { sectionOpener: GeneratedQuestion | null; cards: IndependentProjectQuestionGroup[] } {
-  const deduped = dedupeQuestionsByField(questions);
-  let sectionOpener: GeneratedQuestion | null = null;
-  const cards = new Map<number, { link: GeneratedQuestion[]; catalog: GeneratedQuestion[] }>();
-
-  for (const q of deduped) {
-    if (q.field === 'projects') {
-      sectionOpener = q;
-      continue;
-    }
-    const m = /^project_(\d+)_(.+)$/.exec(q.field);
-    if (!m) continue;
-    const i = Number(m[1]);
-    const suffix = m[2];
-    if (!cards.has(i)) cards.set(i, { link: [], catalog: [] });
-    const bucket = PROJECT_CATALOG_SUFFIXES.has(suffix) ? 'catalog' : 'link';
-    cards.get(i)![bucket].push(q);
-  }
-
-  const sortLink = (items: GeneratedQuestion[]) =>
-    [...items].sort((a, b) => {
-      const sa = a.field.split('_').pop()!;
-      const sb = b.field.split('_').pop()!;
-      return PROJECT_LINK_ORDER.indexOf(sa as typeof PROJECT_LINK_ORDER[number])
-        - PROJECT_LINK_ORDER.indexOf(sb as typeof PROJECT_LINK_ORDER[number]);
-    });
-
-  return {
-    sectionOpener,
-    cards: [...cards.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([index, card]) => ({
-        index,
-        title: `Project ${index + 1}`,
-        linkQuestions: sortLink(card.link),
-        catalogQuestions: card.catalog.sort((a, b) => b.priority - a.priority),
-      })),
-  };
-}
-```
-
-### 4.11.8 Enrichment integration (§ 4.10)
-
-| Field | When enrichment |
-|---|---|
-| `projects` | `projects[]` non-empty |
-| `project_{i}_projectName` | name present on row |
-| `project_{i}_contributionNotes` | contribution present on row |
-
-Enrichment questions: **Reminder** badge, excluded from tab badge and missing-field chip lists. Catalog fields are **never** enrichment — missing-only.
-
-### 4.11.9 Independent Projects vs Work Experience (nested projects)
-
-| Aspect | Independent Projects (this tab) | Work Experience nested |
-|---|---|---|
-| Parent | Tab root | Work Experience {n} card |
-| Section/role opener | `projects` at tab top | `work_experience_{i}_projects` per card |
-| Name + Contribution | **Visible outside** accordion | **Inside** accordion (§ 4.7) |
-| Accordion | Catalog only | Name, Contribution, then catalog |
-
-### 4.11.10 Edge cases
-
-| Scenario | UI |
-|---|---|
-| `projects[]` empty | Opener + single **Project 1** card with synthetic `project_0_*` questions |
-| 3 resume-parsed projects, sparse catalog | 3 project cards; each accordion may have many questions — **do not** flatten labels at tab top |
-| Name enrichment + Contribution missing | Name with Reminder; Contribution as normal missing question on same card |
-| All catalog complete on a row | Card shows Name + Contribution only; accordion hidden or “0 questions” |
-| Unknown `field` key | Log in dev; do not render at tab root |
-
-### 4.11.11 Anti-patterns (do not ship)
-
-- Flattening all `project_*` missing fields into one list sorted only by priority.
-- Showing duplicate human labels (“Employer”, “Vertical Domains”) without project grouping.
-- Displaying raw `apiFieldName` strings (`project_1_technicalDomains`).
-- Putting Name/Contribution **inside** the accordion on this tab.
-- Counting enrichment fields toward tab badge or missing-field summary.
-- “Section complete” when enrichment-only questions exist.
-
-### 4.11.12 Frontend checklist (Independent Projects tab)
-
-- [ ] Implement `groupIndependentProjectQuestions()` per § 4.11.7
-- [ ] `dedupeQuestionsByField()` before grouping
-- [ ] Section opener at tab top; project cards below
-- [ ] Name → Contribution visible; catalog in collapsed accordion
-- [ ] Reminder badge for `prompt_type === 'enrichment'`
-- [ ] Compact summary instead of flat missing-field dump
-- [ ] `formatIndependentProjectFieldLabel()` — no raw keys in UI
-- [ ] Section complete: `missing_fields.length === 0 && questions.length === 0`
-- [ ] Manual test: 3 projects with partial catalog → 3 cards, no tab-level duplicate label list
+Authoritative handoff: [CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md](./CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md).
 
 ---
 
@@ -1821,7 +1530,7 @@ The Python service decides what is “missing.” Frontend **must not** duplicat
 
 **Independent Tech Stacks** — top-level `techStacks` array. When empty → `techStacks` in `missing_fields`. When populated → **enrichment question always** (`prompt_type: 'enrichment'`, not in `missing_fields`). See § 4.9.
 
-**Independent Projects** — top-level `projects[]`. When empty → `projects` opener + **21** synthetic `project_0_*` keys (**22** total). When populated → opener + per-row Name/Contribution **enrichment** when present (§ 4.10); catalog fields missing-only. **UI:** § 4.11.
+**Independent Projects** — **REMOVED.** Do not emit `independent_projects` or top-level `projects` / `project_*` keys. Projects only via `workExperiences[].projects` (§ 4.7 / § 4.10).
 
 **Education** — `educations` array with link + flat university catalog + `locations[]` campuses per row. When `educations[]` empty → synthetic keys (**16** total). When populated → **link enrichment** for opener + present link fields (`prompt_type: enrichment`, § 4.12.2a); catalog/campus missing-only. **UI:** § 4.12.
 
@@ -1884,22 +1593,6 @@ Weights with **0** still generate questions when missing but sort **last** withi
 |---|---|
 | `techStacks` | 5 |
 
-### Independent Projects
-
-| Field | Weight |
-|---|---|
-| `projects` (empty section) | 5 |
-| `contributionNotes` (Tier A — visible) | 1 |
-| `projectName` (Tier A — visible) | 4 |
-| `employerName` | 7.5 |
-| `clientLocations` | 5 |
-| `verticalDomains`, `horizontalDomains`, `technicalDomains`, `description`, `technicalAspects`, `techStacks` | 10 each |
-| `projectLink` | 5 |
-| `status`, `minTeamSize`, `maxTeamSize`, `startDate`, `endDate` | 2.5 each |
-| `projectType`, `notes`, `isPublished`, `publishPlatforms`, `downloadCount` | 1 each |
-
-**Cold Caller UI:** section opener flat → per `project_{i}_*`: **projectName** then **contributionNotes** (fixed order, not weight-sorted) → collapsible **Complete project details** for catalog suffixes (sort by server `priority` inside accordion). Tab badge = full `missing_fields.length`.
-
 ### Education (6)
 
 | Field | Weight |
@@ -1955,14 +1648,13 @@ The LLM returns question text and `context`. **Priority in LLM JSON is discarded
 - [ ] Add `NEXT_PUBLIC_QUESTIONS_API_URL=http://localhost:8002` to `.env.local`
 - [ ] Implement `mapMainAppCandidateToQuestionService` (see mapping doc)
 - [ ] Implement `generateQuestions()` client
-- [ ] Build 7-tab modal per section 4.3
+- [ ] Build 6-tab modal per section 4.3
 - [ ] Implement Work Experience tab per **§ 4.7**
 - [ ] Implement Education tab per **§ 4.12** (incl. link enrichment § 4.12.2a, Reminder badge)
 - [ ] Implement Certifications tab per **§ 4.8** (incl. link enrichment § 4.8.2a, Reminder badge)
 - [ ] Implement Basic Information always-ask per **§ 4.14** (`currentSalary`, `expectedSalary`, `linkedinUrl`, Reminder badge)
 - [ ] Implement tech stack enrichment per **§ 4.9** (`prompt_type`, Reminder badge, section-complete rule)
-- [ ] Implement project enrichment per **§ 4.10**
-- [ ] Implement Independent Projects tab per **§ 4.11**
+- [ ] Implement project enrichment per **§ 4.10** (WE nested only; Independent Projects removed § 4.11)
 - [ ] Handle loading / error / retry
 - [ ] Verify health: `GET /health`
 - [ ] Manual test with candidate missing email, salary, benefits (see `sample_candidates.py` id `"1"`)
@@ -1986,7 +1678,7 @@ Document production hardening separately when deploying the Python service off l
 | Artifact | Location |
 |---|---|
 | Python API | `question_generator.py` |
-| Demo UI (7-tab modal) | `candidates_table.html` |
+| Demo UI (6-tab modal) | `candidates_table.html` |
 | Sample candidate payloads | `sample_candidates.py` |
 | Mapping worksheet | `docs/CANDIDATE_DATA_MAPPING.md` |
 | Frontend env example | `.env.frontend.example` |

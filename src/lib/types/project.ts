@@ -54,7 +54,7 @@ export interface Project {
   endDate: Date | null
   status: ProjectStatus
   description: string | null
-  notes: string | null
+  latestUpdate: string | null
   projectLink: string | null
   projectType: ProjectType
   isPublished: boolean  // Is this project/app published on any platform?

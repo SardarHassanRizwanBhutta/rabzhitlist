@@ -6,7 +6,7 @@ import { CallNotesResumePanel } from "./call-notes-resume-panel"
 import { CallNotesEditor } from "./call-notes-editor"
 import { CallNotesQuestionsSidebar } from "./call-notes-questions-sidebar"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
-import type { CandidateCertification, CandidateEducation, CandidateStandaloneProject, WorkExperience } from "@/lib/types/candidate"
+import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
 
 const RESIZE_HANDLE_CLASS = cn(
   "w-1.5 shrink-0 cursor-col-resize touch-none",
@@ -29,8 +29,9 @@ interface CallNotesWorkspaceProps {
   rawNotesDraft: string
   onDraftChange: (draft: string) => void
   showDraftSavedHint: boolean
-  onAnalyze: () => void
-  isAnalyzing?: boolean
+  onSave: () => void
+  isSaving?: boolean
+  notesEditorDisabled?: boolean
   questions: GeneratedQuestion[]
   sectionMissingFields?: string[]
   sectionComplete?: boolean
@@ -40,7 +41,6 @@ interface CallNotesWorkspaceProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  standaloneProjects?: CandidateStandaloneProject[]
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
   onRetryGenerateQuestions?: () => void
@@ -58,8 +58,9 @@ export function CallNotesWorkspace({
   rawNotesDraft,
   onDraftChange,
   showDraftSavedHint,
-  onAnalyze,
-  isAnalyzing = false,
+  onSave,
+  isSaving = false,
+  notesEditorDisabled = false,
   questions,
   sectionMissingFields,
   sectionComplete = false,
@@ -69,7 +70,6 @@ export function CallNotesWorkspace({
   workExperiences,
   educations,
   certifications,
-  standaloneProjects,
   activeQuestionField,
   onQuestionSelect,
   onRetryGenerateQuestions,
@@ -135,8 +135,9 @@ export function CallNotesWorkspace({
           <CallNotesEditor
             value={rawNotesDraft}
             onChange={onDraftChange}
-            onAnalyze={onAnalyze}
-            isAnalyzing={isAnalyzing}
+            onSave={onSave}
+            isSaving={isSaving}
+            disabled={notesEditorDisabled}
             showDraftSavedHint={showDraftSavedHint}
             className="h-full"
           />
@@ -163,7 +164,6 @@ export function CallNotesWorkspace({
             workExperiences={workExperiences}
             educations={educations}
             certifications={certifications}
-            standaloneProjects={standaloneProjects}
             activeQuestionField={activeQuestionField}
             onQuestionSelect={onQuestionSelect}
             onRetry={onRetryGenerateQuestions}

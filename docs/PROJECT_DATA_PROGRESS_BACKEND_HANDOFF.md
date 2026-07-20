@@ -53,7 +53,7 @@ Implement `IProjectDataProgressService` / `ProjectDataProgressCalculator` (names
 
 Load project with:
 
-- Scalar columns: `name`, `employer_id`, `type`, `status`, `min_team_size`, `max_team_size`, `start_date`, `end_date`, `description`, `notes`, `link`, `is_published`, `download_count`
+- Scalar columns: `name`, `employer_id`, `type`, `status`, `min_team_size`, `max_team_size`, `start_date`, `end_date`, `description`, `latest_update`, `link`, `is_published`, `download_count`
 - Collections: `client_locations`, `tech_stacks` (or `project_tech_stacks`), `vertical_domains`, `horizontal_domains`, `technical_domains`, `publish_platforms`
 - Derived: distinct `aspect_type_labels` (same logic as list/detail DTO today — from tech stacks’ aspect types)
 
@@ -75,7 +75,7 @@ Load project with:
 | 10 | `horizontal_domains` count ≥ 1 |
 | 10 | `technical_domains` count ≥ 1 |
 | 10 | `description` IS NOT NULL |
-| 1 | `notes` IS NOT NULL |
+| 1 | `latest_update` IS NOT NULL |
 | 5 | `link` IS NOT NULL |
 | 1 | `is_published = true` |
 | 1 | `publish_platforms` count ≥ 1 |
@@ -91,7 +91,7 @@ Load project with:
 | `projectDates` | start, end |
 | `technicalAspectsAndTechStacks` | single 20% bucket |
 | `domains` | vertical, horizontal, technical |
-| `descriptionAndLinks` | description, notes, link, published, platforms, download |
+| `descriptionAndLinks` | description, latest_update, link, published, platforms, download |
 
 Use human `missingFields` labels from locked spec §3.
 
@@ -226,11 +226,11 @@ Reuse patterns from `CandidateDataProgressService` if it exists in the backend r
 
 Do **not** change `DashboardDataProgressService` in Phase 1.
 
-Phase 2 checklist — see [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md):
+Phase 2 checklist (separate PR):
 
 - [ ] Read `projects.data_progress_percentage` for snapshots + live today
 - [ ] Set `summary.modules[projects].available = true`
-- [ ] Recalc hooks on project mutations → today snapshot upsert
+- [ ] Update D2 in dashboard docs (candidates + projects)
 
 ---
 

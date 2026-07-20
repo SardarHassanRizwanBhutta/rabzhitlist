@@ -35,7 +35,6 @@ export const WORK_EXPERIENCE_CATALOG_SUFFIXES = new Set([
   "linkedInUrl",
   "isDplCompetitor",
   "salaryPolicy",
-  "tags",
 ])
 
 const ROLE_FIELD_LABELS: Record<string, string> = {
@@ -59,7 +58,6 @@ const ROLE_FIELD_LABELS: Record<string, string> = {
   linkedInUrl: "LinkedIn URL",
   isDplCompetitor: "DPL competitor",
   salaryPolicy: "Salary policy",
-  tags: "Tags",
   country: "Country",
   city: "City",
   address: "Address",
@@ -67,7 +65,6 @@ const ROLE_FIELD_LABELS: Record<string, string> = {
   layoffDate: "Layoff date",
   affectedEmployees: "Affected employees",
   reason: "Reason",
-  source: "Source",
 }
 
 /** Nested project suffix overrides per § 4.7.7 (differs from role-level labels). */
@@ -85,7 +82,7 @@ const NESTED_PROJECT_FIELD_LABELS: Record<string, string> = {
   horizontalDomains: "Horizontal domains",
   technicalDomains: "Technical domains",
   description: "Description",
-  notes: "Notes",
+  latestUpdate: "Latest Update",
   projectLink: "Project link",
   isPublished: "Published",
   publishPlatforms: "Publish platforms",

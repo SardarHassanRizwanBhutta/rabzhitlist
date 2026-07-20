@@ -62,7 +62,9 @@ import {
 import {
   EmployerCombobox,
   type SelectedEmployer,
+  type EmployerComboboxNestedCreationProps,
 } from "@/components/employer-combobox"
+import type { Country } from "@/lib/types/country"
 import type { BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchEmployerById } from "@/lib/services/employers-api"
 import type { ProjectLookups } from "@/components/project-creation-dialog"
@@ -114,7 +116,8 @@ import {
 // import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
 // import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
-import { fetchTimeSupportZones, createTimeSupportZone, fetchTags } from "@/lib/services/tags-timesupportzones-api"
+import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
+import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import {
   fetchDegrees,
@@ -3009,6 +3012,7 @@ interface InlineEditableEmployerProps {
   verificationIndicator: React.ReactNode
   getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
   createEmployerLookups?: BuildCreateEmployerDtoOptions
+  nestedEmployerCreation?: EmployerComboboxNestedCreationProps
   className?: string
 }
 
@@ -3020,6 +3024,7 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
   verificationIndicator,
   getFieldVerification,
   createEmployerLookups,
+  nestedEmployerCreation,
   className = "",
 }) => {
   const fieldName = `workExperiences[${weIndex}].employerName`
@@ -3116,6 +3121,7 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
           onChange={setEditValue}
           disabled={isSaving}
           createEmployerLookups={createEmployerLookups}
+          nestedEmployerCreation={nestedEmployerCreation}
           parsedNameHint={
             !linkedEmployer ? experience.employerName?.trim() || undefined : undefined
           }
@@ -3819,7 +3825,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
             <div className="flex-1 space-y-3">
               {/* Checkbox or Switch */}
               <div className="flex items-center gap-2 pl-1">
-                {label === "Top Developer" || label === "Topper" || label === "Cheetah" ? (
+                {label === "Topper" || label === "Cheetah" ? (
                   <>
                     <Switch
                       id={`switch-${fieldName}`}
@@ -3909,7 +3915,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
       ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {label === "Top Developer" || label === "Topper" || label === "Cheetah" ? (
+            {label === "Topper" || label === "Cheetah" ? (
               <Switch
                 checked={value}
                 disabled
@@ -3928,7 +3934,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
             )}>
               {value ? 'Yes' : 'No'}
             </span>
-            {value && label !== "Top Developer" && label !== "Topper" && label !== "Cheetah" && (
+            {value && label !== "Topper" && label !== "Cheetah" && (
               <Badge 
                 variant="default" 
                 className="text-xs"
@@ -4024,9 +4030,9 @@ export function CandidateDetailsModal({
   const [certificationOptions, setCertificationOptions] = useState<ComboboxOption[]>(baseCertificationOptions)
   const [apiTechStacks, setApiTechStacks] = useState<LookupItem[]>([])
   const [apiTimeSupportZones, setApiTimeSupportZones] = useState<LookupItem[]>([])
+  const [apiAwards, setApiAwards] = useState<LookupItem[]>([])
   const [apiBenefits, setApiBenefits] = useState<LookupItem[]>([])
   const [benefitsCatalogLoading, setBenefitsCatalogLoading] = useState(false)
-  const [apiTags, setApiTags] = useState<LookupItem[]>([])
   const [extraTechStackOptions, setExtraTechStackOptions] = useState<MultiSelectOption[]>([])
   
   // Creation dialog state
@@ -4113,10 +4119,52 @@ export function CandidateDetailsModal({
 
   const employerCreateLookups = useMemo<BuildCreateEmployerDtoOptions>(
     () => ({
-      tagsLookup: apiTags,
       timeSupportZonesLookup: apiTimeSupportZones,
+      awardsLookup: apiAwards,
     }),
-    [apiTags, apiTimeSupportZones]
+    [apiTimeSupportZones, apiAwards]
+  )
+
+  const nestedEmployerCreation = useMemo(
+    () => ({
+      countries: [] as Country[],
+      countriesLoading: false,
+      lookups: {
+        timeSupportZones: apiTimeSupportZones,
+        awards: apiAwards,
+        benefits: apiBenefits,
+      },
+      onCreateTimeSupportZone: async (name: string) => {
+        const created = await createTimeSupportZone(name)
+        setApiTimeSupportZones((prev) => [
+          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+          created,
+        ])
+      },
+      onCreateAward: async (name: string) => {
+        const created = await createAward(name)
+        setApiAwards((prev) => [
+          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+          created,
+        ])
+      },
+      onCreateBenefit: async (name: string) => {
+        const created = await createBenefit(name)
+        setApiBenefits((prev) => [
+          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+          created,
+        ])
+        return {
+          id: String(created.id),
+          name: created.name,
+          hasValue: false,
+          amount: null,
+          unit: null,
+        }
+      },
+      onCreateCountry: async () => null,
+    }),
+    [apiTimeSupportZones, apiAwards, apiBenefits]
   )
 
   const projectLookups = useMemo<ProjectLookups>(
@@ -4307,14 +4355,14 @@ export function CandidateDetailsModal({
     Promise.all([
       fetchTechStacks().catch(() => []),
       fetchTimeSupportZones().catch(() => []),
-      fetchTags().catch(() => []),
+      fetchAwards().catch(() => []),
       fetchBenefits().catch(() => []),
     ])
-      .then(([stacks, zones, tags, benefits]) => {
+      .then(([stacks, zones, awards, benefits]) => {
         if (!cancelled) {
           setApiTechStacks(Array.isArray(stacks) ? stacks : [])
           setApiTimeSupportZones(Array.isArray(zones) ? zones : [])
-          setApiTags(Array.isArray(tags) ? tags : [])
+          setApiAwards(Array.isArray(awards) ? awards : [])
           setApiBenefits(Array.isArray(benefits) ? benefits : [])
         }
       })
@@ -4322,7 +4370,7 @@ export function CandidateDetailsModal({
         if (!cancelled) {
           setApiTechStacks([])
           setApiTimeSupportZones([])
-          setApiTags([])
+          setApiAwards([])
           setApiBenefits([])
         }
       })
@@ -6038,15 +6086,6 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="source" />}
                       getFieldVerification={getFieldVerification}
                     />
-                    <InlineEditableCheckbox
-                      label="Top Developer"
-                      value={viewCandidate.isTopDeveloper === true}
-                      fieldName="isTopDeveloper"
-                      onSave={async (fieldName, newValue, verify) => {
-                        await handleFieldSave(fieldName, newValue, verify)
-                      }}
-                      getFieldVerification={getFieldVerification}
-                    />
                     <InlineEditableCombobox
                       label="Personality Type"
                       value={personalityTypeToSelectValue(viewCandidate.personalityType)}
@@ -6170,6 +6209,7 @@ export function CandidateDetailsModal({
                                     onSave={handleWorkExperienceEmployerSave}
                                     onEmployerClick={handleEmployerClick}
                                     createEmployerLookups={employerCreateLookups}
+                                    nestedEmployerCreation={nestedEmployerCreation}
                                     verificationIndicator={
                                       <VerificationIndicator
                                     fieldName={`workExperiences[${idx}].employerName`}

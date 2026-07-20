@@ -95,7 +95,12 @@ import type { Country } from "@/lib/types/country"
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
 import type { EmployerFilters } from "./employers-filter-dialog"
 
-/** Display company-wide headcount when set on employer; otherwise legacy sum from locations. */
+/** Display company-wide headcount when set on employer. */
+function formatEmployerSize(employer: Employer): string {
+  if (employer.headcount != null) return String(employer.headcount)
+  return "—"
+}
+
 function getEmployerTypeDbList(employer: Employer): EmployerTypeDb[] {
   if (employer.employerTypes?.length) {
     const seen = new Set<EmployerTypeDb>()
@@ -117,23 +122,6 @@ function employerTypesSortKey(employer: Employer): string {
     .map((db) => EMPLOYER_TYPE_DB_LABELS[db])
     .sort((x, y) => x.localeCompare(y))
     .join(" ")
-}
-
-function formatEmployerSize(employer: Employer): string {
-  const { minEmployees, maxEmployees, locations } = employer
-  if (minEmployees != null || maxEmployees != null) {
-    const lo = minEmployees ?? maxEmployees
-    const hi = maxEmployees ?? minEmployees
-    if (lo == null && hi == null) return "—"
-    if (lo === hi) return String(lo ?? hi)
-    return `${lo}-${hi}`
-  }
-  if (!locations?.length) return "—"
-  const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
-  const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
-  if (totalMin === 0 && totalMax === 0) return "—"
-  if (totalMin === totalMax) return String(totalMin)
-  return `${totalMin}-${totalMax}`
 }
 
 type EmployerExternalLinkKind = "website" | "linkedin"
@@ -197,8 +185,8 @@ interface EmployersTableProps {
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
   lookups?: EmployerLookups
-  onCreateTag?: (name: string) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
+  onCreateAward?: (name: string) => Promise<void>
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
@@ -275,8 +263,8 @@ export function EmployersTable({
   countriesLoading,
   onCreateCountry,
   lookups,
-  onCreateTag,
   onCreateTimeSupportZone,
+  onCreateAward,
   onCreateBenefit,
 }: EmployersTableProps) {
   const router = useRouter()
@@ -327,16 +315,7 @@ export function EmployersTable({
   const filteredEmployers = useMemo(() => employers, [employers])
 
   const getSizeSortValue = (employer: Employer): number => {
-    if (employer.minEmployees != null || employer.maxEmployees != null) {
-      const lo = employer.minEmployees ?? employer.maxEmployees ?? 0
-      const hi = employer.maxEmployees ?? employer.minEmployees ?? 0
-      return (lo + hi) / 2
-    }
-    const { locations } = employer
-    if (!locations?.length) return 0
-    const totalMin = locations.reduce((sum, loc) => sum + (loc.minSize ?? 0), 0)
-    const totalMax = locations.reduce((sum, loc) => sum + (loc.maxSize ?? 0), 0)
-    return (totalMin + totalMax) / 2
+    return employer.headcount ?? 0
   }
 
   // Sorting
@@ -1009,8 +988,8 @@ export function EmployersTable({
           countriesLoading={countriesLoading}
           onCreateCountry={onCreateCountry}
           lookups={lookups}
-          onCreateTag={onCreateTag}
           onCreateTimeSupportZone={onCreateTimeSupportZone}
+          onCreateAward={onCreateAward}
           onCreateBenefit={onCreateBenefit}
         />
       )}

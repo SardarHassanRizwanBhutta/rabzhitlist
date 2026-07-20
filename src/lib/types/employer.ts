@@ -6,8 +6,6 @@ export interface EmployerLocation {
   address: string | null
   isHeadquarters: boolean
   salaryPolicy: SalaryPolicy
-  minSize: number | null
-  maxSize: number | null
   createdAt: Date
   updatedAt: Date
 }
@@ -51,7 +49,6 @@ export interface Layoff {
   numberOfEmployeesLaidOff: number
   reason: LayoffReason
   reasonOther?: string  // Required when reason is "Other"
-  source: string
   createdAt: Date
   updatedAt: Date
 }
@@ -94,13 +91,13 @@ export interface Employer {
   /** Company-wide salary policy (not per office). */
   salaryPolicy?: SalaryPolicy | null
   timeSupportZones?: string[]
+  /** Award names (from list or detail). */
+  awards?: string[]
   benefits?: EmployerBenefit[]
   isDPLCompetitive?: boolean  // Separate field for DPL Competitive status
-  /** Company-wide headcount range (not tied to a single office). */
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  /** Company-wide headcount (not tied to a single office). */
+  headcount?: number | null
   avgJobTenure?: number  // Manually set average job tenure in years (calculated from work experience data)
-  tags?: string[]  // e.g., ["Enterprise", "Startup"] (DPL Competitive is now a separate field)
   layoffs?: Layoff[]  // One-to-many relationship with Layoffs
   /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). Always a number from list API. */
   dataProgressPercentage: number

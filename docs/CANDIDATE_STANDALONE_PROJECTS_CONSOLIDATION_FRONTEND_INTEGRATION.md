@@ -1,6 +1,6 @@
 # Candidate Standalone Projects Consolidation — Frontend Integration
 
-**Status:** Phase 1 (UI + resume + API client + data-progress) implemented against local API. Prod cutover not done yet. Phase 2 (Cold caller / QG / empty-fields / matches) deferred.  
+**Status:** Phase 1 + Phase 2 + QG type alignment done. Matches / projects-table / `Candidate.projects` type cleanup done (orphan WE shared-project rules deferred until backend Worked with Top Developer).  
 **Audience:** Frontend / Next.js AI agent.  
 **Scope:** Remove standalone Projects UI; remap resume `standalone_projects` into orphan Work Experiences; stop sending/reading top-level `projects[]`.
 
@@ -90,7 +90,7 @@ When `standalone_projects` (and aliases) is a non-empty array:
 | `candidates-api.ts` | Stop mapping/sending top-level `projects`; map GET without expecting `projects` | Done |
 | `candidate-details-modal.tsx` | Remove standalone projects display/edit | Done |
 | `candidate-data-progress.ts` | Remove `independentProjects` from `DATA_PROGRESS_SECTION_ORDER` | Done |
-| Cold caller / QG / empty-fields / matches | Drop standalone `projects` branching | **Phase 2** |
+| Cold caller / QG / empty-fields / matches | Drop standalone `projects` branching | **Done** (orphan WE shared-project rules deferred) |
 
 **Validation:** Employer/job title may be empty when `projects.length > 0` on that WE (orphan).
 
@@ -109,7 +109,7 @@ When `standalone_projects` (and aliases) is a non-empty array:
 ## 6. Frontend checklist
 
 - [x] Backend smoke (migration + null jobTitle/employerId) confirmed on **local** API
-- [ ] Prod cutover (backend migrate + hard-remove) — not done yet
+- [x] Prod cutover (backend migrate + hard-remove)
 - [x] Remove Projects section from Create / Edit / Details
 - [x] Types + API client: no top-level `projects` on create/update; GET maps `projects: []`
 - [x] Resume map: `standalone_projects` → orphan WE + nested projects
@@ -118,7 +118,8 @@ When `standalone_projects` (and aliases) is a non-empty array:
 - [x] Candidate data-progress section order (no `independentProjects`)
 - [x] Build / typecheck pass
 - [ ] Manual QA §7 (local)
-- [ ] Phase 2: Cold caller / QG / empty-fields / matches
+- [x] Phase 2: Cold caller / QG / empty-fields
+- [x] Matches / projects-table / `Candidate.projects` cleanup (orphan WE shared-project rules deferred)
 
 ---
 
@@ -157,3 +158,4 @@ Defer cold caller / QG / empty-fields / matches to phase 2.
 | [`CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_BACKEND_HANDOFF.md`](./CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_BACKEND_HANDOFF.md) | Migration + API |
 | [`API_DOCUMENTATION.md`](./API_DOCUMENTATION.md) | Resume `standalone_projects` shape |
 | [`CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md`](./CANDIDATE_DATA_QUESTION_SERVICE_PAYLOAD.md) | Drop standalone projects in QG payload (phase 2) |
+| [`CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md`](./CANDIDATE_STANDALONE_PROJECTS_CONSOLIDATION_QG_SERVICE.md) | Python QG: stop emitting `independent_projects` |

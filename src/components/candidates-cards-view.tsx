@@ -81,9 +81,6 @@ const defaultFilters: CandidateFilters = {
     minYears: ""
   },
   timeSupportZones: [],
-  workedWithTopDeveloper: null,
-  workedWithTopDeveloperUseTolerance: true,  // Default: apply tolerance
-  isTopDeveloper: null,
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
@@ -161,7 +158,7 @@ const getCategoryIcon = (type: string) => {
     case 'competitions':
       return Trophy
     case 'collaboration':
-      return Star // Using Star icon for top developer collaboration
+      return Star
     case 'published':
       return Smartphone // Using Smartphone icon for published apps
     default:
@@ -271,8 +268,6 @@ const getCriterionColor = (type: string): string => {
     // Candidate Tech Stacks
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
     
-    // Top Developer Collaboration
-    'topDeveloper': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700',
     'sharedProject': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
     
     // Published Apps
