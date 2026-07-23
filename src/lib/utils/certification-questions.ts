@@ -10,22 +10,17 @@ export const CERTIFICATION_LINK_ORDER = [
   "name",
   "issueDate",
   "expiryDate",
-  "url",
-  "level",
 ] as const
 
-export const CERTIFICATION_CATALOG_SUFFIXES = new Set(["issuingBody", "issuingBodyUrl"])
+export const CERTIFICATION_CATALOG_SUFFIXES = new Set(["issuingBody"])
 
 const CERTIFICATION_FIELD_RE = /^certification_(\d+)_(.+)$/
 
 const CERTIFICATION_FIELD_LABELS: Record<string, string> = {
   name: "Name",
-  issueDate: "Issue date",
-  expiryDate: "Expiry date",
-  url: "Certification URL",
-  level: "Level",
+  issueDate: "Issue Date",
+  expiryDate: "Expiry Date",
   issuingBody: "Issuer body",
-  issuingBodyUrl: "Issuer body URL",
 }
 
 export interface CertificationQuestionCard {

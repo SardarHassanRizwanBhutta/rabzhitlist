@@ -5,6 +5,11 @@ import type {
   SectionQuestionResult,
 } from "@/types/question-generation"
 import { questionSectionIdToFieldSection } from "@/lib/utils/question-section-map"
+import {
+  COLD_CALLER_QG_SECTION_ORDER,
+  isQuestionFieldAllowed,
+  isQuestionSectionAllowed,
+} from "@/lib/utils/question-field-allowlist"
 
 export type { ColdCallerSectionQuestions }
 
@@ -20,36 +25,61 @@ export function dedupeApiFieldNames(fieldNames: string[]): string[] {
   return result
 }
 
-export function mapApiQuestionToColdCaller(q: ApiGeneratedQuestion): GeneratedQuestion {
-  const promptType: GeneratedQuestion["promptType"] =
-    q.prompt_type === "enrichment" ? "enrichment" : "missing"
+function mapPromptType(
+  value: ApiGeneratedQuestion["prompt_type"],
+): GeneratedQuestion["promptType"] {
+  if (value === "basic" || value === "advanced" || value === "enrichment") {
+    return value
+  }
+  // Legacy `"missing"` (pre-sync) → treat as basic.
+  return "basic"
+}
 
+export function mapApiQuestionToColdCaller(q: ApiGeneratedQuestion): GeneratedQuestion {
   return {
     question: q.question,
     field: q.field,
     section: questionSectionIdToFieldSection(q.section),
     priority: q.priority,
     context: q.context,
-    promptType,
-    existingValues: q.existing_values?.map((v) => String(v)) ?? null,
+    promptType: mapPromptType(q.prompt_type),
   }
 }
 
 export function mapSectionResultToColdCaller(
   section: SectionQuestionResult,
 ): ColdCallerSectionQuestions {
+  const allowedMissingFields = section.missing_fields.filter((field) =>
+    isQuestionFieldAllowed(section.section, field),
+  )
+  const allowedQuestions = section.questions.filter(
+    (question) =>
+      question.section === section.section &&
+      isQuestionFieldAllowed(section.section, question.field) &&
+      question.prompt_type !== "enrichment",
+  )
+
   return {
     section: questionSectionIdToFieldSection(section.section),
     label: section.label,
-    missingFields: dedupeApiFieldNames(section.missing_fields),
-    questions: section.questions.map(mapApiQuestionToColdCaller),
+    missingFields: dedupeApiFieldNames(allowedMissingFields),
+    questions: allowedQuestions.map(mapApiQuestionToColdCaller),
   }
 }
 
 export function mapGenerateQuestionsResponse(
   response: GenerateQuestionsResponse,
 ): ColdCallerSectionQuestions[] {
-  return response.sections.map(mapSectionResultToColdCaller)
+  const sectionsById = new Map(
+    response.sections
+      .filter((section) => isQuestionSectionAllowed((section as { section?: unknown }).section))
+      .map((section) => [section.section, section]),
+  )
+
+  return COLD_CALLER_QG_SECTION_ORDER.flatMap((sectionId) => {
+    const section = sectionsById.get(sectionId)
+    return section ? [mapSectionResultToColdCaller(section)] : []
+  })
 }
 
 export function flattenSectionQuestions(
@@ -62,7 +92,7 @@ export function totalMissingFieldsCount(sections: ColdCallerSectionQuestions[]):
   return sections.reduce((sum, s) => sum + s.missingFields.length, 0)
 }
 
-/** Section complete only when no missing fields and no questions (enrichment-only → not complete). § 4.14 */
+/** Section complete when no missing allowlisted fields remain. */
 export function isSectionComplete(section: ColdCallerSectionQuestions): boolean {
-  return section.missingFields.length === 0 && section.questions.length === 0
+  return section.missingFields.length === 0
 }

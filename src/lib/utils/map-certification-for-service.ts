@@ -14,6 +14,8 @@ function emptyToNull(value: string | null | undefined): string | null {
 function toIsoDate(value: Date | undefined | null): string | null {
   if (value == null) return null
   try {
+    const time = value.getTime()
+    if (Number.isNaN(time)) return null
     return value.toISOString()
   } catch {
     return null
@@ -78,11 +80,8 @@ export function mapCertificationToServicePayload(
 
   return {
     certificationName: emptyToNull(cert.certificationName) ?? cert.certificationName,
-    certificationLevel: emptyToNull(cert.certificationLevel as string | null),
-    issueDate: toIsoDate(cert.issueDate),
-    expiryDate: toIsoDate(cert.expiryDate),
-    certificationUrl: emptyToNull(cert.certificationUrl),
+    issueDate: toIsoDate(cert.issueDate ?? undefined),
+    expiryDate: toIsoDate(cert.expiryDate ?? undefined),
     issuingBody,
-    issuingBodyUrl: emptyToNull(cert.issuingBodyUrl),
   }
 }

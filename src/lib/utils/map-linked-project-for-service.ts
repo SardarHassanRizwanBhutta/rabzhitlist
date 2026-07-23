@@ -3,6 +3,7 @@ import type {
   WorkExperienceProjectForService,
 } from "@/types/question-generation"
 import { PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
+import { TECHNICAL_DOMAIN_HUMAN_LABELS } from "@/lib/services/projects-api"
 import { formatTeamSizeForService, readLinkedProjectPayloadValue } from "@/lib/utils/project-catalog-fields"
 
 const PROJECT_STATUS_FROM_API = ["Development", "Maintenance", "Closed"] as const
@@ -31,6 +32,36 @@ function parseStringArray(raw: unknown): string[] {
       return String(
         r.name ?? r.label ?? r.techStackName ?? r.domainName ?? r.aspectName ?? item,
       )
+    })
+    .filter((s) => s.trim() !== "")
+}
+
+/** Resolve technical domain ints / labels from Candidate/Project API shapes. */
+function parseTechnicalDomains(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (typeof item === "number") {
+        return TECHNICAL_DOMAIN_HUMAN_LABELS[item] ?? String(item)
+      }
+      if (typeof item === "string") {
+        const trimmed = item.trim()
+        if (trimmed === "") return ""
+        const asInt = Number(trimmed)
+        if (Number.isInteger(asInt) && String(asInt) === trimmed) {
+          return TECHNICAL_DOMAIN_HUMAN_LABELS[asInt] ?? trimmed
+        }
+        return trimmed
+      }
+      const r = asRecord(item)
+      if (!r) return ""
+      if (typeof r.value === "number") {
+        return (
+          TECHNICAL_DOMAIN_HUMAN_LABELS[r.value] ??
+          String(r.label ?? r.name ?? r.domainName ?? r.value)
+        )
+      }
+      return String(r.name ?? r.label ?? r.domainName ?? "")
     })
     .filter((s) => s.trim() !== "")
 }
@@ -98,6 +129,7 @@ export function parseLinkedProjectCatalogFromApi(
     technicalAspects: parseStringArray(
       nested.technicalAspects ?? nested.aspectTypeLabels,
     ),
+    technicalDomains: parseTechnicalDomains(nested.technicalDomains),
     horizontalDomains: parseStringArray(nested.horizontalDomains),
     verticalDomains: parseStringArray(nested.verticalDomains),
     description: nested.description != null ? String(nested.description) : null,
@@ -157,10 +189,9 @@ export function mapLinkedProjectToServicePayload(
       project.minTeamSize,
       project.maxTeamSize,
     ),
-    minTeamSize: project.minTeamSize ?? null,
-    maxTeamSize: project.maxTeamSize ?? null,
     techStacks: stringArray(project.techStacks),
     technicalAspects: stringArray(project.technicalAspects),
+    technicalDomains: stringArray(project.technicalDomains),
     horizontalDomains: stringArray(project.horizontalDomains),
     verticalDomains: stringArray(project.verticalDomains),
     description: emptyToNull(project.description),
@@ -168,7 +199,6 @@ export function mapLinkedProjectToServicePayload(
     startDate: toIsoDate(project.startDate),
     endDate: toIsoDate(project.endDate),
     link: emptyToNull(project.link),
-    isPublished: project.isPublished ?? null,
     publishPlatforms: stringArray(project.publishPlatforms),
     downloadCount: project.downloadCount ?? null,
   }

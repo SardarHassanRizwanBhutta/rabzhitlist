@@ -98,19 +98,6 @@ export function calculateDataCompletion(candidate: Candidate): DataCompletionSum
     percentage: certTotal > 0 ? Math.max(0, Math.min(100, Math.round((certFilled / certTotal) * 100))) : 100
   })
 
-  // Achievements fields (4 fields per achievement: ranking, year, url, description)
-  const achievementTotal = (candidate.achievements?.length || 0) * 4
-  const achievementEmpty = sectionEmptyMap.get('achievements') || 0
-  const achievementFilled = Math.max(0, achievementTotal - achievementEmpty)
-  sectionBreakdown.push({
-    section: 'achievements',
-    label: SECTION_LABELS.achievements,
-    total: achievementTotal,
-    filled: achievementFilled,
-    empty: achievementEmpty,
-    percentage: achievementTotal > 0 ? Math.max(0, Math.min(100, Math.round((achievementFilled / achievementTotal) * 100))) : 100
-  })
-
   // Tech Stacks (1 field: standalone techStacks array)
   const techTotal = 1
   const techEmpty = sectionEmptyMap.get('techStacks') || 0

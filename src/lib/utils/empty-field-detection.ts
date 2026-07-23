@@ -736,104 +736,12 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     })
   }
 
-  // Achievement Fields
-  if (!candidate.achievements || candidate.achievements.length === 0) {
-    // Section is completely empty - create placeholder fields for first entry
-    emptyFields.push({
-      fieldPath: 'achievements[0].name',
-      apiFieldName: 'achievement_0_name',
-      fieldLabel: 'Achievement Name',
-      fieldType: 'text',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
-      fieldPath: 'achievements[0].achievementType',
-      apiFieldName: 'achievement_0_type',
-      fieldLabel: 'Achievement Type',
-      fieldType: 'text',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
-      fieldPath: 'achievements[0].ranking',
-      apiFieldName: 'achievement_0_ranking',
-      fieldLabel: 'Ranking',
-      fieldType: 'text',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
-      fieldPath: 'achievements[0].year',
-      apiFieldName: 'achievement_0_year',
-      fieldLabel: 'Year',
-      fieldType: 'number',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
-      fieldPath: 'achievements[0].url',
-      apiFieldName: 'achievement_0_url',
-      fieldLabel: 'URL',
-      fieldType: 'text',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-    emptyFields.push({
-      fieldPath: 'achievements[0].description',
-      apiFieldName: 'achievement_0_description',
-      fieldLabel: 'Description',
-      fieldType: 'textarea',
-      section: 'achievements',
-      currentValue: null,
-      parentIndex: 0,
-    })
-  } else {
-    // Existing achievements - check for empty fields within them
-    candidate.achievements.forEach((achievement, index) => {
-      const context = achievement.name
-      
-      const achievementFields: Array<{
-        path: string
-        apiName: string
-        label: string
-        type: FieldType
-      }> = [
-        { path: 'ranking', apiName: `achievement_${index}_ranking`, label: 'Ranking', type: 'text' },
-        { path: 'year', apiName: `achievement_${index}_year`, label: 'Year', type: 'number' },
-        { path: 'url', apiName: `achievement_${index}_url`, label: 'URL', type: 'text' },
-        { path: 'description', apiName: `achievement_${index}_description`, label: 'Description', type: 'textarea' },
-      ]
-
-      achievementFields.forEach(field => {
-        const value = (achievement as unknown as Record<string, unknown>)[field.path]
-        if (isEmpty(value)) {
-          emptyFields.push({
-            fieldPath: `achievements[${index}].${field.path}`,
-            apiFieldName: field.apiName,
-            fieldLabel: field.label,
-            fieldType: field.type,
-            section: 'achievements',
-            context,
-            currentValue: value,
-            parentIndex: index,
-          })
-        }
-      })
-    })
-  }
-
   // Standalone Tech Stacks
   if (isEmpty(candidate.techStacks)) {
     emptyFields.push({
       fieldPath: 'techStacks',
       apiFieldName: 'techStacks',
-      fieldLabel: 'Tech Stacks',
+      fieldLabel: 'Independent Tech Stacks',
       fieldType: 'multiselect',
       section: 'techStacks',
       currentValue: candidate.techStacks,
@@ -848,7 +756,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
  * This is used when users manually add new entries in Cold Caller mode
  */
 export function createEntryFields(
-  section: 'workExperience' | 'education' | 'certifications' | 'achievements',
+  section: 'workExperience' | 'education' | 'certifications',
   index: number
 ): EmptyField[] {
   const fields: EmptyField[] = []
@@ -1081,64 +989,6 @@ export function createEntryFields(
       )
       break
       
-    case 'achievements':
-      fields.push(
-        {
-          fieldPath: `achievements[${index}].name`,
-          apiFieldName: `achievement_${index}_name`,
-          fieldLabel: 'Achievement Name',
-          fieldType: 'text',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `achievements[${index}].achievementType`,
-          apiFieldName: `achievement_${index}_type`,
-          fieldLabel: 'Achievement Type',
-          fieldType: 'text',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `achievements[${index}].ranking`,
-          apiFieldName: `achievement_${index}_ranking`,
-          fieldLabel: 'Ranking',
-          fieldType: 'text',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `achievements[${index}].year`,
-          apiFieldName: `achievement_${index}_year`,
-          fieldLabel: 'Year',
-          fieldType: 'number',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `achievements[${index}].url`,
-          apiFieldName: `achievement_${index}_url`,
-          fieldLabel: 'URL',
-          fieldType: 'text',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        },
-        {
-          fieldPath: `achievements[${index}].description`,
-          apiFieldName: `achievement_${index}_description`,
-          fieldLabel: 'Description',
-          fieldType: 'textarea',
-          section: 'achievements',
-          currentValue: null,
-          parentIndex: index,
-        }
-      )
-      break
   }
   
   return fields
@@ -1211,9 +1061,6 @@ export function getTotalTrackableFields(candidate: Candidate): number {
   
   // Certification fields (1 per certification - URL)
   total += candidate.certifications?.length || 0
-  
-  // Achievement fields (4 per achievement: ranking, year, url, description)
-  total += (candidate.achievements?.length || 0) * 4
   
   // Standalone tech stacks
   total += 1

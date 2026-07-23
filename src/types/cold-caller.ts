@@ -43,7 +43,6 @@ export type FieldSection =
   | 'workExperience' 
   | 'education' 
   | 'certifications' 
-  | 'achievements' 
   | 'techStacks'
   | 'preferences'
 
@@ -86,7 +85,7 @@ export interface FieldState {
   question?: GeneratedQuestion // Linked question for this field
 }
 
-export type PromptType = "missing" | "enrichment"
+export type PromptType = "basic" | "advanced" | "enrichment"
 
 export interface GeneratedQuestion {
   question: string
@@ -94,10 +93,10 @@ export interface GeneratedQuestion {
   section: FieldSection
   priority: number            // server-assigned; higher = ask first
   context: string             // Guidance for the interviewer
-  /** Gap-fill vs resume enrichment follow-up (§ 4.8.2a, § 4.12.2a, § 4.9, § 4.10). Defaults to missing when absent. */
+  /** From QG: `basic` | `advanced`. FE value cards may use `enrichment` locally. */
   promptType?: PromptType
-  /** Values already on file when promptType is enrichment. § 4.8.2a / § 4.9 / § 4.10 */
-  existingValues?: string[] | null
+  /** FE-only: raw items for populated value cards rendered as badges (e.g. tech stacks). */
+  valueItems?: string[]
 }
 
 /** Per-section question payload after mapping the Python API response. */
@@ -137,7 +136,6 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   workExperience: 'Work Experience',
   education: 'Education',
   certifications: 'Certifications',
-  achievements: 'Achievements',
   techStacks: 'Independent Tech Stacks',
   preferences: 'Preferences',
 }
@@ -148,7 +146,6 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   workExperience: 'Briefcase',
   education: 'GraduationCap',
   certifications: 'Award',
-  achievements: 'Trophy',
   techStacks: 'Code',
   preferences: 'SlidersHorizontal',
 }

@@ -98,7 +98,11 @@ export function resolveQuestionEntryNavChrome(
 export function defaultQuestionEntryNavId(
   chrome: QuestionEntryNavChrome,
   entryBlocks: QuestionDisplayBlock[],
+  includeOverview = true,
 ): QuestionEntryNavId {
+  if (!includeOverview && entryBlocks.length > 0) {
+    return entryNavIdFromBlock(entryBlocks[0]!)
+  }
   if (chrome === "hidden") {
     if (entryBlocks.length === 1) {
       return entryNavIdFromBlock(entryBlocks[0]!)

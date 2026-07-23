@@ -25,19 +25,11 @@ const BASIC_FIELD_LABELS: Record<string, string> = {
   personalityType: "Personality type",
 }
 
-/** Python section-opener keys — no editable field; questions only. @see docs/CANDIDATE_DATA_MAPPING.md */
+/** Legacy collection-opener keys — questions only; not used for Independent Tech Stacks. */
 export const SECTION_OPENER_API_FIELDS: Record<
   string,
   { label: string; section: FieldSection }
 > = {
-  work_experiences: {
-    label: `${SECTION_LABELS.workExperience} (overview)`,
-    section: "workExperience",
-  },
-  techStacks: {
-    label: `${SECTION_LABELS.techStacks} (overview)`,
-    section: "techStacks",
-  },
   educations: {
     label: `${SECTION_LABELS.education} (overview)`,
     section: "education",
@@ -46,60 +38,38 @@ export const SECTION_OPENER_API_FIELDS: Record<
     label: `${SECTION_LABELS.certifications} (overview)`,
     section: "certifications",
   },
-  achievements: {
-    label: `${SECTION_LABELS.achievements} (overview)`,
-    section: "achievements",
-  },
 }
 
 /** Indexed apiFieldName → UI label (any row index). Matches Python empty-section mini-questions. */
 const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?: FieldSection }> = [
   { pattern: /^work_experience_\d+_jobTitle$/, label: "Job Title", section: "workExperience" },
   { pattern: /^work_experience_\d+_employerName$/, label: "Employer", section: "workExperience" },
-  { pattern: /^work_experience_\d+_startDate$/, label: "Start Date", section: "workExperience" },
-  { pattern: /^work_experience_\d+_endDate$/, label: "End Date", section: "workExperience" },
   { pattern: /^work_experience_\d+_techStacks$/, label: "Tech Stacks", section: "workExperience" },
   { pattern: /^work_experience_\d+_shiftType$/, label: "Shift Type", section: "workExperience" },
   { pattern: /^work_experience_\d+_workMode$/, label: "Work Mode", section: "workExperience" },
   { pattern: /^work_experience_\d+_timeSupportZones$/, label: "Time Support Zones", section: "workExperience" },
   { pattern: /^work_experience_\d+_benefits$/, label: "Benefits", section: "workExperience" },
-  { pattern: /^work_experience_\d+_foundedYear$/, label: "Founded year", section: "workExperience" },
   { pattern: /^work_experience_\d+_status$/, label: "Status", section: "workExperience" },
-  { pattern: /^work_experience_\d+_types$/, label: "Employer types", section: "workExperience" },
-  { pattern: /^work_experience_\d+_ranking$/, label: "Ranking", section: "workExperience" },
-  { pattern: /^work_experience_\d+_minEmployees$/, label: "Min employees", section: "workExperience" },
-  { pattern: /^work_experience_\d+_maxEmployees$/, label: "Max employees", section: "workExperience" },
-  { pattern: /^work_experience_\d+_websiteUrl$/, label: "Website URL", section: "workExperience" },
-  { pattern: /^work_experience_\d+_linkedInUrl$/, label: "LinkedIn URL", section: "workExperience" },
-  { pattern: /^work_experience_\d+_isDplCompetitor$/, label: "DPL competitor", section: "workExperience" },
+  { pattern: /^work_experience_\d+_headcount$/, label: "Headcount", section: "workExperience" },
+  { pattern: /^work_experience_\d+_awards$/, label: "Awards", section: "workExperience" },
   { pattern: /^work_experience_\d+_salaryPolicy$/, label: "Salary policy", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_country$/, label: "Country", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_city$/, label: "City", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_address$/, label: "Address", section: "workExperience" },
-  { pattern: /^work_experience_\d+_office_\d+_isHeadquarters$/, label: "Headquarters", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_layoffDate$/, label: "Layoff date", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_affectedEmployees$/, label: "Affected employees", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_reason$/, label: "Reason", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_projectName$/, label: "Name", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_contributionNotes$/, label: "Contribution", section: "workExperience" },
   { pattern: /^certification_\d+_name$/, label: "Name", section: "certifications" },
-  { pattern: /^certification_\d+_issueDate$/, label: "Issue date", section: "certifications" },
-  { pattern: /^certification_\d+_expiryDate$/, label: "Expiry date", section: "certifications" },
-  { pattern: /^certification_\d+_url$/, label: "Certification URL", section: "certifications" },
-  { pattern: /^certification_\d+_level$/, label: "Level", section: "certifications" },
+  { pattern: /^certification_\d+_issueDate$/, label: "Issue Date", section: "certifications" },
+  { pattern: /^certification_\d+_expiryDate$/, label: "Expiry Date", section: "certifications" },
   { pattern: /^certification_\d+_issuingBody$/, label: "Issuer body", section: "certifications" },
-  { pattern: /^certification_\d+_issuingBodyUrl$/, label: "Issuer body URL", section: "certifications" },
   ...[...PROJECT_LINK_FIELD_SUFFIXES, ...PROJECT_CATALOG_FIELD_SUFFIXES].map((suffix) => ({
     pattern: new RegExp(`^work_experience_\\d+_project_\\d+_${suffix}$`),
     label: PROJECT_CATALOG_FIELD_LABELS[suffix],
     section: "workExperience" as FieldSection,
   })),
-  { pattern: /^achievement_\d+_name$/, label: "Name", section: "achievements" },
-  { pattern: /^achievement_\d+_type$/, label: "Type", section: "achievements" },
-  { pattern: /^achievement_\d+_ranking$/, label: "Ranking", section: "achievements" },
-  { pattern: /^achievement_\d+_year$/, label: "Year", section: "achievements" },
-  { pattern: /^achievement_\d+_url$/, label: "URL", section: "achievements" },
-  { pattern: /^achievement_\d+_description$/, label: "Description", section: "achievements" },
 ]
 
 const WORK_EXPERIENCE_PROJECTS_OPENER = /^work_experience_(\d+)_projects$/
@@ -167,6 +137,14 @@ export function resolveQuestionFieldMeta(
   const fromIndexed = labelFromIndexedApiField(apiFieldName)
   if (fromIndexed) return fromIndexed
 
+  if (apiFieldName === "techStacks") {
+    return {
+      label: SECTION_LABELS.techStacks,
+      isSectionOpener: false,
+      section: "techStacks",
+    }
+  }
+
   const basicLabel = BASIC_FIELD_LABELS[apiFieldName]
   if (basicLabel) {
     return {
@@ -197,7 +175,8 @@ export function buildQuestionFieldLabelMap(
 
   emptyFields.forEach((f) => {
     map.set(f.apiFieldName, {
-      label: f.fieldLabel,
+      label:
+        f.apiFieldName === "techStacks" ? SECTION_LABELS.techStacks : f.fieldLabel,
       isSectionOpener: false,
       section: f.section,
     })
@@ -211,6 +190,14 @@ export function buildQuestionFieldLabelMap(
         section: opener.section,
       })
     }
+  }
+
+  if (!map.has("techStacks")) {
+    map.set("techStacks", {
+      label: SECTION_LABELS.techStacks,
+      isSectionOpener: false,
+      section: "techStacks",
+    })
   }
 
   return map
