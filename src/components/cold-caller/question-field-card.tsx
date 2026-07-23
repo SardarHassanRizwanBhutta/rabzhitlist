@@ -42,7 +42,6 @@ import {
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { EmptyField, FieldStatus, GeneratedQuestion } from "@/types/cold-caller"
-import { EnrichmentQuestionChrome } from "@/components/cold-caller/enrichment-question-chrome"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { sampleProjects } from "@/lib/sample-data/projects"
@@ -579,7 +578,6 @@ export function QuestionFieldCard({
               <span className="text-sm font-medium">Question to ask:</span>
             </div>
             <div className="flex items-center gap-2">
-              <EnrichmentQuestionChrome question={question} />
               {showPriority && question.priority > 0 && (
                 <div className="flex items-center gap-0.5" title={`Priority: ${question.priority}/5`}>
                   {getPriorityStars(question.priority)}

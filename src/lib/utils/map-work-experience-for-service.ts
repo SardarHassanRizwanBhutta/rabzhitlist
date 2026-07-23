@@ -14,7 +14,6 @@ import type {
   WorkExperienceOfficeForService,
 } from "@/types/question-generation"
 import { mapLinkedProjectToServicePayload } from "@/lib/utils/map-linked-project-for-service"
-import { rankingToEducationServicePayload } from "@/lib/utils/map-education-for-service"
 
 const RANKING_FROM_API: Record<number, RankingDb> = {
   0: "tier_1",
@@ -124,6 +123,8 @@ export interface EmployerCatalogFromApi {
   status: string | null
   types: string[]
   ranking: string | null
+  headcount: number | null
+  awards: string[]
   websiteUrl: string | null
   linkedinUrl: string | null
   isDplCompetitor: boolean | null
@@ -180,6 +181,8 @@ export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromAp
     status,
     types,
     ranking,
+    headcount: dto.headcount ?? null,
+    awards: (dto.awards ?? []).map((a) => a.name).filter((n) => n.trim() !== ""),
     websiteUrl: emptyToNull(dto.websiteUrl),
     linkedinUrl: emptyToNull(dto.linkedInUrl),
     isDplCompetitor: typeof dto.isDplCompetitor === "boolean" ? dto.isDplCompetitor : null,
@@ -223,6 +226,8 @@ export function mergeEmployerCatalogIntoWorkExperience(
     status: we.status ?? catalog.status,
     types: (we.types?.length ?? 0) > 0 ? we.types : catalog.types,
     ranking: we.ranking ?? catalog.ranking,
+    headcount: we.headcount ?? catalog.headcount,
+    awards: (we.awards?.length ?? 0) > 0 ? we.awards : catalog.awards,
     websiteUrl: we.websiteUrl ?? catalog.websiteUrl,
     linkedinUrl: we.linkedinUrl ?? catalog.linkedinUrl,
     isDplCompetitor: we.isDplCompetitor ?? catalog.isDplCompetitor,
@@ -280,7 +285,6 @@ function mapOfficeToService(loc: WorkExperienceOfficeLocation): WorkExperienceOf
     country: emptyToNull(loc.country),
     city: emptyToNull(loc.city),
     address: emptyToNull(loc.address),
-    isHeadquarters: loc.isHeadquarters ?? null,
   }
 }
 
@@ -296,23 +300,15 @@ export function mapWorkExperienceToServicePayload(we: WorkExperience): WorkExper
   return {
     employerName: emptyToNull(we.employerName) ?? we.employerName,
     jobTitle: emptyToNull(we.jobTitle) ?? we.jobTitle,
-    startDate: toIsoDate(we.startDate),
-    endDate: toIsoDate(we.endDate),
     techStacks: we.techStacks ?? [],
     shiftType: shiftTypeToServicePayload(we.shiftType as string | null),
     workMode: emptyToNull(we.workMode as string | null),
     timeSupportZones: we.timeSupportZones ?? [],
     benefits: (we.benefits ?? []).map(mapBenefitToService),
     projects: (we.projects ?? []).map(mapLinkedProjectToServicePayload),
-    foundedYear: we.foundedYear ?? null,
     status: emptyToNull(we.status),
-    types: we.types ?? [],
-    ranking: rankingToEducationServicePayload(we.ranking),
-    minEmployees: we.minEmployees ?? null,
-    maxEmployees: we.maxEmployees ?? null,
-    websiteUrl: emptyToNull(we.websiteUrl),
-    linkedInUrl: emptyToNull(we.linkedinUrl),
-    isDplCompetitor: we.isDplCompetitor ?? null,
+    headcount: we.headcount ?? null,
+    awards: we.awards ?? [],
     salaryPolicy: emptyToNull(we.salaryPolicy),
     locations: (we.locations ?? []).map(mapOfficeToService),
     layoffs: (we.layoffs ?? []).map(mapLayoffToService),

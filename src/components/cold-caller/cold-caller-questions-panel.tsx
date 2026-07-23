@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { GeneratedQuestion } from "@/types/cold-caller"
 import { SECTION_LABELS } from "@/types/cold-caller"
-import { EnrichmentQuestionChrome } from "@/components/cold-caller/enrichment-question-chrome"
 
 interface ColdCallerQuestionsPanelProps {
   questions: GeneratedQuestion[]
@@ -37,7 +36,6 @@ const SECTION_COLORS: Partial<Record<GeneratedQuestion["section"], string>> = {
   techStacks: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
   education: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   certifications: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-  achievements: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   preferences: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
 }
 
@@ -104,7 +102,6 @@ function QuestionCard({
             <Badge variant="outline" className={cn("text-xs", sectionColor)}>
               {SECTION_LABELS[question.section]}
             </Badge>
-            <EnrichmentQuestionChrome question={question} />
             <Badge variant="outline" className="text-xs">
               Priority: {question.priority}
             </Badge>

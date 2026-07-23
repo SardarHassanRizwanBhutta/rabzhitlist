@@ -8,7 +8,6 @@ export const ALL_FIELD_SECTIONS: FieldSection[] = [
   "techStacks",
   "education",
   "certifications",
-  "achievements",
 ]
 
 const SECTION_ID_TO_FIELD: Record<QuestionSectionId, FieldSection> = {
@@ -17,7 +16,6 @@ const SECTION_ID_TO_FIELD: Record<QuestionSectionId, FieldSection> = {
   independent_tech_stacks: "techStacks",
   education: "education",
   certifications: "certifications",
-  achievements: "achievements",
 }
 
 /** Sections mapped to Python `QuestionSectionId` (excludes frontend-only tabs). */
@@ -29,7 +27,6 @@ const FIELD_TO_SECTION_ID: Record<ApiMappedFieldSection, QuestionSectionId> = {
   techStacks: "independent_tech_stacks",
   education: "education",
   certifications: "certifications",
-  achievements: "achievements",
 }
 
 export function questionSectionIdToFieldSection(id: QuestionSectionId): FieldSection {

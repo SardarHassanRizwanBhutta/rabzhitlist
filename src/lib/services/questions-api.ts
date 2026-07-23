@@ -3,12 +3,14 @@
 
 import type { Candidate } from "@/lib/types/candidate"
 import type {
+  GenerateQuestionsRequest,
   GenerateQuestionsResponse,
   QuestionsHealthResponse,
 } from "@/types/question-generation"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
 import { enrichEducationsWithUniversityCatalog } from "@/lib/utils/map-education-for-service"
 import { enrichWorkExperiencesWithEmployerCatalog } from "@/lib/utils/map-work-experience-for-service"
+import { buildMissingOnlyQuestionRequest } from "@/lib/utils/missing-only-question-request"
 
 function questionsApiBaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_QUESTIONS_API_URL?.trim()
@@ -17,7 +19,8 @@ function questionsApiBaseUrl(): string {
 }
 
 /**
- * Generate AI-powered cold-call questions. Missing fields are computed server-side.
+ * Generate AI-powered cold-call questions.
+ * FE sends sparse allowlisted values and authoritative `fields_to_generate`.
  */
 export async function generateQuestions(
   candidateId: string,
@@ -26,20 +29,24 @@ export async function generateQuestions(
 ): Promise<GenerateQuestionsResponse> {
   const educations = await enrichEducationsWithUniversityCatalog(candidate.educations)
   const workExperiences = await enrichWorkExperiencesWithEmployerCatalog(candidate.workExperiences)
-  const candidateData = mapMainAppCandidateToQuestionService({
+  const mappedCandidateData = mapMainAppCandidateToQuestionService({
     ...candidate,
     educations,
     workExperiences,
   })
+  const { candidateData, fieldsToGenerate } =
+    buildMissingOnlyQuestionRequest(mappedCandidateData)
+  const request: GenerateQuestionsRequest = {
+    candidate_id: candidateId,
+    candidate_data: candidateData,
+    fields_to_generate: fieldsToGenerate,
+    conversation_context: conversationContext,
+  }
 
   const response = await fetch(`${questionsApiBaseUrl()}/api/generate-questions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      candidate_id: candidateId,
-      candidate_data: candidateData,
-      conversation_context: conversationContext,
-    }),
+    body: JSON.stringify(request),
   })
 
   if (!response.ok) {

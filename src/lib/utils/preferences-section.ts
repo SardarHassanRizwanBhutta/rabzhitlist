@@ -4,7 +4,7 @@ import { isPreferencesTabField } from "@/lib/utils/basic-information-questions"
 
 export { isPreferencesTabField as isPreferencesApiFieldName }
 
-/** Call Notes tab order — API sections plus frontend-only Preferences after Achievements. */
+/** Call Notes tab order — five API sections plus frontend-only Preferences. */
 export const CALL_NOTES_DISPLAY_SECTIONS: FieldSection[] = [
   ...ALL_FIELD_SECTIONS,
   "preferences",
@@ -49,8 +49,8 @@ function remapQuestionToPreferences(question: GeneratedQuestion): GeneratedQuest
 
 /**
  * Splits salary fields from `basic_information` into a frontend-only Preferences tab.
- * `linkedinUrl` always-ask (§ 4.14) stays on Basic Information.
- * Enrichment questions are routed by `field` key; they are never in `missing_fields`.
+ * CNIC and Personality Type stay on Basic Information.
+ * Missing-only keys are routed by `field`; populated salaries render as FE value cards.
  */
 export function buildCallNotesSectionResults(
   questionSections: ColdCallerSectionQuestions[],

@@ -43,6 +43,7 @@ export const PROJECT_CATALOG_FIELD_SUFFIXES = [
   "teamSize",
   "techStacks",
   "technicalAspects",
+  "technicalDomains",
   "horizontalDomains",
   "verticalDomains",
   "description",
@@ -50,7 +51,6 @@ export const PROJECT_CATALOG_FIELD_SUFFIXES = [
   "startDate",
   "endDate",
   "projectLink",
-  "isPublished",
   "publishPlatforms",
   "downloadCount",
 ] as const
@@ -70,6 +70,7 @@ export const PROJECT_CATALOG_FIELD_LABELS: Record<
   teamSize: "Team Size",
   techStacks: "Tech Stacks",
   technicalAspects: "Technical Aspects",
+  technicalDomains: "Technical Domains",
   horizontalDomains: "Horizontal Domains",
   verticalDomains: "Vertical Domains",
   description: "Description",
@@ -77,9 +78,33 @@ export const PROJECT_CATALOG_FIELD_LABELS: Record<
   startDate: "Start Date",
   endDate: "End Date",
   projectLink: "Project Link",
-  isPublished: "Published",
   publishPlatforms: "Publish Platforms",
   downloadCount: "Download Count",
+}
+
+/** Locked QG weights used by populated Project value cards. */
+export const PROJECT_FIELD_PRIORITIES: Record<
+  ProjectLinkApiSuffix | ProjectCatalogApiSuffix,
+  number
+> = {
+  projectName: 4,
+  contributionNotes: 1,
+  employerName: 7.5,
+  projectType: 1,
+  status: 2.5,
+  teamSize: 5,
+  techStacks: 10,
+  technicalAspects: 10,
+  technicalDomains: 10,
+  horizontalDomains: 10,
+  verticalDomains: 10,
+  description: 10,
+  latestUpdate: 1,
+  startDate: 2.5,
+  endDate: 2.5,
+  projectLink: 5,
+  publishPlatforms: 1,
+  downloadCount: 1,
 }
 
 const PROJECT_TYPE_OPTIONS = PROJECT_TYPES.map((t) => ({ value: t, label: t }))
@@ -91,7 +116,7 @@ const PUBLISH_PLATFORM_OPTIONS = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
   label: o.label,
 }))
 
-type CatalogFieldDef = {
+export type ProjectFieldDef = {
   payloadKey: string
   apiSuffix: ProjectLinkApiSuffix | ProjectCatalogApiSuffix
   label: string
@@ -100,7 +125,8 @@ type CatalogFieldDef = {
   onCreateEntity?: EmptyField["onCreateEntity"]
 }
 
-const CATALOG_FIELD_DEFS: CatalogFieldDef[] = [
+/** Stable field order shared by QG request projection and project UI rows. */
+export const PROJECT_FIELD_DEFS: ProjectFieldDef[] = [
   {
     payloadKey: "projectName",
     apiSuffix: "projectName",
@@ -156,6 +182,12 @@ const CATALOG_FIELD_DEFS: CatalogFieldDef[] = [
     type: "multiselect",
   },
   {
+    payloadKey: "technicalDomains",
+    apiSuffix: "technicalDomains",
+    label: PROJECT_CATALOG_FIELD_LABELS.technicalDomains,
+    type: "multiselect",
+  },
+  {
     payloadKey: "horizontalDomains",
     apiSuffix: "horizontalDomains",
     label: PROJECT_CATALOG_FIELD_LABELS.horizontalDomains,
@@ -198,16 +230,6 @@ const CATALOG_FIELD_DEFS: CatalogFieldDef[] = [
     type: "text",
   },
   {
-    payloadKey: "isPublished",
-    apiSuffix: "isPublished",
-    label: PROJECT_CATALOG_FIELD_LABELS.isPublished,
-    type: "boolean",
-    options: [
-      { value: "true", label: "Yes" },
-      { value: "false", label: "No" },
-    ],
-  },
-  {
     payloadKey: "publishPlatforms",
     apiSuffix: "publishPlatforms",
     label: PROJECT_CATALOG_FIELD_LABELS.publishPlatforms,
@@ -226,9 +248,6 @@ export function isProjectCatalogFieldMissing(
   payloadKey: string,
   value: unknown,
 ): boolean {
-  if (payloadKey === "isPublished") {
-    return value === null || value === undefined
-  }
   if (payloadKey === "downloadCount") {
     return value === null || value === undefined
   }
@@ -267,7 +286,7 @@ export interface ProjectFieldPathContext {
 export function buildLinkedProjectEmptyFields(ctx: ProjectFieldPathContext): EmptyField[] {
   const fields: EmptyField[] = []
 
-  for (const def of CATALOG_FIELD_DEFS) {
+  for (const def of PROJECT_FIELD_DEFS) {
     fields.push({
       fieldPath: `${ctx.fieldPathPrefix}.${def.payloadKey}`,
       apiFieldName: `${ctx.apiPrefix}_${def.apiSuffix}`,
@@ -291,7 +310,7 @@ export function collectMissingLinkedProjectFields(
 ): EmptyField[] {
   const fields: EmptyField[] = []
 
-  for (const def of CATALOG_FIELD_DEFS) {
+  for (const def of PROJECT_FIELD_DEFS) {
     const value = readLinkedProjectPayloadValue(project, def.payloadKey)
     if (!isProjectCatalogFieldMissing(def.payloadKey, value)) continue
 

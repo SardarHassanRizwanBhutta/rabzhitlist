@@ -235,7 +235,7 @@ export function ColdCallerDialog({
   
   // Get sections that have empty fields OR have data (for dynamic sections to allow adding entries)
   const sectionsWithFields = useMemo(() => {
-    const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements']
+    const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications']
     const sectionsWithEmptyFields = Array.from(groupedFields.keys()).filter(section => {
       const fields = groupedFields.get(section)
       return fields && fields.length > 0
@@ -249,8 +249,6 @@ export function ColdCallerDialog({
       } else if (section === 'education' && (candidate.educations?.length || 0) > 0) {
         sectionsWithData.push(section)
       } else if (section === 'certifications' && (candidate.certifications?.length || 0) > 0) {
-        sectionsWithData.push(section)
-      } else if (section === 'achievements' && (candidate.achievements?.length || 0) > 0) {
         sectionsWithData.push(section)
       }
     })
@@ -647,15 +645,15 @@ export function ColdCallerDialog({
   // Handle adding a new entry to a dynamic section
   const handleAddEntry = useCallback((section: FieldSection) => {
     // Only allow adding entries to dynamic sections
-    const dynamicSections: ('workExperience' | 'education' | 'certifications' | 'achievements')[] =
-      ['workExperience', 'education', 'certifications', 'achievements']
+    const dynamicSections: ('workExperience' | 'education' | 'certifications')[] =
+      ['workExperience', 'education', 'certifications']
     if (!dynamicSections.includes(section as typeof dynamicSections[number])) {
       toast.error(`Cannot add entries to ${SECTION_LABELS[section]}`)
       return
     }
 
     // Type assertion: section is guaranteed to be one of the valid types after the check above
-    const validSection = section as 'workExperience' | 'education' | 'certifications' | 'achievements'
+    const validSection = section as 'workExperience' | 'education' | 'certifications'
 
     // Get current fields for this section
     const currentFields = groupedFields.get(section) || []
@@ -681,9 +679,6 @@ export function ColdCallerDialog({
         break
       case 'certifications':
         candidateMaxIndex = (candidate.certifications?.length || 0) - 1
-        break
-      case 'achievements':
-        candidateMaxIndex = (candidate.achievements?.length || 0) - 1
         break
     }
     
@@ -1055,6 +1050,11 @@ export function ColdCallerDialog({
               workExperiences={candidate.workExperiences ?? undefined}
               educations={candidate.educations ?? undefined}
               certifications={candidate.certifications ?? undefined}
+              cnic={candidate.cnic}
+              personalityType={candidate.personalityType}
+              currentSalary={candidate.currentSalary}
+              expectedSalary={candidate.expectedSalary}
+              techStacks={candidate.techStacks}
               groupedFields={groupedFields}
               sectionsWithFields={sectionsWithFields}
               rawNotesDraft={rawNotesDraft}
@@ -1241,7 +1241,7 @@ export function ColdCallerDialog({
                         <div className="flex-1 overflow-y-auto overscroll-contain p-6">
                           {(() => {
                             // Group fields by entry index for dynamic sections
-                            const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications', 'achievements']
+                            const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications']
                             const isDynamicSection = dynamicSections.includes(section)
                             
                             if (isDynamicSection) {
@@ -1421,7 +1421,7 @@ export function ColdCallerDialog({
                                 )
                               }
                               
-                              // For other dynamic sections (education, certifications, achievements)
+                              // For other dynamic sections (education and certifications)
                               return (
                                 <div className="space-y-6">
                                   {entryIndices.map((entryIndex) => {

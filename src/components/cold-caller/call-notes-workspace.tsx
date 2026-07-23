@@ -41,6 +41,11 @@ interface CallNotesWorkspaceProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
+  cnic?: string | null
+  personalityType?: string | null
+  currentSalary?: number | null
+  expectedSalary?: number | null
+  techStacks?: string[]
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
   onRetryGenerateQuestions?: () => void
@@ -70,6 +75,11 @@ export function CallNotesWorkspace({
   workExperiences,
   educations,
   certifications,
+  cnic,
+  personalityType,
+  currentSalary,
+  expectedSalary,
+  techStacks,
   activeQuestionField,
   onQuestionSelect,
   onRetryGenerateQuestions,
@@ -164,6 +174,11 @@ export function CallNotesWorkspace({
             workExperiences={workExperiences}
             educations={educations}
             certifications={certifications}
+            cnic={cnic}
+            personalityType={personalityType}
+            currentSalary={currentSalary}
+            expectedSalary={expectedSalary}
+            techStacks={techStacks}
             activeQuestionField={activeQuestionField}
             onQuestionSelect={onQuestionSelect}
             onRetry={onRetryGenerateQuestions}

@@ -26,27 +26,51 @@ import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-c
 import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
 import { SECTION_LABELS } from "@/types/cold-caller"
 import { ProjectCatalogCollapsible } from "@/components/cold-caller/project-catalog-collapsible"
-import { EnrichmentQuestionChrome } from "@/components/cold-caller/enrichment-question-chrome"
 import {
   buildQuestionFieldLabelMap,
   resolveQuestionFieldMeta,
 } from "@/lib/utils/question-api-field-labels"
 import {
   groupQuestionsForDisplay,
+  type ProjectQuestionAccordion,
   type QuestionDisplayBlock,
 } from "@/lib/utils/question-accordion-layout"
+import {
+  isProjectCatalogFieldMissing,
+  PROJECT_FIELD_DEFS,
+  PROJECT_FIELD_PRIORITIES,
+  readLinkedProjectPayloadValue,
+} from "@/lib/utils/project-catalog-fields"
+import {
+  formatQgDisplayValue,
+  formatSalaryDisplayValue,
+  isQgValueMissing,
+} from "@/lib/utils/qg-value"
+import { mergeValueAndQuestionCards } from "@/lib/utils/merge-value-question-cards"
+import {
+  BASIC_FIELD_ORDER,
+  BASIC_FIELD_PRIORITIES,
+  CERTIFICATION_FIELD_PRIORITIES,
+  EDUCATION_FIELD_PRIORITIES,
+  INDEPENDENT_TECH_STACKS_PRIORITY,
+  LAYOFF_FIELD_ORDER,
+  LAYOFF_FIELD_PRIORITIES,
+  OFFICE_FIELD_ORDER,
+  OFFICE_FIELD_PRIORITIES,
+  PREFERENCES_FIELD_ORDER,
+  WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
+  WORK_EXPERIENCE_EMPLOYER_PRIORITIES,
+  WORK_EXPERIENCE_ROLE_FIELD_ORDER,
+  WORK_EXPERIENCE_ROLE_PRIORITIES,
+} from "@/lib/utils/qg-field-weights"
 import {
   certificationCatalogDetailsLabel,
   countMissingFieldsForCertificationCard,
   formatCertificationCardSubtitle,
-  summarizeCertificationsMissingFields,
 } from "@/lib/utils/certification-questions"
 import {
   countMissingFieldsForEducationCard,
-  educationCampusGroupLabel,
-  educationUniversityDetailsLabel,
   formatEducationCardSubtitle,
-  summarizeEducationsMissingFields,
 } from "@/lib/utils/education-questions"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
 import {
@@ -62,8 +86,6 @@ import {
 import {
   countMissingFieldsForWorkExperienceCard,
   formatWorkExperienceCardSubtitle,
-  summarizeWorkExperienceMissingFields,
-  workExperienceEmployerDetailsLabel,
   workExperienceLayoffGroupLabel,
   workExperienceOfficeGroupLabel,
 } from "@/lib/utils/work-experience-questions"
@@ -78,11 +100,135 @@ interface CallNotesQuestionsSidebarProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
+  cnic?: string | null
+  personalityType?: string | null
+  currentSalary?: number | null
+  expectedSalary?: number | null
+  techStacks?: string[]
   section?: FieldSection
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
   onRetry?: () => void
   className?: string
+}
+
+type WorkExperienceRoleBlock = Extract<QuestionDisplayBlock, { type: "role-block" }>
+
+type WorkExperienceSectionUnit =
+  | {
+      type: "role"
+      id: string
+      priority: number
+      order: number
+      questions: GeneratedQuestion[]
+    }
+  | {
+      type: "employer"
+      id: string
+      priority: number
+      order: number
+    }
+  | {
+      type: "project"
+      id: string
+      priority: number
+      order: number
+      accordion: Extract<QuestionDisplayBlock, { type: "project-accordion" }>
+    }
+
+function readWorkExperienceField(
+  workExperience: WorkExperience | undefined,
+  key: string,
+): unknown {
+  if (!workExperience) return null
+  return (workExperience as unknown as Record<string, unknown>)[key]
+}
+
+function buildWorkExperienceSectionUnits(
+  block: WorkExperienceRoleBlock,
+  workExperiences?: WorkExperience[],
+): WorkExperienceSectionUnit[] {
+  let order = 0
+  const units: WorkExperienceSectionUnit[] = []
+  const we = workExperiences?.[block.roleIndex]
+
+  const roleHasPopulated = WORK_EXPERIENCE_ROLE_FIELD_ORDER.some((key) => {
+    return !isQgValueMissing(readWorkExperienceField(we, key))
+  })
+  if (block.linkQuestions.length > 0 || roleHasPopulated) {
+    units.push({
+      type: "role",
+      id: `role-${block.roleIndex}`,
+      priority: Math.max(
+        ...block.linkQuestions.map((question) => question.priority),
+        ...WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
+          const value = readWorkExperienceField(we, key)
+          return !isQgValueMissing(value) ? WORK_EXPERIENCE_ROLE_PRIORITIES[key] : 0
+        }),
+        0,
+      ),
+      order: order++,
+      questions: block.linkQuestions,
+    })
+  }
+
+  const employerQuestions = [
+    ...block.catalogQuestions,
+    ...block.officeGroups.flatMap((group) => group.questions),
+    ...block.layoffGroups.flatMap((group) => group.questions),
+  ]
+  const employerHasPopulated =
+    WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.some((key) => {
+      return !isQgValueMissing(readWorkExperienceField(we, key))
+    }) ||
+    (we?.locations ?? []).some((office) =>
+      OFFICE_FIELD_ORDER.some((key) => !isQgValueMissing(office[key])),
+    ) ||
+    (we?.layoffs ?? []).some((layoff) =>
+      LAYOFF_FIELD_ORDER.some((key) => !isQgValueMissing(layoff[key])),
+    )
+  if (employerQuestions.length > 0 || employerHasPopulated) {
+    units.push({
+      type: "employer",
+      id: `employer-${block.roleIndex}`,
+      priority: Math.max(
+        ...employerQuestions.map((question) => question.priority),
+        ...WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => {
+          const value = readWorkExperienceField(we, key)
+          return !isQgValueMissing(value)
+            ? WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key]
+            : 0
+        }),
+        0,
+      ),
+      order: order++,
+    })
+  }
+
+  for (const accordion of block.projectAccordions) {
+    const projectIndexMatch = /_project_(\d+)$/.exec(accordion.apiPrefix)
+    const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
+    const project = workExperiences?.[block.roleIndex]?.projects?.[projectIndex]
+    const populatedPriorities = project
+      ? PROJECT_FIELD_DEFS.filter((field) => {
+          const value = readLinkedProjectPayloadValue(project, field.payloadKey)
+          return !isProjectCatalogFieldMissing(field.payloadKey, value)
+        }).map((field) => PROJECT_FIELD_PRIORITIES[field.apiSuffix])
+      : []
+    units.push({
+      type: "project",
+      id: accordion.apiPrefix,
+      priority: Math.max(
+        ...accordion.accordionQuestions.map((question) => question.priority),
+        ...populatedPriorities,
+        0,
+      ),
+      order: order++,
+      accordion,
+    })
+  }
+
+  return units.sort((a, b) => b.priority - a.priority || a.order - b.order)
 }
 
 function PriorityBadge({ priority }: { priority: number }) {
@@ -91,6 +237,81 @@ function PriorityBadge({ priority }: { priority: number }) {
     <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 tabular-nums shrink-0">
       {priority}
     </Badge>
+  )
+}
+
+const TECH_STACK_BADGE_CLASS =
+  "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+const TECH_STACK_BADGE_MAX_DISPLAY = 6
+
+function isTechStacksApiField(field: string): boolean {
+  return field === "techStacks" || /(?:^|_)techStacks$/.test(field)
+}
+
+function TechStackValueBadges({ items }: { items: string[] }) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const shouldTruncate = items.length > TECH_STACK_BADGE_MAX_DISPLAY
+  const visible =
+    shouldTruncate && !isExpanded
+      ? items.slice(0, TECH_STACK_BADGE_MAX_DISPLAY)
+      : items
+  const remainingCount =
+    shouldTruncate && !isExpanded ? items.length - TECH_STACK_BADGE_MAX_DISPLAY : 0
+
+  return (
+    <div className="flex flex-wrap gap-2 min-h-[1.5rem]">
+      {visible.map((item) => (
+        <Badge
+          key={item}
+          variant="secondary"
+          className={cn(TECH_STACK_BADGE_CLASS, "text-xs")}
+        >
+          {item}
+        </Badge>
+      ))}
+      {remainingCount > 0 && (
+        <Badge
+          variant="outline"
+          className="text-xs cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsExpanded(true)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsExpanded(true)
+            }
+          }}
+        >
+          +{remainingCount} more
+        </Badge>
+      )}
+      {isExpanded && shouldTruncate && (
+        <Badge
+          variant="outline"
+          className="text-xs cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsExpanded(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsExpanded(false)
+            }
+          }}
+        >
+          Show less
+        </Badge>
+      )}
+    </div>
   )
 }
 
@@ -115,22 +336,24 @@ function QuestionCard({
   onSelect,
   onCopy,
 }: QuestionCardProps) {
+  const showTechStackBadges =
+    question.promptType === "enrichment" &&
+    isTechStacksApiField(question.field) &&
+    (question.valueItems?.length ?? 0) > 0
+
   return (
     <li>
       <div
         className={cn(
-          "rounded-md border border-transparent flex items-stretch",
-          isActive ? "bg-primary border-primary" : "bg-card/40 hover:bg-muted",
-          isSectionOpener && !isActive && "border-dashed border-border/60",
+          "rounded-md border border-transparent bg-card/40 hover:bg-muted flex items-stretch",
+          isSectionOpener && "border-dashed border-border/60",
         )}
       >
         <button
           type="button"
+          aria-pressed={isActive}
           onClick={() => onSelect(question.field)}
-          className={cn(
-            "flex-1 min-w-0 text-left px-3 py-2.5 transition-colors",
-            isActive && "text-primary-foreground",
-          )}
+          className="flex-1 min-w-0 text-left px-3 py-2.5 transition-colors"
         >
           <div className="mb-1.5 space-y-1">
             <div className="flex items-start gap-1.5 min-w-0">
@@ -138,20 +361,16 @@ function QuestionCard({
                 {index + 1}.
               </span>
               <MessageSquare
-                className={cn(
-                  "h-3.5 w-3.5 shrink-0 mt-0.5",
-                  isActive ? "text-primary-foreground" : "text-primary",
-                )}
+                className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary"
                 aria-hidden
               />
-              <span className="text-xs font-semibold min-w-0 break-words">{label}</span>
+              <span className="min-w-0 break-words text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {label}
+              </span>
               {isSectionOpener && (
                 <Badge
                   variant="outline"
-                  className={cn(
-                    "text-[9px] px-1 py-0 h-4 shrink-0",
-                    isActive && "border-primary-foreground/40 text-primary-foreground",
-                  )}
+                  className="text-[9px] px-1 py-0 h-4 shrink-0"
                 >
                   Section
                 </Badge>
@@ -160,48 +379,20 @@ function QuestionCard({
                 <PriorityBadge priority={question.priority} />
               </div>
             </div>
-            <EnrichmentQuestionChrome
-              question={question}
-              isActive={isActive}
-              className="pl-5"
-            />
           </div>
-          <p
-            className={cn(
-              "text-sm font-medium leading-snug break-words",
-              isActive ? "text-primary-foreground/95" : "text-foreground",
-            )}
-          >
-            &ldquo;{question.question}&rdquo;
-          </p>
-          {question.context && (
-            <p
-              className={cn(
-                "text-[11px] mt-1.5 break-words",
-                isActive ? "text-primary-foreground/70" : "text-muted-foreground",
-              )}
-            >
-              {question.context}
+          {showTechStackBadges ? (
+            <TechStackValueBadges items={question.valueItems!} />
+          ) : (
+            <p className="text-sm font-medium leading-snug break-words text-foreground">
+              {question.question}
             </p>
           )}
-          <p
-            className={cn(
-              "text-[10px] mt-1 truncate",
-              isActive ? "text-primary-foreground/60" : "text-muted-foreground/80",
-            )}
-            title={label}
-          >
-            {label}
-          </p>
         </button>
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className={cn(
-            "h-auto w-9 shrink-0 rounded-none rounded-r-md",
-            isActive && "text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground",
-          )}
+          className="h-auto w-9 shrink-0 rounded-none rounded-r-md"
           aria-label={`Copy question for ${label}`}
           onClick={(e) => onCopy(question.field, question.question, e)}
         >
@@ -226,6 +417,11 @@ export function CallNotesQuestionsSidebar({
   workExperiences,
   educations,
   certifications,
+  cnic,
+  personalityType,
+  currentSalary,
+  expectedSalary,
+  techStacks,
   section,
   activeQuestionField,
   onQuestionSelect,
@@ -234,6 +430,8 @@ export function CallNotesQuestionsSidebar({
 }: CallNotesQuestionsSidebarProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [activeEntryNavId, setActiveEntryNavId] = useState<QuestionEntryNavId>("overview")
+  const [openWorkExperienceSectionId, setOpenWorkExperienceSectionId] =
+    useState<string | null>(null)
 
   const fieldMetaByApiName = useMemo(
     () => buildQuestionFieldLabelMap(emptyFields),
@@ -252,6 +450,9 @@ export function CallNotesQuestionsSidebar({
     [sectionMissingFields],
   )
 
+  const hasGenerated =
+    sectionMissingFields != null || sectionComplete || sortedQuestions.length > 0
+
   const useAccordionLayout =
     section === "workExperience" ||
     section === "certifications" ||
@@ -264,8 +465,166 @@ export function CallNotesQuestionsSidebar({
 
   const displayBlocks = useMemo(() => {
     if (!useAccordionLayout || !section) return null
-    return groupQuestionsForDisplay(section, sortedQuestions)
-  }, [section, sortedQuestions, useAccordionLayout])
+    const grouped = groupQuestionsForDisplay(section, sortedQuestions)
+
+    if (section === "workExperience") {
+      const byRole = new Map<number, Extract<QuestionDisplayBlock, { type: "role-block" }>>()
+      for (const block of grouped) {
+        if (block.type === "role-block") byRole.set(block.roleIndex, block)
+      }
+
+      const roleIndices = new Set<number>([
+        ...byRole.keys(),
+        ...Array.from({ length: workExperiences?.length ?? 0 }, (_, i) => i),
+      ])
+      if (roleIndices.size === 0 && hasGenerated) roleIndices.add(0)
+
+      const roleBlocks: QuestionDisplayBlock[] = [...roleIndices]
+        .sort((a, b) => a - b)
+        .map((roleIndex) => {
+          const existing = byRole.get(roleIndex)
+          const projectAccordions: ProjectQuestionAccordion[] = [
+            ...(existing?.projectAccordions ?? []),
+          ]
+          const existingPrefixes = new Set(
+            projectAccordions.map((accordion) => accordion.apiPrefix),
+          )
+          const projects = workExperiences?.[roleIndex]?.projects ?? []
+          const projectIndices =
+            projects.length > 0
+              ? projects.map((_, projectIndex) => projectIndex)
+              : hasGenerated
+                ? [0]
+                : []
+
+          for (const projectIndex of projectIndices) {
+            const apiPrefix = `work_experience_${roleIndex}_project_${projectIndex}`
+            if (existingPrefixes.has(apiPrefix)) continue
+            projectAccordions.push({
+              type: "project-accordion",
+              title: projects[projectIndex]?.projectName || `Project ${projectIndex + 1}`,
+              apiPrefix,
+              layout: "nested-work-experience",
+              linkQuestions: [],
+              catalogQuestions: [],
+              accordionQuestions: [],
+            })
+          }
+
+          projectAccordions.sort((a, b) => a.apiPrefix.localeCompare(b.apiPrefix))
+
+          const we = workExperiences?.[roleIndex]
+          const officeByIndex = new Map(
+            (existing?.officeGroups ?? []).map((group) => [group.officeIndex, group]),
+          )
+          const officeIndices = new Set<number>([
+            ...officeByIndex.keys(),
+            ...Array.from({ length: we?.locations?.length ?? 0 }, (_, i) => i),
+          ])
+          if (officeIndices.size === 0 && hasGenerated) officeIndices.add(0)
+
+          const layoffByIndex = new Map(
+            (existing?.layoffGroups ?? []).map((group) => [group.layoffIndex, group]),
+          )
+          const layoffIndices = new Set<number>([
+            ...layoffByIndex.keys(),
+            ...Array.from({ length: we?.layoffs?.length ?? 0 }, (_, i) => i),
+          ])
+          if (layoffIndices.size === 0 && hasGenerated) layoffIndices.add(0)
+
+          return {
+            type: "role-block" as const,
+            roleIndex,
+            title: existing?.title ?? `Work Experience ${roleIndex + 1}`,
+            linkQuestions: existing?.linkQuestions ?? [],
+            catalogQuestions: existing?.catalogQuestions ?? [],
+            officeGroups: [...officeIndices]
+              .sort((a, b) => a - b)
+              .map((officeIndex) => ({
+                officeIndex,
+                questions: officeByIndex.get(officeIndex)?.questions ?? [],
+              })),
+            layoffGroups: [...layoffIndices]
+              .sort((a, b) => a - b)
+              .map((layoffIndex) => ({
+                layoffIndex,
+                questions: layoffByIndex.get(layoffIndex)?.questions ?? [],
+              })),
+            projectsOpener: existing?.projectsOpener ?? null,
+            projectAccordions,
+          }
+        })
+
+      return roleBlocks
+    }
+
+    if (section === "education") {
+      const byIndex = new Map<
+        number,
+        Extract<QuestionDisplayBlock, { type: "education-block" }>
+      >()
+      for (const block of grouped) {
+        if (block.type === "education-block") byIndex.set(block.eduIndex, block)
+      }
+      const indices = new Set<number>([
+        ...byIndex.keys(),
+        ...Array.from({ length: educations?.length ?? 0 }, (_, i) => i),
+      ])
+      if (indices.size === 0 && hasGenerated) indices.add(0)
+
+      return [...indices]
+        .sort((a, b) => a - b)
+        .map((eduIndex) => {
+          const existing = byIndex.get(eduIndex)
+          return {
+            type: "education-block" as const,
+            eduIndex,
+            title: existing?.title ?? `Education ${eduIndex + 1}`,
+            linkQuestions: existing?.linkQuestions ?? [],
+            catalogQuestions: existing?.catalogQuestions ?? [],
+            campusGroups: existing?.campusGroups ?? [],
+          }
+        })
+    }
+
+    if (section === "certifications") {
+      const byIndex = new Map<
+        number,
+        Extract<QuestionDisplayBlock, { type: "certification-block" }>
+      >()
+      for (const block of grouped) {
+        if (block.type === "certification-block") byIndex.set(block.certIndex, block)
+      }
+      const indices = new Set<number>([
+        ...byIndex.keys(),
+        ...Array.from({ length: certifications?.length ?? 0 }, (_, i) => i),
+      ])
+      if (indices.size === 0 && hasGenerated) indices.add(0)
+
+      return [...indices]
+        .sort((a, b) => a - b)
+        .map((certIndex) => {
+          const existing = byIndex.get(certIndex)
+          return {
+            type: "certification-block" as const,
+            certIndex,
+            title: existing?.title ?? `Certification ${certIndex + 1}`,
+            linkQuestions: existing?.linkQuestions ?? [],
+            catalogQuestions: existing?.catalogQuestions ?? [],
+          }
+        })
+    }
+
+    return grouped
+  }, [
+    section,
+    sortedQuestions,
+    useAccordionLayout,
+    workExperiences,
+    educations,
+    certifications,
+    hasGenerated,
+  ])
 
   const accordionSplit = useMemo(() => {
     if (!displayBlocks) return null
@@ -274,11 +633,15 @@ export function CallNotesQuestionsSidebar({
 
   const entryNavChrome = useMemo(() => {
     if (!accordionSplit) return "hidden" as const
+    // Education: Select whenever there are 2+ entries; no chrome for a single entry.
+    if (entryNavSection === "education") {
+      return accordionSplit.entryCount > 1 ? ("select" as const) : ("hidden" as const)
+    }
     return resolveQuestionEntryNavChrome(
       accordionSplit.entryCount,
       accordionSplit.hasOverviewQuestions,
     )
-  }, [accordionSplit])
+  }, [accordionSplit, entryNavSection])
 
   const entryNavItems = useMemo(() => {
     if (!entryNavSection || !accordionSplit || entryNavChrome === "hidden") return []
@@ -295,7 +658,7 @@ export function CallNotesQuestionsSidebar({
     return buildQuestionEntryNavItems({
       section: entryNavSection,
       entryBlocks: accordionSplit.entryBlocks,
-      includeOverview: true,
+      includeOverview: false,
       missingFields: uniqueMissingFields,
       countEntryMissing,
       workExperiences,
@@ -317,8 +680,10 @@ export function CallNotesQuestionsSidebar({
       setActiveEntryNavId("overview")
       return
     }
-    setActiveEntryNavId(defaultQuestionEntryNavId(entryNavChrome, accordionSplit.entryBlocks))
-  }, [section, entryNavChrome, accordionSplit])
+    setActiveEntryNavId(
+      defaultQuestionEntryNavId(entryNavChrome, accordionSplit.entryBlocks, false),
+    )
+  }, [section, entryNavSection, entryNavChrome, accordionSplit])
 
   const visibleBlocks = useMemo(() => {
     if (!displayBlocks) return null
@@ -326,16 +691,31 @@ export function CallNotesQuestionsSidebar({
     return filterBlocksForEntryNav(displayBlocks, activeEntryNavId)
   }, [displayBlocks, entryNavChrome, activeEntryNavId])
 
+  const activeWorkExperienceSections = useMemo(() => {
+    if (section !== "workExperience" || !visibleBlocks) return []
+    const roleBlock = visibleBlocks.find(
+      (block): block is WorkExperienceRoleBlock => block.type === "role-block",
+    )
+    return roleBlock
+      ? buildWorkExperienceSectionUnits(roleBlock, workExperiences)
+      : []
+  }, [section, visibleBlocks, workExperiences])
+
+  useEffect(() => {
+    const sectionIds = activeWorkExperienceSections.map((unit) => unit.id)
+    setOpenWorkExperienceSectionId((current) =>
+      current && sectionIds.includes(current) ? current : (sectionIds[0] ?? null),
+    )
+  }, [activeWorkExperienceSections])
+
   const handleCopy = (apiFieldName: string, text: string, e: React.MouseEvent) => {
     e.stopPropagation()
     void navigator.clipboard.writeText(text).then(() => {
       setCopiedField(apiFieldName)
-      toast.success("Question copied")
+      toast.success("Copied")
       setTimeout(() => setCopiedField(null), 2000)
     })
   }
-
-  const hasGenerated = sectionMissingFields != null || sectionComplete || sortedQuestions.length > 0
 
   const resolveMeta = (field: string) =>
     fieldMetaByApiName.get(field) ?? resolveQuestionFieldMeta(field, emptyFields)
@@ -413,44 +793,282 @@ export function CallNotesQuestionsSidebar({
             ? formatWorkExperienceCardSubtitle(workExperiences?.[block.roleIndex])
             : null
 
-        const linkRendered = renderQuestionList(block.linkQuestions, globalIndex)
-        globalIndex = linkRendered.nextIndex
+        const roleUnits = buildWorkExperienceSectionUnits(block, workExperiences)
+        const missingFieldSet = new Set(uniqueMissingFields ?? [])
+        const countUnitMissing = (unit: WorkExperienceSectionUnit): number => {
+          if (unit.type === "role") {
+            return WORK_EXPERIENCE_ROLE_FIELD_ORDER.filter((key) =>
+              missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
+            ).length
+          }
+          if (unit.type === "project") {
+            return PROJECT_FIELD_DEFS.filter((field) =>
+              missingFieldSet.has(`${unit.accordion.apiPrefix}_${field.apiSuffix}`),
+            ).length
+          }
+          const employerScalarMissing = WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.filter((key) =>
+            missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
+          ).length
+          const officeMissing = block.officeGroups.reduce((sum, group) => {
+            return (
+              sum +
+              OFFICE_FIELD_ORDER.filter((key) =>
+                missingFieldSet.has(
+                  `work_experience_${block.roleIndex}_office_${group.officeIndex}_${key}`,
+                ),
+              ).length
+            )
+          }, 0)
+          const layoffMissing = block.layoffGroups.reduce((sum, group) => {
+            return (
+              sum +
+              LAYOFF_FIELD_ORDER.filter((key) =>
+                missingFieldSet.has(
+                  `work_experience_${block.roleIndex}_layoff_${group.layoffIndex}_${key}`,
+                ),
+              ).length
+            )
+          }, 0)
+          return employerScalarMissing + officeMissing + layoffMissing
+        }
 
-        const employerAccordionCount =
-          block.catalogQuestions.length +
-          block.officeGroups.reduce((sum, group) => sum + group.questions.length, 0) +
-          block.layoffGroups.reduce((sum, group) => sum + group.questions.length, 0)
+        const roleContent = roleUnits.map((unit) => {
+          const isOpen = openWorkExperienceSectionId === unit.id
+          const onOpenChange = (open: boolean) => {
+            setOpenWorkExperienceSectionId(open ? unit.id : null)
+          }
+          const missingCount = countUnitMissing(unit)
 
-        const catalogRendered = renderQuestionList(block.catalogQuestions, globalIndex)
-        globalIndex = catalogRendered.nextIndex
+          if (unit.type === "role") {
+            const we = workExperiences?.[block.roleIndex]
+            const questionByField = new Map(
+              unit.questions.map((question) => [question.field, question]),
+            )
+            const roleCards = mergeValueAndQuestionCards(
+              WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => ({
+                apiFieldName: `work_experience_${block.roleIndex}_${key}`,
+                label: key,
+                priority: WORK_EXPERIENCE_ROLE_PRIORITIES[key],
+                value: readWorkExperienceField(we, key),
+              })),
+              questionByField,
+              "workExperience",
+            )
+            const rendered = renderQuestionList(roleCards, globalIndex)
+            globalIndex = rendered.nextIndex
+            return (
+              <ProjectCatalogCollapsible
+                key={unit.id}
+                label="Role Details"
+                open={isOpen}
+                onOpenChange={onOpenChange}
+                missingCount={missingCount}
+              >
+                <ul className="space-y-1" role="list">
+                  {rendered.nodes}
+                </ul>
+              </ProjectCatalogCollapsible>
+            )
+          }
 
-        const officeSections = block.officeGroups.map((office) => {
-          const officeRendered = renderQuestionList(office.questions, globalIndex)
-          globalIndex = officeRendered.nextIndex
-          return (
-            <div key={`office-${block.roleIndex}-${office.officeIndex}`} className="space-y-1">
-              <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
-                {workExperienceOfficeGroupLabel(office.officeIndex)}
-              </p>
-              <ul className="space-y-1" role="list">
-                {officeRendered.nodes}
-              </ul>
-            </div>
+          if (unit.type === "project") {
+            const projectIndexMatch = /_project_(\d+)$/.exec(unit.accordion.apiPrefix)
+            const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
+            const project = workExperiences?.[block.roleIndex]?.projects?.[projectIndex]
+            const questionByField = new Map(
+              unit.accordion.accordionQuestions.map((question) => [
+                question.field,
+                question,
+              ]),
+            )
+            const projectRows = PROJECT_FIELD_DEFS.flatMap((field) => {
+              const apiFieldName = `${unit.accordion.apiPrefix}_${field.apiSuffix}`
+              const value = project
+                ? readLinkedProjectPayloadValue(project, field.payloadKey)
+                : null
+
+              if (
+                project &&
+                !isProjectCatalogFieldMissing(field.payloadKey, value)
+              ) {
+                const valueItems =
+                  field.apiSuffix === "techStacks" && Array.isArray(value)
+                    ? value.map((item) => String(item)).filter((s) => s.trim() !== "")
+                    : undefined
+                const valueCard: GeneratedQuestion = {
+                  question: formatQgDisplayValue(value),
+                  field: apiFieldName,
+                  section: "workExperience",
+                  priority: PROJECT_FIELD_PRIORITIES[field.apiSuffix],
+                  context: "",
+                  promptType: "enrichment",
+                  ...(valueItems && valueItems.length > 0 ? { valueItems } : {}),
+                }
+                const rendered = renderQuestionList([valueCard], globalIndex)
+                globalIndex = rendered.nextIndex
+                return [
+                  <ul key={apiFieldName} className="space-y-1" role="list">
+                    {rendered.nodes}
+                  </ul>,
+                ]
+              }
+
+              const question = questionByField.get(apiFieldName)
+              if (!question) return []
+              const rendered = renderQuestionList([question], globalIndex)
+              globalIndex = rendered.nextIndex
+              return [
+                <ul key={apiFieldName} className="space-y-1" role="list">
+                  {rendered.nodes}
+                </ul>,
+              ]
+            })
+
+            const projectName = project?.projectName?.trim()
+            return (
+              <ProjectCatalogCollapsible
+                key={unit.id}
+                label={projectName || `Project ${projectIndex + 1}`}
+                open={isOpen}
+                onOpenChange={onOpenChange}
+                missingCount={missingCount}
+              >
+                <div className="space-y-1">{projectRows}</div>
+              </ProjectCatalogCollapsible>
+            )
+          }
+
+          const we = workExperiences?.[block.roleIndex]
+          const catalogByField = new Map(
+            block.catalogQuestions.map((question) => [question.field, question]),
           )
-        })
+          const employerScalarCards = mergeValueAndQuestionCards(
+            WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => ({
+              apiFieldName: `work_experience_${block.roleIndex}_${key}`,
+              label: key,
+              priority: WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key],
+              value: readWorkExperienceField(we, key),
+            })),
+            catalogByField,
+            "workExperience",
+          )
+          const statusCards = employerScalarCards.filter((q) =>
+            q.field.endsWith("_status"),
+          )
+          // Employer-level fields (same as Employer dialog Basic Information) —
+          // must render outside Office Location groups.
+          const employerBasicCards = employerScalarCards.filter(
+            (q) =>
+              q.field.endsWith("_headcount") || q.field.endsWith("_salaryPolicy"),
+          )
+          const postLayoffCards = employerScalarCards.filter((q) =>
+            q.field.endsWith("_awards"),
+          )
 
-        const layoffSections = block.layoffGroups.map((layoff) => {
-          const layoffRendered = renderQuestionList(layoff.questions, globalIndex)
-          globalIndex = layoffRendered.nextIndex
+          const statusRendered = renderQuestionList(statusCards, globalIndex)
+          globalIndex = statusRendered.nextIndex
+
+          const employerBasicRendered = renderQuestionList(
+            employerBasicCards,
+            globalIndex,
+          )
+          globalIndex = employerBasicRendered.nextIndex
+
+          const officeSections = block.officeGroups.map((officeGroup) => {
+            const officeRow = we?.locations?.[officeGroup.officeIndex]
+            const questionByField = new Map(
+              officeGroup.questions.map((question) => [question.field, question]),
+            )
+            const officeCards = mergeValueAndQuestionCards(
+              OFFICE_FIELD_ORDER.map((key) => ({
+                apiFieldName: `work_experience_${block.roleIndex}_office_${officeGroup.officeIndex}_${key}`,
+                label: key,
+                priority: OFFICE_FIELD_PRIORITIES[key],
+                value: officeRow ? officeRow[key] : null,
+              })),
+              questionByField,
+              "workExperience",
+            )
+            const officeRendered = renderQuestionList(officeCards, globalIndex)
+            globalIndex = officeRendered.nextIndex
+            return (
+              <div
+                key={`office-${block.roleIndex}-${officeGroup.officeIndex}`}
+                className="space-y-1"
+              >
+                <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
+                  {workExperienceOfficeGroupLabel(officeGroup.officeIndex)}
+                </p>
+                <ul className="space-y-1" role="list">
+                  {officeRendered.nodes}
+                </ul>
+              </div>
+            )
+          })
+
+          const layoffSections = block.layoffGroups.map((layoffGroup) => {
+            const layoffRow = we?.layoffs?.[layoffGroup.layoffIndex]
+            const questionByField = new Map(
+              layoffGroup.questions.map((question) => [question.field, question]),
+            )
+            const layoffCards = mergeValueAndQuestionCards(
+              LAYOFF_FIELD_ORDER.map((key) => ({
+                apiFieldName: `work_experience_${block.roleIndex}_layoff_${layoffGroup.layoffIndex}_${key}`,
+                label: key,
+                priority: LAYOFF_FIELD_PRIORITIES[key],
+                value: layoffRow ? layoffRow[key] : null,
+              })),
+              questionByField,
+              "workExperience",
+            )
+            const layoffRendered = renderQuestionList(layoffCards, globalIndex)
+            globalIndex = layoffRendered.nextIndex
+            return (
+              <div
+                key={`layoff-${block.roleIndex}-${layoffGroup.layoffIndex}`}
+                className="space-y-1"
+              >
+                <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
+                  {workExperienceLayoffGroupLabel(layoffGroup.layoffIndex)}
+                </p>
+                <ul className="space-y-1" role="list">
+                  {layoffRendered.nodes}
+                </ul>
+              </div>
+            )
+          })
+
+          const postLayoffRendered = renderQuestionList(postLayoffCards, globalIndex)
+          globalIndex = postLayoffRendered.nextIndex
+
           return (
-            <div key={`layoff-${block.roleIndex}-${layoff.layoffIndex}`} className="space-y-1">
-              <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
-                {workExperienceLayoffGroupLabel(layoff.layoffIndex)}
-              </p>
-              <ul className="space-y-1" role="list">
-                {layoffRendered.nodes}
-              </ul>
-            </div>
+            <ProjectCatalogCollapsible
+              key={unit.id}
+              label="Employer Details"
+              open={isOpen}
+              onOpenChange={onOpenChange}
+              missingCount={missingCount}
+            >
+              <div className="space-y-2 w-full">
+                {statusRendered.nodes.length > 0 && (
+                  <ul className="space-y-1" role="list">
+                    {statusRendered.nodes}
+                  </ul>
+                )}
+                {employerBasicRendered.nodes.length > 0 && (
+                  <ul className="space-y-1" role="list">
+                    {employerBasicRendered.nodes}
+                  </ul>
+                )}
+                {officeSections}
+                {layoffSections}
+                {postLayoffRendered.nodes.length > 0 && (
+                  <ul className="space-y-1" role="list">
+                    {postLayoffRendered.nodes}
+                  </ul>
+                )}
+              </div>
+            </ProjectCatalogCollapsible>
           )
         })
 
@@ -477,40 +1095,7 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {linkRendered.nodes.length > 0 && (
-              <ul className="space-y-1" role="list">
-                {linkRendered.nodes}
-              </ul>
-            )}
-            {employerAccordionCount > 0 && (
-              <ProjectCatalogCollapsible
-                label={workExperienceEmployerDetailsLabel(employerAccordionCount)}
-              >
-                <div className="space-y-2 w-full">
-                  {catalogRendered.nodes.length > 0 && (
-                    <ul className="space-y-1" role="list">
-                      {catalogRendered.nodes}
-                    </ul>
-                  )}
-                  {officeSections}
-                  {layoffSections}
-                </div>
-              </ProjectCatalogCollapsible>
-            )}
-            {block.projectsOpener && (() => {
-              const { nodes, nextIndex } = renderQuestionList([block.projectsOpener], globalIndex)
-              globalIndex = nextIndex
-              return (
-                <ul className="space-y-1" role="list">
-                  {nodes}
-                </ul>
-              )
-            })()}
-            {block.projectAccordions.map((accordion) => {
-              const rendered = renderProjectAccordionBlock(accordion, globalIndex)
-              globalIndex = rendered.nextIndex
-              return rendered.section
-            })}
+            {roleContent}
           </div>,
         )
         continue
@@ -526,9 +1111,52 @@ export function CallNotesQuestionsSidebar({
             ? formatCertificationCardSubtitle(certifications?.[block.certIndex]?.certificationName)
             : null
 
-        const linkRendered = renderQuestionList(block.linkQuestions, globalIndex)
+        const linkQuestions = block.linkQuestions
+        const catalogQuestions = block.catalogQuestions
+        const questionByField = new Map(
+          [...linkQuestions, ...catalogQuestions].map((question) => [
+            question.field,
+            question,
+          ]),
+        )
+        const cert = certifications?.[block.certIndex]
+        const certCards = mergeValueAndQuestionCards(
+          [
+            {
+              apiFieldName: `certification_${block.certIndex}_name`,
+              label: "Name",
+              priority: CERTIFICATION_FIELD_PRIORITIES.name,
+              value: cert?.certificationName,
+            },
+            {
+              apiFieldName: `certification_${block.certIndex}_issueDate`,
+              label: "Issue Date",
+              priority: CERTIFICATION_FIELD_PRIORITIES.issueDate,
+              value: cert?.issueDate,
+            },
+            {
+              apiFieldName: `certification_${block.certIndex}_expiryDate`,
+              label: "Expiry Date",
+              priority: CERTIFICATION_FIELD_PRIORITIES.expiryDate,
+              value: cert?.expiryDate,
+            },
+            {
+              apiFieldName: `certification_${block.certIndex}_issuingBody`,
+              label: "Issuer body",
+              priority: CERTIFICATION_FIELD_PRIORITIES.issuingBody,
+              value: cert?.issuingBody ?? cert?.certificationIssuerName,
+            },
+          ],
+          questionByField,
+          "certifications",
+        )
+        const linkCards = certCards.filter(
+          (q) => !q.field.endsWith("_issuingBody"),
+        )
+        const bodyCard = certCards.filter((q) => q.field.endsWith("_issuingBody"))
+        const linkRendered = renderQuestionList(linkCards, globalIndex)
         globalIndex = linkRendered.nextIndex
-        const catalogRendered = renderQuestionList(block.catalogQuestions, globalIndex)
+        const catalogRendered = renderQuestionList(bodyCard, globalIndex)
         globalIndex = catalogRendered.nextIndex
 
         sections.push(
@@ -559,9 +1187,9 @@ export function CallNotesQuestionsSidebar({
                 {linkRendered.nodes}
               </ul>
             )}
-            {block.catalogQuestions.length > 0 && (
+            {bodyCard.length > 0 && (
               <ProjectCatalogCollapsible
-                label={certificationCatalogDetailsLabel(block.catalogQuestions.length)}
+                label={certificationCatalogDetailsLabel(bodyCard.length)}
               >
                 <ul className="space-y-1 w-full" role="list">
                   {catalogRendered.nodes}
@@ -584,30 +1212,32 @@ export function CallNotesQuestionsSidebar({
           edu?.degreeName,
         )
 
-        const linkRendered = renderQuestionList(block.linkQuestions, globalIndex)
+        const questionByField = new Map(
+          [...block.linkQuestions, ...block.catalogQuestions].map((question) => [
+            question.field,
+            question,
+          ]),
+        )
+        const eduCards = mergeValueAndQuestionCards(
+          [
+            {
+              apiFieldName: `education_${block.eduIndex}_universityName`,
+              label: "University Name",
+              priority: EDUCATION_FIELD_PRIORITIES.universityName,
+              value: edu?.universityName ?? edu?.universityLocationName,
+            },
+            {
+              apiFieldName: `education_${block.eduIndex}_isTopper`,
+              label: "Topper",
+              priority: EDUCATION_FIELD_PRIORITIES.isTopper,
+              value: edu?.isTopper,
+            },
+          ],
+          questionByField,
+          "education",
+        )
+        const linkRendered = renderQuestionList(eduCards, globalIndex)
         globalIndex = linkRendered.nextIndex
-
-        const accordionQuestionCount =
-          block.catalogQuestions.length +
-          block.campusGroups.reduce((sum, group) => sum + group.questions.length, 0)
-
-        const catalogRendered = renderQuestionList(block.catalogQuestions, globalIndex)
-        globalIndex = catalogRendered.nextIndex
-
-        const campusSections = block.campusGroups.map((campus) => {
-          const campusRendered = renderQuestionList(campus.questions, globalIndex)
-          globalIndex = campusRendered.nextIndex
-          return (
-            <div key={`campus-${block.eduIndex}-${campus.campusIndex}`} className="space-y-1">
-              <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
-                {educationCampusGroupLabel(campus.campusIndex)}
-              </p>
-              <ul className="space-y-1" role="list">
-                {campusRendered.nodes}
-              </ul>
-            </div>
-          )
-        })
 
         sections.push(
           <div
@@ -637,20 +1267,6 @@ export function CallNotesQuestionsSidebar({
                 {linkRendered.nodes}
               </ul>
             )}
-            {accordionQuestionCount > 0 && (
-              <ProjectCatalogCollapsible
-                label={educationUniversityDetailsLabel(accordionQuestionCount)}
-              >
-                <div className="space-y-2 w-full">
-                  {catalogRendered.nodes.length > 0 && (
-                    <ul className="space-y-1" role="list">
-                      {catalogRendered.nodes}
-                    </ul>
-                  )}
-                  {campusSections}
-                </div>
-              </ProjectCatalogCollapsible>
-            )}
           </div>,
         )
         continue
@@ -669,9 +1285,15 @@ export function CallNotesQuestionsSidebar({
   const renderEntryNavChrome = () => {
     if (entryNavChrome === "hidden" || entryNavItems.length === 0) return null
 
+    const containerClassName = cn(
+      "px-2 pb-1",
+      entryNavSection === "workExperience" &&
+        "sticky top-0 z-10 border-b border-border/60 bg-muted/95 pt-2 backdrop-blur",
+    )
+
     if (entryNavChrome === "select") {
       return (
-        <div className="px-2 pb-1">
+        <div className={containerClassName}>
           <Select
             value={activeEntryNavId}
             onValueChange={(value) => setActiveEntryNavId(value as QuestionEntryNavId)}
@@ -692,7 +1314,7 @@ export function CallNotesQuestionsSidebar({
     }
 
     return (
-      <div className="px-2 pb-1">
+      <div className={containerClassName}>
         <Tabs
           value={activeEntryNavId}
           onValueChange={(value) => setActiveEntryNavId(value as QuestionEntryNavId)}
@@ -795,47 +1417,96 @@ export function CallNotesQuestionsSidebar({
               </Button>
             )}
           </div>
-        ) : sectionComplete && sortedQuestions.length === 0 ? (
-          <div className="p-6 flex flex-col items-center text-center gap-3">
-            <CheckCircle2 className="h-10 w-10 text-green-600 shrink-0" aria-hidden />
-            <p className="text-sm font-medium">Section complete</p>
-            <p className="text-xs text-muted-foreground">No missing fields in this section.</p>
-          </div>
-        ) : hasGenerated && uniqueMissingFields && uniqueMissingFields.length > 0 && sortedQuestions.length === 0 ? (
-          <div className="p-4 space-y-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Missing fields
-            </p>
-            {section === "workExperience" ? (
-              <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
-                {summarizeWorkExperienceMissingFields(uniqueMissingFields)}
-              </p>
-            ) : section === "certifications" ? (
-              <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
-                {summarizeCertificationsMissingFields(uniqueMissingFields)}
-              </p>
-            ) : section === "education" ? (
-              <p className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50">
-                {summarizeEducationsMissingFields(uniqueMissingFields)}
-              </p>
+        ) : hasGenerated ? (
+          <div className="p-2 space-y-2">
+            {sectionComplete && (
+              <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600 shrink-0" aria-hidden />
+                No missing fields in this section.
+              </div>
+            )}
+            {useAccordionLayout && displayBlocks ? (
+              renderAccordionQuestions()
             ) : (
-            <ul className="space-y-1">
-              {uniqueMissingFields.map((fieldKey) => {
-                const meta = resolveQuestionFieldMeta(fieldKey, emptyFields)
-                return (
-                  <li
-                    key={fieldKey}
-                    className="text-xs text-muted-foreground px-2 py-1 rounded bg-muted/50 truncate"
-                    title={meta.label}
-                  >
-                    {meta.label}
-                  </li>
+              (() => {
+                const questionByField = new Map(
+                  sortedQuestions.map((question) => [question.field, question]),
                 )
-              })}
-            </ul>
+                let flatCards = sortedQuestions
+                if (section === "basic") {
+                  flatCards = mergeValueAndQuestionCards(
+                    BASIC_FIELD_ORDER.map((key) => ({
+                      apiFieldName: key,
+                      label: key,
+                      priority: BASIC_FIELD_PRIORITIES[key],
+                      value: key === "cnic" ? cnic : personalityType,
+                    })),
+                    questionByField,
+                    "basic",
+                  )
+                } else if (section === "preferences") {
+                  flatCards = mergeValueAndQuestionCards(
+                    PREFERENCES_FIELD_ORDER.map((key) => ({
+                      apiFieldName: key,
+                      label: key,
+                      priority: BASIC_FIELD_PRIORITIES[key],
+                      value: key === "currentSalary" ? currentSalary : expectedSalary,
+                      formatValue: (value) =>
+                        typeof value === "number"
+                          ? formatSalaryDisplayValue(value)
+                          : formatQgDisplayValue(value),
+                    })),
+                    questionByField,
+                    "preferences",
+                  )
+                } else if (section === "techStacks") {
+                  flatCards = mergeValueAndQuestionCards(
+                    [
+                      {
+                        apiFieldName: "techStacks",
+                        label: "Tech stacks",
+                        priority: INDEPENDENT_TECH_STACKS_PRIORITY,
+                        value: techStacks,
+                      },
+                    ],
+                    questionByField,
+                    "techStacks",
+                  )
+                }
+
+                return (
+                  <>
+                    {uniqueMissingFields && uniqueMissingFields.length > 0 && (
+                      <div className="px-2 pb-1 min-w-0">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                          Missing fields
+                        </p>
+                        <div className="flex flex-wrap gap-1 min-w-0">
+                          {uniqueMissingFields.map((fieldKey) => {
+                            const meta = resolveQuestionFieldMeta(fieldKey, emptyFields)
+                            return (
+                              <Badge
+                                key={fieldKey}
+                                variant="secondary"
+                                className="text-[10px] max-w-full truncate"
+                                title={meta.label}
+                              >
+                                {meta.label}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <ul className="space-y-1" role="list">
+                      {renderQuestionList(flatCards, 0).nodes}
+                    </ul>
+                  </>
+                )
+              })()
             )}
           </div>
-        ) : sortedQuestions.length === 0 ? (
+        ) : (
           <div className="p-4 flex flex-col items-center text-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-primary" aria-hidden />
@@ -853,40 +1524,6 @@ export function CallNotesQuestionsSidebar({
                 </>
               )}
             </p>
-          </div>
-        ) : (
-          <div className="p-2 space-y-2">
-            {useAccordionLayout && displayBlocks ? (
-              renderAccordionQuestions()
-            ) : (
-              <>
-                {uniqueMissingFields && uniqueMissingFields.length > 0 && (
-                  <div className="px-2 pb-1 min-w-0">
-                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                      Missing fields
-                    </p>
-                    <div className="flex flex-wrap gap-1 min-w-0">
-                      {uniqueMissingFields.map((fieldKey) => {
-                        const meta = resolveQuestionFieldMeta(fieldKey, emptyFields)
-                        return (
-                          <Badge
-                            key={fieldKey}
-                            variant="secondary"
-                            className="text-[10px] max-w-full truncate"
-                            title={meta.label}
-                          >
-                            {meta.label}
-                          </Badge>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-                <ul className="space-y-1" role="list">
-                  {renderQuestionList(sortedQuestions, 0).nodes}
-                </ul>
-              </>
-            )}
           </div>
         )}
       </div>

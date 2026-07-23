@@ -15,6 +15,7 @@ export interface LinkedProjectFields {
   maxTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
+  technicalDomains?: string[]
   horizontalDomains?: string[]
   verticalDomains?: string[]
   description?: string | null
@@ -68,8 +69,10 @@ export interface WorkExperience {
   status?: string | null
   types?: string[]
   ranking?: string | null
-  minEmployees?: number | null
-  maxEmployees?: number | null
+  /** Company-wide headcount from employer catalog (replaces min/max employees). */
+  headcount?: number | null
+  /** Employer award names from catalog. */
+  awards?: string[]
   websiteUrl?: string | null
   linkedinUrl?: string | null
   isDplCompetitor?: boolean | null

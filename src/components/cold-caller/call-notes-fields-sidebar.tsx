@@ -13,7 +13,6 @@ const SECTION_ORDER: FieldSection[] = [
   "workExperience",
   "education",
   "certifications",
-  "achievements",
   "techStacks",
 ]
 

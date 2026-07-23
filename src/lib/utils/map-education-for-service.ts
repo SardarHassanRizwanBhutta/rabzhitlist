@@ -19,15 +19,6 @@ function emptyToNull(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed
 }
 
-function toIsoDate(value: Date | undefined | null): string | null {
-  if (value == null) return null
-  try {
-    return value.toISOString()
-  } catch {
-    return null
-  }
-}
-
 const SERVICE_RANKING_SUFFIXES = new Set(["tier_1", "tier_2", "tier_3", "dpl_favourite"])
 
 /** Map UI / API ranking to question-service payload (`tier_1`, …). */
@@ -212,22 +203,6 @@ export function mapEducationToServicePayload(edu: CandidateEducation): Education
 
   return {
     universityName,
-    universityLocationName: universityName,
-    degreeName: emptyToNull(edu.degreeName) ?? edu.degreeName,
-    majorName: emptyToNull(edu.majorName) ?? edu.majorName,
-    startMonth: toIsoDate(edu.startMonth),
-    endMonth: toIsoDate(edu.endMonth),
-    grades: emptyToNull(edu.grades),
     isTopper: edu.isTopper ?? null,
-    isCheetah: edu.isCheetah ?? null,
-    country: emptyToNull(edu.country),
-    ranking: rankingToEducationServicePayload(edu.ranking),
-    websiteUrl: emptyToNull(edu.websiteUrl),
-    linkedinUrl: emptyToNull(edu.linkedinUrl),
-    locations: (edu.locations ?? []).map((loc) => ({
-      city: emptyToNull(loc.city),
-      address: emptyToNull(loc.address),
-      isMainCampus: loc.isMainCampus ?? null,
-    })),
   }
 }

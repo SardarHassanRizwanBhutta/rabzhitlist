@@ -1,6 +1,5 @@
 import type { GeneratedQuestion } from "@/types/cold-caller"
 import { SECTION_LABELS } from "@/types/cold-caller"
-import { RANKING_DISPLAY_TO_DB, type RankingDb } from "@/lib/types/employer"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
 import {
   dedupeQuestionsByField,
@@ -9,48 +8,16 @@ import {
 
 export const EDUCATION_LINK_ORDER = [
   "universityName",
-  "degreeName",
-  "majorName",
-  "startMonth",
-  "endMonth",
-  "grades",
   "isTopper",
-  "isCheetah",
 ] as const
 
-export const EDUCATION_CATALOG_SUFFIXES = new Set([
-  "country",
-  "ranking",
-  "websiteUrl",
-  "linkedinUrl",
-])
-
-export const EDUCATION_CAMPUS_SUFFIXES = new Set(["city", "isMainCampus", "address"])
+export const EDUCATION_CATALOG_SUFFIXES = new Set<string>()
+export const EDUCATION_CAMPUS_SUFFIXES = new Set<string>()
 
 const EDUCATION_FIELD_LABELS: Record<string, string> = {
   universityName: "University Name",
-  degreeName: "Degree Name",
-  majorName: "Major Name",
-  startMonth: "Start Month",
-  endMonth: "End Month",
-  grades: "Grades",
   isTopper: "Topper",
-  isCheetah: "Cheetah",
-  country: "Country",
-  ranking: "Ranking",
-  websiteUrl: "Website URL",
-  linkedinUrl: "LinkedIn URL",
-  city: "City",
-  isMainCampus: "Main Campus",
-  address: "Office Location",
 }
-
-const RANKING_PAYLOAD_TO_LABEL: Record<string, string> = Object.fromEntries(
-  (Object.entries(RANKING_DISPLAY_TO_DB) as [RankingDb, string][]).map(([db, label]) => [
-    db,
-    label,
-  ]),
-)
 
 export interface EducationCampusQuestionGroup {
   campusIndex: number
@@ -89,14 +56,7 @@ export function formatEducationFieldLabel(field: string): string {
   }
 
   const suffix = match[1]
-  if (suffix === "ranking") return EDUCATION_FIELD_LABELS.ranking
   return EDUCATION_FIELD_LABELS[suffix] ?? suffix
-}
-
-/** Format ranking values for enrichment chips (tier_1 → Tier 1). */
-export function formatEducationRankingDisplay(value: string): string {
-  const lower = value.trim().toLowerCase()
-  return RANKING_PAYLOAD_TO_LABEL[lower] ?? value
 }
 
 export function formatEducationCardSubtitle(

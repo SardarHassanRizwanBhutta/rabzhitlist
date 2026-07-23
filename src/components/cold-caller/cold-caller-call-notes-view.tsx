@@ -42,6 +42,11 @@ interface ColdCallerCallNotesViewProps {
   workExperiences?: WorkExperience[]
   educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
+  cnic?: string | null
+  personalityType?: string | null
+  currentSalary?: number | null
+  expectedSalary?: number | null
+  techStacks?: string[]
   groupedFields: Map<FieldSection, EmptyField[]>
   sectionsWithFields: FieldSection[]
   rawNotesDraft: string
@@ -81,6 +86,11 @@ export function ColdCallerCallNotesView({
   workExperiences,
   educations,
   certifications,
+  cnic,
+  personalityType,
+  currentSalary,
+  expectedSalary,
+  techStacks,
   groupedFields,
   sectionsWithFields,
   rawNotesDraft,
@@ -98,7 +108,15 @@ export function ColdCallerCallNotesView({
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
 
-  const displaySections = questionSections != null ? CALL_NOTES_DISPLAY_SECTIONS : sectionsWithFields
+  const displaySections =
+    questionSections != null
+      ? CALL_NOTES_DISPLAY_SECTIONS
+      : CALL_NOTES_DISPLAY_SECTIONS.filter(
+          (section) =>
+            sectionsWithFields.includes(section) ||
+            section === "techStacks" ||
+            section === "preferences",
+        )
 
   const sectionResultsByField = useMemo(() => {
     if (!questionSections) return new Map<FieldSection, ColdCallerSectionQuestions>()
@@ -178,6 +196,11 @@ export function ColdCallerCallNotesView({
     workExperiences,
     educations,
     certifications,
+    cnic,
+    personalityType,
+    currentSalary,
+    expectedSalary,
+    techStacks,
     activeQuestionField,
     onQuestionSelect: handleQuestionSelect,
     onRetryGenerateQuestions,
@@ -210,7 +233,10 @@ export function ColdCallerCallNotesView({
                 <span>{SECTION_LABELS[section]}</span>
                 {showApiBadge ? (
                   missingCount > 0 ? (
-                    <Badge variant="default" className="ml-1 text-xs px-1.5 py-0.5 font-medium shrink-0">
+                    <Badge
+                      variant="default"
+                      className="ml-1 bg-red-500 text-white hover:bg-red-600 text-xs px-1.5 py-0.5 font-medium shrink-0"
+                    >
                       {missingCount}
                     </Badge>
                   ) : null

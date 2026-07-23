@@ -1355,16 +1355,16 @@ export function getCandidateMatchContext(
         if (filters.employerSizeMin || filters.employerSizeMax) {
           const headcount = employer.headcount
           if (headcount != null) {
-            const filterMinSize = filters.employerSizeMin ? parseInt(filters.employerSizeMin) : 0
-            const filterMaxSize = filters.employerSizeMax ? parseInt(filters.employerSizeMax) : Infinity
-
+          const filterMinSize = filters.employerSizeMin ? parseInt(filters.employerSizeMin) : 0
+          const filterMaxSize = filters.employerSizeMax ? parseInt(filters.employerSizeMax) : Infinity
+          
             if (headcount >= filterMinSize && headcount <= filterMaxSize) {
-              matchedCriteria.push({
-                type: 'size',
-                label: 'Company Size',
+            matchedCriteria.push({
+              type: 'size',
+              label: 'Company Size',
                 values: [`${headcount} employees`]
-              })
-              hasMatch = true
+            })
+            hasMatch = true
             }
           }
         }
