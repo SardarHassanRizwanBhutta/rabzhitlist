@@ -25,6 +25,10 @@ import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { parseLinkedProjectCatalogFromApi } from "@/lib/utils/map-linked-project-for-service"
+import {
+  isProjectType,
+  projectTypeFromApiInt,
+} from "@/lib/utils/project-type-badge"
 import { parseCertificationCatalogFromApi } from "@/lib/utils/map-certification-for-service"
 import { parseUniversityCatalogFromEducationRow } from "@/lib/utils/map-education-for-service"
 import {
@@ -248,6 +252,10 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 function mapProjectExperience(raw: Record<string, unknown>, idx: number): ProjectExperience {
   const pid = raw.projectId
   const catalog = parseLinkedProjectCatalogFromApi(raw)
+  // Prefer top-level WorkExperienceProjectDto.type (int); else nested catalog; else omit.
+  const fromTopLevel = projectTypeFromApiInt(raw.type)
+  const fromCatalog = isProjectType(catalog.projectType) ? catalog.projectType : null
+  const projectType = fromTopLevel ?? fromCatalog ?? null
   return {
     id: String(raw.id ?? `proj-${idx}`),
     projectId: typeof pid === "number" && Number.isFinite(pid) ? pid : pid != null ? Number(pid) || null : null,
@@ -259,6 +267,7 @@ function mapProjectExperience(raw: Record<string, unknown>, idx: number): Projec
           ? String(raw.contributionNotes)
           : "",
     ...catalog,
+    projectType,
   }
 }
 

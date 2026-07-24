@@ -310,10 +310,8 @@ function resolveTechStackLabel(stack: MatchedDomainDto): string {
 
 const PROJECT_TYPE_NUM_TO_UI: Record<number, ProjectType> = {
   0: "Employer",
-  1: "Academic",
-  2: "Personal",
-  3: "Freelance",
-  4: "Open Source",
+  1: "Freelance",
+  2: "Independent",
 }
 
 function resolveProjectTypeLabel(projectType: MatchedDomainDto): string {

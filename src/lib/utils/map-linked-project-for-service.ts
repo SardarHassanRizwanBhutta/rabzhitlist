@@ -4,10 +4,10 @@ import type {
 } from "@/types/question-generation"
 import { PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
 import { TECHNICAL_DOMAIN_HUMAN_LABELS } from "@/lib/services/projects-api"
+import { normalizeProjectType } from "@/lib/utils/project-type-badge"
 import { formatTeamSizeForService, readLinkedProjectPayloadValue } from "@/lib/utils/project-catalog-fields"
 
 const PROJECT_STATUS_FROM_API = ["Development", "Maintenance", "Closed"] as const
-const PROJECT_TYPE_FROM_API = ["Employer", "Academic", "Personal", "Freelance", "Open Source"] as const
 const PUBLISH_PLATFORM_FROM_NUM = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => o.value)
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -120,7 +120,7 @@ export function parseLinkedProjectCatalogFromApi(
         : employer?.name != null
           ? String(employer.name)
           : null,
-    projectType: enumLabel(nested.type ?? nested.projectType, PROJECT_TYPE_FROM_API),
+    projectType: normalizeProjectType(nested.type ?? nested.projectType),
     status: enumLabel(nested.status, PROJECT_STATUS_FROM_API),
     teamSize: nested.teamSize != null ? String(nested.teamSize) : null,
     minTeamSize: Number.isFinite(minTeam as number) ? (minTeam as number) : null,

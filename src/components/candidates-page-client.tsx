@@ -380,10 +380,8 @@ export function CandidatesPageClient() {
   const backendListOptions = useMemo(() => {
     const projectTypeToApi: Record<string, number> = {
       Employer: 0,
-      Academic: 1,
-      Personal: 2,
-      Freelance: 3,
-      "Open Source": 4,
+      Freelance: 1,
+      Independent: 2,
     }
     const achievementLabelToDb = new Map<string, string>(
       Object.entries({
