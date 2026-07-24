@@ -141,6 +141,10 @@ import type { InteractionMode } from "@/types/cold-caller"
 import { MODE_CONFIG } from "@/types/cold-caller"
 import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import {
+  isProjectType,
+  PROJECT_TYPE_BADGE_CLASS,
+} from "@/lib/utils/project-type-badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -3680,17 +3684,30 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
     >
       <div className="flex-1 min-w-0 w-full">
         <span className="text-sm font-medium text-muted-foreground block mb-0.5">Project</span>
-        <button
-          type="button"
-          onClick={() => onProjectClick(project.projectId, displayName)}
-          className={cn(
-            titleClassName,
-            "hover:text-primary hover:underline transition-colors text-left cursor-pointer block w-full break-words"
-          )}
-          title={`View ${displayName} details`}
-        >
-          {displayName}
-        </button>
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onProjectClick(project.projectId, displayName)}
+            className={cn(
+              titleClassName,
+              "hover:text-primary hover:underline transition-colors text-left cursor-pointer break-words min-w-0"
+            )}
+            title={`View ${displayName} details`}
+          >
+            {displayName}
+          </button>
+          {isProjectType(project.projectType) ? (
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-xs font-medium shrink-0 pointer-events-none",
+                PROJECT_TYPE_BADGE_CLASS[project.projectType],
+              )}
+            >
+              {project.projectType}
+            </Badge>
+          ) : null}
+        </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {verificationIndicator}

@@ -1,5 +1,6 @@
 import type { Project, ProjectStatus, ProjectType } from "@/lib/types/project"
 import type { PublishPlatform } from "@/lib/types/project"
+import { PROJECT_TYPES } from "@/lib/types/project"
 import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progress"
 
 import { API_BASE_URL } from "@/lib/config/api"
@@ -137,22 +138,11 @@ export interface UpdateProjectDto {
 
 // --- Enum value maps (API uses numbers) ---
 
-/** Maps backend project_type_enum (employer | academic | personal | freelance | open_source) to UI ProjectType. */
-const PROJECT_TYPE_API_TO_UI: Record<string, ProjectType> = {
-  employer: "Employer",
-  academic: "Academic",
-  personal: "Personal",
-  freelance: "Freelance",
-  openSource: "Open Source",
-  open_source: "Open Source", // backend enum literal
-}
-
+/** Maps UI ProjectType → backend project_type enum int (0..2). */
 const PROJECT_TYPE_UI_TO_NUM: Record<ProjectType, number> = {
   Employer: 0,
-  Academic: 1,
-  Personal: 2,
-  Freelance: 3,
-  "Open Source": 4,
+  Freelance: 1,
+  Independent: 2,
 }
 
 const PROJECT_STATUS_API_TO_UI: Record<string, ProjectStatus> = {
@@ -533,7 +523,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
   const typeNum = dto.type ?? 0
   const statusNum = dto.status ?? 0
   const statusStr = (["Development", "Maintenance", "Closed"] as const)[statusNum] ?? "Development"
-  const typeStr = (["Employer", "Academic", "Personal", "Freelance", "Open Source"] as const)[typeNum] ?? "Employer"
+  const typeStr = PROJECT_TYPES[typeNum] ?? "Employer"
   const clientLocations = dto.clientLocations ?? []
   const employerName = dto.employerName ?? dto.employer?.name ?? null
   return {
@@ -572,7 +562,7 @@ export function projectDtoToProject(dto: ProjectDto): Project {
   const statusNum = dto.status ?? 0
   const typeNum = dto.type ?? 0
   const statusStr = (["Development", "Maintenance", "Closed"] as const)[statusNum] ?? "Development"
-  const typeStr = (["Employer", "Academic", "Personal", "Freelance", "Open Source"] as const)[typeNum] ?? "Employer"
+  const typeStr = PROJECT_TYPES[typeNum] ?? "Employer"
   const clientLocations = dto.clientLocations ?? []
   return {
     id: String(dto.id),

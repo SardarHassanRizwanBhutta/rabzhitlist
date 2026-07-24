@@ -66,21 +66,17 @@ export interface Project {
   updatedAt: Date
 }
 
-/** UI type; aligns with backend project_type_enum (employer, academic, personal, freelance, open_source). */
+/** UI type; aligns with backend project_type enum (employer, freelance, independent). */
 export type ProjectType =
   | "Employer"
-  | "Academic"
-  | "Personal"
   | "Freelance"
-  | "Open Source"
+  | "Independent"
 
-/** All project types in backend enum order (for dropdowns). */
+/** All project types in backend enum order (for dropdowns). Int: 0, 1, 2. */
 export const PROJECT_TYPES: ProjectType[] = [
   "Employer",
-  "Academic",
-  "Personal",
   "Freelance",
-  "Open Source",
+  "Independent",
 ]
 
 export type ProjectStatus = 

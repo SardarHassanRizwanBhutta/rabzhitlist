@@ -209,7 +209,7 @@ const extractUniqueHorizontalDomains = (): string[] => {
   return Array.from(domains).sort()
 }
 
-// Type options: fixed list matching backend project_type_enum (employer, academic, personal, freelance, open_source)
+// Type options: fixed list matching backend project_type (employer, freelance, independent)
 const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
   value: type,
   label: type,
