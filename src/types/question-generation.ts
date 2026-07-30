@@ -26,6 +26,11 @@ export interface ApiGeneratedQuestion {
   priority: number
   context: string
   prompt_type?: PromptType
+  /**
+   * Display labels for Basic/Advanced enum fields (stem-only `question`).
+   * Omitted for open / non-enum fields. See COLD_CALLER_QG_LONG_ENUM_OPTIONS_CONTRACT.md.
+   */
+  options?: string[] | null
 }
 
 export interface SectionQuestionResult {

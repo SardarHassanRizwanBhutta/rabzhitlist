@@ -48,6 +48,10 @@ import {
   formatSalaryDisplayValue,
   isQgValueMissing,
 } from "@/lib/utils/qg-value"
+import {
+  formatQgQuestionCopyText,
+  QG_ENUM_OPTIONS_COLLAPSE_THRESHOLD,
+} from "@/lib/utils/qg-enum-options"
 import { mergeValueAndQuestionCards } from "@/lib/utils/merge-value-question-cards"
 import {
   ACHIEVEMENT_FIELD_ORDER,
@@ -364,6 +368,55 @@ interface QuestionCardProps {
   onCopy: (field: string, text: string, e: React.MouseEvent) => void
 }
 
+function EnumOptionChips({ options }: { options: string[] }) {
+  const collapsible = options.length > QG_ENUM_OPTIONS_COLLAPSE_THRESHOLD
+  const optionsKey = options.join("\0")
+  const [expanded, setExpanded] = useState(!collapsible)
+
+  useEffect(() => {
+    setExpanded(!collapsible)
+  }, [collapsible, optionsKey])
+
+  const showChips = !collapsible || expanded
+
+  return (
+    <div className="mt-2 space-y-2">
+      {collapsible ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs font-medium text-primary hover:text-primary"
+          aria-expanded={expanded}
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded((prev) => !prev)
+          }}
+        >
+          {expanded ? "Hide options" : `Show ${options.length} options`}
+        </Button>
+      ) : null}
+      {showChips ? (
+        <ul
+          className="flex list-none flex-wrap gap-1.5 p-0"
+          aria-label="Answer options"
+        >
+          {options.map((optionLabel) => (
+            <li key={optionLabel}>
+              <Badge
+                variant="secondary"
+                className="max-w-full whitespace-normal border-transparent bg-primary/20 text-left text-[11px] font-medium leading-snug text-foreground dark:bg-primary/30 dark:text-foreground"
+              >
+                {optionLabel}
+              </Badge>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  )
+}
+
 function QuestionCard({
   question,
   index,
@@ -378,6 +431,9 @@ function QuestionCard({
     question.promptType === "enrichment" &&
     isTechStacksApiField(question.field) &&
     (question.valueItems?.length ?? 0) > 0
+  const enumOptions = question.options ?? []
+  const showEnumOptions = !showTechStackBadges && enumOptions.length > 0
+  const copyText = formatQgQuestionCopyText(question)
 
   return (
     <li>
@@ -387,52 +443,59 @@ function QuestionCard({
           isSectionOpener && "border-dashed border-border/60",
         )}
       >
-        <button
-          type="button"
-          aria-pressed={isActive}
-          onClick={() => onSelect(question.field)}
-          className="flex-1 min-w-0 text-left px-3 py-2.5 transition-colors"
-        >
-          <div className="mb-1.5 space-y-1">
-            <div className="flex items-start gap-1.5 min-w-0">
-              <span className="text-[10px] font-semibold text-muted-foreground tabular-nums shrink-0 mt-0.5">
-                {index + 1}.
-              </span>
-              <MessageSquare
-                className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary"
-                aria-hidden
-              />
-              <span className="min-w-0 break-words text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {label}
-              </span>
-              {isSectionOpener && (
-                <Badge
-                  variant="outline"
-                  className="text-[9px] px-1 py-0 h-4 shrink-0"
-                >
-                  Section
-                </Badge>
-              )}
-              <div className="ml-auto shrink-0">
-                <PriorityBadge priority={question.priority} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <button
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onSelect(question.field)}
+            className="min-w-0 flex-1 text-left px-3 py-2.5 transition-colors"
+          >
+            <div className="mb-1.5 space-y-1">
+              <div className="flex items-start gap-1.5 min-w-0">
+                <span className="text-[10px] font-semibold text-muted-foreground tabular-nums shrink-0 mt-0.5">
+                  {index + 1}.
+                </span>
+                <MessageSquare
+                  className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary"
+                  aria-hidden
+                />
+                <span className="min-w-0 break-words text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {label}
+                </span>
+                {isSectionOpener && (
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] px-1 py-0 h-4 shrink-0"
+                  >
+                    Section
+                  </Badge>
+                )}
+                <div className="ml-auto shrink-0">
+                  <PriorityBadge priority={question.priority} />
+                </div>
               </div>
             </div>
-          </div>
-          {showTechStackBadges ? (
-            <TechStackValueBadges items={question.valueItems!} />
-          ) : (
-            <p className="text-sm font-medium leading-snug break-words text-foreground">
-              {question.question}
-            </p>
-          )}
-        </button>
+            {showTechStackBadges ? (
+              <TechStackValueBadges items={question.valueItems!} />
+            ) : (
+              <p className="text-sm font-medium leading-snug break-words text-foreground">
+                {question.question}
+              </p>
+            )}
+          </button>
+          {showEnumOptions ? (
+            <div className="px-3 pb-2.5 pt-0">
+              <EnumOptionChips options={enumOptions} />
+            </div>
+          ) : null}
+        </div>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="h-auto w-9 shrink-0 rounded-none rounded-r-md"
           aria-label={`Copy question for ${label}`}
-          onClick={(e) => onCopy(question.field, question.question, e)}
+          onClick={(e) => onCopy(question.field, copyText, e)}
         >
           {copiedField === question.field ? (
             <Check className="h-3.5 w-3.5" />
