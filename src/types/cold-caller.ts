@@ -98,6 +98,11 @@ export interface GeneratedQuestion {
   promptType?: PromptType
   /** FE-only: raw items for populated value cards rendered as badges (e.g. tech stacks). */
   valueItems?: string[]
+  /**
+   * QG enum display labels (`options: string[]`). Call Notes renders read-only chips
+   * under the stem when non-empty. Not the same as EmptyField.options (value/label pairs).
+   */
+  options?: string[]
 }
 
 /** Per-section question payload after mapping the Python API response. */

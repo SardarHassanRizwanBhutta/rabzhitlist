@@ -10,6 +10,7 @@ import {
   isQuestionFieldAllowed,
   isQuestionSectionAllowed,
 } from "@/lib/utils/question-field-allowlist"
+import { normalizeQgEnumOptions } from "@/lib/utils/qg-enum-options"
 
 export type { ColdCallerSectionQuestions }
 
@@ -36,6 +37,7 @@ function mapPromptType(
 }
 
 export function mapApiQuestionToColdCaller(q: ApiGeneratedQuestion): GeneratedQuestion {
+  const options = normalizeQgEnumOptions(q.options)
   return {
     question: q.question,
     field: q.field,
@@ -43,6 +45,7 @@ export function mapApiQuestionToColdCaller(q: ApiGeneratedQuestion): GeneratedQu
     priority: q.priority,
     context: q.context,
     promptType: mapPromptType(q.prompt_type),
+    ...(options ? { options } : {}),
   }
 }
 
