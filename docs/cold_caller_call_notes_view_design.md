@@ -1,5 +1,11 @@
 # Cold Caller Mode — Call Notes View Design Proposal
 
+> **Historical design proposal.** Wireframes that list an Education Call Notes tab
+> are superseded by the Education QG/Cold Caller removal
+> ([QG_EDUCATION_REMOVAL_HANDOFF.md](./QG_EDUCATION_REMOVAL_HANDOFF.md),
+> [FRONTEND_INTEGRATION_CONTRACT.md](./FRONTEND_INTEGRATION_CONTRACT.md)).
+> Candidate Education outside Cold Caller remains unchanged.
+
 ## 1. Purpose
 
 This document proposes the design for a second internal view inside **Cold Caller Mode**.

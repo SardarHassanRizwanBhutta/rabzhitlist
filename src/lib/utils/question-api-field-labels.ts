@@ -5,8 +5,8 @@ import {
   PROJECT_CATALOG_FIELD_SUFFIXES,
   PROJECT_LINK_FIELD_SUFFIXES,
 } from "@/lib/utils/project-catalog-fields"
+import { formatAchievementFieldLabel } from "@/lib/utils/achievement-questions"
 import { formatCertificationFieldLabel } from "@/lib/utils/certification-questions"
-import { formatEducationFieldLabel } from "@/lib/utils/education-questions"
 import { formatWorkExperienceFieldLabel } from "@/lib/utils/work-experience-questions"
 
 const BASIC_FIELD_LABELS: Record<string, string> = {
@@ -20,7 +20,7 @@ const BASIC_FIELD_LABELS: Record<string, string> = {
   linkedinUrl: "LinkedIn URL",
   resume: "Resume",
   currentSalary: "Current salary",
-  expectedSalary: "Expected salary",
+  expectedSalary: "Expected Salary - Net",
   source: "Source",
   personalityType: "Personality type",
 }
@@ -30,41 +30,53 @@ export const SECTION_OPENER_API_FIELDS: Record<
   string,
   { label: string; section: FieldSection }
 > = {
-  educations: {
-    label: `${SECTION_LABELS.education} (overview)`,
-    section: "education",
-  },
   certifications: {
     label: `${SECTION_LABELS.certifications} (overview)`,
     section: "certifications",
+  },
+  achievements: {
+    label: `${SECTION_LABELS.achievements} (overview)`,
+    section: "achievements",
   },
 }
 
 /** Indexed apiFieldName → UI label (any row index). Matches Python empty-section mini-questions. */
 const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?: FieldSection }> = [
   { pattern: /^work_experience_\d+_jobTitle$/, label: "Job Title", section: "workExperience" },
+  { pattern: /^work_experience_\d+_startDate$/, label: "Start Date", section: "workExperience" },
   { pattern: /^work_experience_\d+_employerName$/, label: "Employer", section: "workExperience" },
-  { pattern: /^work_experience_\d+_techStacks$/, label: "Tech Stacks", section: "workExperience" },
+  { pattern: /^work_experience_\d+_techStacks$/, label: "Technical Stacks", section: "workExperience" },
   { pattern: /^work_experience_\d+_shiftType$/, label: "Shift Type", section: "workExperience" },
   { pattern: /^work_experience_\d+_workMode$/, label: "Work Mode", section: "workExperience" },
   { pattern: /^work_experience_\d+_timeSupportZones$/, label: "Time Support Zones", section: "workExperience" },
   { pattern: /^work_experience_\d+_benefits$/, label: "Benefits", section: "workExperience" },
   { pattern: /^work_experience_\d+_status$/, label: "Status", section: "workExperience" },
   { pattern: /^work_experience_\d+_headcount$/, label: "Headcount", section: "workExperience" },
-  { pattern: /^work_experience_\d+_awards$/, label: "Awards", section: "workExperience" },
-  { pattern: /^work_experience_\d+_salaryPolicy$/, label: "Salary policy", section: "workExperience" },
+  { pattern: /^work_experience_\d+_types$/, label: "Type", section: "workExperience" },
+  { pattern: /^work_experience_\d+_foundedYear$/, label: "Founded Year", section: "workExperience" },
+  { pattern: /^work_experience_\d+_linkedinUrl$/, label: "LinkedIn URL", section: "workExperience" },
+  { pattern: /^work_experience_\d+_salaryPolicy$/, label: "Salary Policy", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_country$/, label: "Country", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_city$/, label: "City", section: "workExperience" },
   { pattern: /^work_experience_\d+_office_\d+_address$/, label: "Address", section: "workExperience" },
-  { pattern: /^work_experience_\d+_layoff_\d+_layoffDate$/, label: "Layoff date", section: "workExperience" },
-  { pattern: /^work_experience_\d+_layoff_\d+_affectedEmployees$/, label: "Affected employees", section: "workExperience" },
+  { pattern: /^work_experience_\d+_office_\d+_isHeadquarters$/, label: "Headquarters", section: "workExperience" },
+  { pattern: /^work_experience_\d+_layoff_\d+_layoffDate$/, label: "Layoff Date", section: "workExperience" },
+  { pattern: /^work_experience_\d+_layoff_\d+_affectedEmployees$/, label: "No. of Affected Employees", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_reason$/, label: "Reason", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_projectName$/, label: "Name", section: "workExperience" },
-  { pattern: /^work_experience_\d+_project_\d+_contributionNotes$/, label: "Contribution", section: "workExperience" },
+  { pattern: /^work_experience_\d+_project_\d+_minTeamSize$/, label: "Team Size (min)", section: "workExperience" },
+  { pattern: /^work_experience_\d+_project_\d+_maxTeamSize$/, label: "Team Size (max)", section: "workExperience" },
+  { pattern: /^work_experience_\d+_project_\d+_clientLocations$/, label: "Client Location", section: "workExperience" },
   { pattern: /^certification_\d+_name$/, label: "Name", section: "certifications" },
+  { pattern: /^certification_\d+_issuingBody$/, label: "Issuing Body", section: "certifications" },
   { pattern: /^certification_\d+_issueDate$/, label: "Issue Date", section: "certifications" },
   { pattern: /^certification_\d+_expiryDate$/, label: "Expiry Date", section: "certifications" },
-  { pattern: /^certification_\d+_issuingBody$/, label: "Issuer body", section: "certifications" },
+  { pattern: /^achievement_\d+_name$/, label: "Name", section: "achievements" },
+  { pattern: /^achievement_\d+_year$/, label: "Year", section: "achievements" },
+  { pattern: /^achievement_\d+_description$/, label: "Description", section: "achievements" },
+  { pattern: /^achievement_\d+_achievementType$/, label: "Achievement Type", section: "achievements" },
+  { pattern: /^achievement_\d+_ranking$/, label: "Ranking", section: "achievements" },
+  { pattern: /^achievement_\d+_url$/, label: "URL", section: "achievements" },
   ...[...PROJECT_LINK_FIELD_SUFFIXES, ...PROJECT_CATALOG_FIELD_SUFFIXES].map((suffix) => ({
     pattern: new RegExp(`^work_experience_\\d+_project_\\d+_${suffix}$`),
     label: PROJECT_CATALOG_FIELD_LABELS[suffix],
@@ -126,11 +138,11 @@ export function resolveQuestionFieldMeta(
     }
   }
 
-  if (apiFieldName === "educations" || /^education_\d+_/.test(apiFieldName)) {
+  if (apiFieldName === "achievements" || /^achievement_\d+_/.test(apiFieldName)) {
     return {
-      label: formatEducationFieldLabel(apiFieldName),
-      isSectionOpener: apiFieldName === "educations",
-      section: "education",
+      label: formatAchievementFieldLabel(apiFieldName),
+      isSectionOpener: apiFieldName === "achievements",
+      section: "achievements",
     }
   }
 
@@ -147,12 +159,12 @@ export function resolveQuestionFieldMeta(
 
   const basicLabel = BASIC_FIELD_LABELS[apiFieldName]
   if (basicLabel) {
+    const isPreferencesField =
+      apiFieldName === "currentSalary" || apiFieldName === "expectedSalary"
     return {
       label: basicLabel,
       isSectionOpener: false,
-      section: apiFieldName === "currentSalary" || apiFieldName === "expectedSalary"
-        ? "preferences"
-        : "basic",
+      section: isPreferencesField ? "preferences" : "basic",
     }
   }
 

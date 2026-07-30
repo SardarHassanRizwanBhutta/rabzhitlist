@@ -5,6 +5,8 @@ import type { EmptyField, FieldSection, FieldType } from '@/types/cold-caller'
 import { sampleProjects } from '@/lib/sample-data/projects'
 import { sampleEmployers } from '@/lib/sample-data/employers'
 import {
+  ACHIEVEMENT_TYPE_DB,
+  ACHIEVEMENT_TYPE_LABELS,
   CERTIFICATION_LEVEL_DB,
   CERTIFICATION_LEVEL_LABELS_DB,
 } from '@/lib/constants/candidate-enums'
@@ -48,6 +50,11 @@ export const BOOLEAN_OPTIONS = [
 const CERTIFICATION_LEVEL_OPTIONS = CERTIFICATION_LEVEL_DB.map((value) => ({
   value,
   label: CERTIFICATION_LEVEL_LABELS_DB[value],
+}))
+
+const ACHIEVEMENT_TYPE_OPTIONS = ACHIEVEMENT_TYPE_DB.map((value) => ({
+  value,
+  label: ACHIEVEMENT_TYPE_LABELS[value],
 }))
 
 const EDUCATION_RANKING_OPTIONS = (Object.entries(RANKING_DISPLAY_TO_DB) as [RankingDb, string][]).map(
@@ -690,7 +697,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     emptyFields.push({
       fieldPath: 'certifications[0].issuingBody',
       apiFieldName: 'certification_0_issuingBody',
-      fieldLabel: 'Issuer body',
+      fieldLabel: 'Issuing Body',
       fieldType: 'text',
       section: 'certifications',
       currentValue: null,
@@ -736,6 +743,57 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
     })
   }
 
+  // Achievement Fields
+  if (!candidate.achievements || candidate.achievements.length === 0) {
+    emptyFields.push(...createEntryFields('achievements', 0))
+  } else {
+    candidate.achievements.forEach((achievement, index) => {
+      const context = achievement.name || undefined
+      const achievementFields: Array<{
+        path: string
+        apiName: string
+        label: string
+        type: FieldType
+        options?: { value: string; label: string }[]
+      }> = [
+        { path: 'name', apiName: `achievement_${index}_name`, label: 'Name', type: 'text' },
+        { path: 'year', apiName: `achievement_${index}_year`, label: 'Year', type: 'number' },
+        {
+          path: 'description',
+          apiName: `achievement_${index}_description`,
+          label: 'Description',
+          type: 'textarea',
+        },
+        {
+          path: 'achievementType',
+          apiName: `achievement_${index}_achievementType`,
+          label: 'Achievement Type',
+          type: 'select',
+          options: ACHIEVEMENT_TYPE_OPTIONS,
+        },
+        { path: 'ranking', apiName: `achievement_${index}_ranking`, label: 'Ranking', type: 'text' },
+        { path: 'url', apiName: `achievement_${index}_url`, label: 'URL', type: 'text' },
+      ]
+
+      achievementFields.forEach(field => {
+        const value = (achievement as unknown as Record<string, unknown>)[field.path]
+        if (isEmpty(value)) {
+          emptyFields.push({
+            fieldPath: `achievements[${index}].${field.path}`,
+            apiFieldName: field.apiName,
+            fieldLabel: field.label,
+            fieldType: field.type,
+            section: 'achievements',
+            context,
+            currentValue: value,
+            options: field.options,
+            parentIndex: index,
+          })
+        }
+      })
+    })
+  }
+
   // Standalone Tech Stacks
   if (isEmpty(candidate.techStacks)) {
     emptyFields.push({
@@ -756,7 +814,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
  * This is used when users manually add new entries in Cold Caller mode
  */
 export function createEntryFields(
-  section: 'workExperience' | 'education' | 'certifications',
+  section: 'workExperience' | 'education' | 'certifications' | 'achievements',
   index: number
 ): EmptyField[] {
   const fields: EmptyField[] = []
@@ -986,6 +1044,66 @@ export function createEntryFields(
           parentIndex: index,
           options: CERTIFICATION_LEVEL_OPTIONS,
         }
+      )
+      break
+
+    case 'achievements':
+      fields.push(
+        {
+          fieldPath: `achievements[${index}].name`,
+          apiFieldName: `achievement_${index}_name`,
+          fieldLabel: 'Name',
+          fieldType: 'text',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `achievements[${index}].year`,
+          apiFieldName: `achievement_${index}_year`,
+          fieldLabel: 'Year',
+          fieldType: 'number',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `achievements[${index}].description`,
+          apiFieldName: `achievement_${index}_description`,
+          fieldLabel: 'Description',
+          fieldType: 'textarea',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `achievements[${index}].achievementType`,
+          apiFieldName: `achievement_${index}_achievementType`,
+          fieldLabel: 'Achievement Type',
+          fieldType: 'select',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+          options: ACHIEVEMENT_TYPE_OPTIONS,
+        },
+        {
+          fieldPath: `achievements[${index}].ranking`,
+          apiFieldName: `achievement_${index}_ranking`,
+          fieldLabel: 'Ranking',
+          fieldType: 'text',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+        },
+        {
+          fieldPath: `achievements[${index}].url`,
+          apiFieldName: `achievement_${index}_url`,
+          fieldLabel: 'URL',
+          fieldType: 'text',
+          section: 'achievements',
+          currentValue: null,
+          parentIndex: index,
+        },
       )
       break
       

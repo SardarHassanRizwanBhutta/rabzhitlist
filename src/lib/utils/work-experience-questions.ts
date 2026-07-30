@@ -14,7 +14,7 @@ const LAYOFF_RE = /^work_experience_(\d+)_layoff_(\d+)_(.+)$/
 
 export const WORK_EXPERIENCE_LINK_SUFFIXES = new Set([
   "jobTitle",
-  "employerName",
+  "startDate",
   "techStacks",
   "shiftType",
   "workMode",
@@ -23,14 +23,18 @@ export const WORK_EXPERIENCE_LINK_SUFFIXES = new Set([
 ])
 
 export const WORK_EXPERIENCE_CATALOG_SUFFIXES = new Set([
+  "employerName",
   "status",
   "headcount",
-  "awards",
+  "types",
+  "foundedYear",
+  "linkedinUrl",
   "salaryPolicy",
 ])
 
 const ROLE_FIELD_LABELS: Record<string, string> = {
   jobTitle: "Job title",
+  startDate: "Start date",
   employerName: "Employer",
   techStacks: "Tech stacks",
   shiftType: "Shift type",
@@ -40,15 +44,21 @@ const ROLE_FIELD_LABELS: Record<string, string> = {
   projects: "Projects",
   status: "Status",
   headcount: "Headcount",
-  awards: "Awards",
+  types: "Type",
+  foundedYear: "Founded year",
+  linkedinUrl: "LinkedIn URL",
   salaryPolicy: "Salary policy",
   country: "Country",
   city: "City",
   address: "Address",
+  isHeadquarters: "Headquarters",
   layoffDate: "Layoff date",
-  affectedEmployees: "Affected employees",
+  affectedEmployees: "No. of Affected Employees",
   reason: "Reason",
 }
+
+/** Labels for WE role / employer / office / layoff ask cues and grouping. */
+export const WORK_EXPERIENCE_FIELD_LABELS = ROLE_FIELD_LABELS
 
 /** Nested project suffix overrides per § 4.7.7 (differs from role-level labels). */
 const NESTED_PROJECT_FIELD_LABELS: Record<string, string> = {
@@ -343,4 +353,17 @@ export function formatWorkExperienceCardSubtitle(workExperience?: {
 
   if (parts.length === 0) return null
   return parts.join(" · ")
+}
+
+/** WE has an employer when employerId is set or employerName is non-empty. */
+export function isWorkExperienceEmployerPresent(workExperience?: {
+  employerName?: string | null
+  employerId?: number | null
+} | null): boolean {
+  if (!workExperience) return false
+  if (workExperience.employerId != null && Number.isFinite(workExperience.employerId)) {
+    return true
+  }
+  const name = workExperience.employerName?.trim()
+  return Boolean(name)
 }

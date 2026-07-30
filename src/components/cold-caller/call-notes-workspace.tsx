@@ -6,7 +6,7 @@ import { CallNotesResumePanel } from "./call-notes-resume-panel"
 import { CallNotesEditor } from "./call-notes-editor"
 import { CallNotesQuestionsSidebar } from "./call-notes-questions-sidebar"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
-import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
+import type { Achievement, CandidateCertification, WorkExperience } from "@/lib/types/candidate"
 
 const RESIZE_HANDLE_CLASS = cn(
   "w-1.5 shrink-0 cursor-col-resize touch-none",
@@ -39,10 +39,9 @@ interface CallNotesWorkspaceProps {
   questionsError: string | null
   emptyFields: EmptyField[]
   workExperiences?: WorkExperience[]
-  educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  cnic?: string | null
-  personalityType?: string | null
+  achievements?: Achievement[]
+  linkedinUrl?: string | null
   currentSalary?: number | null
   expectedSalary?: number | null
   techStacks?: string[]
@@ -51,6 +50,10 @@ interface CallNotesWorkspaceProps {
   onRetryGenerateQuestions?: () => void
   section?: FieldSection
   className?: string
+  sessionAchievementIndices?: number[]
+  pendingAchievementNavId?: `entry-${number}` | null
+  onPendingAchievementNavHandled?: () => void
+  onAddSessionAchievement?: () => void
 }
 
 export function CallNotesWorkspace({
@@ -73,10 +76,9 @@ export function CallNotesWorkspace({
   questionsError,
   emptyFields,
   workExperiences,
-  educations,
   certifications,
-  cnic,
-  personalityType,
+  achievements,
+  linkedinUrl,
   currentSalary,
   expectedSalary,
   techStacks,
@@ -85,6 +87,10 @@ export function CallNotesWorkspace({
   onRetryGenerateQuestions,
   section,
   className,
+  sessionAchievementIndices,
+  pendingAchievementNavId,
+  onPendingAchievementNavHandled,
+  onAddSessionAchievement,
 }: CallNotesWorkspaceProps) {
   const {
     containerRef: outerContainerRef,
@@ -172,16 +178,20 @@ export function CallNotesWorkspace({
             error={questionsError}
             emptyFields={emptyFields}
             workExperiences={workExperiences}
-            educations={educations}
             certifications={certifications}
-            cnic={cnic}
-            personalityType={personalityType}
+            achievements={achievements}
+            linkedinUrl={linkedinUrl}
+            hasResume={hasResume}
             currentSalary={currentSalary}
             expectedSalary={expectedSalary}
             techStacks={techStacks}
             activeQuestionField={activeQuestionField}
             onQuestionSelect={onQuestionSelect}
             onRetry={onRetryGenerateQuestions}
+            sessionAchievementIndices={sessionAchievementIndices}
+            pendingAchievementNavId={pendingAchievementNavId}
+            onPendingAchievementNavHandled={onPendingAchievementNavHandled}
+            onAddSessionAchievement={onAddSessionAchievement}
             className="h-full w-full min-w-0"
           />
         </div>

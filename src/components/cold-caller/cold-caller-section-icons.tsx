@@ -4,6 +4,7 @@ import {
   Briefcase,
   GraduationCap,
   Award,
+  Trophy,
   Code,
   SlidersHorizontal,
 } from "lucide-react"
@@ -14,6 +15,7 @@ export const COLD_CALLER_SECTION_ICONS: Record<FieldSection, ElementType> = {
   workExperience: Briefcase,
   education: GraduationCap,
   certifications: Award,
+  achievements: Trophy,
   techStacks: Code,
   preferences: SlidersHorizontal,
 }

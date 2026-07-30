@@ -8,7 +8,6 @@ import type {
   QuestionsHealthResponse,
 } from "@/types/question-generation"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
-import { enrichEducationsWithUniversityCatalog } from "@/lib/utils/map-education-for-service"
 import { enrichWorkExperiencesWithEmployerCatalog } from "@/lib/utils/map-work-experience-for-service"
 import { buildMissingOnlyQuestionRequest } from "@/lib/utils/missing-only-question-request"
 
@@ -27,11 +26,9 @@ export async function generateQuestions(
   candidate: Candidate,
   conversationContext = "cold_call",
 ): Promise<GenerateQuestionsResponse> {
-  const educations = await enrichEducationsWithUniversityCatalog(candidate.educations)
   const workExperiences = await enrichWorkExperiencesWithEmployerCatalog(candidate.workExperiences)
   const mappedCandidateData = mapMainAppCandidateToQuestionService({
     ...candidate,
-    educations,
     workExperiences,
   })
   const { candidateData, fieldsToGenerate } =

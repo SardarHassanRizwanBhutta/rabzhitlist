@@ -7,13 +7,12 @@ import type { EmptyField, FieldSection, FieldState } from "@/types/cold-caller"
 import { SECTION_LABELS } from "@/types/cold-caller"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 
-/** Section display order for missing-fields sidebar */
+/** Section display order for missing-fields sidebar (no Independent Tech Stacks). */
 const SECTION_ORDER: FieldSection[] = [
   "basic",
   "workExperience",
-  "education",
   "certifications",
-  "techStacks",
+  "achievements",
 ]
 
 export type CallNotesSidebarFieldStatus = "missing" | "answered"

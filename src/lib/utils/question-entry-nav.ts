@@ -1,11 +1,11 @@
-import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
+import type { Achievement, CandidateCertification, WorkExperience } from "@/lib/types/candidate"
+import { formatAchievementCardSubtitle } from "@/lib/utils/achievement-questions"
 import { formatCertificationCardSubtitle } from "@/lib/utils/certification-questions"
-import { formatEducationCardSubtitle } from "@/lib/utils/education-questions"
 import type { QuestionDisplayBlock } from "@/lib/utils/question-accordion-layout"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
 import { formatWorkExperienceCardSubtitle } from "@/lib/utils/work-experience-questions"
 
-export type QuestionEntryNavSection = "workExperience" | "education" | "certifications"
+export type QuestionEntryNavSection = "workExperience" | "certifications" | "achievements"
 
 export type QuestionEntryNavId = "overview" | `entry-${number}`
 
@@ -22,14 +22,14 @@ export interface QuestionEntryNavItem {
 
 const OVERVIEW_OPENER_FIELD: Record<QuestionEntryNavSection, string> = {
   workExperience: "work_experiences",
-  education: "educations",
   certifications: "certifications",
+  achievements: "achievements",
 }
 
 const ENTRY_FALLBACK_LABEL: Record<QuestionEntryNavSection, (index: number) => string> = {
   workExperience: (index) => `Work Experience ${index + 1}`,
-  education: (index) => `Education ${index + 1}`,
   certifications: (index) => `Certification ${index + 1}`,
+  achievements: (index) => `Achievement ${index + 1}`,
 }
 
 /** Max entry sub-tabs before switching to Select (Overview not counted). */
@@ -62,8 +62,8 @@ export function splitAccordionBlocks(blocks: QuestionDisplayBlock[]): {
       overviewBlocks.push(block)
     } else if (
       block.type === "role-block" ||
-      block.type === "education-block" ||
-      block.type === "certification-block"
+      block.type === "certification-block" ||
+      block.type === "achievement-block"
     ) {
       entryBlocks.push(block)
     }
@@ -114,8 +114,8 @@ export function defaultQuestionEntryNavId(
 
 export function entryNavIdFromBlock(block: QuestionDisplayBlock): QuestionEntryNavId {
   if (block.type === "role-block") return `entry-${block.roleIndex}`
-  if (block.type === "education-block") return `entry-${block.eduIndex}`
   if (block.type === "certification-block") return `entry-${block.certIndex}`
+  if (block.type === "achievement-block") return `entry-${block.achievementIndex}`
   return "overview"
 }
 
@@ -136,8 +136,8 @@ export function filterBlocksForEntryNav(
   if (index == null) return []
   return blocks.filter((block) => {
     if (block.type === "role-block") return block.roleIndex === index
-    if (block.type === "education-block") return block.eduIndex === index
     if (block.type === "certification-block") return block.certIndex === index
+    if (block.type === "achievement-block") return block.achievementIndex === index
     return false
   })
 }
@@ -146,8 +146,8 @@ function entryLabelForBlock(
   section: QuestionEntryNavSection,
   block: QuestionDisplayBlock,
   workExperiences?: WorkExperience[],
-  educations?: CandidateEducation[],
   certifications?: CandidateCertification[],
+  achievements?: Achievement[],
 ): string {
   if (block.type === "role-block") {
     return (
@@ -155,19 +155,16 @@ function entryLabelForBlock(
       ENTRY_FALLBACK_LABEL.workExperience(block.roleIndex)
     )
   }
-  if (block.type === "education-block") {
-    const edu = educations?.[block.eduIndex]
-    return (
-      formatEducationCardSubtitle(
-        edu?.universityLocationName ?? edu?.universityName,
-        edu?.degreeName,
-      ) ?? ENTRY_FALLBACK_LABEL.education(block.eduIndex)
-    )
-  }
   if (block.type === "certification-block") {
     return (
       formatCertificationCardSubtitle(certifications?.[block.certIndex]?.certificationName) ??
       ENTRY_FALLBACK_LABEL.certifications(block.certIndex)
+    )
+  }
+  if (block.type === "achievement-block") {
+    return (
+      formatAchievementCardSubtitle(achievements?.[block.achievementIndex]) ??
+      ENTRY_FALLBACK_LABEL.achievements(block.achievementIndex)
     )
   }
   return ENTRY_FALLBACK_LABEL[section](0)
@@ -185,8 +182,8 @@ export function buildQuestionEntryNavItems(params: {
   missingFields: string[] | undefined
   countEntryMissing: (index: number) => number
   workExperiences?: WorkExperience[]
-  educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
+  achievements?: Achievement[]
 }): QuestionEntryNavItem[] {
   const items: QuestionEntryNavItem[] = []
 
@@ -207,8 +204,8 @@ export function buildQuestionEntryNavItems(params: {
       params.section,
       block,
       params.workExperiences,
-      params.educations,
       params.certifications,
+      params.achievements,
     )
     const index = entryIndexFromNavId(id)
     const missingCount = index == null ? 0 : params.countEntryMissing(index)

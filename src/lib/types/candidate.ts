@@ -26,6 +26,8 @@ export interface LinkedProjectFields {
   isPublished?: boolean | null
   publishPlatforms?: string[]
   downloadCount?: number | null
+  /** Client location labels from project catalog (QG allowlist). */
+  clientLocations?: string[]
 }
 
 export interface ProjectExperience extends LinkedProjectFields {

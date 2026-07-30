@@ -1,23 +1,26 @@
 import type {
+  AchievementForService,
   CandidateDataForQuestionService,
   CertificationForService,
-  EducationForService,
   WorkExperienceForService,
   WorkExperienceLayoffForService,
   WorkExperienceOfficeForService,
   WorkExperienceProjectForService,
 } from "@/types/question-generation"
 import {
+  coldCallerQgProjectFieldDefs,
   isProjectCatalogFieldMissing,
-  PROJECT_FIELD_DEFS,
 } from "@/lib/utils/project-catalog-fields"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
 import {
+  ACHIEVEMENT_FIELD_ORDER,
+  CERTIFICATION_FIELD_ORDER,
   LAYOFF_FIELD_ORDER,
   OFFICE_FIELD_ORDER,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
   WORK_EXPERIENCE_ROLE_FIELD_ORDER,
 } from "@/lib/utils/qg-field-weights"
+import { isWorkExperienceEmployerPresent } from "@/lib/utils/work-experience-questions"
 
 export interface MissingOnlyQuestionRequest {
   candidateData: CandidateDataForQuestionService
@@ -32,11 +35,13 @@ const LIST_PAYLOAD_KEYS = new Set([
   "timeSupportZones",
   "benefits",
   "awards",
+  "types",
   "publishPlatforms",
   "technicalAspects",
   "technicalDomains",
   "horizontalDomains",
   "verticalDomains",
+  "clientLocations",
 ])
 
 function sparseMissingValue(payloadKey: string, value: unknown): unknown {
@@ -62,20 +67,27 @@ function projectSparse(
   workExperienceIndex: number,
   projectIndex: number,
   fieldsToGenerate: string[],
+  includeProjectEmployerFields: boolean,
 ): WorkExperienceProjectForService {
   const source = (project ?? {}) as Record<string, unknown>
   const sparse: SparseRecord = {}
 
-  for (const field of PROJECT_FIELD_DEFS) {
+  for (const field of coldCallerQgProjectFieldDefs(includeProjectEmployerFields)) {
+    const apiFieldName = `work_experience_${workExperienceIndex}_project_${projectIndex}_${field.apiSuffix}`
     const value = source[field.payloadKey]
+
+    // Contribution: always request Advanced generation (even when populated).
+    // Populated value is omitted from sparse candidate_data (LLM context not required).
+    if (field.payloadKey === "contributionNotes") {
+      fieldsToGenerate.push(apiFieldName)
+      if (isProjectCatalogFieldMissing(field.payloadKey, value)) {
+        sparse[field.payloadKey] = sparseMissingValue(field.payloadKey, value)
+      }
+      continue
+    }
+
     if (!isProjectCatalogFieldMissing(field.payloadKey, value)) continue
-    pushMissing(
-      fieldsToGenerate,
-      `work_experience_${workExperienceIndex}_project_${projectIndex}_${field.apiSuffix}`,
-      sparse,
-      field.payloadKey,
-      value,
-    )
+    pushMissing(fieldsToGenerate, apiFieldName, sparse, field.payloadKey, value)
   }
 
   return sparse as WorkExperienceProjectForService
@@ -176,42 +188,18 @@ function workExperienceSparse(
 
   const projectsSource = source.projects ?? []
   const projectRows = projectsSource.length > 0 ? projectsSource : [undefined]
+  const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(source)
   sparse.projects = projectRows.map((project, projectIndex) =>
-    projectSparse(project, workExperienceIndex, projectIndex, fieldsToGenerate),
+    projectSparse(
+      project,
+      workExperienceIndex,
+      projectIndex,
+      fieldsToGenerate,
+      includeProjectEmployerFields,
+    ),
   )
 
   return sparse as WorkExperienceForService
-}
-
-function educationSparse(
-  education: EducationForService | undefined,
-  educationIndex: number,
-  fieldsToGenerate: string[],
-): EducationForService {
-  const source = education ?? {}
-  const sparse: SparseRecord = {}
-
-  if (isQgValueMissing(source.universityName)) {
-    pushMissing(
-      fieldsToGenerate,
-      `education_${educationIndex}_universityName`,
-      sparse,
-      "universityName",
-      source.universityName,
-    )
-  }
-
-  if (isQgValueMissing(source.isTopper)) {
-    pushMissing(
-      fieldsToGenerate,
-      `education_${educationIndex}_isTopper`,
-      sparse,
-      "isTopper",
-      source.isTopper,
-    )
-  }
-
-  return sparse as EducationForService
 }
 
 function certificationSparse(
@@ -222,47 +210,54 @@ function certificationSparse(
   const source = certification ?? {}
   const sparse: SparseRecord = {}
 
-  if (isQgValueMissing(source.certificationName)) {
-    pushMissing(
-      fieldsToGenerate,
-      `certification_${certificationIndex}_name`,
-      sparse,
-      "certificationName",
-      source.certificationName,
-    )
-  }
+  for (const key of CERTIFICATION_FIELD_ORDER) {
+    if (key === "name") {
+      if (!isQgValueMissing(source.certificationName)) continue
+      pushMissing(
+        fieldsToGenerate,
+        `certification_${certificationIndex}_name`,
+        sparse,
+        "certificationName",
+        source.certificationName,
+      )
+      continue
+    }
 
-  if (isQgValueMissing(source.issueDate)) {
+    const value = source[key]
+    if (!isQgValueMissing(value)) continue
     pushMissing(
       fieldsToGenerate,
-      `certification_${certificationIndex}_issueDate`,
+      `certification_${certificationIndex}_${key}`,
       sparse,
-      "issueDate",
-      source.issueDate,
-    )
-  }
-
-  if (isQgValueMissing(source.expiryDate)) {
-    pushMissing(
-      fieldsToGenerate,
-      `certification_${certificationIndex}_expiryDate`,
-      sparse,
-      "expiryDate",
-      source.expiryDate,
-    )
-  }
-
-  if (isQgValueMissing(source.issuingBody)) {
-    pushMissing(
-      fieldsToGenerate,
-      `certification_${certificationIndex}_issuingBody`,
-      sparse,
-      "issuingBody",
-      source.issuingBody,
+      key,
+      value,
     )
   }
 
   return sparse as CertificationForService
+}
+
+function achievementSparse(
+  achievement: AchievementForService | undefined,
+  achievementIndex: number,
+  fieldsToGenerate: string[],
+): AchievementForService {
+  const source = achievement ?? {}
+  const sparse: SparseRecord = {}
+
+  for (const key of ACHIEVEMENT_FIELD_ORDER) {
+    const value = source[key]
+    if (!isQgValueMissing(value)) continue
+    pushMissing(
+      fieldsToGenerate,
+      `achievement_${achievementIndex}_${key}`,
+      sparse,
+      key,
+      value,
+    )
+  }
+
+  return sparse as AchievementForService
 }
 
 /**
@@ -276,13 +271,13 @@ export function buildMissingOnlyQuestionRequest(
   const fieldsToGenerate: string[] = []
   const sparse: CandidateDataForQuestionService = {}
 
-  if (isQgValueMissing(candidateData.cnic)) {
-    sparse.cnic = candidateData.cnic ?? null
-    fieldsToGenerate.push("cnic")
+  if (isQgValueMissing(candidateData.resume)) {
+    sparse.resume = candidateData.resume ?? null
+    fieldsToGenerate.push("resume")
   }
-  if (isQgValueMissing(candidateData.personalityType)) {
-    sparse.personalityType = candidateData.personalityType ?? null
-    fieldsToGenerate.push("personalityType")
+  if (isQgValueMissing(candidateData.linkedinUrl)) {
+    sparse.linkedinUrl = candidateData.linkedinUrl ?? null
+    fieldsToGenerate.push("linkedinUrl")
   }
   if (isQgValueMissing(candidateData.currentSalary)) {
     sparse.currentSalary = candidateData.currentSalary ?? null
@@ -304,17 +299,17 @@ export function buildMissingOnlyQuestionRequest(
     workExperienceSparse(row, index, fieldsToGenerate),
   )
 
-  const educations = candidateData.educations ?? []
-  const educationRows = educations.length > 0 ? educations : [undefined]
-  sparse.educations = educationRows.map((row, index) =>
-    educationSparse(row, index, fieldsToGenerate),
-  )
-
   const certifications = candidateData.certifications ?? []
   const certificationRows =
     certifications.length > 0 ? certifications : [undefined]
   sparse.certifications = certificationRows.map((row, index) =>
     certificationSparse(row, index, fieldsToGenerate),
+  )
+
+  const achievements = candidateData.achievements ?? []
+  const achievementRows = achievements.length > 0 ? achievements : [undefined]
+  sparse.achievements = achievementRows.map((row, index) =>
+    achievementSparse(row, index, fieldsToGenerate),
   )
 
   return {

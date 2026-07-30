@@ -1,32 +1,39 @@
 import type { FieldSection } from "@/types/cold-caller"
 import type { QuestionSectionId } from "@/types/question-generation"
 
-/** Fixed display order — matches Python service contract. */
+/**
+ * Call Notes UI section ids used when building display order helpers.
+ * Independent Tech Stacks remains API-mapped but is filtered out of Cold Caller tabs.
+ * Preferences is a real Python section (not FE-only).
+ */
 export const ALL_FIELD_SECTIONS: FieldSection[] = [
   "basic",
   "workExperience",
   "techStacks",
-  "education",
   "certifications",
+  "achievements",
+  "preferences",
 ]
 
 const SECTION_ID_TO_FIELD: Record<QuestionSectionId, FieldSection> = {
   basic_information: "basic",
+  preferences: "preferences",
   work_experience: "workExperience",
   independent_tech_stacks: "techStacks",
-  education: "education",
   certifications: "certifications",
+  achievements: "achievements",
 }
 
-/** Sections mapped to Python `QuestionSectionId` (excludes frontend-only tabs). */
-export type ApiMappedFieldSection = Exclude<FieldSection, "preferences">
+/** Sections mapped to Python `QuestionSectionId` (excludes Education). */
+export type ApiMappedFieldSection = Exclude<FieldSection, "education">
 
 const FIELD_TO_SECTION_ID: Record<ApiMappedFieldSection, QuestionSectionId> = {
   basic: "basic_information",
+  preferences: "preferences",
   workExperience: "work_experience",
   techStacks: "independent_tech_stacks",
-  education: "education",
   certifications: "certifications",
+  achievements: "achievements",
 }
 
 export function questionSectionIdToFieldSection(id: QuestionSectionId): FieldSection {
@@ -34,6 +41,6 @@ export function questionSectionIdToFieldSection(id: QuestionSectionId): FieldSec
 }
 
 export function fieldSectionToQuestionSectionId(section: FieldSection): QuestionSectionId | null {
-  if (section === "preferences") return null
+  if (section === "education") return null
   return FIELD_TO_SECTION_ID[section]
 }

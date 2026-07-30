@@ -1,13 +1,12 @@
 import type { Candidate, WorkExperience } from "@/lib/types/candidate"
 import type {
+  AchievementForService,
   CandidateDataForQuestionService,
   CertificationForService,
-  EducationForService,
   WorkExperienceForService,
 } from "@/types/question-generation"
-import { mapLinkedProjectToServicePayload } from "@/lib/utils/map-linked-project-for-service"
+import { mapAchievementToServicePayload } from "@/lib/utils/map-achievement-for-service"
 import { mapCertificationToServicePayload } from "@/lib/utils/map-certification-for-service"
-import { mapEducationToServicePayload } from "@/lib/utils/map-education-for-service"
 import { mapWorkExperienceToServicePayload } from "@/lib/utils/map-work-experience-for-service"
 
 function emptyToNull(value: string | null | undefined): string | null {
@@ -20,16 +19,16 @@ function mapWorkExperience(we: WorkExperience): WorkExperienceForService {
   return mapWorkExperienceToServicePayload(we)
 }
 
-function mapEducation(
-  edu: NonNullable<Candidate["educations"]>[number],
-): EducationForService {
-  return mapEducationToServicePayload(edu)
-}
-
 function mapCertification(
   cert: NonNullable<Candidate["certifications"]>[number],
 ): CertificationForService {
   return mapCertificationToServicePayload(cert)
+}
+
+function mapAchievement(
+  achievement: NonNullable<Candidate["achievements"]>[number],
+): AchievementForService {
+  return mapAchievementToServicePayload(achievement)
 }
 
 /**
@@ -40,13 +39,13 @@ export function mapMainAppCandidateToQuestionService(
   candidate: Candidate,
 ): CandidateDataForQuestionService {
   return {
-    cnic: emptyToNull(candidate.cnic),
+    resume: candidate.hasResume === true ? "attached" : null,
+    linkedinUrl: emptyToNull(candidate.linkedinUrl),
     currentSalary: candidate.currentSalary ?? null,
     expectedSalary: candidate.expectedSalary ?? null,
-    personalityType: emptyToNull(candidate.personalityType),
     techStacks: candidate.techStacks ?? [],
     workExperiences: (candidate.workExperiences ?? []).map(mapWorkExperience),
-    educations: (candidate.educations ?? []).map(mapEducation),
     certifications: (candidate.certifications ?? []).map(mapCertification),
+    achievements: (candidate.achievements ?? []).map(mapAchievement),
   }
 }
