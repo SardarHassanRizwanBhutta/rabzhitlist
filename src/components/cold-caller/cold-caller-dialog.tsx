@@ -27,6 +27,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -83,6 +93,12 @@ interface ColdCallerDialogProps {
   candidate: Candidate
   onSaveField: (fieldPath: string, value: unknown, verified?: boolean) => Promise<void>
   mode?: InteractionMode
+  /** Unsaved Auto-Profiler session: local resume + Apply to Create (no Save Notes / no call-notes APIs). */
+  draftMode?: boolean
+  /** Blob URL (or object URL) for local resume preview in draft mode. */
+  localResumeUrl?: string | null
+  /** Called when user clicks Apply to Create Candidate in draft mode (receives current notes text). */
+  onApplyToCreateCandidate?: (callNotes: string) => void
 }
 
 // Mode icon mapping
@@ -99,6 +115,9 @@ export function ColdCallerDialog({
   candidate,
   onSaveField,
   mode = 'coldCaller',
+  draftMode = false,
+  localResumeUrl = null,
+  onApplyToCreateCandidate,
 }: ColdCallerDialogProps) {
   // Field states
   const [fieldStates, setFieldStates] = useState<Map<string, FieldState>>(new Map())
@@ -131,6 +150,7 @@ export function ColdCallerDialog({
   } = useCallNotesDraft(candidate.id, open, { deferHydration: showCallNotesTab })
   const [isSavingCallNotes, setIsSavingCallNotes] = useState(false)
   const [callNotesLoadState, setCallNotesLoadState] = useState<"idle" | "loading" | "ready">("idle")
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!open || !showCallNotesTab) {
@@ -897,6 +917,11 @@ export function ColdCallerDialog({
   }, [pendingEntity, handleFieldSave])
 
   const handlePopOutResume = useCallback(async () => {
+    if (draftMode && localResumeUrl) {
+      window.open(localResumeUrl, "_blank", "noopener,noreferrer")
+      return
+    }
+
     const id = Number(candidate.id)
     if (!candidate.hasResume || !Number.isFinite(id)) {
       toast.error("No resume available to open.")
@@ -913,7 +938,28 @@ export function ColdCallerDialog({
         error instanceof Error ? error.message : "Unable to open the resume.",
       )
     }
-  }, [candidate.hasResume, candidate.id])
+  }, [candidate.hasResume, candidate.id, draftMode, localResumeUrl])
+
+  const handleDialogOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && draftMode && open) {
+        setDiscardConfirmOpen(true)
+        return
+      }
+      onOpenChange(next)
+    },
+    [draftMode, open, onOpenChange],
+  )
+
+  const confirmDiscardDraft = useCallback(() => {
+    setDiscardConfirmOpen(false)
+    clearDraftStorage()
+    onOpenChange(false)
+  }, [clearDraftStorage, onOpenChange])
+
+  const handleApplyFromDraft = useCallback(() => {
+    onApplyToCreateCandidate?.(rawNotesDraft)
+  }, [onApplyToCreateCandidate, rawNotesDraft])
 
   // Get section stats
   const getSectionStats = (fields: EmptyField[]) => {
@@ -929,7 +975,7 @@ export function ColdCallerDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-none !w-screen !h-[100dvh] !max-h-[100dvh] rounded-none border-0 shadow-none overflow-hidden !flex !flex-col p-0 gap-0 sm:!max-w-none">
         {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
@@ -939,8 +985,13 @@ export function ColdCallerDialog({
                 <ModeIcon className="h-6 w-6 text-primary" />
               </div>
               <div className="min-w-0">
-                <DialogTitle className="text-xl font-semibold mb-1">
-                  {modeConfig.label} Mode
+                <DialogTitle className="text-xl font-semibold mb-1 flex items-center gap-2">
+                  <span>{modeConfig.label} Mode</span>
+                  {draftMode ? (
+                    <Badge variant="secondary" className="text-xs font-medium">
+                      Draft
+                    </Badge>
+                  ) : null}
                 </DialogTitle>
                 <p className="text-sm text-muted-foreground truncate">
                   {candidate.name} • {candidate.mobileNo || 'No phone'}
@@ -971,7 +1022,7 @@ export function ColdCallerDialog({
                     size="sm"
                     variant="outline"
                     onClick={handlePopOutResume}
-                    disabled={!candidate.hasResume}
+                    disabled={!candidate.hasResume && !localResumeUrl}
                     className="gap-1.5"
                     title="Open resume in a new window"
                   >
@@ -1031,6 +1082,7 @@ export function ColdCallerDialog({
               hasResume={candidate.hasResume}
               resumeFileName={candidate.resumeFileName}
               resumeContentType={candidate.resumeContentType}
+              localResumeUrl={localResumeUrl}
               resumeVisible={resumeVisible}
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}
@@ -1052,6 +1104,8 @@ export function ColdCallerDialog({
               questionsError={questionsError}
               onRetryGenerateQuestions={handleGenerateQuestions}
               onSaveNotes={handleSaveCallNotes}
+              draftMode={draftMode}
+              onApplyToCreateCandidate={handleApplyFromDraft}
               isSaving={isSavingCallNotes}
               notesEditorDisabled={callNotesLoadState === "loading"}
               sessionAchievementIndices={sessionAchievementIndices}
@@ -1550,7 +1604,7 @@ export function ColdCallerDialog({
             )}
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>
               Close
             </Button>
           </div>
@@ -1597,6 +1651,22 @@ export function ColdCallerDialog({
       onSubmit={handleCertificationCreated}
       initialName={pendingEntity?.type === 'certification' ? pendingEntity.searchValue : undefined}
     />
+
+    <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard unsaved candidate?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This draft has not been saved to the database. Closing will discard the parsed
+            profile, resume file, and call notes.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep editing</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmDiscardDraft}>Discard</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   )
 }

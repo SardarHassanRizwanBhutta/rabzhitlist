@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, Save } from "lucide-react"
+import { Loader2, Save, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,12 +13,17 @@ Example:
 Current salary is 150000. In DPL his tech stacks were .NET and Azure.
 At Swipbox he received paid leaves and matrimonial leaves.`
 
-const HELPER_TEXT = "Notes are saved for this candidate."
+const HELPER_TEXT_SAVED = "Notes are saved for this candidate."
+const HELPER_TEXT_DRAFT =
+  "Notes are kept locally until you apply to create the candidate."
 
 interface CallNotesEditorProps {
   value: string
   onChange: (value: string) => void
   onSave: () => void
+  /** Draft Cold Caller: replace Save Notes with Apply to Create Candidate. */
+  draftMode?: boolean
+  onApplyToCreateCandidate?: () => void
   disabled?: boolean
   isSaving?: boolean
   showDraftSavedHint?: boolean
@@ -34,6 +39,8 @@ export function CallNotesEditor({
   value,
   onChange,
   onSave,
+  draftMode = false,
+  onApplyToCreateCandidate,
   disabled = false,
   isSaving = false,
   showDraftSavedHint = false,
@@ -51,7 +58,9 @@ export function CallNotesEditor({
         <Label htmlFor="cold-caller-call-notes" className="text-base font-semibold">
           Call Notes
         </Label>
-        <p className="text-sm text-muted-foreground mt-1">{HELPER_TEXT}</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          {draftMode ? HELPER_TEXT_DRAFT : HELPER_TEXT_SAVED}
+        </p>
       </div>
 
       <Textarea
@@ -81,7 +90,17 @@ export function CallNotesEditor({
           ) : null}
         </div>
 
-        {!readOnly && (
+        {!readOnly && draftMode ? (
+          <Button
+            type="button"
+            onClick={() => onApplyToCreateCandidate?.()}
+            disabled={disabled || isSaving}
+            className="gap-1.5 shrink-0"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden />
+            Apply to Create Candidate
+          </Button>
+        ) : !readOnly ? (
           <Button
             type="button"
             onClick={onSave}
@@ -95,7 +114,7 @@ export function CallNotesEditor({
             )}
             Save Notes
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   )

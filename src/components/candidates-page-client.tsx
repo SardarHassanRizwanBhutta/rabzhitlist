@@ -25,6 +25,12 @@ import {
   type NestedProjectCreationProps,
 } from "@/components/candidate-creation-dialog"
 import { ResumeParserDialog } from "@/components/resume-parser-dialog"
+import { ColdCallerDialog } from "@/components/cold-caller/cold-caller-dialog"
+import {
+  buildDraftColdCallerCandidate,
+  buildDraftCreateFormSnapshot,
+} from "@/lib/candidate/draft-cold-caller-candidate"
+import { clearCallNotesDraft } from "@/lib/utils/call-notes-draft-storage"
 import {
   fetchTechStacks,
   fetchClientLocations,
@@ -251,6 +257,28 @@ export function CandidatesPageClient() {
   const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
   const [createCandidatePrefill, setCreateCandidatePrefill] = useState<Partial<CandidateFormData> | null>(null)
   const [createCandidatePrefillResume, setCreateCandidatePrefillResume] = useState<File | null>(null)
+  const [pendingCreateCallNotes, setPendingCreateCallNotes] = useState<string | null>(null)
+  const [draftColdCallerOpen, setDraftColdCallerOpen] = useState(false)
+  const [draftColdCallerSession, setDraftColdCallerSession] = useState<{
+    candidate: Candidate
+    formSnapshot: CandidateFormData
+    resumeFile: File | null
+    localResumeUrl: string | null
+  } | null>(null)
+
+  const clearDraftColdCallerSession = useCallback(() => {
+    setDraftColdCallerSession((prev) => {
+      if (prev?.localResumeUrl) {
+        URL.revokeObjectURL(prev.localResumeUrl)
+      }
+      if (prev?.candidate.id) {
+        clearCallNotesDraft(prev.candidate.id)
+      }
+      return null
+    })
+    setPendingCreateCallNotes(null)
+    setDraftColdCallerOpen(false)
+  }, [])
 
   const handleCreatePrefillConsumed = useCallback(() => {
     setCreateCandidatePrefill(null)
@@ -258,10 +286,43 @@ export function CandidatesPageClient() {
   }, [])
 
   const handleApplyResumeParse = useCallback((partial: Partial<CandidateFormData>, resumeFile: File | null) => {
+    setPendingCreateCallNotes(null)
     setCreateCandidatePrefill(partial)
     setCreateCandidatePrefillResume(resumeFile)
     setCreateCandidateOpen(true)
   }, [])
+
+  const handleOpenColdCallerFromParse = useCallback(
+    (partial: Partial<CandidateFormData>, resumeFile: File | null) => {
+      const formSnapshot = buildDraftCreateFormSnapshot(partial)
+      const candidate = buildDraftColdCallerCandidate({
+        form: formSnapshot,
+        resumeFile,
+      })
+      const localResumeUrl = resumeFile ? URL.createObjectURL(resumeFile) : null
+      setDraftColdCallerSession({
+        candidate,
+        formSnapshot,
+        resumeFile,
+        localResumeUrl,
+      })
+      setDraftColdCallerOpen(true)
+    },
+    [],
+  )
+
+  const handleDraftApplyToCreate = useCallback(
+    (callNotes: string) => {
+      if (!draftColdCallerSession) return
+      clearCallNotesDraft(draftColdCallerSession.candidate.id)
+      setCreateCandidatePrefill(draftColdCallerSession.formSnapshot)
+      setCreateCandidatePrefillResume(draftColdCallerSession.resumeFile)
+      setPendingCreateCallNotes(callNotes.trim() ? callNotes : null)
+      setDraftColdCallerOpen(false)
+      setCreateCandidateOpen(true)
+    },
+    [draftColdCallerSession],
+  )
 
   const refetchCandidates = useCallback(() => {
     setReloadToken((t) => t + 1)
@@ -909,13 +970,33 @@ export function CandidatesPageClient() {
     options?: CandidateSubmitOptions,
   ): Promise<CandidateCreateSubmitResult | void> => {
     const resumeFile = options?.resumeFile ?? null
+    const callNotes =
+      options?.callNotes != null && options.callNotes.trim().length > 0
+        ? options.callNotes
+        : pendingCreateCallNotes != null && pendingCreateCallNotes.trim().length > 0
+          ? pendingCreateCallNotes
+          : null
 
     try {
       const preparedLookups = await prepareCandidateCreateLookups(data, candidateLookups)
       setTechStacksLookup(preparedLookups.techStacks ?? [])
-      const candidate = await createCandidate(
-        candidateFormDataToCreateDto(data, preparedLookups),
-      )
+      const createBody = candidateFormDataToCreateDto(data, preparedLookups)
+      if (callNotes) {
+        createBody.callNotes = callNotes
+      }
+      const candidate = await createCandidate(createBody)
+
+      // Create succeeded (notes already on candidate if sent). Drop draft session.
+      if (draftColdCallerSession || pendingCreateCallNotes != null) {
+        if (draftColdCallerSession?.localResumeUrl) {
+          URL.revokeObjectURL(draftColdCallerSession.localResumeUrl)
+        }
+        if (draftColdCallerSession?.candidate.id) {
+          clearCallNotesDraft(draftColdCallerSession.candidate.id)
+        }
+        setDraftColdCallerSession(null)
+        setPendingCreateCallNotes(null)
+      }
 
       if (!resumeFile) {
         toast.success("Candidate created successfully.")
@@ -1097,11 +1178,16 @@ export function CandidatesPageClient() {
             techStacks={techStacksLookup}
             technicalAspectTypes={technicalAspectTypeSelectOptions}
           />
-          <ResumeParserDialog onApplyToCreateCandidate={handleApplyResumeParse} />
+          <ResumeParserDialog
+            onApplyToCreateCandidate={handleApplyResumeParse}
+            onOpenColdCaller={handleOpenColdCallerFromParse}
+          />
           <Button
             type="button"
             onClick={() => {
               setCreateCandidatePrefill(null)
+              setCreateCandidatePrefillResume(null)
+              setPendingCreateCallNotes(null)
               setCreateCandidateOpen(true)
             }}
             className="transition-all duration-200 ease-in-out hover:scale-105 hover:shadow-md cursor-pointer"
@@ -1116,6 +1202,10 @@ export function CandidatesPageClient() {
               if (!o) {
                 setCreateCandidatePrefill(null)
                 setCreateCandidatePrefillResume(null)
+                // Silent discard of draft Cold Caller session when Create is cancelled.
+                if (draftColdCallerSession || pendingCreateCallNotes != null) {
+                  clearDraftColdCallerSession()
+                }
               }
             }}
             createPrefill={createCandidatePrefill}
@@ -1138,6 +1228,25 @@ export function CandidatesPageClient() {
             nestedEmployerCreation={nestedEmployerCreation}
             nestedProjectCreation={nestedProjectCreation}
           />
+          {draftColdCallerSession ? (
+            <ColdCallerDialog
+              open={draftColdCallerOpen}
+              onOpenChange={(o) => {
+                if (!o) {
+                  clearDraftColdCallerSession()
+                } else {
+                  setDraftColdCallerOpen(true)
+                }
+              }}
+              candidate={draftColdCallerSession.candidate}
+              onSaveField={async () => {
+                /* Draft v1: in-call profile edits out of scope */
+              }}
+              draftMode
+              localResumeUrl={draftColdCallerSession.localResumeUrl}
+              onApplyToCreateCandidate={handleDraftApplyToCreate}
+            />
+          ) : null}
         </div>
       </div>
 
