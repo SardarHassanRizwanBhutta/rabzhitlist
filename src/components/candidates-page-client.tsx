@@ -250,13 +250,16 @@ export function CandidatesPageClient() {
 
   const [createCandidateOpen, setCreateCandidateOpen] = useState(false)
   const [createCandidatePrefill, setCreateCandidatePrefill] = useState<Partial<CandidateFormData> | null>(null)
+  const [createCandidatePrefillResume, setCreateCandidatePrefillResume] = useState<File | null>(null)
 
   const handleCreatePrefillConsumed = useCallback(() => {
     setCreateCandidatePrefill(null)
+    setCreateCandidatePrefillResume(null)
   }, [])
 
-  const handleApplyResumeParse = useCallback((partial: Partial<CandidateFormData>) => {
+  const handleApplyResumeParse = useCallback((partial: Partial<CandidateFormData>, resumeFile: File | null) => {
     setCreateCandidatePrefill(partial)
+    setCreateCandidatePrefillResume(resumeFile)
     setCreateCandidateOpen(true)
   }, [])
 
@@ -1110,9 +1113,13 @@ export function CandidatesPageClient() {
             open={createCandidateOpen}
             onOpenChange={(o) => {
               setCreateCandidateOpen(o)
-              if (!o) setCreateCandidatePrefill(null)
+              if (!o) {
+                setCreateCandidatePrefill(null)
+                setCreateCandidatePrefillResume(null)
+              }
             }}
             createPrefill={createCandidatePrefill}
+            createPrefillResumeFile={createCandidatePrefillResume}
             onCreatePrefillConsumed={handleCreatePrefillConsumed}
             onSubmit={handleCandidateSubmit}
             onResumeAttached={refetchCandidates}

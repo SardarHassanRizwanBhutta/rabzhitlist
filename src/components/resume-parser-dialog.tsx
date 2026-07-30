@@ -28,16 +28,25 @@ import type {
   CandidateFormData,
   WorkExperience,
 } from "@/components/candidate-creation-dialog"
+import { ALLOWED_RESUME_FILES, validateResumeFile } from "@/lib/utils/candidate-resume"
 import { CERTIFICATION_LEVEL_LABELS_DB } from "@/lib/constants/candidate-enums"
 import type { CertificationLevelDb } from "@/lib/constants/candidate-enums"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 export interface ResumeParserDialogProps {
-  /** Called with mapped partial form when user applies parsed resume to Create Candidate. */
-  onApplyToCreateCandidate: (partial: Partial<CandidateFormData>) => void
+  /**
+   * Called with the mapped partial form when the user applies a parsed resume to Create Candidate.
+   * `resumeFile` is the parsed file so Create Candidate can attach it on submit.
+   */
+  onApplyToCreateCandidate: (partial: Partial<CandidateFormData>, resumeFile: File | null) => void
   children?: React.ReactNode
 }
+
+/** Mirrors the resume upload contract (PDF/DOCX) so a parsed file can always be attached to the candidate. */
+const RESUME_PARSER_ACCEPT = Object.entries(ALLOWED_RESUME_FILES)
+  .flat()
+  .join(",")
 
 /** Fixed cap so tab panels scroll reliably (flex + h-full often never constrains height inside dialogs). */
 const TAB_PANEL_SCROLL_CLASS =
@@ -100,13 +109,40 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
   const [parsing, setParsing] = React.useState(false)
   const [parsed, setParsed] = React.useState<unknown>(null)
   const [parseError, setParseError] = React.useState<string | null>(null)
+  const [fileError, setFileError] = React.useState<string | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const resetSession = () => {
     setFile(null)
     setParsed(null)
     setParseError(null)
+    setFileError(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  /** Only accept files the resume upload API allows, so an applied file always attaches in Create Candidate. */
+  const handleFileSelected = (selected: File | null) => {
+    setParsed(null)
+    setParseError(null)
+
+    if (!selected) {
+      setFile(null)
+      setFileError(null)
+      return
+    }
+
+    const validation = validateResumeFile(selected)
+    if (!validation.isValid) {
+      const msg = validation.error ?? "Only PDF and DOCX resumes are supported."
+      setFile(null)
+      setFileError(msg)
+      toast.error(msg)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
+
+    setFile(selected)
+    setFileError(null)
   }
 
   const handleOpenChange = (next: boolean) => {
@@ -164,7 +200,7 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
       toast.error("Nothing to apply.")
       return
     }
-    onApplyToCreateCandidate(partial)
+    onApplyToCreateCandidate(partial, file)
     handleOpenChange(false)
     toast.message("Create Candidate opened with imported fields. Link employers and projects in the form.")
   }
@@ -456,13 +492,11 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.txt,.rtf,.doc,.docx,application/pdf,text/plain,application/rtf"
+                accept={RESUME_PARSER_ACCEPT}
                 className="hidden"
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null)
-                  setParsed(null)
-                  setParseError(null)
-                }}
+                aria-invalid={!!fileError}
+                aria-describedby={fileError ? "resume-parser-file-error" : "resume-parser-file-hint"}
+                onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
               />
               <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                 Choose file
@@ -477,6 +511,15 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
                 {parsing ? null : "Auto-Profile"}
               </Button>
             </div>
+            {fileError ? (
+              <p id="resume-parser-file-error" className="text-sm text-destructive" role="alert">
+                {fileError}
+              </p>
+            ) : (
+              <p id="resume-parser-file-hint" className="text-xs text-muted-foreground">
+                Accepted formats: PDF, DOCX (max 10 MB)
+              </p>
+            )}
           </div>
 
           <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col gap-0 border-t border-border/60 px-6 pb-2 pt-3">
