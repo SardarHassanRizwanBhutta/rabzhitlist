@@ -805,6 +805,8 @@ interface CandidateCreationDialogProps {
   certificationIssuersLoading?: boolean
   /** When opening Create Candidate, merge this partial snapshot (e.g. resume parser). Parent should clear after `onCreatePrefillConsumed`. */
   createPrefill?: Partial<CandidateFormData> | null
+  /** Resume file that produced `createPrefill` (Auto-Profiler); attached to the Resume input so it uploads on create. */
+  createPrefillResumeFile?: File | null
   /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
   onCreatePrefillConsumed?: () => void
   /**
@@ -1045,6 +1047,7 @@ export function CandidateCreationDialog({
   degreesMajorsLoading = false,
   certificationIssuersLoading = false,
   createPrefill = null,
+  createPrefillResumeFile = null,
   onCreatePrefillConsumed,
   nestedEmployerCreation,
   nestedProjectCreation,
@@ -2637,8 +2640,7 @@ export function CandidateCreationDialog({
         setErrors({})
         setVerifiedFields(new Set())
         setModifiedFields(new Set())
-        setResumeFile(null)
-        setResumeFile(null)
+        setResumeFile(hadPrefill ? createPrefillResumeFile : null)
         setPendingResumeRetry(null)
         setResumeUploadError(null)
         setWorkExperienceOpen(true)
@@ -2647,7 +2649,7 @@ export function CandidateCreationDialog({
         setEducationOpen(true)
       }
     }
-  }, [mode, candidateData, open, createPrefill])
+  }, [mode, candidateData, open, createPrefill, createPrefillResumeFile])
 
   const resetForm = () => {
     if (mode === "edit" && candidateData) {
