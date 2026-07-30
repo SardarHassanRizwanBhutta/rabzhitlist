@@ -5,22 +5,21 @@ import {
   sortQuestionsByPriority,
 } from "@/lib/utils/work-experience-questions"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
+import { CERTIFICATION_FIELD_ORDER } from "@/lib/utils/qg-field-weights"
 
-export const CERTIFICATION_LINK_ORDER = [
-  "name",
-  "issueDate",
-  "expiryDate",
-] as const
+/** Weight-descending display order: Name → Issuing Body → Issue Date → Expiry Date. */
+export const CERTIFICATION_LINK_ORDER = CERTIFICATION_FIELD_ORDER
 
-export const CERTIFICATION_CATALOG_SUFFIXES = new Set(["issuingBody"])
+/** Catalog accordion removed — Issuing Body is a main-list field. */
+export const CERTIFICATION_CATALOG_SUFFIXES = new Set<string>()
 
 const CERTIFICATION_FIELD_RE = /^certification_(\d+)_(.+)$/
 
 const CERTIFICATION_FIELD_LABELS: Record<string, string> = {
   name: "Name",
+  issuingBody: "Issuing Body",
   issueDate: "Issue Date",
   expiryDate: "Expiry Date",
-  issuingBody: "Issuer body",
 }
 
 export interface CertificationQuestionCard {
@@ -28,11 +27,6 @@ export interface CertificationQuestionCard {
   title: string
   linkQuestions: GeneratedQuestion[]
   catalogQuestions: GeneratedQuestion[]
-}
-
-export function certificationCatalogDetailsLabel(count: number): string {
-  const noun = count === 1 ? "question" : "questions"
-  return `Complete certification details — ${count} ${noun}`
 }
 
 export function formatCertificationFieldLabel(field: string): string {
@@ -85,9 +79,7 @@ export function formatCertificationCardSubtitle(
   return trimmed || null
 }
 
-function sortCertificationLinkQuestions(
-  items: GeneratedQuestion[],
-): GeneratedQuestion[] {
+function sortCertificationQuestions(items: GeneratedQuestion[]): GeneratedQuestion[] {
   return [...items].sort((a, b) => {
     const sa = a.field.split("_").pop() ?? ""
     const sb = b.field.split("_").pop() ?? ""
@@ -95,11 +87,11 @@ function sortCertificationLinkQuestions(
     const ib = CERTIFICATION_LINK_ORDER.indexOf(sb as (typeof CERTIFICATION_LINK_ORDER)[number])
     const safeIa = ia === -1 ? CERTIFICATION_LINK_ORDER.length : ia
     const safeIb = ib === -1 ? CERTIFICATION_LINK_ORDER.length : ib
-    return safeIa - safeIb || a.field.localeCompare(b.field)
+    return safeIa - safeIb || sortQuestionsByPriority(a, b)
   })
 }
 
-/** Reference grouping per FRONTEND_INTEGRATION_CONTRACT § 4.8.6 */
+/** Group certification questions into per-entry cards (no catalog accordion). */
 export function groupCertificationQuestions(questions: GeneratedQuestion[]): {
   sectionOpener: GeneratedQuestion | null
   cards: CertificationQuestionCard[]
@@ -107,7 +99,7 @@ export function groupCertificationQuestions(questions: GeneratedQuestion[]): {
   const deduped = dedupeQuestionsByField(questions)
 
   let sectionOpener: GeneratedQuestion | null = null
-  const cards = new Map<number, { link: GeneratedQuestion[]; catalog: GeneratedQuestion[] }>()
+  const cards = new Map<number, GeneratedQuestion[]>()
 
   for (const q of deduped) {
     if (q.field === "certifications") {
@@ -119,23 +111,17 @@ export function groupCertificationQuestions(questions: GeneratedQuestion[]): {
     if (!m) continue
 
     const index = Number(m[1])
-    const suffix = m[2]
-    if (!cards.has(index)) cards.set(index, { link: [], catalog: [] })
-    const card = cards.get(index)!
-    if (CERTIFICATION_CATALOG_SUFFIXES.has(suffix)) {
-      card.catalog.push(q)
-    } else {
-      card.link.push(q)
-    }
+    if (!cards.has(index)) cards.set(index, [])
+    cards.get(index)!.push(q)
   }
 
   const result = [...cards.entries()]
     .sort(([a], [b]) => a - b)
-    .map(([index, card]) => ({
+    .map(([index, cardQuestions]) => ({
       index,
       title: `Certification ${index + 1}`,
-      linkQuestions: sortCertificationLinkQuestions(card.link),
-      catalogQuestions: [...card.catalog].sort(sortQuestionsByPriority),
+      linkQuestions: sortCertificationQuestions(cardQuestions),
+      catalogQuestions: [] as GeneratedQuestion[],
     }))
 
   return { sectionOpener, cards: result }

@@ -150,6 +150,7 @@ export function parseLinkedProjectCatalogFromApi(
     isPublished: typeof nested.isPublished === "boolean" ? nested.isPublished : null,
     publishPlatforms,
     downloadCount: Number.isFinite(downloadCount as number) ? (downloadCount as number) : null,
+    clientLocations: parseStringArray(nested.clientLocations),
   }
 }
 
@@ -189,6 +190,8 @@ export function mapLinkedProjectToServicePayload(
       project.minTeamSize,
       project.maxTeamSize,
     ),
+    minTeamSize: project.minTeamSize ?? null,
+    maxTeamSize: project.maxTeamSize ?? null,
     techStacks: stringArray(project.techStacks),
     technicalAspects: stringArray(project.technicalAspects),
     technicalDomains: stringArray(project.technicalDomains),
@@ -201,6 +204,7 @@ export function mapLinkedProjectToServicePayload(
     link: emptyToNull(project.link),
     publishPlatforms: stringArray(project.publishPlatforms),
     downloadCount: project.downloadCount ?? null,
+    clientLocations: stringArray(project.clientLocations),
   }
 }
 

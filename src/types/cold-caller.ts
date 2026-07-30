@@ -43,6 +43,7 @@ export type FieldSection =
   | 'workExperience' 
   | 'education' 
   | 'certifications' 
+  | 'achievements'
   | 'techStacks'
   | 'preferences'
 
@@ -136,6 +137,7 @@ export const SECTION_LABELS: Record<FieldSection, string> = {
   workExperience: 'Work Experience',
   education: 'Education',
   certifications: 'Certifications',
+  achievements: 'Achievements',
   techStacks: 'Independent Tech Stacks',
   preferences: 'Preferences',
 }
@@ -146,6 +148,7 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   workExperience: 'Briefcase',
   education: 'GraduationCap',
   certifications: 'Award',
+  achievements: 'Trophy',
   techStacks: 'Code',
   preferences: 'SlidersHorizontal',
 }

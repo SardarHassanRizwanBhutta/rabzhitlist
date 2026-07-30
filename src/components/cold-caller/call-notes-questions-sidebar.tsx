@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   AlertCircle,
   Check,
@@ -8,8 +8,10 @@ import {
   Copy,
   Loader2,
   MessageSquare,
+  Plus,
   Sparkles,
 } from "lucide-react"
+import { ACHIEVEMENT_TYPE_LABELS } from "@/lib/constants/candidate-enums"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +25,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { EmptyField, FieldSection, GeneratedQuestion } from "@/types/cold-caller"
-import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
+import type { Achievement, CandidateCertification, WorkExperience } from "@/lib/types/candidate"
 import { SECTION_LABELS } from "@/types/cold-caller"
 import { ProjectCatalogCollapsible } from "@/components/cold-caller/project-catalog-collapsible"
 import {
@@ -36,9 +38,9 @@ import {
   type QuestionDisplayBlock,
 } from "@/lib/utils/question-accordion-layout"
 import {
+  coldCallerQgProjectFieldDefs,
+  COLD_CALLER_QG_PROJECT_PRIORITIES,
   isProjectCatalogFieldMissing,
-  PROJECT_FIELD_DEFS,
-  PROJECT_FIELD_PRIORITIES,
   readLinkedProjectPayloadValue,
 } from "@/lib/utils/project-catalog-fields"
 import {
@@ -48,30 +50,32 @@ import {
 } from "@/lib/utils/qg-value"
 import { mergeValueAndQuestionCards } from "@/lib/utils/merge-value-question-cards"
 import {
+  ACHIEVEMENT_FIELD_ORDER,
+  ACHIEVEMENT_FIELD_PRIORITIES,
   BASIC_FIELD_ORDER,
   BASIC_FIELD_PRIORITIES,
   CERTIFICATION_FIELD_PRIORITIES,
-  EDUCATION_FIELD_PRIORITIES,
+  COLD_CALLER_EXPECTED_SALARY_LABEL,
   INDEPENDENT_TECH_STACKS_PRIORITY,
   LAYOFF_FIELD_ORDER,
   LAYOFF_FIELD_PRIORITIES,
   OFFICE_FIELD_ORDER,
   OFFICE_FIELD_PRIORITIES,
   PREFERENCES_FIELD_ORDER,
+  PREFERENCES_FIELD_PRIORITIES,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
   WORK_EXPERIENCE_EMPLOYER_PRIORITIES,
   WORK_EXPERIENCE_ROLE_FIELD_ORDER,
   WORK_EXPERIENCE_ROLE_PRIORITIES,
 } from "@/lib/utils/qg-field-weights"
 import {
-  certificationCatalogDetailsLabel,
+  countMissingFieldsForAchievementCard,
+  formatAchievementCardSubtitle,
+} from "@/lib/utils/achievement-questions"
+import {
   countMissingFieldsForCertificationCard,
   formatCertificationCardSubtitle,
 } from "@/lib/utils/certification-questions"
-import {
-  countMissingFieldsForEducationCard,
-  formatEducationCardSubtitle,
-} from "@/lib/utils/education-questions"
 import { dedupeApiFieldNames } from "@/lib/utils/question-generation-response"
 import {
   buildQuestionEntryNavItems,
@@ -86,6 +90,8 @@ import {
 import {
   countMissingFieldsForWorkExperienceCard,
   formatWorkExperienceCardSubtitle,
+  isWorkExperienceEmployerPresent,
+  WORK_EXPERIENCE_FIELD_LABELS,
   workExperienceLayoffGroupLabel,
   workExperienceOfficeGroupLabel,
 } from "@/lib/utils/work-experience-questions"
@@ -98,10 +104,10 @@ interface CallNotesQuestionsSidebarProps {
   error: string | null
   emptyFields: EmptyField[]
   workExperiences?: WorkExperience[]
-  educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  cnic?: string | null
-  personalityType?: string | null
+  achievements?: Achievement[]
+  linkedinUrl?: string | null
+  hasResume?: boolean
   currentSalary?: number | null
   expectedSalary?: number | null
   techStacks?: string[]
@@ -109,6 +115,10 @@ interface CallNotesQuestionsSidebarProps {
   activeQuestionField?: string | null
   onQuestionSelect?: (apiFieldName: string) => void
   onRetry?: () => void
+  sessionAchievementIndices?: number[]
+  pendingAchievementNavId?: `entry-${number}` | null
+  onPendingAchievementNavHandled?: () => void
+  onAddSessionAchievement?: () => void
   className?: string
 }
 
@@ -144,23 +154,48 @@ function readWorkExperienceField(
   return (workExperience as unknown as Record<string, unknown>)[key]
 }
 
+/** Full local missing count for a session-only WE scaffold (Role + Employer + projects). */
+function countSessionWorkExperienceMissing(
+  roleIndex: number,
+  sessionProjectIndices: number[],
+  workExperience?: WorkExperience,
+): number {
+  const roleMissing = WORK_EXPERIENCE_ROLE_FIELD_ORDER.length
+  const employerMissing =
+    WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.length +
+    OFFICE_FIELD_ORDER.length +
+    LAYOFF_FIELD_ORDER.length
+  const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(workExperience)
+  const projectFieldCount = coldCallerQgProjectFieldDefs(includeProjectEmployerFields).length
+  const projectIndices =
+    sessionProjectIndices.length > 0 ? sessionProjectIndices : [0]
+  return roleMissing + employerMissing + projectIndices.length * projectFieldCount
+}
+
+function countSessionAchievementMissing(): number {
+  return ACHIEVEMENT_FIELD_ORDER.length
+}
+
 function buildWorkExperienceSectionUnits(
   block: WorkExperienceRoleBlock,
   workExperiences?: WorkExperience[],
+  options?: { forceRoleAndEmployer?: boolean },
 ): WorkExperienceSectionUnit[] {
   let order = 0
   const units: WorkExperienceSectionUnit[] = []
   const we = workExperiences?.[block.roleIndex]
+  const forceRoleAndEmployer = options?.forceRoleAndEmployer === true
 
+  const roleQuestions = block.linkQuestions
   const roleHasPopulated = WORK_EXPERIENCE_ROLE_FIELD_ORDER.some((key) => {
     return !isQgValueMissing(readWorkExperienceField(we, key))
   })
-  if (block.linkQuestions.length > 0 || roleHasPopulated) {
+  if (forceRoleAndEmployer || roleQuestions.length > 0 || roleHasPopulated) {
     units.push({
       type: "role",
       id: `role-${block.roleIndex}`,
       priority: Math.max(
-        ...block.linkQuestions.map((question) => question.priority),
+        ...roleQuestions.map((question) => question.priority),
         ...WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
           const value = readWorkExperienceField(we, key)
           return !isQgValueMissing(value) ? WORK_EXPERIENCE_ROLE_PRIORITIES[key] : 0
@@ -168,7 +203,7 @@ function buildWorkExperienceSectionUnits(
         0,
       ),
       order: order++,
-      questions: block.linkQuestions,
+      questions: roleQuestions,
     })
   }
 
@@ -187,7 +222,7 @@ function buildWorkExperienceSectionUnits(
     (we?.layoffs ?? []).some((layoff) =>
       LAYOFF_FIELD_ORDER.some((key) => !isQgValueMissing(layoff[key])),
     )
-  if (employerQuestions.length > 0 || employerHasPopulated) {
+  if (forceRoleAndEmployer || employerQuestions.length > 0 || employerHasPopulated) {
     units.push({
       type: "employer",
       id: `employer-${block.roleIndex}`,
@@ -195,9 +230,7 @@ function buildWorkExperienceSectionUnits(
         ...employerQuestions.map((question) => question.priority),
         ...WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => {
           const value = readWorkExperienceField(we, key)
-          return !isQgValueMissing(value)
-            ? WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key]
-            : 0
+          return !isQgValueMissing(value) ? WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key] : 0
         }),
         0,
       ),
@@ -208,12 +241,16 @@ function buildWorkExperienceSectionUnits(
   for (const accordion of block.projectAccordions) {
     const projectIndexMatch = /_project_(\d+)$/.exec(accordion.apiPrefix)
     const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
-    const project = workExperiences?.[block.roleIndex]?.projects?.[projectIndex]
+    const weRow = workExperiences?.[block.roleIndex]
+    const project = weRow?.projects?.[projectIndex]
+    const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(weRow)
     const populatedPriorities = project
-      ? PROJECT_FIELD_DEFS.filter((field) => {
-          const value = readLinkedProjectPayloadValue(project, field.payloadKey)
-          return !isProjectCatalogFieldMissing(field.payloadKey, value)
-        }).map((field) => PROJECT_FIELD_PRIORITIES[field.apiSuffix])
+      ? coldCallerQgProjectFieldDefs(includeProjectEmployerFields)
+          .filter((field) => {
+            const value = readLinkedProjectPayloadValue(project, field.payloadKey)
+            return !isProjectCatalogFieldMissing(field.payloadKey, value)
+          })
+          .map((field) => COLD_CALLER_QG_PROJECT_PRIORITIES[field.apiSuffix] ?? 0)
       : []
     units.push({
       type: "project",
@@ -228,7 +265,8 @@ function buildWorkExperienceSectionUnits(
     })
   }
 
-  return units.sort((a, b) => b.priority - a.priority || a.order - b.order)
+  // Structural Call Notes order: Role → Employer → Projects (by push order).
+  return units
 }
 
 function PriorityBadge({ priority }: { priority: number }) {
@@ -415,10 +453,10 @@ export function CallNotesQuestionsSidebar({
   error,
   emptyFields,
   workExperiences,
-  educations,
   certifications,
-  cnic,
-  personalityType,
+  achievements,
+  linkedinUrl,
+  hasResume,
   currentSalary,
   expectedSalary,
   techStacks,
@@ -426,12 +464,25 @@ export function CallNotesQuestionsSidebar({
   activeQuestionField,
   onQuestionSelect,
   onRetry,
+  sessionAchievementIndices = [],
+  pendingAchievementNavId,
+  onPendingAchievementNavHandled,
+  onAddSessionAchievement,
   className,
 }: CallNotesQuestionsSidebarProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [activeEntryNavId, setActiveEntryNavId] = useState<QuestionEntryNavId>("overview")
   const [openWorkExperienceSectionId, setOpenWorkExperienceSectionId] =
     useState<string | null>(null)
+  // TEMP: session-only Call Notes project indices per WE role (not Candidate API until later save).
+  const [sessionProjectsByRole, setSessionProjectsByRole] = useState<
+    Record<number, number[]>
+  >({})
+  // TEMP: session-only Call Notes work experience indices (not Candidate API until later save).
+  const [sessionWorkExperienceIndices, setSessionWorkExperienceIndices] = useState<
+    number[]
+  >([])
+  const pendingEntryNavIdRef = useRef<QuestionEntryNavId | null>(null)
 
   const fieldMetaByApiName = useMemo(
     () => buildQuestionFieldLabelMap(emptyFields),
@@ -454,12 +505,10 @@ export function CallNotesQuestionsSidebar({
     sectionMissingFields != null || sectionComplete || sortedQuestions.length > 0
 
   const useAccordionLayout =
-    section === "workExperience" ||
-    section === "certifications" ||
-    section === "education"
+    section === "workExperience" || section === "certifications" || section === "achievements"
 
   const entryNavSection: QuestionEntryNavSection | null =
-    section === "workExperience" || section === "education" || section === "certifications"
+    section === "workExperience" || section === "certifications" || section === "achievements"
       ? section
       : null
 
@@ -476,6 +525,7 @@ export function CallNotesQuestionsSidebar({
       const roleIndices = new Set<number>([
         ...byRole.keys(),
         ...Array.from({ length: workExperiences?.length ?? 0 }, (_, i) => i),
+        ...sessionWorkExperienceIndices,
       ])
       if (roleIndices.size === 0 && hasGenerated) roleIndices.add(0)
 
@@ -490,10 +540,12 @@ export function CallNotesQuestionsSidebar({
             projectAccordions.map((accordion) => accordion.apiPrefix),
           )
           const projects = workExperiences?.[roleIndex]?.projects ?? []
+          const isSessionWorkExperience =
+            sessionWorkExperienceIndices.includes(roleIndex)
           const projectIndices =
             projects.length > 0
               ? projects.map((_, projectIndex) => projectIndex)
-              : hasGenerated
+              : hasGenerated || isSessionWorkExperience
                 ? [0]
                 : []
 
@@ -509,6 +561,24 @@ export function CallNotesQuestionsSidebar({
               catalogQuestions: [],
               accordionQuestions: [],
             })
+            existingPrefixes.add(apiPrefix)
+          }
+
+          // TEMP: append session-only projects after resume / synthetic project sections.
+          // Local UI only — do not re-call Generate Questions / Candidate API.
+          for (const projectIndex of sessionProjectsByRole[roleIndex] ?? []) {
+            const apiPrefix = `work_experience_${roleIndex}_project_${projectIndex}`
+            if (existingPrefixes.has(apiPrefix)) continue
+            projectAccordions.push({
+              type: "project-accordion",
+              title: `Project ${projectIndex + 1}`,
+              apiPrefix,
+              layout: "nested-work-experience",
+              linkQuestions: [],
+              catalogQuestions: [],
+              accordionQuestions: [],
+            })
+            existingPrefixes.add(apiPrefix)
           }
 
           projectAccordions.sort((a, b) => a.apiPrefix.localeCompare(b.apiPrefix))
@@ -521,7 +591,9 @@ export function CallNotesQuestionsSidebar({
             ...officeByIndex.keys(),
             ...Array.from({ length: we?.locations?.length ?? 0 }, (_, i) => i),
           ])
-          if (officeIndices.size === 0 && hasGenerated) officeIndices.add(0)
+          if (officeIndices.size === 0 && (hasGenerated || isSessionWorkExperience)) {
+            officeIndices.add(0)
+          }
 
           const layoffByIndex = new Map(
             (existing?.layoffGroups ?? []).map((group) => [group.layoffIndex, group]),
@@ -530,7 +602,9 @@ export function CallNotesQuestionsSidebar({
             ...layoffByIndex.keys(),
             ...Array.from({ length: we?.layoffs?.length ?? 0 }, (_, i) => i),
           ])
-          if (layoffIndices.size === 0 && hasGenerated) layoffIndices.add(0)
+          if (layoffIndices.size === 0 && (hasGenerated || isSessionWorkExperience)) {
+            layoffIndices.add(0)
+          }
 
           return {
             type: "role-block" as const,
@@ -556,35 +630,6 @@ export function CallNotesQuestionsSidebar({
         })
 
       return roleBlocks
-    }
-
-    if (section === "education") {
-      const byIndex = new Map<
-        number,
-        Extract<QuestionDisplayBlock, { type: "education-block" }>
-      >()
-      for (const block of grouped) {
-        if (block.type === "education-block") byIndex.set(block.eduIndex, block)
-      }
-      const indices = new Set<number>([
-        ...byIndex.keys(),
-        ...Array.from({ length: educations?.length ?? 0 }, (_, i) => i),
-      ])
-      if (indices.size === 0 && hasGenerated) indices.add(0)
-
-      return [...indices]
-        .sort((a, b) => a - b)
-        .map((eduIndex) => {
-          const existing = byIndex.get(eduIndex)
-          return {
-            type: "education-block" as const,
-            eduIndex,
-            title: existing?.title ?? `Education ${eduIndex + 1}`,
-            linkQuestions: existing?.linkQuestions ?? [],
-            catalogQuestions: existing?.catalogQuestions ?? [],
-            campusGroups: existing?.campusGroups ?? [],
-          }
-        })
     }
 
     if (section === "certifications") {
@@ -615,16 +660,117 @@ export function CallNotesQuestionsSidebar({
         })
     }
 
+    if (section === "achievements") {
+      const byIndex = new Map<
+        number,
+        Extract<QuestionDisplayBlock, { type: "achievement-block" }>
+      >()
+      for (const block of grouped) {
+        if (block.type === "achievement-block") byIndex.set(block.achievementIndex, block)
+      }
+      const indices = new Set<number>([
+        ...byIndex.keys(),
+        ...Array.from({ length: achievements?.length ?? 0 }, (_, i) => i),
+        ...sessionAchievementIndices,
+      ])
+      if (indices.size === 0 && hasGenerated) indices.add(0)
+
+      return [...indices]
+        .sort((a, b) => a - b)
+        .map((achievementIndex) => {
+          const existing = byIndex.get(achievementIndex)
+          return {
+            type: "achievement-block" as const,
+            achievementIndex,
+            title: existing?.title ?? `Achievement ${achievementIndex + 1}`,
+            questions: existing?.questions ?? [],
+          }
+        })
+    }
+
     return grouped
   }, [
     section,
     sortedQuestions,
     useAccordionLayout,
     workExperiences,
-    educations,
     certifications,
+    achievements,
     hasGenerated,
+    sessionProjectsByRole,
+    sessionWorkExperienceIndices,
+    sessionAchievementIndices,
   ])
+
+  const nextSessionProjectIndex = useCallback(
+    (roleIndex: number) => {
+      const resumeLen = workExperiences?.[roleIndex]?.projects?.length ?? 0
+      const resumeMax = resumeLen - 1
+      // Empty WE + generated questions (or session WE scaffold) still shows synthetic project_0
+      const isSessionWe = sessionWorkExperienceIndices.includes(roleIndex)
+      const syntheticMax =
+        resumeLen === 0 && (hasGenerated || isSessionWe) ? 0 : -1
+      const session = sessionProjectsByRole[roleIndex] ?? []
+      const sessionMax = session.length > 0 ? Math.max(...session) : -1
+      return Math.max(resumeMax, syntheticMax, sessionMax) + 1
+    },
+    [workExperiences, hasGenerated, sessionProjectsByRole, sessionWorkExperienceIndices],
+  )
+
+  // TEMP: session-only Add project — local UI ask cards only; no QG re-call.
+  const handleAddSessionProject = useCallback(
+    (roleIndex: number) => {
+      const projectIndex = nextSessionProjectIndex(roleIndex)
+      const apiPrefix = `work_experience_${roleIndex}_project_${projectIndex}`
+      setSessionProjectsByRole((prev) => {
+        const existing = prev[roleIndex] ?? []
+        if (existing.includes(projectIndex)) return prev
+        return {
+          ...prev,
+          [roleIndex]: [...existing, projectIndex].sort((a, b) => a - b),
+        }
+      })
+      setOpenWorkExperienceSectionId(apiPrefix)
+    },
+    [nextSessionProjectIndex],
+  )
+
+  const nextSessionWorkExperienceIndex = useCallback(() => {
+    const resumeMax = (workExperiences?.length ?? 0) - 1
+    // Empty resume + Generate still shows synthetic work_experience_0
+    const syntheticMax = resumeMax < 0 && hasGenerated ? 0 : -1
+    const sessionMax =
+      sessionWorkExperienceIndices.length > 0
+        ? Math.max(...sessionWorkExperienceIndices)
+        : -1
+    // Include any role indices already present from QG grouping
+    const questionRoleMax = questions.reduce((max, question) => {
+      const match = /^work_experience_(\d+)_/.exec(question.field)
+      if (!match) return max
+      return Math.max(max, Number(match[1]))
+    }, -1)
+    return Math.max(resumeMax, syntheticMax, sessionMax, questionRoleMax) + 1
+  }, [workExperiences, hasGenerated, sessionWorkExperienceIndices, questions])
+
+  // TEMP: session-only Add work experience — Role + Employer (Office 0 / Layoff 0) + Project 0.
+  // Local Ask-about cards only; no QG re-call / Candidate API until later save.
+  const handleAddSessionWorkExperience = useCallback(() => {
+    const roleIndex = nextSessionWorkExperienceIndex()
+    pendingEntryNavIdRef.current = `entry-${roleIndex}`
+    setSessionWorkExperienceIndices((prev) =>
+      prev.includes(roleIndex) ? prev : [...prev, roleIndex].sort((a, b) => a - b),
+    )
+    // Scaffold one project with local ask cues (same path as Add project)
+    setSessionProjectsByRole((prev) => {
+      if ((prev[roleIndex] ?? []).includes(0)) return prev
+      return {
+        ...prev,
+        [roleIndex]: [0],
+      }
+    })
+    setActiveEntryNavId(`entry-${roleIndex}`)
+    setOpenWorkExperienceSectionId(`role-${roleIndex}`)
+  }, [nextSessionWorkExperienceIndex])
 
   const accordionSplit = useMemo(() => {
     if (!displayBlocks) return null
@@ -633,9 +779,12 @@ export function CallNotesQuestionsSidebar({
 
   const entryNavChrome = useMemo(() => {
     if (!accordionSplit) return "hidden" as const
-    // Education: Select whenever there are 2+ entries; no chrome for a single entry.
-    if (entryNavSection === "education") {
+    // Work Experience: Select whenever there are 2+ entries; no chrome for a single entry.
+    if (entryNavSection === "workExperience") {
       return accordionSplit.entryCount > 1 ? ("select" as const) : ("hidden" as const)
+    }
+    if (entryNavSection === "achievements") {
+      return "select" as const
     }
     return resolveQuestionEntryNavChrome(
       accordionSplit.entryCount,
@@ -648,10 +797,25 @@ export function CallNotesQuestionsSidebar({
     const missing = uniqueMissingFields ?? []
     const countEntryMissing = (index: number) => {
       if (entryNavSection === "workExperience") {
-        return countMissingFieldsForWorkExperienceCard(missing, index)
+        if (sessionWorkExperienceIndices.includes(index)) {
+          return countSessionWorkExperienceMissing(
+            index,
+            sessionProjectsByRole[index] ?? [],
+            workExperiences?.[index],
+          )
+        }
+        const sessionExtra = (sessionProjectsByRole[index] ?? []).reduce((sum) => {
+          const we = workExperiences?.[index]
+          const includeEmployer = !isWorkExperienceEmployerPresent(we)
+          return sum + coldCallerQgProjectFieldDefs(includeEmployer).length
+        }, 0)
+        return countMissingFieldsForWorkExperienceCard(missing, index) + sessionExtra
       }
-      if (entryNavSection === "education") {
-        return countMissingFieldsForEducationCard(missing, index)
+      if (entryNavSection === "achievements") {
+        if (sessionAchievementIndices.includes(index)) {
+          return countSessionAchievementMissing()
+        }
+        return countMissingFieldsForAchievementCard(missing, index)
       }
       return countMissingFieldsForCertificationCard(missing, index)
     }
@@ -662,8 +826,8 @@ export function CallNotesQuestionsSidebar({
       missingFields: uniqueMissingFields,
       countEntryMissing,
       workExperiences,
-      educations,
       certifications,
+      achievements,
     })
   }, [
     entryNavSection,
@@ -671,13 +835,29 @@ export function CallNotesQuestionsSidebar({
     entryNavChrome,
     uniqueMissingFields,
     workExperiences,
-    educations,
     certifications,
+    achievements,
+    sessionProjectsByRole,
+    sessionWorkExperienceIndices,
+    sessionAchievementIndices,
   ])
 
   useEffect(() => {
+    if (pendingAchievementNavId) {
+      pendingEntryNavIdRef.current = pendingAchievementNavId
+      onPendingAchievementNavHandled?.()
+    }
+  }, [pendingAchievementNavId, onPendingAchievementNavHandled])
+
+  useEffect(() => {
     if (!accordionSplit) {
+      pendingEntryNavIdRef.current = null
       setActiveEntryNavId("overview")
+      return
+    }
+    if (pendingEntryNavIdRef.current) {
+      setActiveEntryNavId(pendingEntryNavIdRef.current)
+      pendingEntryNavIdRef.current = null
       return
     }
     setActiveEntryNavId(
@@ -696,10 +876,11 @@ export function CallNotesQuestionsSidebar({
     const roleBlock = visibleBlocks.find(
       (block): block is WorkExperienceRoleBlock => block.type === "role-block",
     )
-    return roleBlock
-      ? buildWorkExperienceSectionUnits(roleBlock, workExperiences)
-      : []
-  }, [section, visibleBlocks, workExperiences])
+    if (!roleBlock) return []
+    return buildWorkExperienceSectionUnits(roleBlock, workExperiences, {
+      forceRoleAndEmployer: sessionWorkExperienceIndices.includes(roleBlock.roleIndex),
+    })
+  }, [section, visibleBlocks, workExperiences, sessionWorkExperienceIndices])
 
   useEffect(() => {
     const sectionIds = activeWorkExperienceSections.map((unit) => unit.id)
@@ -784,27 +965,68 @@ export function CallNotesQuestionsSidebar({
       }
 
       if (block.type === "role-block") {
-        const cardMissingCount =
-          section === "workExperience" && uniqueMissingFields
-            ? countMissingFieldsForWorkExperienceCard(uniqueMissingFields, block.roleIndex)
-            : 0
+        const sessionProjectIndices = new Set(sessionProjectsByRole[block.roleIndex] ?? [])
+        const isSessionWorkExperience = sessionWorkExperienceIndices.includes(
+          block.roleIndex,
+        )
+        const weForRole = workExperiences?.[block.roleIndex]
+        const includeProjectEmployerFieldsForRole = !isWorkExperienceEmployerPresent(weForRole)
+        const sessionProjectMissingExtra = isSessionWorkExperience
+          ? 0
+          : [...sessionProjectIndices].reduce(
+              (sum) =>
+                sum +
+                coldCallerQgProjectFieldDefs(includeProjectEmployerFieldsForRole).length,
+              0,
+            )
+        const cardMissingCount = isSessionWorkExperience
+          ? countSessionWorkExperienceMissing(
+              block.roleIndex,
+              sessionProjectsByRole[block.roleIndex] ?? [],
+              weForRole,
+            )
+          : (section === "workExperience" && uniqueMissingFields
+              ? countMissingFieldsForWorkExperienceCard(
+                  uniqueMissingFields,
+                  block.roleIndex,
+                )
+              : 0) + sessionProjectMissingExtra
         const cardSubtitle =
           section === "workExperience"
             ? formatWorkExperienceCardSubtitle(workExperiences?.[block.roleIndex])
             : null
 
-        const roleUnits = buildWorkExperienceSectionUnits(block, workExperiences)
+        const roleUnits = buildWorkExperienceSectionUnits(block, workExperiences, {
+          forceRoleAndEmployer: isSessionWorkExperience,
+        })
         const missingFieldSet = new Set(uniqueMissingFields ?? [])
         const countUnitMissing = (unit: WorkExperienceSectionUnit): number => {
           if (unit.type === "role") {
+            if (isSessionWorkExperience) {
+              return WORK_EXPERIENCE_ROLE_FIELD_ORDER.length
+            }
             return WORK_EXPERIENCE_ROLE_FIELD_ORDER.filter((key) =>
               missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
             ).length
           }
           if (unit.type === "project") {
-            return PROJECT_FIELD_DEFS.filter((field) =>
+            const weForCount = workExperiences?.[block.roleIndex]
+            const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(weForCount)
+            const projectIndexMatch = /_project_(\d+)$/.exec(unit.accordion.apiPrefix)
+            const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
+            if (sessionProjectIndices.has(projectIndex)) {
+              return coldCallerQgProjectFieldDefs(includeProjectEmployerFields).length
+            }
+            return coldCallerQgProjectFieldDefs(includeProjectEmployerFields).filter((field) =>
               missingFieldSet.has(`${unit.accordion.apiPrefix}_${field.apiSuffix}`),
             ).length
+          }
+          if (isSessionWorkExperience) {
+            return (
+              WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.length +
+              block.officeGroups.length * OFFICE_FIELD_ORDER.length +
+              block.layoffGroups.length * LAYOFF_FIELD_ORDER.length
+            )
           }
           const employerScalarMissing = WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.filter((key) =>
             missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
@@ -832,7 +1054,9 @@ export function CallNotesQuestionsSidebar({
           return employerScalarMissing + officeMissing + layoffMissing
         }
 
-        const roleContent = roleUnits.map((unit) => {
+        const roleContent = (
+          <>
+            {roleUnits.map((unit) => {
           const isOpen = openWorkExperienceSectionId === unit.id
           const onOpenChange = (open: boolean) => {
             setOpenWorkExperienceSectionId(open ? unit.id : null)
@@ -847,12 +1071,13 @@ export function CallNotesQuestionsSidebar({
             const roleCards = mergeValueAndQuestionCards(
               WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => ({
                 apiFieldName: `work_experience_${block.roleIndex}_${key}`,
-                label: key,
+                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
                 priority: WORK_EXPERIENCE_ROLE_PRIORITIES[key],
                 value: readWorkExperienceField(we, key),
               })),
               questionByField,
               "workExperience",
+              { fillAskCues: isSessionWorkExperience },
             )
             const rendered = renderQuestionList(roleCards, globalIndex)
             globalIndex = rendered.nextIndex
@@ -874,32 +1099,68 @@ export function CallNotesQuestionsSidebar({
           if (unit.type === "project") {
             const projectIndexMatch = /_project_(\d+)$/.exec(unit.accordion.apiPrefix)
             const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
-            const project = workExperiences?.[block.roleIndex]?.projects?.[projectIndex]
+            const isSessionAdded = sessionProjectIndices.has(projectIndex)
+            const weForProject = workExperiences?.[block.roleIndex]
+            const project = weForProject?.projects?.[projectIndex]
+            const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(weForProject)
             const questionByField = new Map(
               unit.accordion.accordionQuestions.map((question) => [
                 question.field,
                 question,
               ]),
             )
-            const projectRows = PROJECT_FIELD_DEFS.flatMap((field) => {
+            const projectRows = coldCallerQgProjectFieldDefs(includeProjectEmployerFields).flatMap(
+              (field) => {
               const apiFieldName = `${unit.accordion.apiPrefix}_${field.apiSuffix}`
               const value = project
                 ? readLinkedProjectPayloadValue(project, field.payloadKey)
                 : null
+
+              // Contribution: always show QG Advanced question when present; never a
+              // populated value card. Session-only local ask cues only when no QG yet.
+              if (field.apiSuffix === "contributionNotes") {
+                const question = questionByField.get(apiFieldName)
+                if (question) {
+                  const rendered = renderQuestionList([question], globalIndex)
+                  globalIndex = rendered.nextIndex
+                  return [
+                    <ul key={apiFieldName} className="space-y-1" role="list">
+                      {rendered.nodes}
+                    </ul>,
+                  ]
+                }
+                if (!isSessionAdded) return []
+                const askCue: GeneratedQuestion = {
+                  question: `Ask about ${field.label}`,
+                  field: apiFieldName,
+                  section: "workExperience",
+                  priority: COLD_CALLER_QG_PROJECT_PRIORITIES[field.apiSuffix] ?? 0,
+                  context: "",
+                  promptType: "basic",
+                }
+                const rendered = renderQuestionList([askCue], globalIndex)
+                globalIndex = rendered.nextIndex
+                return [
+                  <ul key={apiFieldName} className="space-y-1" role="list">
+                    {rendered.nodes}
+                  </ul>,
+                ]
+              }
 
               if (
                 project &&
                 !isProjectCatalogFieldMissing(field.payloadKey, value)
               ) {
                 const valueItems =
-                  field.apiSuffix === "techStacks" && Array.isArray(value)
+                  (field.apiSuffix === "techStacks" || field.apiSuffix === "clientLocations") &&
+                  Array.isArray(value)
                     ? value.map((item) => String(item)).filter((s) => s.trim() !== "")
                     : undefined
                 const valueCard: GeneratedQuestion = {
                   question: formatQgDisplayValue(value),
                   field: apiFieldName,
                   section: "workExperience",
-                  priority: PROJECT_FIELD_PRIORITIES[field.apiSuffix],
+                  priority: COLD_CALLER_QG_PROJECT_PRIORITIES[field.apiSuffix] ?? 0,
                   context: "",
                   promptType: "enrichment",
                   ...(valueItems && valueItems.length > 0 ? { valueItems } : {}),
@@ -914,7 +1175,24 @@ export function CallNotesQuestionsSidebar({
               }
 
               const question = questionByField.get(apiFieldName)
-              if (!question) return []
+              if (!question) {
+                if (!isSessionAdded) return []
+                const askCue: GeneratedQuestion = {
+                  question: `Ask about ${field.label}`,
+                  field: apiFieldName,
+                  section: "workExperience",
+                  priority: COLD_CALLER_QG_PROJECT_PRIORITIES[field.apiSuffix] ?? 0,
+                  context: "",
+                  promptType: "basic",
+                }
+                const rendered = renderQuestionList([askCue], globalIndex)
+                globalIndex = rendered.nextIndex
+                return [
+                  <ul key={apiFieldName} className="space-y-1" role="list">
+                    {rendered.nodes}
+                  </ul>,
+                ]
+              }
               const rendered = renderQuestionList([question], globalIndex)
               globalIndex = rendered.nextIndex
               return [
@@ -922,7 +1200,8 @@ export function CallNotesQuestionsSidebar({
                   {rendered.nodes}
                 </ul>,
               ]
-            })
+            },
+            )
 
             const projectName = project?.projectName?.trim()
             return (
@@ -945,36 +1224,39 @@ export function CallNotesQuestionsSidebar({
           const employerScalarCards = mergeValueAndQuestionCards(
             WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => ({
               apiFieldName: `work_experience_${block.roleIndex}_${key}`,
-              label: key,
+              label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
               priority: WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key],
               value: readWorkExperienceField(we, key),
             })),
             catalogByField,
             "workExperience",
-          )
-          const statusCards = employerScalarCards.filter((q) =>
-            q.field.endsWith("_status"),
-          )
-          // Employer-level fields (same as Employer dialog Basic Information) —
-          // must render outside Office Location groups.
-          const employerBasicCards = employerScalarCards.filter(
-            (q) =>
-              q.field.endsWith("_headcount") || q.field.endsWith("_salaryPolicy"),
-          )
-          const postLayoffCards = employerScalarCards.filter((q) =>
-            q.field.endsWith("_awards"),
+            { fillAskCues: isSessionWorkExperience },
           )
 
-          const statusRendered = renderQuestionList(statusCards, globalIndex)
-          globalIndex = statusRendered.nextIndex
+          type EmployerCardChunk = {
+            priority: number
+            order: number
+            nodes: ReactNode
+          }
+          const employerChunks: EmployerCardChunk[] = []
+          let chunkOrder = 0
 
-          const employerBasicRendered = renderQuestionList(
-            employerBasicCards,
-            globalIndex,
-          )
-          globalIndex = employerBasicRendered.nextIndex
+          for (const card of employerScalarCards) {
+            const suffix = card.field.replace(/^work_experience_\d+_/, "")
+            const rendered = renderQuestionList([card], globalIndex)
+            globalIndex = rendered.nextIndex
+            employerChunks.push({
+              priority: WORK_EXPERIENCE_EMPLOYER_PRIORITIES[suffix] ?? card.priority,
+              order: chunkOrder++,
+              nodes: (
+                <ul key={card.field} className="space-y-1" role="list">
+                  {rendered.nodes}
+                </ul>
+              ),
+            })
+          }
 
-          const officeSections = block.officeGroups.map((officeGroup) => {
+          for (const officeGroup of block.officeGroups) {
             const officeRow = we?.locations?.[officeGroup.officeIndex]
             const questionByField = new Map(
               officeGroup.questions.map((question) => [question.field, question]),
@@ -982,31 +1264,39 @@ export function CallNotesQuestionsSidebar({
             const officeCards = mergeValueAndQuestionCards(
               OFFICE_FIELD_ORDER.map((key) => ({
                 apiFieldName: `work_experience_${block.roleIndex}_office_${officeGroup.officeIndex}_${key}`,
-                label: key,
+                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
                 priority: OFFICE_FIELD_PRIORITIES[key],
                 value: officeRow ? officeRow[key] : null,
               })),
               questionByField,
               "workExperience",
+              { fillAskCues: isSessionWorkExperience },
             )
-            const officeRendered = renderQuestionList(officeCards, globalIndex)
-            globalIndex = officeRendered.nextIndex
-            return (
-              <div
-                key={`office-${block.roleIndex}-${officeGroup.officeIndex}`}
-                className="space-y-1"
-              >
-                <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
-                  {workExperienceOfficeGroupLabel(officeGroup.officeIndex)}
-                </p>
-                <ul className="space-y-1" role="list">
-                  {officeRendered.nodes}
-                </ul>
-              </div>
-            )
-          })
+            for (const card of officeCards) {
+              const rendered = renderQuestionList([card], globalIndex)
+              globalIndex = rendered.nextIndex
+              const suffixMatch = /_office_\d+_([^_]+)$/.exec(card.field)
+              const suffix = suffixMatch?.[1] ?? ""
+              employerChunks.push({
+                priority: OFFICE_FIELD_PRIORITIES[suffix] ?? card.priority,
+                order: chunkOrder++,
+                nodes: (
+                  <div key={card.field} className="space-y-1">
+                    {officeCards[0] === card && (
+                      <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
+                        {workExperienceOfficeGroupLabel(officeGroup.officeIndex)}
+                      </p>
+                    )}
+                    <ul className="space-y-1" role="list">
+                      {rendered.nodes}
+                    </ul>
+                  </div>
+                ),
+              })
+            }
+          }
 
-          const layoffSections = block.layoffGroups.map((layoffGroup) => {
+          for (const layoffGroup of block.layoffGroups) {
             const layoffRow = we?.layoffs?.[layoffGroup.layoffIndex]
             const questionByField = new Map(
               layoffGroup.questions.map((question) => [question.field, question]),
@@ -1014,32 +1304,41 @@ export function CallNotesQuestionsSidebar({
             const layoffCards = mergeValueAndQuestionCards(
               LAYOFF_FIELD_ORDER.map((key) => ({
                 apiFieldName: `work_experience_${block.roleIndex}_layoff_${layoffGroup.layoffIndex}_${key}`,
-                label: key,
+                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
                 priority: LAYOFF_FIELD_PRIORITIES[key],
                 value: layoffRow ? layoffRow[key] : null,
               })),
               questionByField,
               "workExperience",
+              { fillAskCues: isSessionWorkExperience },
             )
-            const layoffRendered = renderQuestionList(layoffCards, globalIndex)
-            globalIndex = layoffRendered.nextIndex
-            return (
-              <div
-                key={`layoff-${block.roleIndex}-${layoffGroup.layoffIndex}`}
-                className="space-y-1"
-              >
-                <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
-                  {workExperienceLayoffGroupLabel(layoffGroup.layoffIndex)}
-                </p>
-                <ul className="space-y-1" role="list">
-                  {layoffRendered.nodes}
-                </ul>
-              </div>
-            )
-          })
+            for (const card of layoffCards) {
+              const rendered = renderQuestionList([card], globalIndex)
+              globalIndex = rendered.nextIndex
+              const suffixMatch = /_layoff_\d+_([^_]+)$/.exec(card.field)
+              const suffix = suffixMatch?.[1] ?? ""
+              employerChunks.push({
+                priority: LAYOFF_FIELD_PRIORITIES[suffix] ?? card.priority,
+                order: chunkOrder++,
+                nodes: (
+                  <div key={card.field} className="space-y-1">
+                    {layoffCards[0] === card && (
+                      <p className="text-[10px] font-medium text-muted-foreground px-1 pt-1">
+                        {workExperienceLayoffGroupLabel(layoffGroup.layoffIndex)}
+                      </p>
+                    )}
+                    <ul className="space-y-1" role="list">
+                      {rendered.nodes}
+                    </ul>
+                  </div>
+                ),
+              })
+            }
+          }
 
-          const postLayoffRendered = renderQuestionList(postLayoffCards, globalIndex)
-          globalIndex = postLayoffRendered.nextIndex
+          employerChunks.sort(
+            (a, b) => b.priority - a.priority || a.order - b.order,
+          )
 
           return (
             <ProjectCatalogCollapsible
@@ -1049,28 +1348,25 @@ export function CallNotesQuestionsSidebar({
               onOpenChange={onOpenChange}
               missingCount={missingCount}
             >
-              <div className="space-y-2 w-full">
-                {statusRendered.nodes.length > 0 && (
-                  <ul className="space-y-1" role="list">
-                    {statusRendered.nodes}
-                  </ul>
-                )}
-                {employerBasicRendered.nodes.length > 0 && (
-                  <ul className="space-y-1" role="list">
-                    {employerBasicRendered.nodes}
-                  </ul>
-                )}
-                {officeSections}
-                {layoffSections}
-                {postLayoffRendered.nodes.length > 0 && (
-                  <ul className="space-y-1" role="list">
-                    {postLayoffRendered.nodes}
-                  </ul>
-                )}
+              <div className="space-y-1 w-full">
+                {employerChunks.map((chunk) => chunk.nodes)}
               </div>
             </ProjectCatalogCollapsible>
           )
-        })
+            })}
+            {/* Session-only Add project — local UI ask cards only; no QG re-call. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-full gap-1.5 text-xs"
+              onClick={() => handleAddSessionProject(block.roleIndex)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add project
+            </Button>
+          </>
+        )
 
         sections.push(
           <div
@@ -1111,15 +1407,14 @@ export function CallNotesQuestionsSidebar({
             ? formatCertificationCardSubtitle(certifications?.[block.certIndex]?.certificationName)
             : null
 
-        const linkQuestions = block.linkQuestions
-        const catalogQuestions = block.catalogQuestions
         const questionByField = new Map(
-          [...linkQuestions, ...catalogQuestions].map((question) => [
+          [...block.linkQuestions, ...block.catalogQuestions].map((question) => [
             question.field,
             question,
           ]),
         )
         const cert = certifications?.[block.certIndex]
+        // Weight-descending: Name → Issuing Body → Issue Date → Expiry Date
         const certCards = mergeValueAndQuestionCards(
           [
             {
@@ -1127,6 +1422,12 @@ export function CallNotesQuestionsSidebar({
               label: "Name",
               priority: CERTIFICATION_FIELD_PRIORITIES.name,
               value: cert?.certificationName,
+            },
+            {
+              apiFieldName: `certification_${block.certIndex}_issuingBody`,
+              label: "Issuing Body",
+              priority: CERTIFICATION_FIELD_PRIORITIES.issuingBody,
+              value: cert?.issuingBody ?? cert?.certificationIssuerName,
             },
             {
               apiFieldName: `certification_${block.certIndex}_issueDate`,
@@ -1140,24 +1441,12 @@ export function CallNotesQuestionsSidebar({
               priority: CERTIFICATION_FIELD_PRIORITIES.expiryDate,
               value: cert?.expiryDate,
             },
-            {
-              apiFieldName: `certification_${block.certIndex}_issuingBody`,
-              label: "Issuer body",
-              priority: CERTIFICATION_FIELD_PRIORITIES.issuingBody,
-              value: cert?.issuingBody ?? cert?.certificationIssuerName,
-            },
           ],
           questionByField,
           "certifications",
         )
-        const linkCards = certCards.filter(
-          (q) => !q.field.endsWith("_issuingBody"),
-        )
-        const bodyCard = certCards.filter((q) => q.field.endsWith("_issuingBody"))
-        const linkRendered = renderQuestionList(linkCards, globalIndex)
-        globalIndex = linkRendered.nextIndex
-        const catalogRendered = renderQuestionList(bodyCard, globalIndex)
-        globalIndex = catalogRendered.nextIndex
+        const rendered = renderQuestionList(certCards, globalIndex)
+        globalIndex = rendered.nextIndex
 
         sections.push(
           <div
@@ -1182,66 +1471,79 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {linkRendered.nodes.length > 0 && (
+            {rendered.nodes.length > 0 && (
               <ul className="space-y-1" role="list">
-                {linkRendered.nodes}
+                {rendered.nodes}
               </ul>
-            )}
-            {bodyCard.length > 0 && (
-              <ProjectCatalogCollapsible
-                label={certificationCatalogDetailsLabel(bodyCard.length)}
-              >
-                <ul className="space-y-1 w-full" role="list">
-                  {catalogRendered.nodes}
-                </ul>
-              </ProjectCatalogCollapsible>
             )}
           </div>,
         )
         continue
       }
 
-      if (block.type === "education-block") {
+      if (block.type === "achievement-block") {
         const cardMissingCount =
-          section === "education" && uniqueMissingFields
-            ? countMissingFieldsForEducationCard(uniqueMissingFields, block.eduIndex)
+          section === "achievements" && uniqueMissingFields
+            ? countMissingFieldsForAchievementCard(
+                uniqueMissingFields,
+                block.achievementIndex,
+              )
             : 0
-        const edu = educations?.[block.eduIndex]
-        const cardSubtitle = formatEducationCardSubtitle(
-          edu?.universityLocationName ?? edu?.universityName,
-          edu?.degreeName,
+        const achievement = achievements?.[block.achievementIndex]
+        const isSessionAchievement = sessionAchievementIndices.includes(
+          block.achievementIndex,
         )
-
-        const questionByField = new Map(
-          [...block.linkQuestions, ...block.catalogQuestions].map((question) => [
-            question.field,
-            question,
-          ]),
-        )
-        const eduCards = mergeValueAndQuestionCards(
+        const achievementCards = mergeValueAndQuestionCards(
           [
             {
-              apiFieldName: `education_${block.eduIndex}_universityName`,
-              label: "University Name",
-              priority: EDUCATION_FIELD_PRIORITIES.universityName,
-              value: edu?.universityName ?? edu?.universityLocationName,
+              apiFieldName: `achievement_${block.achievementIndex}_name`,
+              label: "Name",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.name,
+              value: achievement?.name,
             },
             {
-              apiFieldName: `education_${block.eduIndex}_isTopper`,
-              label: "Topper",
-              priority: EDUCATION_FIELD_PRIORITIES.isTopper,
-              value: edu?.isTopper,
+              apiFieldName: `achievement_${block.achievementIndex}_year`,
+              label: "Year",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.year,
+              value: achievement?.year,
+            },
+            {
+              apiFieldName: `achievement_${block.achievementIndex}_description`,
+              label: "Description",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.description,
+              value: achievement?.description,
+            },
+            {
+              apiFieldName: `achievement_${block.achievementIndex}_achievementType`,
+              label: "Achievement Type",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.achievementType,
+              value: achievement?.achievementType
+                ? ACHIEVEMENT_TYPE_LABELS[achievement.achievementType]
+                : null,
+            },
+            {
+              apiFieldName: `achievement_${block.achievementIndex}_ranking`,
+              label: "Ranking",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.ranking,
+              value: achievement?.ranking,
+            },
+            {
+              apiFieldName: `achievement_${block.achievementIndex}_url`,
+              label: "URL",
+              priority: ACHIEVEMENT_FIELD_PRIORITIES.url,
+              value: achievement?.url,
             },
           ],
-          questionByField,
-          "education",
+          new Map(block.questions.map((question) => [question.field, question])),
+          "achievements",
+          { fillAskCues: isSessionAchievement },
         )
-        const linkRendered = renderQuestionList(eduCards, globalIndex)
-        globalIndex = linkRendered.nextIndex
+        const rendered = renderQuestionList(achievementCards, globalIndex)
+        globalIndex = rendered.nextIndex
 
         sections.push(
           <div
-            key={`edu-${block.eduIndex}`}
+            key={`achievement-${block.achievementIndex}`}
             className={cn(
               "space-y-2",
               !hideEntryCardChrome && "rounded-md border border-border/60 p-2",
@@ -1250,9 +1552,12 @@ export function CallNotesQuestionsSidebar({
             {!hideEntryCardChrome && (
               <div className="px-1">
                 <p className="text-xs font-semibold text-foreground">{block.title}</p>
-                {cardSubtitle && (
-                  <p className="text-[10px] text-muted-foreground mt-0.5 truncate" title={cardSubtitle}>
-                    {cardSubtitle}
+                {formatAchievementCardSubtitle(achievement) && (
+                  <p
+                    className="text-[10px] text-muted-foreground mt-0.5 truncate"
+                    title={formatAchievementCardSubtitle(achievement) ?? undefined}
+                  >
+                    {formatAchievementCardSubtitle(achievement)}
                   </p>
                 )}
                 {cardMissingCount > 0 && (
@@ -1262,9 +1567,9 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {linkRendered.nodes.length > 0 && (
+            {rendered.nodes.length > 0 && (
               <ul className="space-y-1" role="list">
-                {linkRendered.nodes}
+                {rendered.nodes}
               </ul>
             )}
           </div>,
@@ -1283,7 +1588,12 @@ export function CallNotesQuestionsSidebar({
   }
 
   const renderEntryNavChrome = () => {
-    if (entryNavChrome === "hidden" || entryNavItems.length === 0) return null
+    const showWorkExperienceAdd =
+      entryNavSection === "workExperience" && hasGenerated
+    const showAchievementAdd = entryNavSection === "achievements"
+    const showEntryNav = entryNavChrome !== "hidden" && entryNavItems.length > 0
+
+    if (!showEntryNav && !showWorkExperienceAdd && !showAchievementAdd) return null
 
     const containerClassName = cn(
       "px-2 pb-1",
@@ -1291,12 +1601,43 @@ export function CallNotesQuestionsSidebar({
         "sticky top-0 z-10 border-b border-border/60 bg-muted/95 pt-2 backdrop-blur",
     )
 
+    // TEMP: single-WE (nav hidden) — full-width top-of-panel Add work experience
+    if (!showEntryNav) {
+      return (
+        <div className={containerClassName}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 w-full gap-1.5 text-xs"
+            onClick={handleAddSessionWorkExperience}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add work experience
+          </Button>
+        </div>
+      )
+    }
+
+    // TEMP: select — trailing dropdown option adds WE instead of selecting an entry
     if (entryNavChrome === "select") {
+      const addWorkExperienceSelectValue = "__add_work_experience__"
+      const addAchievementSelectValue = "__add_achievement__"
       return (
         <div className={containerClassName}>
           <Select
             value={activeEntryNavId}
-            onValueChange={(value) => setActiveEntryNavId(value as QuestionEntryNavId)}
+            onValueChange={(value) => {
+              if (value === addWorkExperienceSelectValue) {
+                if (showWorkExperienceAdd) handleAddSessionWorkExperience()
+                return
+              }
+              if (value === addAchievementSelectValue) {
+                onAddSessionAchievement?.()
+                return
+              }
+              setActiveEntryNavId(value as QuestionEntryNavId)
+            }}
           >
             <SelectTrigger size="sm" className="w-full max-w-full">
               <SelectValue placeholder="Select entry" />
@@ -1307,12 +1648,24 @@ export function CallNotesQuestionsSidebar({
                   {item.optionLabel}
                 </SelectItem>
               ))}
+              {showWorkExperienceAdd ? (
+                <SelectItem value={addWorkExperienceSelectValue}>
+                  + Add work experience
+                </SelectItem>
+              ) : null}
+              {showAchievementAdd ? (
+                <SelectItem value={addAchievementSelectValue}>
+                  + Add achievement
+                </SelectItem>
+              ) : null}
             </SelectContent>
           </Select>
         </div>
       )
     }
 
+    // Certifications (and any remaining tabs chrome) — no WE add control here.
+    // WE always uses Select for 2+ entries (see entryNavChrome).
     return (
       <div className={containerClassName}>
         <Tabs
@@ -1434,22 +1787,43 @@ export function CallNotesQuestionsSidebar({
                 )
                 let flatCards = sortedQuestions
                 if (section === "basic") {
+                  const basicLabels: Record<(typeof BASIC_FIELD_ORDER)[number], string> = {
+                    resume: "Resume",
+                    linkedinUrl: "LinkedIn URL",
+                  }
                   flatCards = mergeValueAndQuestionCards(
                     BASIC_FIELD_ORDER.map((key) => ({
                       apiFieldName: key,
-                      label: key,
+                      label: basicLabels[key],
                       priority: BASIC_FIELD_PRIORITIES[key],
-                      value: key === "cnic" ? cnic : personalityType,
+                      value:
+                        key === "resume"
+                          ? hasResume === true
+                            ? "attached"
+                            : null
+                          : linkedinUrl,
+                      formatValue:
+                        key === "resume"
+                          ? (value) =>
+                              value === "attached" ? "Attached" : formatQgDisplayValue(value)
+                          : undefined,
                     })),
                     questionByField,
                     "basic",
                   )
                 } else if (section === "preferences") {
+                  const preferenceLabels: Record<
+                    (typeof PREFERENCES_FIELD_ORDER)[number],
+                    string
+                  > = {
+                    currentSalary: "Current Salary",
+                    expectedSalary: COLD_CALLER_EXPECTED_SALARY_LABEL,
+                  }
                   flatCards = mergeValueAndQuestionCards(
                     PREFERENCES_FIELD_ORDER.map((key) => ({
                       apiFieldName: key,
-                      label: key,
-                      priority: BASIC_FIELD_PRIORITIES[key],
+                      label: preferenceLabels[key],
+                      priority: PREFERENCES_FIELD_PRIORITIES[key],
                       value: key === "currentSalary" ? currentSalary : expectedSalary,
                       formatValue: (value) =>
                         typeof value === "number"

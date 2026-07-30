@@ -1,14 +1,13 @@
 import type { GeneratedQuestion } from "@/types/cold-caller"
+import { groupAchievementQuestions } from "@/lib/utils/achievement-questions"
 import {
   PROJECT_CATALOG_FIELD_LABELS,
   catalogDetailsLabel,
 } from "@/lib/utils/project-catalog-fields"
 import { groupCertificationQuestions } from "@/lib/utils/certification-questions"
-import { groupEducationQuestions } from "@/lib/utils/education-questions"
 import {
   groupWorkExperienceQuestions,
   nestedProjectAccordionLabel,
-  sortQuestionsByPriority,
 } from "@/lib/utils/work-experience-questions"
 
 export interface FlatQuestionBlock {
@@ -54,16 +53,11 @@ export interface CertificationQuestionBlock {
   catalogQuestions: GeneratedQuestion[]
 }
 
-export interface EducationQuestionBlock {
-  type: "education-block"
-  eduIndex: number
+export interface AchievementQuestionBlock {
+  type: "achievement-block"
+  achievementIndex: number
   title: string
-  linkQuestions: GeneratedQuestion[]
-  catalogQuestions: GeneratedQuestion[]
-  campusGroups: Array<{
-    campusIndex: number
-    questions: GeneratedQuestion[]
-  }>
+  questions: GeneratedQuestion[]
 }
 
 export type QuestionDisplayBlock =
@@ -71,11 +65,7 @@ export type QuestionDisplayBlock =
   | RoleQuestionBlock
   | ProjectQuestionAccordion
   | CertificationQuestionBlock
-  | EducationQuestionBlock
-
-function sortByPriority(questions: GeneratedQuestion[]): GeneratedQuestion[] {
-  return [...questions].sort(sortQuestionsByPriority)
-}
+  | AchievementQuestionBlock
 
 function buildNestedWorkExperienceProjectAccordion(
   roleIndex: number,
@@ -147,8 +137,8 @@ function groupCertificationDisplayBlocks(questions: GeneratedQuestion[]): Questi
   return blocks
 }
 
-function groupEducationDisplayBlocks(questions: GeneratedQuestion[]): QuestionDisplayBlock[] {
-  const { sectionOpener, cards } = groupEducationQuestions(questions)
+function groupAchievementDisplayBlocks(questions: GeneratedQuestion[]): QuestionDisplayBlock[] {
+  const { sectionOpener, cards } = groupAchievementQuestions(questions)
   const blocks: QuestionDisplayBlock[] = []
 
   if (sectionOpener) {
@@ -157,12 +147,10 @@ function groupEducationDisplayBlocks(questions: GeneratedQuestion[]): QuestionDi
 
   for (const card of cards) {
     blocks.push({
-      type: "education-block",
-      eduIndex: card.index,
+      type: "achievement-block",
+      achievementIndex: card.index,
       title: card.title,
-      linkQuestions: card.linkQuestions,
-      catalogQuestions: card.catalogQuestions,
-      campusGroups: card.campusGroups,
+      questions: card.questions,
     })
   }
 
@@ -171,14 +159,14 @@ function groupEducationDisplayBlocks(questions: GeneratedQuestion[]): QuestionDi
 
 /** Group API questions for accordion UI — uses response only (no client mock merge). */
 export function groupQuestionsForDisplay(
-  section: "workExperience" | "certifications" | "education",
+  section: "workExperience" | "certifications" | "achievements",
   questions: GeneratedQuestion[],
 ): QuestionDisplayBlock[] {
+  if (section === "achievements") {
+    return groupAchievementDisplayBlocks(questions)
+  }
   if (section === "certifications") {
     return groupCertificationDisplayBlocks(questions)
-  }
-  if (section === "education") {
-    return groupEducationDisplayBlocks(questions)
   }
   return groupWorkExperienceDisplayBlocks(questions)
 }

@@ -9,14 +9,14 @@ This is the frontend payload posted to
 {
   "candidate_id": "<candidate.id>",
   "candidate_data": {
-    "cnic": null,
-    "personalityType": null,
+    "resume": null,
+    "linkedinUrl": null,
     "currentSalary": null,
     "expectedSalary": null,
     "techStacks": [],
     "workExperiences": [],
-    "educations": [],
-    "certifications": []
+    "certifications": [],
+    "achievements": []
   },
   "fields_to_generate": [],
   "conversation_context": "cold_call"
@@ -28,15 +28,15 @@ The frontend does not send `missing_fields`.
 ## Frontend pipeline
 
 1. Load the main-app `Candidate`.
-2. Enrich Education rows with linked university data.
-3. Enrich Work Experience rows with linked employer data.
-4. Project the enriched object through
+2. Enrich Work Experience rows with linked employer data.
+3. Project the enriched object through
    `mapMainAppCandidateToQuestionService()`.
-5. Build the sparse missing-only payload and authoritative `fields_to_generate`
+4. Build the sparse missing-only payload and authoritative `fields_to_generate`
    for **all** allowlisted sections (`buildMissingOnlyQuestionRequest`).
-6. Post the sparse payload plus `fields_to_generate`.
+5. Post the sparse payload plus `fields_to_generate`.
 
-IDs are used in steps 2–3 but omitted from step 4.
+Employer IDs are used during enrichment but omitted from the QG payload.
+Candidate Education is not projected or sent.
 
 Empty top-level collections and empty nested `projects` / `locations` / `layoffs`
 still emit synthetic index `0` missing keys.
@@ -45,19 +45,20 @@ still emit synthetic index `0` missing keys.
 
 ```ts
 interface CandidateDataForQuestionService {
-  cnic?: string | null
-  personalityType?: string | null
+  resume?: string | null
+  linkedinUrl?: string | null
   currentSalary?: number | null
   expectedSalary?: number | null
   techStacks?: string[]
   workExperiences?: WorkExperienceForService[]
-  educations?: EducationForService[]
   certifications?: CertificationForService[]
+  achievements?: AchievementForService[]
 }
 
 interface WorkExperienceForService {
   employerName?: string | null
   jobTitle?: string | null
+  startDate?: string | null
   shiftType?: string | null
   timeSupportZones?: string[]
   workMode?: string | null
@@ -67,36 +68,38 @@ interface WorkExperienceForService {
   status?: string | null
   locations?: WorkExperienceOfficeForService[]
   headcount?: number | null
+  types?: string[]
+  foundedYear?: number | null
+  linkedinUrl?: string | null
   salaryPolicy?: string | null
   layoffs?: WorkExperienceLayoffForService[]
-  awards?: string[]
 }
 
 interface WorkExperienceProjectForService {
   projectName?: string | null
-  contributionNotes?: string | null
   employerName?: string | null
-  downloadCount?: number | null
-  publishPlatforms?: string[]
   projectType?: string | null
   status?: string | null
-  teamSize?: string | number | null
+  minTeamSize?: number | null
+  maxTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
   technicalDomains?: string[]
   horizontalDomains?: string[]
   verticalDomains?: string[]
   description?: string | null
+  contributionNotes?: string | null
   latestUpdate?: string | null
   startDate?: string | null
   endDate?: string | null
-  link?: string | null
+  clientLocations?: string[]
 }
 
 interface WorkExperienceOfficeForService {
   country?: string | null
   city?: string | null
   address?: string | null
+  isHeadquarters?: boolean | null
 }
 
 interface WorkExperienceLayoffForService {
@@ -105,16 +108,20 @@ interface WorkExperienceLayoffForService {
   reason?: string | null
 }
 
-interface EducationForService {
-  universityName?: string | null
-  isTopper?: boolean | null
-}
-
 interface CertificationForService {
   certificationName?: string | null
   issueDate?: string | null
   expiryDate?: string | null
   issuingBody?: string | null
+}
+
+interface AchievementForService {
+  name?: string | null
+  year?: number | null
+  description?: string | null
+  achievementType?: string | null
+  ranking?: string | null
+  url?: string | null
 }
 ```
 
@@ -123,22 +130,30 @@ interface CertificationForService {
 - String values are trimmed; blank values become `null`.
 - Missing arrays become `[]` when that property is included because it is missing.
 - Dates become ISO-8601 strings.
-- Project `teamSize` may be derived from existing single/min/max app values, but
-  only a missing normalized `teamSize` property is sent.
-- Project payload `link` maps to response suffix `projectLink`.
+- Project QG uses `minTeamSize` / `maxTeamSize` / `clientLocations` (not single
+  `teamSize`, `link` / `projectLink`, contribution, download, or publish platforms).
+- When WE has an employer, omit project `employerName` / `projectType` from sparse
+  request generation.
 - **All** allowlisted sections are sparse missing-only: populated properties are
   omitted from `candidate_data`; their values remain in FE for value cards.
 - Missing list-typed properties are sent as `[]` (never `null`): `techStacks`,
-  `timeSupportZones`, `benefits`, `awards`, `publishPlatforms`,
+  `timeSupportZones`, `benefits`, `types`, `clientLocations`,
   `technicalAspects`, `technicalDomains`, `horizontalDomains`, `verticalDomains`.
 - `fields_to_generate` lists exactly every missing allowlisted API key across all
-  sections (not Projects only). It is authoritative for generation.
+  sections. It is authoritative for generation.
 - Certification payload `certificationName` maps to response suffix `name`.
-- University and employer IDs are never included.
+- Achievement payload `achievementType` maps directly to response suffix
+  `achievementType` (never legacy `_type`).
+- `resume` is `"attached"` when `candidate.hasResume === true`; otherwise missing.
+- Candidate Education, university IDs, and `education_*` keys are never included.
+- `cnic` and `personalityType` are never included in the QG payload.
+- Legacy `candidate_data.educations`, `educations`, or `education_*` generation
+  keys are rejected by QG with HTTP `422`.
+- Employer IDs are never included.
 
 ## Full example (sparse missing-only)
 
-Populated top-level / role / education / certification properties are omitted.
+Populated top-level / role / certification properties are omitted.
 Only missing properties appear in `candidate_data`, and every corresponding API
 key is listed in `fields_to_generate`. Empty nested `layoffs` still gets a
 synthetic index `0` row of missing fields.
@@ -178,4 +193,4 @@ synthetic index `0` row of missing fields.
 }
 ```
 
-The payload never includes Achievements or any field outside this schema.
+The payload never includes Education or any field outside this schema.

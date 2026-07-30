@@ -2,10 +2,11 @@
 
 export type QuestionSectionId =
   | "basic_information"
+  | "preferences"
   | "work_experience"
   | "independent_tech_stacks"
-  | "education"
   | "certifications"
+  | "achievements"
 
 export interface GenerateQuestionsRequest {
   candidate_id: string
@@ -59,6 +60,8 @@ export interface LinkedProjectForService {
   projectType?: string | null
   status?: string | null
   teamSize?: string | number | null
+  minTeamSize?: number | null
+  maxTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
   technicalDomains?: string[]
@@ -71,6 +74,7 @@ export interface LinkedProjectForService {
   link?: string | null
   publishPlatforms?: string[]
   downloadCount?: number | null
+  clientLocations?: string[]
 }
 
 export type WorkExperienceProjectForService = LinkedProjectForService
@@ -79,6 +83,7 @@ export interface WorkExperienceOfficeForService {
   country?: string | null
   city?: string | null
   address?: string | null
+  isHeadquarters?: boolean | null
 }
 
 export interface WorkExperienceLayoffForService {
@@ -89,7 +94,10 @@ export interface WorkExperienceLayoffForService {
 
 export interface WorkExperienceForService {
   employerName?: string | null
+  /** Present for FE employer-detection only; not a QG allowlisted field. */
+  employerId?: number | null
   jobTitle?: string | null
+  startDate?: string | null
   techStacks?: string[]
   shiftType?: string | null
   workMode?: string | null
@@ -98,21 +106,13 @@ export interface WorkExperienceForService {
   projects?: WorkExperienceProjectForService[]
   status?: string | null
   headcount?: number | null
+  types?: string[]
+  foundedYear?: number | null
+  linkedinUrl?: string | null
   awards?: string[]
   salaryPolicy?: string | null
   locations?: WorkExperienceOfficeForService[]
   layoffs?: WorkExperienceLayoffForService[]
-}
-
-export interface EducationLocationForService {
-  city?: string | null
-  address?: string | null
-  isMainCampus?: boolean | null
-}
-
-export interface EducationForService {
-  universityName?: string | null
-  isTopper?: boolean | null
 }
 
 export interface CertificationForService {
@@ -122,13 +122,23 @@ export interface CertificationForService {
   issuingBody?: string | null
 }
 
+export interface AchievementForService {
+  name?: string | null
+  year?: number | null
+  description?: string | null
+  achievementType?: string | null
+  ranking?: string | null
+  url?: string | null
+}
+
 export interface CandidateDataForQuestionService {
-  cnic?: string | null
+  /** `"attached"` when Candidate.hasResume; otherwise null/omitted when missing. */
+  resume?: string | null
+  linkedinUrl?: string | null
   currentSalary?: number | null
   expectedSalary?: number | null
-  personalityType?: string | null
   techStacks?: string[]
   workExperiences?: WorkExperienceForService[]
-  educations?: EducationForService[]
   certifications?: CertificationForService[]
+  achievements?: AchievementForService[]
 }

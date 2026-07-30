@@ -1,5 +1,10 @@
 # Question Generation Service — Remove Independent Projects Section
 
+> **Historical migration document.** Its section counts/order are superseded by
+> [QG_EDUCATION_REMOVAL_HANDOFF.md](./QG_EDUCATION_REMOVAL_HANDOFF.md) and
+> [FRONTEND_INTEGRATION_CONTRACT.md](./FRONTEND_INTEGRATION_CONTRACT.md).
+> The current QG contract has no Education section or Education payload.
+
 **Status:** Python QG shipped (prod/local). FE types/response mapping aligned — no `independent_projects` filter.  
 **Audience:** Python Question Generation service / AI agent implementing the change.  
 **Scope:** Stop emitting the Independent Projects section entirely. All candidate projects live under Work Experience (including orphan WEs with null/empty employer + job title).

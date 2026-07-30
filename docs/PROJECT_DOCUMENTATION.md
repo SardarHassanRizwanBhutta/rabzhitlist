@@ -1,5 +1,17 @@
 # LLM Question Generation Service — Project Documentation
 
+> **Historical architecture reference — not the current field/section contract.**
+> For Python QG implementation after Education removal, start with
+> [QG_PYTHON_SYNC_HANDOFF.md](./QG_PYTHON_SYNC_HANDOFF.md) (Achievements →
+> Certifications → Basic/Preferences → WE Role/Employer/Project including
+> Contribution). Also use
+> [COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
+> and [FRONTEND_INTEGRATION_CONTRACT.md](./FRONTEND_INTEGRATION_CONTRACT.md).
+> Education was removed from every QG mode/consumer on 2026-07-29:
+> do not send `candidate_data.educations`, accept/generate `education_*`, or return
+> an `education` section. Achievements is part of the active contract again.
+> Candidate Education remains available outside QG.
+
 Complete reference for the **llm-questions** repository: purpose, architecture, repository layout, entry points, runtime, API behavior, and integration with the Next.js frontend.
 
 ---
@@ -42,12 +54,12 @@ A **legacy demo UI** (`candidates_table.html`) lives in this repo for local test
 
 ### Request flow
 
-1. Client sends `POST /api/generate-questions` with `candidate_id`, `candidate_data`, optional `conversation_context`.
-2. `MissingFieldsAnalyzer.analyze_by_section()` computes missing field keys per section (`missing_fields` in the request body is **ignored**).
-3. `QuestionGenerator.generate_questions_by_section()` sends one LLM call with missing fields grouped by section.
-4. Response is parsed; `_ensure_questions_for_fields()` fills gaps with **template fallbacks** if the LLM skips a field.
+1. Client sends `POST /api/generate-questions` with `candidate_id`, sparse `candidate_data`, authoritative `fields_to_generate`, and optional `conversation_context`.
+2. The request validator rejects legacy `candidate_data.educations` and `education_*` generation keys.
+3. `MissingFieldsAnalyzer.analyze_by_section()` groups only allowlisted `fields_to_generate` keys (`missing_fields` in the request body is ignored).
+4. Basic questions use templates; Advanced fields use section-scoped LLM calls with template fallbacks for gaps/errors.
 5. Questions and `missing_fields` are sorted by `get_field_priority()` within each section.
-6. Response always contains **6 sections** (even when a section has no missing fields).
+6. Response always contains **4 sections** (even when a section has no missing fields).
 
 ---
 
@@ -165,7 +177,7 @@ There is **no `src/` package layout** — the service is a single-module FastAPI
 | File | Description |
 |---|---|
 | **`candidates_table.html`** | Self-contained demo: candidate table, detail modal, tabbed Generate Questions UI, client-side priority sort, `fetch` to `:8002/api/generate-questions`. Embeds its own `sample_candidates` JSON (not imported from `.py`). |
-| **`sample_candidates.py`** | Six sample candidates in the **Python service payload shape** (`workExperiences`, `achievements`, etc.). Use as reference for API `candidate_data` and demo data sync. |
+| **`sample_candidates.py`** | Six sample candidates used as local fixture data. Education is excluded from the QG fixture shape. |
 | **`sample_certifications.py`** | Certification name/issuer/level reference list. |
 | **`sample_employers.py`** | Employer reference data (DPL, etc.). |
 | **`sample_projects.py`** | Standalone project reference data. |
@@ -198,7 +210,7 @@ There is **no `src/` package layout** — the service is a single-module FastAPI
 
 ---
 
-## 6. The six question sections
+## 6. The four question sections
 
 Fixed order in all API responses (`SECTION_ORDER` in `question_generator.py`):
 
@@ -207,11 +219,11 @@ Fixed order in all API responses (`SECTION_ORDER` in `question_generator.py`):
 | 1 | `basic_information` | Basic Information | Candidate root fields |
 | 2 | `work_experience` | Work Experience | `workExperiences[]` (incl. nested `projects[]`) |
 | 3 | `independent_tech_stacks` | Independent Tech Stacks | Top-level `techStacks[]` |
-| 4 | `education` | Education | `educations[]` |
-| 5 | `certifications` | Certifications | `certifications[]` |
-| 6 | `achievements` | Achievements | `achievements[]` |
+| 4 | `certifications` | Certifications | `certifications[]` |
 
-**Removed:** `independent_projects` / top-level `projects[]`. Legacy top-level `projects` on the request is ignored.
+**Removed:** Education and `independent_projects` / top-level `projects[]`.
+Legacy Education input is rejected; no Education section placeholder is returned.
+Achievements has been restored as an active QG section.
 
 ### Missing-field rules
 
@@ -223,19 +235,13 @@ A value is **missing** when it is `null`, `""`, or `[]`.
 - **Work experience `endDate`:** `null` allowed only for the **current role** (first entry with `endDate: null`).
 - **Benefits:** empty `benefits[]` on a role is missing; non-empty array with `amount: null` entries is not missing at per-benefit level.
 
-### Empty-section expansion (synthetic first row)
+### Empty-section expansion (frontend-owned synthetic first row)
 
-When an entire array section is empty, the server emits a **section opener** key plus **synthetic `*_0_*` mini-question keys** for the first row to collect:
-
-| Section | Opener key | Synthetic keys count | Total keys |
-|---|---|---|---|
-| Work Experience | `work_experiences` | 9 link + 10 catalog + 4 office + 3 layoff + nested opener + 21 project | **49** |
-| Independent Tech Stacks | `techStacks` | — (single multi-value field) | **1** |
-| Education | `educations` | 15 (`education_0_*` link + catalog + campus_0) | **16** |
-| Certifications | `certifications` | 7 (`certification_0_*`) | **8** |
-| Achievements | `achievements` | 6 (`achievement_0_*`) | **7** |
-
-Independent Tech Stacks and **Work Experience nested projects** (openers + Name/Contribution) emit **enrichment** questions when populated from resume. See contract § 4.9 and § 4.10.
+The frontend emits synthetic index `0` keys in `fields_to_generate` for empty
+`workExperiences`, `certifications`, `achievements`, and nested `projects`,
+`locations`, or `layoffs`. Python never invents synthetic keys and never emits
+collection openers. An empty `fields_to_generate` returns the six sections with
+no questions.
 
 Full key tables: [CANDIDATE_DATA_MAPPING.md](./CANDIDATE_DATA_MAPPING.md).
 
@@ -282,7 +288,7 @@ Content-Type: application/json
 }
 ```
 
-- Response `field` values use **apiFieldName** keys (e.g. `certification_0_level`, `achievement_0_type`) — see mapping doc.
+- Response `field` values use **apiFieldName** keys (e.g. `certification_0_level`, `achievement_0_achievementType`) — see mapping doc.
 - `missing_fields` in the **request** is ignored.
 
 ### `GET /health`
@@ -401,8 +407,8 @@ Implemented with FastAPI `CORSMiddleware` only (no wildcard `*` in production/Do
 
 | Area | Notes |
 |---|---|
-| Empty-section mini-questions | Work Experience, Projects, Education, Certifications, Achievements |
-| Education | Link fields visible; university catalog + `locations[]` campuses in accordion (§ 4.12); link enrichment when populated |
+| Empty-section mini-questions | Frontend-owned synthetic Work Experience, Project, Office, Layoff, and Certification keys |
+| Education | Removed from every QG request, generator, and response path; Candidate Education remains outside QG |
 | Resume | `hasResume` → `null` / `"attached"` in mapped payload |
 
 When code and docs disagree, treat **`question_generator.py`** and **`docs/CANDIDATE_DATA_MAPPING.md`** as authoritative for field keys and behavior.

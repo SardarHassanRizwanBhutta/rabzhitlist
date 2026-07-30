@@ -285,6 +285,8 @@ function mapOfficeToService(loc: WorkExperienceOfficeLocation): WorkExperienceOf
     country: emptyToNull(loc.country),
     city: emptyToNull(loc.city),
     address: emptyToNull(loc.address),
+    isHeadquarters:
+      typeof loc.isHeadquarters === "boolean" ? loc.isHeadquarters : null,
   }
 }
 
@@ -299,7 +301,9 @@ function mapLayoffToService(lay: WorkExperienceLayoffRow): WorkExperienceLayoffF
 export function mapWorkExperienceToServicePayload(we: WorkExperience): WorkExperienceForService {
   return {
     employerName: emptyToNull(we.employerName) ?? we.employerName,
+    employerId: we.employerId ?? null,
     jobTitle: emptyToNull(we.jobTitle) ?? we.jobTitle,
+    startDate: toIsoDate(we.startDate),
     techStacks: we.techStacks ?? [],
     shiftType: shiftTypeToServicePayload(we.shiftType as string | null),
     workMode: emptyToNull(we.workMode as string | null),
@@ -308,6 +312,9 @@ export function mapWorkExperienceToServicePayload(we: WorkExperience): WorkExper
     projects: (we.projects ?? []).map(mapLinkedProjectToServicePayload),
     status: emptyToNull(we.status),
     headcount: we.headcount ?? null,
+    types: we.types ?? [],
+    foundedYear: we.foundedYear ?? null,
+    linkedinUrl: emptyToNull(we.linkedinUrl),
     awards: we.awards ?? [],
     salaryPolicy: emptyToNull(we.salaryPolicy),
     locations: (we.locations ?? []).map(mapOfficeToService),

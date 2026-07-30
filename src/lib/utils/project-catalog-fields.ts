@@ -82,7 +82,7 @@ export const PROJECT_CATALOG_FIELD_LABELS: Record<
   downloadCount: "Download Count",
 }
 
-/** Locked QG weights used by populated Project value cards. */
+/** Locked QG weights used by populated Project value cards (Fields / legacy). */
 export const PROJECT_FIELD_PRIORITIES: Record<
   ProjectLinkApiSuffix | ProjectCatalogApiSuffix,
   number
@@ -107,6 +107,72 @@ export const PROJECT_FIELD_PRIORITIES: Record<
   downloadCount: 1,
 }
 
+/** Cold Caller nested-project QG allowlist weights (section totals 100). */
+export const COLD_CALLER_QG_PROJECT_PRIORITIES: Record<string, number> = {
+  projectName: 15.98,
+  employerName: 12.69,
+  projectType: 10.34,
+  startDate: 8.46,
+  status: 7.05,
+  description: 6.11,
+  contributionNotes: 6,
+  techStacks: 5.45,
+  verticalDomains: 4.89,
+  horizontalDomains: 4.42,
+  technicalDomains: 3.95,
+  technicalAspects: 3.57,
+  minTeamSize: 3.2,
+  clientLocations: 2.82,
+  latestUpdate: 2.35,
+  maxTeamSize: 1.69,
+  endDate: 1.03,
+}
+
+export type ColdCallerQgProjectApiSuffix = keyof typeof COLD_CALLER_QG_PROJECT_PRIORITIES
+
+export const COLD_CALLER_QG_PROJECT_FIELD_ORDER = [
+  "projectName",
+  "employerName",
+  "projectType",
+  "startDate",
+  "status",
+  "description",
+  "contributionNotes",
+  "techStacks",
+  "verticalDomains",
+  "horizontalDomains",
+  "technicalDomains",
+  "technicalAspects",
+  "minTeamSize",
+  "clientLocations",
+  "latestUpdate",
+  "maxTeamSize",
+  "endDate",
+] as const satisfies readonly ColdCallerQgProjectApiSuffix[]
+
+export const COLD_CALLER_QG_PROJECT_FIELD_LABELS: Record<
+  ColdCallerQgProjectApiSuffix,
+  string
+> = {
+  projectName: "Name",
+  employerName: "Employer",
+  projectType: "Project Type",
+  startDate: "Project Start Date",
+  status: "Project Status",
+  description: "Project Description",
+  contributionNotes: "Contribution",
+  techStacks: "Tech Stacks",
+  verticalDomains: "Vertical Domains",
+  horizontalDomains: "Horizontal Domains",
+  technicalDomains: "Technical Domains",
+  technicalAspects: "Technical Aspects",
+  minTeamSize: "Team Size (min)",
+  clientLocations: "Client Location",
+  latestUpdate: "Project Latest Update",
+  maxTeamSize: "Team Size (max)",
+  endDate: "Project End Date",
+}
+
 const PROJECT_TYPE_OPTIONS = PROJECT_TYPES.map((t) => ({ value: t, label: t }))
 const PROJECT_STATUS_OPTIONS = (Object.keys(PROJECT_STATUS_LABELS) as ProjectStatus[]).map(
   (s) => ({ value: s, label: PROJECT_STATUS_LABELS[s] }),
@@ -118,7 +184,7 @@ const PUBLISH_PLATFORM_OPTIONS = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
 
 export type ProjectFieldDef = {
   payloadKey: string
-  apiSuffix: ProjectLinkApiSuffix | ProjectCatalogApiSuffix
+  apiSuffix: string
   label: string
   type: FieldType
   options?: { value: string; label: string }[]
@@ -244,11 +310,75 @@ export const PROJECT_FIELD_DEFS: ProjectFieldDef[] = [
   },
 ]
 
+/**
+ * Cold Caller WE nested-project field defs (weight-descending).
+ * When WE has an employer, omit Project Employer + Project Type.
+ */
+export function coldCallerQgProjectFieldDefs(
+  includeProjectEmployerFields: boolean,
+): ProjectFieldDef[] {
+  const byKey = new Map(PROJECT_FIELD_DEFS.map((def) => [def.payloadKey, def]))
+
+  const defs: ProjectFieldDef[] = []
+  for (const key of COLD_CALLER_QG_PROJECT_FIELD_ORDER) {
+    if (
+      !includeProjectEmployerFields &&
+      (key === "employerName" || key === "projectType")
+    ) {
+      continue
+    }
+
+    const fromLegacy = byKey.get(key)
+    if (fromLegacy) {
+      defs.push({
+        ...fromLegacy,
+        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS[key],
+      })
+      continue
+    }
+
+    if (key === "minTeamSize") {
+      defs.push({
+        payloadKey: "minTeamSize",
+        apiSuffix: "minTeamSize" as ProjectFieldDef["apiSuffix"],
+        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.minTeamSize,
+        type: "number",
+      })
+      continue
+    }
+    if (key === "maxTeamSize") {
+      defs.push({
+        payloadKey: "maxTeamSize",
+        apiSuffix: "maxTeamSize" as ProjectFieldDef["apiSuffix"],
+        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.maxTeamSize,
+        type: "number",
+      })
+      continue
+    }
+    if (key === "clientLocations") {
+      defs.push({
+        payloadKey: "clientLocations",
+        apiSuffix: "clientLocations" as ProjectFieldDef["apiSuffix"],
+        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.clientLocations,
+        type: "multiselect",
+      })
+    }
+  }
+  return defs
+}
+
+/** @deprecated Use coldCallerQgProjectFieldDefs */
+export function coldCallerWeProjectFieldDefs(
+  includeProjectEmployerFields: boolean,
+): ProjectFieldDef[] {
+  return coldCallerQgProjectFieldDefs(includeProjectEmployerFields)
+}
+
 export function isProjectCatalogFieldMissing(
   payloadKey: string,
   value: unknown,
 ): boolean {
-  if (payloadKey === "downloadCount") {
+  if (payloadKey === "downloadCount" || payloadKey === "minTeamSize" || payloadKey === "maxTeamSize") {
     return value === null || value === undefined
   }
   if (Array.isArray(value)) return value.length === 0

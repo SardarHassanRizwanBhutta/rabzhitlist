@@ -70,7 +70,6 @@ import {
 } from "@/lib/services/candidate-call-notes-api"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
-import { UniversityCreationDialog, UniversityFormData } from "@/components/university-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
 import { getCandidateResumeOpenUrl } from "@/lib/services/candidate-resume-api"
 import { openUrlInNewTabAfterFetch } from "@/lib/utils/open-url-in-new-tab"
@@ -203,16 +202,17 @@ export function ColdCallerDialog({
 
   // Track manually added entries for dynamic sections
   const [manuallyAddedFields, setManuallyAddedFields] = useState<EmptyField[]>([])
+  const [sessionAchievementIndices, setSessionAchievementIndices] = useState<number[]>([])
+  const [pendingAchievementNavId, setPendingAchievementNavId] = useState<`entry-${number}` | null>(null)
   
   // Creation dialog state
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false)
   const [createEmployerDialogOpen, setCreateEmployerDialogOpen] = useState(false)
-  const [createUniversityDialogOpen, setCreateUniversityDialogOpen] = useState(false)
   const [createCertificationDialogOpen, setCreateCertificationDialogOpen] = useState(false)
   
   // Pending entity creation state
   const [pendingEntity, setPendingEntity] = useState<{
-    type: 'project' | 'employer' | 'university' | 'certification'
+    type: 'project' | 'employer' | 'certification'
     field: EmptyField
     searchValue: string
   } | null>(null)
@@ -220,12 +220,13 @@ export function ColdCallerDialog({
   // Refs for field cards (for scroll navigation)
   const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  // Get empty fields - combine initial empty fields with manually added ones
+  // Get empty fields - combine initial empty fields with manually added ones.
+  // Independent Tech Stacks and Education are hidden in Cold Caller only.
   const baseEmptyFields = useMemo(() => getEmptyFields(candidate), [candidate])
   const emptyFields = useMemo(() => {
-    // Combine base fields with manually added fields
-    const allFields = [...baseEmptyFields, ...manuallyAddedFields]
-    // Remove duplicates based on fieldPath
+    const allFields = [...baseEmptyFields, ...manuallyAddedFields].filter(
+      (field) => field.section !== "techStacks" && field.section !== "education",
+    )
     const uniqueFields = Array.from(
       new Map(allFields.map(field => [field.fieldPath, field])).values()
     )
@@ -235,7 +236,8 @@ export function ColdCallerDialog({
   
   // Get sections that have empty fields OR have data (for dynamic sections to allow adding entries)
   const sectionsWithFields = useMemo(() => {
-    const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications']
+    const dynamicSections: FieldSection[] = ['workExperience', 'certifications', 'achievements']
+    const sectionOrder: FieldSection[] = ['basic', 'workExperience', 'certifications', 'achievements', 'preferences']
     const sectionsWithEmptyFields = Array.from(groupedFields.keys()).filter(section => {
       const fields = groupedFields.get(section)
       return fields && fields.length > 0
@@ -246,16 +248,20 @@ export function ColdCallerDialog({
     dynamicSections.forEach(section => {
       if (section === 'workExperience' && (candidate.workExperiences?.length || 0) > 0) {
         sectionsWithData.push(section)
-      } else if (section === 'education' && (candidate.educations?.length || 0) > 0) {
-        sectionsWithData.push(section)
       } else if (section === 'certifications' && (candidate.certifications?.length || 0) > 0) {
+        sectionsWithData.push(section)
+      } else if (section === 'achievements' && (candidate.achievements?.length || 0) > 0) {
         sectionsWithData.push(section)
       }
     })
     
-    // Combine and remove duplicates
+    // Combine and remove duplicates (Tech Stacks / Education never shown in Cold Caller)
     const allSections = new Set([...sectionsWithEmptyFields, ...sectionsWithData])
-    return Array.from(allSections)
+    allSections.delete("techStacks")
+    allSections.delete("education")
+    return Array.from(allSections).sort(
+      (a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b),
+    )
   }, [groupedFields, candidate])
   
   // Calculate progress stats
@@ -297,10 +303,17 @@ export function ColdCallerDialog({
       if (dialogJustOpened || candidateChanged) {
         // Reset manually added fields when dialog opens or candidate changes
         setManuallyAddedFields([])
+        setSessionAchievementIndices([])
+        setPendingAchievementNavId(null)
         
-        // Initialize field states using baseEmptyFields (before manually added fields)
+        // Initialize field states (Independent Tech Stacks / Education excluded from Cold Caller)
         const initialStates = new Map<string, FieldState>()
-        baseEmptyFields.forEach(field => {
+        baseEmptyFields
+          .filter(
+            (field) =>
+              field.section !== "techStacks" && field.section !== "education",
+          )
+          .forEach((field) => {
           initialStates.set(field.fieldPath, {
             field,
             status: 'pending',
@@ -514,7 +527,9 @@ export function ColdCallerDialog({
     
     try {
       const response = await generateQuestions(candidate.id, candidate, mode === "coldCaller" ? "cold_call" : mode)
-      const sections = mapGenerateQuestionsResponse(response)
+      const sections = mapGenerateQuestionsResponse(response).filter(
+        (section) => section.section !== "techStacks",
+      )
       const flatQuestions = flattenSectionQuestions(sections)
 
       setQuestionSections(sections)
@@ -540,7 +555,7 @@ export function ColdCallerDialog({
       
       const missingCount = totalMissingFieldsCount(sections)
       toast.success(
-        `Generated ${response.total_questions} questions across ${missingCount} missing field${missingCount === 1 ? "" : "s"}`,
+        `Generated ${flatQuestions.length} questions across ${missingCount} missing field${missingCount === 1 ? "" : "s"}`,
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to generate questions'
@@ -645,15 +660,15 @@ export function ColdCallerDialog({
   // Handle adding a new entry to a dynamic section
   const handleAddEntry = useCallback((section: FieldSection) => {
     // Only allow adding entries to dynamic sections
-    const dynamicSections: ('workExperience' | 'education' | 'certifications')[] =
-      ['workExperience', 'education', 'certifications']
+    const dynamicSections: ('workExperience' | 'certifications' | 'achievements')[] =
+      ['workExperience', 'certifications', 'achievements']
     if (!dynamicSections.includes(section as typeof dynamicSections[number])) {
       toast.error(`Cannot add entries to ${SECTION_LABELS[section]}`)
       return
     }
 
     // Type assertion: section is guaranteed to be one of the valid types after the check above
-    const validSection = section as 'workExperience' | 'education' | 'certifications'
+    const validSection = section as 'workExperience' | 'certifications' | 'achievements'
 
     // Get current fields for this section
     const currentFields = groupedFields.get(section) || []
@@ -674,11 +689,11 @@ export function ColdCallerDialog({
       case 'workExperience':
         candidateMaxIndex = (candidate.workExperiences?.length || 0) - 1
         break
-      case 'education':
-        candidateMaxIndex = (candidate.educations?.length || 0) - 1
-        break
       case 'certifications':
         candidateMaxIndex = (candidate.certifications?.length || 0) - 1
+        break
+      case 'achievements':
+        candidateMaxIndex = (candidate.achievements?.length || 0) - 1
         break
     }
     
@@ -687,6 +702,13 @@ export function ColdCallerDialog({
     
     // Create new fields for this entry
     const newFields = createEntryFields(validSection, newIndex)
+
+    if (section === 'achievements') {
+      setSessionAchievementIndices((prev) =>
+        prev.includes(newIndex) ? prev : [...prev, newIndex].sort((a, b) => a - b),
+      )
+      setPendingAchievementNavId(`entry-${newIndex}`)
+    }
     
     // Add to manually added fields
     setManuallyAddedFields(prev => [...prev, ...newFields])
@@ -771,8 +793,11 @@ export function ColdCallerDialog({
 
   // Handle entity creation request from combobox
   const handleCreateEntity = useCallback((field: EmptyField, searchValue: string) => {
+    // Education is excluded from Cold Caller, so university creation is unavailable here.
+    if (!field.onCreateEntity || field.onCreateEntity === "university") return
+
     setPendingEntity({
-      type: field.onCreateEntity!,
+      type: field.onCreateEntity,
       field,
       searchValue,
     })
@@ -783,9 +808,6 @@ export function ColdCallerDialog({
         break
       case 'employer':
         setCreateEmployerDialogOpen(true)
-        break
-      case 'university':
-        setCreateUniversityDialogOpen(true)
         break
       case 'certification':
         setCreateCertificationDialogOpen(true)
@@ -844,41 +866,6 @@ export function ColdCallerDialog({
     
     toast.success(`Employer "${newEmployerName}" created successfully`)
     setCreateEmployerDialogOpen(false)
-    setPendingEntity(null)
-  }, [pendingEntity, handleFieldSave])
-
-  // Handle university creation success
-  const handleUniversityCreated = useCallback(async (universityData: UniversityFormData) => {
-    if (!pendingEntity || pendingEntity.type !== 'university') return
-    
-    const universityName = universityData.name.trim()
-    
-    // For universities, we need to construct the location name
-    // Format: "University Name - City"
-    const mainCampus = universityData.locations.find(loc => loc.isMainCampus)
-    const locationToUse = mainCampus || universityData.locations[0]
-    const newUniversityName = locationToUse 
-      ? `${universityName} - ${locationToUse.city}`
-      : universityName
-    
-    // Update the field value
-    await handleFieldSave(pendingEntity.field.fieldPath, newUniversityName, false)
-    
-    // Update field state
-    setFieldStates(prev => {
-      const next = new Map(prev)
-      const existing = next.get(pendingEntity.field.fieldPath)
-      if (existing) {
-        next.set(pendingEntity.field.fieldPath, {
-          ...existing,
-          value: newUniversityName,
-        })
-      }
-      return next
-    })
-    
-    toast.success(`University "${newUniversityName}" created successfully`)
-    setCreateUniversityDialogOpen(false)
     setPendingEntity(null)
   }, [pendingEntity, handleFieldSave])
 
@@ -1048,10 +1035,9 @@ export function ColdCallerDialog({
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}
               workExperiences={candidate.workExperiences ?? undefined}
-              educations={candidate.educations ?? undefined}
               certifications={candidate.certifications ?? undefined}
-              cnic={candidate.cnic}
-              personalityType={candidate.personalityType}
+              achievements={candidate.achievements ?? undefined}
+              linkedinUrl={candidate.linkedinUrl}
               currentSalary={candidate.currentSalary}
               expectedSalary={candidate.expectedSalary}
               techStacks={candidate.techStacks}
@@ -1068,6 +1054,10 @@ export function ColdCallerDialog({
               onSaveNotes={handleSaveCallNotes}
               isSaving={isSavingCallNotes}
               notesEditorDisabled={callNotesLoadState === "loading"}
+              sessionAchievementIndices={sessionAchievementIndices}
+              pendingAchievementNavId={pendingAchievementNavId}
+              onPendingAchievementNavHandled={() => setPendingAchievementNavId(null)}
+              onAddSessionAchievement={() => handleAddEntry('achievements')}
             />
           ) : allFieldsComplete ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">
@@ -1241,7 +1231,7 @@ export function ColdCallerDialog({
                         <div className="flex-1 overflow-y-auto overscroll-contain p-6">
                           {(() => {
                             // Group fields by entry index for dynamic sections
-                            const dynamicSections: FieldSection[] = ['workExperience', 'education', 'certifications']
+                            const dynamicSections: FieldSection[] = ['workExperience', 'certifications', 'achievements']
                             const isDynamicSection = dynamicSections.includes(section)
                             
                             if (isDynamicSection) {
@@ -1421,7 +1411,7 @@ export function ColdCallerDialog({
                                 )
                               }
                               
-                              // For other dynamic sections (education and certifications)
+                              // For the other dynamic section (certifications)
                               return (
                                 <div className="space-y-6">
                                   {entryIndices.map((entryIndex) => {
@@ -1593,19 +1583,6 @@ export function ColdCallerDialog({
       }}
       onSubmit={handleEmployerCreated}
       initialName={pendingEntity?.type === 'employer' ? pendingEntity.searchValue : undefined}
-    />
-
-    <UniversityCreationDialog
-      mode="create"
-      open={createUniversityDialogOpen}
-      onOpenChange={(isOpen) => {
-        setCreateUniversityDialogOpen(isOpen)
-        if (!isOpen) {
-          setPendingEntity(null)
-        }
-      }}
-      onSubmit={handleUniversityCreated}
-      initialName={pendingEntity?.type === 'university' ? pendingEntity.searchValue : undefined}
     />
 
     <CertificationCreationDialog

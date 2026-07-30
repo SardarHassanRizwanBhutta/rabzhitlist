@@ -1,63 +1,76 @@
 import type { QuestionSectionId } from "@/types/question-generation"
 
-const BASIC_FIELDS = new Set([
-  "cnic",
-  "personalityType",
-  "currentSalary",
-  "expectedSalary",
-])
+const BASIC_FIELDS = new Set(["resume", "linkedinUrl"])
 
-const WORK_EXPERIENCE_ROLE_SUFFIXES = new Set([
-  "employerName",
+const PREFERENCES_FIELDS = new Set(["currentSalary", "expectedSalary"])
+
+/** Role + Employer scalar suffixes on `work_experience_{i}_*`. */
+const WORK_EXPERIENCE_ROW_SUFFIXES = new Set([
   "jobTitle",
+  "startDate",
   "shiftType",
-  "timeSupportZones",
   "workMode",
   "techStacks",
+  "timeSupportZones",
   "benefits",
-  "status",
+  "employerName",
   "headcount",
+  "types",
+  "foundedYear",
   "salaryPolicy",
-  "awards",
+  "status",
+  "linkedinUrl",
 ])
 
 const PROJECT_SUFFIXES = new Set([
   "projectName",
-  "contributionNotes",
   "employerName",
-  "downloadCount",
-  "publishPlatforms",
   "projectType",
-  "status",
-  "teamSize",
-  "techStacks",
-  "technicalAspects",
-  "technicalDomains",
-  "horizontalDomains",
-  "verticalDomains",
-  "description",
-  "latestUpdate",
   "startDate",
+  "status",
+  "description",
+  "contributionNotes",
+  "techStacks",
+  "verticalDomains",
+  "horizontalDomains",
+  "technicalDomains",
+  "technicalAspects",
+  "minTeamSize",
+  "clientLocations",
+  "latestUpdate",
+  "maxTeamSize",
   "endDate",
-  "projectLink",
 ])
 
-const OFFICE_SUFFIXES = new Set(["country", "city", "address"])
+const OFFICE_SUFFIXES = new Set([
+  "country",
+  "city",
+  "address",
+  "isHeadquarters",
+])
 const LAYOFF_SUFFIXES = new Set(["layoffDate", "affectedEmployees", "reason"])
-const EDUCATION_SUFFIXES = new Set(["universityName", "isTopper"])
 const CERTIFICATION_SUFFIXES = new Set([
   "name",
   "issueDate",
   "expiryDate",
   "issuingBody",
 ])
+const ACHIEVEMENT_SUFFIXES = new Set([
+  "name",
+  "year",
+  "description",
+  "achievementType",
+  "ranking",
+  "url",
+])
 
 export const COLD_CALLER_QG_SECTION_ORDER: QuestionSectionId[] = [
   "basic_information",
+  "preferences",
   "work_experience",
   "independent_tech_stacks",
-  "education",
   "certifications",
+  "achievements",
 ]
 
 export function isQuestionSectionAllowed(value: unknown): value is QuestionSectionId {
@@ -78,7 +91,7 @@ function isWorkExperienceFieldAllowed(field: string): boolean {
   if (layoff) return LAYOFF_SUFFIXES.has(layoff[1])
 
   const role = /^work_experience_\d+_(.+)$/.exec(field)
-  return role ? WORK_EXPERIENCE_ROLE_SUFFIXES.has(role[1]) : false
+  return role ? WORK_EXPERIENCE_ROW_SUFFIXES.has(role[1]) : false
 }
 
 export function isQuestionFieldAllowed(
@@ -88,15 +101,19 @@ export function isQuestionFieldAllowed(
   switch (section) {
     case "basic_information":
       return BASIC_FIELDS.has(field)
+    case "preferences":
+      return PREFERENCES_FIELDS.has(field)
     case "work_experience":
       return isWorkExperienceFieldAllowed(field)
     case "independent_tech_stacks":
       return field === "techStacks"
-    case "education":
-      return EDUCATION_SUFFIXES.has(/^education_\d+_(.+)$/.exec(field)?.[1] ?? "")
     case "certifications":
       return CERTIFICATION_SUFFIXES.has(
         /^certification_\d+_(.+)$/.exec(field)?.[1] ?? "",
+      )
+    case "achievements":
+      return ACHIEVEMENT_SUFFIXES.has(
+        /^achievement_\d+_(.+)$/.exec(field)?.[1] ?? "",
       )
   }
 }

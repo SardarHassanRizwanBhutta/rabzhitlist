@@ -21,7 +21,7 @@ import {
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { CallNotesWorkspace } from "./call-notes-workspace"
 import { isSectionComplete } from "@/lib/utils/question-generation-response"
-import type { CandidateCertification, CandidateEducation, WorkExperience } from "@/lib/types/candidate"
+import type { Achievement, CandidateCertification, WorkExperience } from "@/lib/types/candidate"
 
 const TAB_TRIGGER_CLASS = cn(
   "px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap h-12",
@@ -40,10 +40,9 @@ interface ColdCallerCallNotesViewProps {
   onResumeVisibleChange: (visible: boolean) => void
   emptyFields: EmptyField[]
   workExperiences?: WorkExperience[]
-  educations?: CandidateEducation[]
   certifications?: CandidateCertification[]
-  cnic?: string | null
-  personalityType?: string | null
+  achievements?: Achievement[]
+  linkedinUrl?: string | null
   currentSalary?: number | null
   expectedSalary?: number | null
   techStacks?: string[]
@@ -60,6 +59,10 @@ interface ColdCallerCallNotesViewProps {
   onSaveNotes: () => void | Promise<void>
   isSaving?: boolean
   notesEditorDisabled?: boolean
+  sessionAchievementIndices?: number[]
+  pendingAchievementNavId?: `entry-${number}` | null
+  onPendingAchievementNavHandled?: () => void
+  onAddSessionAchievement?: () => void
 }
 
 function getSectionQuestionCount(
@@ -84,10 +87,9 @@ export function ColdCallerCallNotesView({
   onResumeVisibleChange,
   emptyFields,
   workExperiences,
-  educations,
   certifications,
-  cnic,
-  personalityType,
+  achievements,
+  linkedinUrl,
   currentSalary,
   expectedSalary,
   techStacks,
@@ -104,6 +106,10 @@ export function ColdCallerCallNotesView({
   onSaveNotes,
   isSaving = false,
   notesEditorDisabled = false,
+  sessionAchievementIndices,
+  pendingAchievementNavId,
+  onPendingAchievementNavHandled,
+  onAddSessionAchievement,
 }: ColdCallerCallNotesViewProps) {
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
@@ -113,9 +119,7 @@ export function ColdCallerCallNotesView({
       ? CALL_NOTES_DISPLAY_SECTIONS
       : CALL_NOTES_DISPLAY_SECTIONS.filter(
           (section) =>
-            sectionsWithFields.includes(section) ||
-            section === "techStacks" ||
-            section === "preferences",
+            sectionsWithFields.includes(section) || section === "preferences",
         )
 
   const sectionResultsByField = useMemo(() => {
@@ -194,16 +198,19 @@ export function ColdCallerCallNotesView({
     questionsError,
     emptyFields,
     workExperiences,
-    educations,
     certifications,
-    cnic,
-    personalityType,
+    achievements,
+    linkedinUrl,
     currentSalary,
     expectedSalary,
     techStacks,
     activeQuestionField,
     onQuestionSelect: handleQuestionSelect,
     onRetryGenerateQuestions,
+    sessionAchievementIndices,
+    pendingAchievementNavId,
+    onPendingAchievementNavHandled,
+    onAddSessionAchievement,
   }
 
   if (displaySections.length === 0) {

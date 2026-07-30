@@ -1,12 +1,7 @@
-/** Allowlisted basic/preferences API fields (missing-only). */
-export const BASIC_ALWAYS_ASK_API_FIELDS = new Set([
-  "cnic",
-  "personalityType",
-  "currentSalary",
-  "expectedSalary",
-])
+/** Allowlisted Basic Information API fields (missing-only). */
+export const BASIC_ALWAYS_ASK_API_FIELDS = new Set(["resume", "linkedinUrl"])
 
-/** Salaries shown on the Call Notes Preferences tab. */
+/** Allowlisted Preferences API fields (real Python `preferences` section). */
 export const PREFERENCES_TAB_API_FIELDS = new Set(["currentSalary", "expectedSalary"])
 
 export function isBasicAlwaysAskField(field: string): boolean {

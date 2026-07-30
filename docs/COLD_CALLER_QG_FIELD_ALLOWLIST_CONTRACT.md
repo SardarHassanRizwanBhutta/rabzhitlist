@@ -1,6 +1,6 @@
 # Cold Caller QG Field Allowlist Contract
 
-**Status:** Locked for FE implementation and Python QG handoff (2026-07-22).  
+**Status:** Basic Information + Preferences QG contract updated (2026-07-29).
 **Scope:** `POST /api/generate-questions` (`:8002`) used by Cold Caller.  
 **Replaces:** Always-ask / enrichment prompts for allowlisted fields.
 
@@ -8,42 +8,52 @@
 
 ## 1. Sections and tabs
 
-Python returns exactly five sections, in this order:
+Python returns exactly six sections, in this order:
 
 1. `basic_information`
-2. `work_experience`
-3. `independent_tech_stacks`
-4. `education`
+2. `preferences`
+3. `work_experience`
+4. `independent_tech_stacks`
 5. `certifications`
+6. `achievements`
 
-`achievements` is removed. Python must not emit it and FE must ignore it if an older
-service returns it.
+`education` is removed. Python must not emit it. The FE runtime allowlist
+discards it if an older service returns it. `cnic` and `personalityType` are
+no longer QG allowlisted keys; if present in the request, Python **ignores /
+drops** them (does **not** HTTP `422`). Education request data still HTTP `422`.
 
-FE displays six tabs because `currentSalary` and `expectedSalary` are moved from
-`basic_information` into the frontend-only **Preferences** tab:
+Cold Caller Call Notes displays five tabs (Independent Tech Stacks stays
+hidden). Preferences is a **real Python section** (not FE-partitioned from
+Basic):
 
-1. Basic Information
+1. Basic Information — `resume`, `linkedinUrl`
 2. Work Experience
-3. Independent Tech Stacks
-4. Education
-5. Certifications
-6. Preferences
-
+3. Certifications
+4. Achievements
+5. Preferences — `currentSalary`, `expectedSalary`
 ---
 
-## 2. Prompt behavior (missing-only everywhere)
+## 2. Prompt behavior (missing-only with Contribution exception)
 
-Every allowlisted field is **missing-only**:
+Every allowlisted field is **missing-only**, except WE nested Project
+**Contribution** (`contributionNotes`):
 
 - Empty value: include the indexed API key in authoritative top-level
   `fields_to_generate`, keep a sparse `null`/`[]` property in `candidate_data`,
   and return a question with `prompt_type: "basic"` or `"advanced"` plus the key
   in `missing_fields`.
-- Populated value: **omit** the property from `candidate_data`, **do not** list it
-  in `fields_to_generate`, and **do not** generate any question (no enrichment).
-- FE renders populated values from Candidate API data using the same question-card
-  chrome (muted uppercase label, bold value, continuous numbering, locked weight
-  badge, copy copies the API value).
+- Populated value (all fields except Contribution): **omit** the property from
+  `candidate_data`, **do not** list it in `fields_to_generate`, and **do not**
+  generate any question (no enrichment).
+- **Contribution exception:** FE always includes
+  `work_experience_{i}_project_{j}_contributionNotes` in `fields_to_generate`
+  even when populated. Populated Contribution is still **omitted** from sparse
+  `candidate_data`. Python always emits `prompt_type: "advanced"` for that key.
+  Call Notes shows the Advanced question only (no populated value card).
+  Session-only Add project local ask cues are unchanged until Generate Questions.
+- FE renders other populated values from Candidate API data using the same
+  question-card chrome (muted uppercase label, bold value, continuous numbering,
+  locked weight badge, copy copies the API value).
 - Do not return `existing_values`.
 - Questions sort by server-assigned `priority` descending, then field key.
 - Within a Work Experience, FE sorts Role / Employer / Project collapsibles by the
@@ -71,24 +81,27 @@ Do not generate:
 
 - `work_experiences`
 - `work_experience_{i}_projects`
-- `educations`
 - `certifications`
+- `achievements`
 
-### Synthetic index `0` (Option B + B1)
+### Synthetic index `0` (FE-owned)
 
-When a top-level collection is empty, still emit synthetic index `0` missing
-allowlisted fields:
+When a top-level collection is empty, **FE** emits synthetic index `0` missing
+allowlisted keys in `fields_to_generate`:
 
 - empty `workExperiences` → `work_experience_0_*`
-- empty `educations` → `education_0_*`
 - empty `certifications` → `certification_0_*`
+- empty `achievements` → `achievement_0_*`
 
-When a nested array on a real or synthetic Work Experience row is empty, also emit
-synthetic index `0`:
+When a nested array on a real or synthetic Work Experience row is empty, **FE**
+also emits synthetic index `0`:
 
 - empty `projects` → `work_experience_{i}_project_0_*`
 - empty `locations` → `work_experience_{i}_office_0_*`
 - empty `layoffs` → `work_experience_{i}_layoff_0_*`
+
+Python **does not invent** synthetic keys — generate only keys present in
+`fields_to_generate`.
 
 FE does not show an Overview item in entry navigation. It selects the first indexed
 entry by default. Within a Work Experience, Role Details, Employer Details, and
@@ -98,19 +111,21 @@ every individual Project are separate single-open collapsible sections.
 
 ## 3. Request payload allowlist
 
-FE enriches linked employer/university data first, then projects a **sparse**
+FE enriches linked employer data first, then projects a **sparse**
 payload containing only missing allowlisted properties plus structural arrays for
-indexing. Catalog IDs are used during enrichment but are not sent to Python.
+indexing. Employer catalog IDs are used during enrichment but are not sent to
+Python. The request omits `candidate_data.educations` entirely.
 
 ```json
 {
   "candidate_id": "123",
   "candidate_data": {},
   "fields_to_generate": [
-    "cnic",
+    "resume",
+    "linkedinUrl",
+    "currentSalary",
     "work_experience_0_jobTitle",
-    "work_experience_0_project_0_description",
-    "education_0_universityName"
+    "work_experience_0_project_0_description"
   ],
   "conversation_context": "cold_call"
 }
@@ -119,8 +134,17 @@ indexing. Catalog IDs are used during enrichment but are not sent to Python.
 ### Basic Information
 
 ```text
-cnic
-personalityType
+resume
+linkedinUrl
+```
+
+`resume` is `"attached"` when the Candidate has a resume (`hasResume === true`);
+missing when `null` / empty. Populated resume shows an FE value card and is not
+questioned.
+
+### Preferences
+
+```text
 currentSalary
 expectedSalary
 ```
@@ -130,79 +154,99 @@ expectedSalary
 ```text
 techStacks
 ```
-
 ### Work Experience rows
+
+**Role Details** (totals 100):
+
+```text
+jobTitle
+startDate
+shiftType
+workMode
+techStacks
+timeSupportZones
+benefits
+```
+
+**Employer Details** (totals 100; office/layoff nested):
 
 ```text
 employerName
-jobTitle
-shiftType
-timeSupportZones
-workMode
-techStacks
-benefits
-
-# Employer catalog facts on this WE row
-status
 headcount
+types
+foundedYear
 salaryPolicy
+status
+linkedinUrl
 locations[].country
 locations[].city
 locations[].address
+locations[].isHeadquarters
 layoffs[].layoffDate
 layoffs[].affectedEmployees
 layoffs[].reason
-awards
 ```
 
-`employerName` and `benefits` are shared role/employer fields and generate one
-question each per WE row when missing. `headcount` and `salaryPolicy` are
-company-wide (not per-office). `ranking` and `isDplCompetitor` are not on the
-Cold Caller allowlist.
+`headcount`, `salaryPolicy`, `types`, `foundedYear`, and employer `linkedinUrl`
+are company-wide (not per-office). `awards`, `ranking`, and `isDplCompetitor`
+are not on the Cold Caller allowlist. Role `endDate` is not allowlisted.
+Shift Type / Work Mode / Time Support Zones / Benefits live under **Role Details
+only** (not Employer Details).
 
 ### Nested projects
 
-Include a property only when missing. Payload `link` maps to response suffix
-`projectLink`.
+Include a property only when missing. Project Employer (`employerName`) and
+Project Type (`projectType`) are omitted from generation and UI when the parent
+WE already has an employer (`employerId` set or non-empty `employerName`).
 
 ```text
 projectName
-contributionNotes
 employerName
-downloadCount
-publishPlatforms
 projectType
-status
-teamSize
-techStacks
-technicalAspects
-technicalDomains
-horizontalDomains
-verticalDomains
-description
-latestUpdate
 startDate
+status
+description
+contributionNotes
+techStacks
+verticalDomains
+horizontalDomains
+technicalDomains
+technicalAspects
+minTeamSize
+clientLocations
+latestUpdate
+maxTeamSize
 endDate
-link
 ```
 
-### Education rows
-
-```text
-universityName
-isTopper
-```
+Do **not** allowlist `downloadCount`, `publishPlatforms`, `projectLink`, or
+single `teamSize`.
 
 ### Certification rows
 
 ```text
 certificationName
+issuingBody
 issueDate
 expiryDate
-issuingBody
 ```
 
-Payload `certificationName` maps to response suffix `name`.
+Payload `certificationName` maps to response suffix `name`. All four fields are
+`prompt_type: "basic"`.
+
+### Achievement rows
+
+```text
+name
+year
+description
+achievementType
+ranking
+url
+```
+
+Payload `achievementType` maps directly to response suffix `achievementType`.
+Python must not emit the legacy `_type` suffix.
 
 ---
 
@@ -210,76 +254,101 @@ Payload `certificationName` maps to response suffix `name`.
 
 ### Basic Information
 
-| Field | Weight |
-|---|---:|
-| `cnic` | 0.5 |
-| `personalityType` | 0.5 |
-| `currentSalary` | 1 |
-| `expectedSalary` | 1 |
+Section weightage totals **100**. Display/sort by weight descending. Both fields
+use `prompt_type: "basic"`:
 
-### Work Experience role / shared fields
+1. `resume` (80)
+2. `linkedinUrl` (20)
 
-| Suffix | Weight |
-|---|---:|
-| `employerName` | 5 |
-| `jobTitle` | 2 |
-| `shiftType` | 2 |
-| `timeSupportZones` | 1 |
-| `workMode` | 1 |
-| `techStacks` | 10 |
-| `benefits` | 7 |
-| nested `projectName` | 4 |
-| nested `contributionNotes` | 1 |
+| Field | Weight | Prompt |
+|---|---:|---|
+| `resume` | 80 | basic |
+| `linkedinUrl` | 20 | basic |
+
+### Preferences
+
+Preferences has only Current/Expected Salary. Section weightage totals **100**.
+Display/sort by weight descending. Both fields use `prompt_type: "basic"`:
+
+1. `currentSalary` (85)
+2. `expectedSalary` (15)
+
+| Field | Weight | Prompt |
+|---|---:|---|
+| `currentSalary` | 85 | basic |
+| `expectedSalary` | 15 | basic |
+
+Cold Caller UI label for `expectedSalary` is **Expected Salary - Net** (API key
+unchanged; profile Create/Edit / CandidateDetailsModal unchanged).
+
+### Work Experience Role Details
+
+Section weightage totals **100**. Display/sort by weight descending:
+
+| Suffix | Weight | Prompt |
+|---|---:|---|
+| `jobTitle` | 19 | basic |
+| `startDate` | 17 | basic |
+| `shiftType` | 16 | basic (enum) |
+| `workMode` | 14 | basic (enum) |
+| `techStacks` | 13 | advanced |
+| `timeSupportZones` | 11 | basic (open) |
+| `benefits` | 10 | basic |
+
+### Work Experience Employer Details
+
+Section weightage totals **100** (scalars + per office/layoff row). Display/sort
+by weight descending. Empty `locations` / `layoffs` use synthetic index `0`.
+
+| Suffix / key | Weight | Prompt |
+|---|---:|---|
+| `employerName` | 18 | basic |
+| `office_{j}_country` | 14 | basic |
+| `office_{j}_city` | 12.5 | basic |
+| `headcount` | 11.5 | basic |
+| `types` | 10.5 | advanced (enum) |
+| `foundedYear` | 8.5 | basic |
+| `salaryPolicy` | 7.5 | advanced (enum) |
+| `status` | 6 | advanced (enum) |
+| `linkedinUrl` | 5 | basic |
+| `office_{j}_address` | 2.5 | basic |
+| `office_{j}_isHeadquarters` | 1.5 | basic |
+| `layoff_{j}_layoffDate` | 1 | basic |
+| `layoff_{j}_affectedEmployees` | 0.8 | basic |
+| `layoff_{j}_reason` | 0.7 | basic |
+
+API keys: `work_experience_{i}_headcount` remains an employer-row suffix (never
+`work_experience_{i}_office_{j}_headcount`). Drop `awards` from QG.
 
 ### Nested Project Details
 
-| Suffix | Weight |
-|---|---:|
-| `employerName` | 7.5 |
-| `downloadCount` | 1 |
-| `publishPlatforms` | 1 |
-| `projectType` | 1 |
-| `status` | 2.5 |
-| `teamSize` | 5 |
-| `techStacks` | 10 |
-| `technicalAspects` | 10 |
-| `technicalDomains` | 10 |
-| `horizontalDomains` | 10 |
-| `verticalDomains` | 10 |
-| `description` | 10 |
-| `latestUpdate` | 1 |
-| `startDate` | 2.5 |
-| `endDate` | 2.5 |
-| `projectLink` | 5 |
+Section weightage totals **100**. Display/sort by weight descending. When the
+parent WE has an employer, omit `employerName` and `projectType`.
 
-### Employer Details
+| Suffix | Weight | Prompt |
+|---|---:|---|
+| `projectName` | 15.98 | basic |
+| `employerName` | 12.69 | basic |
+| `projectType` | 10.34 | advanced (enum) |
+| `startDate` | 8.46 | basic |
+| `status` | 7.05 | basic (enum) |
+| `description` | 6.11 | advanced |
+| `contributionNotes` | 6 | advanced |
+| `techStacks` | 5.45 | advanced |
+| `verticalDomains` | 4.89 | advanced (enum) |
+| `horizontalDomains` | 4.42 | advanced (enum) |
+| `technicalDomains` | 3.95 | advanced (enum) |
+| `technicalAspects` | 3.57 | advanced (enum) |
+| `minTeamSize` | 3.2 | basic |
+| `clientLocations` | 2.82 | basic |
+| `latestUpdate` | 2.35 | basic |
+| `maxTeamSize` | 1.69 | basic |
+| `endDate` | 1.03 | basic |
 
-FE Employer accordion display order (company-wide fields are not nested under
-Office groups):
-
-1. `status`
-2. `headcount`
-3. `salaryPolicy`
-4. `office_{j}_*` (country, city, address)
-5. `layoff_{j}_*` (layoffDate, affectedEmployees, reason)
-6. `awards`
-
-API keys are unchanged: `work_experience_{i}_headcount` remains an employer-row
-suffix (never `work_experience_{i}_office_{j}_headcount`).
-
-| Suffix / key | Weight |
-|---|---:|
-| `status` | 2.5 |
-| `headcount` | 2.5 |
-| `salaryPolicy` | 20 |
-| `office_{j}_country` | 2.5 |
-| `office_{j}_city` | 2.5 |
-| `office_{j}_address` | 2.5 |
-| shared `benefits` | 7 |
-| `layoff_{j}_layoffDate` | 2.5 |
-| `layoff_{j}_affectedEmployees` | 2.5 |
-| `layoff_{j}_reason` | 5 |
-| `awards` | 0 |
+`contributionNotes` is always listed in `fields_to_generate` (even when
+populated). Python always returns an Advanced question for that key. Call Notes
+hides the populated value card and shows the Advanced question only.
+Session-only local ask cues apply only before Generate Questions.
 
 Weight `0` still generates a question when missing and sorts last.
 
@@ -289,28 +358,44 @@ Weight `0` still generates a question when missing and sorts last.
 |---|---:|
 | `techStacks` | 5 |
 
-### Education
-
-| Suffix | Weight |
-|---|---:|
-| `universityName` | 2 |
-| `isTopper` | 1 |
-
 ### Certifications
 
-FE certification card display order:
+Section weightage totals **100**. All four fields use `prompt_type: "basic"`.
+FE and Python display/sort by weight descending (highest first). Issuing Body
+is a main-list field (no catalog accordion):
 
-1. `name`
-2. `issueDate`
-3. `expiryDate`
-4. `issuingBody` (catalog accordion)
+1. `name` (35)
+2. `issuingBody` (30)
+3. `issueDate` (20)
+4. `expiryDate` (15)
+
+| Response suffix | Payload property | Weight | Prompt |
+|---|---|---:|---|
+| `name` | `certificationName` | 35 | basic |
+| `issuingBody` | `issuingBody` | 30 | basic |
+| `issueDate` | `issueDate` | 20 | basic |
+| `expiryDate` | `expiryDate` | 15 | basic |
+
+### Achievements
+
+Section weightage totals **100**. FE and Python display/sort by weight
+descending (highest first):
+
+1. `name` (20)
+2. `year` (18)
+3. `description` (17)
+4. `achievementType` (16)
+5. `ranking` (15)
+6. `url` (14)
 
 | Response suffix | Payload property | Weight |
 |---|---|---:|
-| `name` | `certificationName` | 1 |
-| `issueDate` | `issueDate` | 1 |
-| `expiryDate` | `expiryDate` | 1 |
-| `issuingBody` | `issuingBody` | 7.5 |
+| `name` | `name` | 20 |
+| `year` | `year` | 18 |
+| `description` | `description` | 17 |
+| `achievementType` | `achievementType` | 16 |
+| `ranking` | `ranking` | 15 |
+| `url` | `url` | 14 |
 
 ---
 
@@ -318,18 +403,21 @@ FE certification card display order:
 
 Python must not return:
 
-- section `achievements`;
+- section `education`;
 - any collection opener (`work_experiences`, `work_experience_{i}_projects`,
-  `educations`, `certifications`);
+  `certifications`);
 - any enrichment prompt (`prompt_type: "enrichment"`) for allowlisted fields;
 - `existing_values`;
 - any key not listed in `fields_to_generate` for that request;
-- any non-allowlisted Basic Information key;
-- WE role dates, employer types/URLs/founded year, office headquarters, or other
-  non-allowlisted employer fields;
-- project `isPublished`, client locations, min/max team size, or other
-  non-allowlisted project fields;
-- non-allowlisted education or certification fields;
+- any non-allowlisted Basic Information key (`cnic`, `personalityType`, etc.);
+- salaries returned under `basic_information` (they belong in `preferences`);
+- WE role `endDate`, `awards`, or other non-allowlisted employer/role fields;
+- project `downloadCount`, `publishPlatforms`, `projectLink`,
+  single `teamSize`, `isPublished`, or other non-allowlisted project fields;
+- any `education_*` field, and any non-allowlisted certification/achievement
+  field;
+- legacy `achievement_*_type` as a **response** suffix (inbound legacy keys are
+  migrated to `achievementType`; `achievementType` wins if both present);
 - legacy removed keys (`isTopDeveloper`, min/max employees, tags, layoff source,
   project `notes`, `independent_projects`).
 
@@ -350,13 +438,25 @@ drops any `prompt_type: "enrichment"` questions.
 - [ ] Drop `ranking` / `isDplCompetitor`; allowlist `technicalDomains`.
 - [ ] Remove `existing_values` from response models, serialization, examples, and
   tests.
-- [ ] Remove collection openers: `work_experiences`, `work_experience_{i}_projects`,
-  `educations`, `certifications`.
-- [ ] Support synthetic index `0` for empty top-level collections and empty nested
-  `projects` / `locations` / `layoffs`.
+- [ ] Remove Education from every QG mode/consumer: request models, section enums,
+  generation dispatch, prompt maps/templates, weights, response models, serializers,
+  examples, and tests.
+- [ ] Reject `candidate_data.educations`, `educations`, and `education_*`
+  generation keys with HTTP `422`; never return an `education` section.
+- [ ] Remove collection openers: `work_experiences`,
+  `work_experience_{i}_projects`, `certifications`.
+- [ ] Support synthetic index `0` keys **when FE lists them** in
+  `fields_to_generate` (Python does not invent synthetics).
 - [ ] Apply the weights in §4 by full field context.
 - [ ] Never emit forbidden fields from §5.
-- [ ] Return exactly five API sections.
+- [ ] Return exactly six API sections in locked order (including `preferences`).
+- [ ] Basic allowlist is only `resume` + `linkedinUrl` (weights 80 / 20, both basic).
+- [ ] Preferences allowlist is only `currentSalary` + `expectedSalary`
+  (weights 85 / 15, both basic); do not keep salaries under `basic_information`.
+- [ ] Ignore/drop `cnic` / `personalityType` if sent (do not 422); never emit them
+  as QG fields.
+- [ ] `timeSupportZones` is `basic` (open) — no enum label list in question text.
+- [ ] Do not implement `options[]` / LONG_ENUM contract this round.
 - [ ] Update tests for empty, partially populated, and fully populated payloads
   (fully populated → zero questions / empty `missing_fields` for that section).
 
@@ -368,13 +468,25 @@ drops any `prompt_type: "enrichment"` questions.
 Implement the Cold Caller QG allowlist exactly as specified in
 docs/COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md.
 
-Return five sections only (no achievements). Treat required
-`fields_to_generate` as authoritative for every allowlisted key across all
-sections: generate generic missing prompts only for those exact keys; never
+Return six sections only, in this order:
+`basic_information`, `preferences`, `work_experience`,
+`independent_tech_stacks`, `certifications`, `achievements`. Keep Education
+removed from every QG consumer/mode. Do not accept or emit
+`candidate_data.educations`, `education_*`, or an `education` section.
+Reject legacy Education request data/keys with HTTP 422.
+
+Basic Information allowlists only `resume` (80) and `linkedinUrl` (20), both
+`prompt_type: "basic"`. Preferences is a real section with only
+`currentSalary` (35) and `expectedSalary` (25), both basic. Do not keep
+salaries under `basic_information`. Do not accept or emit `cnic` /
+`personalityType` as QG fields.
+
+Treat required `fields_to_generate` as authoritative for every allowlisted key
+across all sections: generate missing prompts only for those exact keys; never
 infer omitted properties as missing; never generate enrichment prompts; do not
 return `existing_values`. Remove collection openers
-(`work_experiences`, `work_experience_{i}_projects`, `educations`,
-`certifications`). Support synthetic index 0 for empty top-level collections and
-empty nested projects/locations/layoffs as sent by FE. Apply the
-context-specific weights in the contract and never emit forbidden keys.
+(`work_experiences`, `work_experience_{i}_projects`, `certifications`,
+`achievements`). Support synthetic index 0 for remaining empty top-level
+collections and empty nested projects/locations/layoffs as sent by FE. Apply
+the context-specific weights in the contract and never emit forbidden keys.
 ```
