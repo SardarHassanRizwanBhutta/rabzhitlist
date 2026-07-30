@@ -36,6 +36,7 @@ interface ColdCallerCallNotesViewProps {
   hasResume?: boolean
   resumeFileName?: string | null
   resumeContentType?: string | null
+  localResumeUrl?: string | null
   resumeVisible: boolean
   onResumeVisibleChange: (visible: boolean) => void
   emptyFields: EmptyField[]
@@ -57,6 +58,8 @@ interface ColdCallerCallNotesViewProps {
   questionsError: string | null
   onRetryGenerateQuestions?: () => void
   onSaveNotes: () => void | Promise<void>
+  draftMode?: boolean
+  onApplyToCreateCandidate?: () => void
   isSaving?: boolean
   notesEditorDisabled?: boolean
   sessionAchievementIndices?: number[]
@@ -83,6 +86,7 @@ export function ColdCallerCallNotesView({
   hasResume,
   resumeFileName,
   resumeContentType,
+  localResumeUrl,
   resumeVisible,
   onResumeVisibleChange,
   emptyFields,
@@ -104,6 +108,8 @@ export function ColdCallerCallNotesView({
   questionsError,
   onRetryGenerateQuestions,
   onSaveNotes,
+  draftMode = false,
+  onApplyToCreateCandidate,
   isSaving = false,
   notesEditorDisabled = false,
   sessionAchievementIndices,
@@ -142,6 +148,7 @@ export function ColdCallerCallNotesView({
   }, [])
 
   const handleSave = useCallback(async () => {
+    if (draftMode) return
     const trimmed = rawNotesDraft.trim()
     if (!trimmed) {
       toast.error("Enter call notes before saving.")
@@ -153,7 +160,7 @@ export function ColdCallerCallNotesView({
     } catch {
       // Parent shows toast with API message
     }
-  }, [rawNotesDraft, onSaveNotes])
+  }, [rawNotesDraft, onSaveNotes, draftMode])
 
   const activeSectionResult = activeTab ? sectionResultsByField.get(activeTab) : undefined
   const activeSectionQuestions =
@@ -183,12 +190,15 @@ export function ColdCallerCallNotesView({
     hasResume,
     resumeFileName,
     resumeContentType,
+    localResumeUrl,
     resumeVisible,
     onResumeVisibleChange,
     rawNotesDraft,
     onDraftChange,
     showDraftSavedHint,
     onSave: handleSave,
+    draftMode,
+    onApplyToCreateCandidate,
     isSaving,
     notesEditorDisabled,
     questions: activeSectionQuestions,

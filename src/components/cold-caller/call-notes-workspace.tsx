@@ -24,12 +24,15 @@ interface CallNotesWorkspaceProps {
   hasResume?: boolean
   resumeFileName?: string | null
   resumeContentType?: string | null
+  localResumeUrl?: string | null
   resumeVisible: boolean
   onResumeVisibleChange: (visible: boolean) => void
   rawNotesDraft: string
   onDraftChange: (draft: string) => void
   showDraftSavedHint: boolean
   onSave: () => void
+  draftMode?: boolean
+  onApplyToCreateCandidate?: () => void
   isSaving?: boolean
   notesEditorDisabled?: boolean
   questions: GeneratedQuestion[]
@@ -61,12 +64,15 @@ export function CallNotesWorkspace({
   hasResume,
   resumeFileName,
   resumeContentType,
+  localResumeUrl,
   resumeVisible,
   onResumeVisibleChange,
   rawNotesDraft,
   onDraftChange,
   showDraftSavedHint,
   onSave,
+  draftMode = false,
+  onApplyToCreateCandidate,
   isSaving = false,
   notesEditorDisabled = false,
   questions,
@@ -130,6 +136,7 @@ export function CallNotesWorkspace({
               hasResume={hasResume}
               resumeFileName={resumeFileName}
               resumeContentType={resumeContentType}
+              localResumeUrl={localResumeUrl}
               onCollapse={() => onResumeVisibleChange(false)}
               className="h-full"
             />
@@ -152,6 +159,8 @@ export function CallNotesWorkspace({
             value={rawNotesDraft}
             onChange={onDraftChange}
             onSave={onSave}
+            draftMode={draftMode}
+            onApplyToCreateCandidate={onApplyToCreateCandidate}
             isSaving={isSaving}
             disabled={notesEditorDisabled}
             showDraftSavedHint={showDraftSavedHint}

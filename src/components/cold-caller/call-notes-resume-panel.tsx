@@ -27,6 +27,8 @@ interface CallNotesResumePanelProps {
   hasResume?: boolean
   resumeFileName?: string | null
   resumeContentType?: string | null
+  /** Draft Cold Caller: blob URL for a local File (skips server open-url). */
+  localResumeUrl?: string | null
   onCollapse?: () => void
   className?: string
 }
@@ -36,10 +38,12 @@ export function CallNotesResumePanel({
   hasResume = false,
   resumeFileName,
   resumeContentType,
+  localResumeUrl = null,
   onCollapse,
   className,
 }: CallNotesResumePanelProps) {
   const numericCandidateId = Number(candidateId)
+  const useLocalResume = !!localResumeUrl
   const isPdf = isPdfResume(resumeContentType, resumeFileName)
 
   const [openUrl, setOpenUrl] = useState<string | null>(null)
@@ -49,9 +53,16 @@ export function CallNotesResumePanel({
 
   useEffect(() => {
     setIframeLoaded(false)
-  }, [candidateId])
+  }, [candidateId, localResumeUrl])
 
   useEffect(() => {
+    if (useLocalResume) {
+      setOpenUrl(localResumeUrl)
+      setLoadError(null)
+      setIsLoadingUrl(false)
+      return
+    }
+
     if (!hasResume || !Number.isFinite(numericCandidateId)) {
       setOpenUrl(null)
       setLoadError(null)
@@ -94,11 +105,15 @@ export function CallNotesResumePanel({
       cancelled = true
       controller.abort()
     }
-  }, [hasResume, numericCandidateId, candidateId])
+  }, [hasResume, numericCandidateId, candidateId, useLocalResume, localResumeUrl])
 
   const pdfSrc = openUrl && isPdf ? buildPdfViewerUrl(openUrl, 1) : null
 
   const openResumeFresh = async () => {
+    if (useLocalResume && localResumeUrl) {
+      window.open(localResumeUrl, "_blank", "noopener,noreferrer")
+      return
+    }
     if (!Number.isFinite(numericCandidateId)) return
     try {
       await openUrlInNewTabAfterFetch(async () => {
@@ -113,6 +128,17 @@ export function CallNotesResumePanel({
   }
 
   const downloadResumeFresh = async () => {
+    if (useLocalResume && localResumeUrl) {
+      const link = document.createElement("a")
+      link.href = localResumeUrl
+      link.download = resumeFileName || "resume"
+      link.target = "_blank"
+      link.rel = "noopener noreferrer"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      return
+    }
     if (!Number.isFinite(numericCandidateId)) return
     try {
       const response = await getCandidateResumeOpenUrl(numericCandidateId)

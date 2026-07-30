@@ -120,6 +120,8 @@ export interface CreateCandidateDto {
   source?: number | null
   status?: string
   resumeUrl?: string | null
+  /** Optional call notes on create (camelCase). Omit when blank. */
+  callNotes?: string
   techStackIds?: number[]
   educations?: CreateCandidateEducationDto[]
   certifications?: CreateCandidateCertificationDto[]

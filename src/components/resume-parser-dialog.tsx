@@ -40,6 +40,8 @@ export interface ResumeParserDialogProps {
    * `resumeFile` is the parsed file so Create Candidate can attach it on submit.
    */
   onApplyToCreateCandidate: (partial: Partial<CandidateFormData>, resumeFile: File | null) => void
+  /** Opens draft Cold Caller with parsed fields + resume file (no DB write). */
+  onOpenColdCaller?: (partial: Partial<CandidateFormData>, resumeFile: File | null) => void
   children?: React.ReactNode
 }
 
@@ -103,7 +105,11 @@ function TabPanelState({
   )
 }
 
-export function ResumeParserDialog({ onApplyToCreateCandidate, children }: ResumeParserDialogProps) {
+export function ResumeParserDialog({
+  onApplyToCreateCandidate,
+  onOpenColdCaller,
+  children,
+}: ResumeParserDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [file, setFile] = React.useState<File | null>(null)
   const [parsing, setParsing] = React.useState(false)
@@ -203,6 +209,17 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
     onApplyToCreateCandidate(partial, file)
     handleOpenChange(false)
     toast.message("Create Candidate opened with imported fields. Link employers and projects in the form.")
+  }
+
+  const handleOpenColdCaller = () => {
+    if (!parsed || !onOpenColdCaller) return
+    const partial = resumeJsonToPartialCandidateForm(parsed)
+    if (!hasPrefillContent(partial)) {
+      toast.error("Nothing to open in Cold Caller.")
+      return
+    }
+    onOpenColdCaller(partial, file)
+    handleOpenChange(false)
   }
 
   const partial = parsed ? resumeJsonToPartialCandidateForm(parsed) : null
@@ -550,6 +567,16 @@ export function ResumeParserDialog({ onApplyToCreateCandidate, children }: Resum
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Close
           </Button>
+          {onOpenColdCaller ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleOpenColdCaller}
+              disabled={!parsed || parsing}
+            >
+              Open Cold Caller
+            </Button>
+          ) : null}
           <Button type="button" onClick={handleApply} disabled={!parsed || parsing}>
             Apply to Create Candidate
           </Button>

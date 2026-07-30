@@ -63,4 +63,9 @@ export interface CandidateSubmitOptions {
   }
   resumeFile?: File | null
   onResumeStageChange?: (stage: ResumeUploadStage) => void
+  /**
+   * Draft Cold Caller notes for POST create (`callNotes`).
+   * Omit / leave empty when blank — FE must not send whitespace-only.
+   */
+  callNotes?: string | null
 }
