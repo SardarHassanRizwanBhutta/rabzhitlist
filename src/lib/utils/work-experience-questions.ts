@@ -83,6 +83,7 @@ const NESTED_PROJECT_FIELD_LABELS: Record<string, string> = {
   techStacks: "Tech stacks",
   startDate: "Start date",
   endDate: "End date",
+  clientLocations: "Client Location",
 }
 
 export interface WorkExperienceOfficeQuestionGroup {

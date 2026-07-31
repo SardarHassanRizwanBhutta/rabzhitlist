@@ -13,7 +13,10 @@ import type {
   WorkExperienceLayoffForService,
   WorkExperienceOfficeForService,
 } from "@/types/question-generation"
-import { mapLinkedProjectToServicePayload } from "@/lib/utils/map-linked-project-for-service"
+import {
+  enrichWorkExperiencesWithProjectCatalog,
+  mapLinkedProjectToServicePayload,
+} from "@/lib/utils/map-linked-project-for-service"
 
 const RANKING_FROM_API: Record<number, RankingDb> = {
   0: "tier_1",
@@ -278,6 +281,17 @@ export async function enrichWorkExperiencesWithEmployerCatalog(
     if (!catalog) return we
     return mergeEmployerCatalogIntoWorkExperience(we, catalog)
   })
+}
+
+/**
+ * Employer + project catalog enrich for Cold Caller UI and QG.
+ * Fill-missing only; safe to run more than once.
+ */
+export async function enrichWorkExperiencesForColdCaller(
+  workExperiences: WorkExperience[] | undefined,
+): Promise<WorkExperience[]> {
+  const withEmployers = await enrichWorkExperiencesWithEmployerCatalog(workExperiences)
+  return enrichWorkExperiencesWithProjectCatalog(withEmployers)
 }
 
 function mapOfficeToService(loc: WorkExperienceOfficeLocation): WorkExperienceOfficeForService {

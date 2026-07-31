@@ -1,11 +1,23 @@
-import type { LinkedProjectFields } from "@/lib/types/candidate"
+import type {
+  LinkedProjectFields,
+  ProjectExperience,
+  WorkExperience,
+} from "@/lib/types/candidate"
 import type {
   WorkExperienceProjectForService,
 } from "@/types/question-generation"
-import { PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
-import { TECHNICAL_DOMAIN_HUMAN_LABELS } from "@/lib/services/projects-api"
+import { PROJECT_TYPES, PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
+import {
+  HORIZONTAL_DOMAINS,
+  TECHNICAL_DOMAIN_HUMAN_LABELS,
+  VERTICAL_DOMAINS,
+  fetchProjectById,
+  type ProjectDto,
+} from "@/lib/services/projects-api"
+import { fetchTechnicalAspects } from "@/lib/services/lookups-api"
 import { normalizeProjectType } from "@/lib/utils/project-type-badge"
 import { formatTeamSizeForService, readLinkedProjectPayloadValue } from "@/lib/utils/project-catalog-fields"
+import { isQgValueMissing } from "@/lib/utils/qg-value"
 
 const PROJECT_STATUS_FROM_API = ["Development", "Maintenance", "Closed"] as const
 const PUBLISH_PLATFORM_FROM_NUM = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => o.value)
@@ -224,4 +236,211 @@ export function servicePayloadValueForApiSuffix(
     },
     payloadKey,
   )
+}
+
+const PROJECT_STATUS_LABELS = ["Development", "Maintenance", "Closed"] as const
+const VERTICAL_LABEL_BY_VALUE = new Map(VERTICAL_DOMAINS.map((d) => [d.value, d.label]))
+const HORIZONTAL_LABEL_BY_VALUE = new Map(HORIZONTAL_DOMAINS.map((d) => [d.value, d.label]))
+
+function formatTeamSizeDisplay(min: number | null, max: number | null): string | null {
+  if (min == null && max == null) return null
+  if (min != null && max != null && min === max) return String(min)
+  if (min != null && max != null) return `${min}-${max}`
+  if (min != null) return String(min)
+  if (max != null) return String(max)
+  return null
+}
+
+function resolveDomainLabels(
+  raw: number[] | undefined,
+  labelByValue: Map<number, string> | readonly string[],
+): string[] {
+  if (!raw?.length) return []
+  return raw
+    .map((n) => {
+      if (labelByValue instanceof Map) {
+        return labelByValue.get(n) ?? String(n)
+      }
+      return labelByValue[n] ?? String(n)
+    })
+    .filter((s) => s.trim() !== "")
+}
+
+/**
+ * Map GET /api/projects/{id} → linked-project catalog fields for Cold Caller / QG.
+ * `technicalAspects`: prefer `aspectTypeLabels`; else resolve enum ints via lookup map.
+ */
+export function projectDtoToLinkedCatalogFields(
+  dto: ProjectDto,
+  technicalAspectLabelById?: Map<number, string>,
+): LinkedProjectFields {
+  const aspectTypeLabels = (dto.aspectTypeLabels ?? [])
+    .map((s) => String(s).trim())
+    .filter((s) => s !== "")
+
+  let technicalAspects = aspectTypeLabels
+  if (technicalAspects.length === 0 && (dto.technicalAspects?.length ?? 0) > 0) {
+    technicalAspects = (dto.technicalAspects ?? [])
+      .map((n) => {
+        const label = technicalAspectLabelById?.get(n)
+        return label != null && label.trim() !== "" ? label.trim() : ""
+      })
+      .filter((s) => s !== "")
+  }
+
+  const typeNum = dto.type ?? 0
+  const statusNum = dto.status ?? 0
+  const publishPlatforms = (dto.publishPlatforms ?? []).map(
+    (n) => PUBLISH_PLATFORM_FROM_NUM[n] ?? String(n),
+  )
+
+  return {
+    employerName: dto.employerName != null ? String(dto.employerName) : null,
+    projectType: PROJECT_TYPES[typeNum] ?? normalizeProjectType(dto.type) ?? null,
+    status: PROJECT_STATUS_LABELS[statusNum] ?? null,
+    teamSize: formatTeamSizeDisplay(dto.minTeamSize, dto.maxTeamSize),
+    minTeamSize: dto.minTeamSize ?? null,
+    maxTeamSize: dto.maxTeamSize ?? null,
+    techStacks: Array.isArray(dto.techStacks) ? dto.techStacks.map(String).filter((s) => s.trim() !== "") : [],
+    technicalAspects,
+    technicalDomains: resolveDomainLabels(dto.technicalDomains, TECHNICAL_DOMAIN_HUMAN_LABELS),
+    horizontalDomains: resolveDomainLabels(dto.horizontalDomains, HORIZONTAL_LABEL_BY_VALUE),
+    verticalDomains: resolveDomainLabels(dto.verticalDomains, VERTICAL_LABEL_BY_VALUE),
+    description: dto.description != null ? String(dto.description) : null,
+    latestUpdate: dto.latestUpdate != null ? String(dto.latestUpdate) : null,
+    startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+    endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+    link: dto.link != null ? String(dto.link) : null,
+    isPublished: typeof dto.isPublished === "boolean" ? dto.isPublished : null,
+    publishPlatforms,
+    downloadCount: dto.downloadCount ?? null,
+    clientLocations: Array.isArray(dto.clientLocations)
+      ? dto.clientLocations.map(String).filter((s) => s.trim() !== "")
+      : [],
+  }
+}
+
+function pickScalar<T>(current: T | null | undefined, catalog: T | null | undefined): T | null | undefined {
+  return isQgValueMissing(current) ? catalog : current
+}
+
+function pickStringArray(
+  current: string[] | undefined,
+  catalog: string[] | undefined,
+): string[] | undefined {
+  if ((current?.length ?? 0) > 0) return current
+  return catalog
+}
+
+/** Fill missing linked-project catalog fields from GET project; keep junction / existing values. */
+export function mergeProjectCatalogIntoProjectExperience(
+  project: ProjectExperience,
+  catalog: LinkedProjectFields,
+  catalogProjectName?: string | null,
+): ProjectExperience {
+  const projectName =
+    project.projectName?.trim() !== ""
+      ? project.projectName
+      : catalogProjectName?.trim()
+        ? catalogProjectName
+        : project.projectName
+
+  return {
+    ...project,
+    projectName,
+    employerName: pickScalar(project.employerName, catalog.employerName) ?? null,
+    projectType: pickScalar(project.projectType, catalog.projectType) ?? null,
+    status: pickScalar(project.status, catalog.status) ?? null,
+    teamSize: pickScalar(project.teamSize, catalog.teamSize) ?? null,
+    minTeamSize: pickScalar(project.minTeamSize, catalog.minTeamSize) ?? null,
+    maxTeamSize: pickScalar(project.maxTeamSize, catalog.maxTeamSize) ?? null,
+    techStacks: pickStringArray(project.techStacks, catalog.techStacks) ?? [],
+    technicalAspects: pickStringArray(project.technicalAspects, catalog.technicalAspects) ?? [],
+    technicalDomains: pickStringArray(project.technicalDomains, catalog.technicalDomains) ?? [],
+    horizontalDomains: pickStringArray(project.horizontalDomains, catalog.horizontalDomains) ?? [],
+    verticalDomains: pickStringArray(project.verticalDomains, catalog.verticalDomains) ?? [],
+    description: pickScalar(project.description, catalog.description) ?? null,
+    latestUpdate: pickScalar(project.latestUpdate, catalog.latestUpdate) ?? null,
+    startDate:
+      project.startDate == null || Number.isNaN(project.startDate.getTime())
+        ? catalog.startDate
+        : project.startDate,
+    endDate:
+      project.endDate == null || Number.isNaN(project.endDate.getTime())
+        ? catalog.endDate
+        : project.endDate,
+    link: pickScalar(project.link, catalog.link) ?? null,
+    isPublished: pickScalar(project.isPublished, catalog.isPublished) ?? null,
+    publishPlatforms: pickStringArray(project.publishPlatforms, catalog.publishPlatforms) ?? [],
+    downloadCount: pickScalar(project.downloadCount, catalog.downloadCount) ?? null,
+    clientLocations: pickStringArray(project.clientLocations, catalog.clientLocations) ?? [],
+  }
+}
+
+export function resolveLinkedProjectId(project: ProjectExperience): number | null {
+  if (project.projectId != null && Number.isFinite(project.projectId) && project.projectId > 0) {
+    return project.projectId
+  }
+  return null
+}
+
+/**
+ * Fetch project catalog by `projectId` and merge into each WE project row
+ * for Cold Caller value cards and QG sparse payload.
+ */
+export async function enrichWorkExperiencesWithProjectCatalog(
+  workExperiences: WorkExperience[] | undefined,
+): Promise<WorkExperience[]> {
+  if (!workExperiences?.length) return workExperiences ?? []
+
+  const ids = new Set<number>()
+  for (const we of workExperiences) {
+    for (const project of we.projects ?? []) {
+      const id = resolveLinkedProjectId(project)
+      if (id != null) ids.add(id)
+    }
+  }
+
+  if (ids.size === 0) return workExperiences
+
+  const dtoById = new Map<number, ProjectDto>()
+  await Promise.all(
+    [...ids].map(async (id) => {
+      try {
+        dtoById.set(id, await fetchProjectById(id))
+      } catch {
+        // Leave row unenriched — QG / UI treat catalog fields as missing.
+      }
+    }),
+  )
+
+  const needsAspectLookup = [...dtoById.values()].some((dto) => {
+    const labels = (dto.aspectTypeLabels ?? []).filter((s) => String(s).trim() !== "")
+    return labels.length === 0 && (dto.technicalAspects?.length ?? 0) > 0
+  })
+
+  let technicalAspectLabelById: Map<number, string> | undefined
+  if (needsAspectLookup) {
+    try {
+      const items = await fetchTechnicalAspects()
+      technicalAspectLabelById = new Map(items.map((item) => [item.id, item.name]))
+    } catch {
+      technicalAspectLabelById = undefined
+    }
+  }
+
+  return workExperiences.map((we) => ({
+    ...we,
+    projects: (we.projects ?? []).map((project) => {
+      const id = resolveLinkedProjectId(project)
+      if (id == null) return project
+      const dto = dtoById.get(id)
+      if (!dto) return project
+      return mergeProjectCatalogIntoProjectExperience(
+        project,
+        projectDtoToLinkedCatalogFields(dto, technicalAspectLabelById),
+        dto.name,
+      )
+    }),
+  }))
 }

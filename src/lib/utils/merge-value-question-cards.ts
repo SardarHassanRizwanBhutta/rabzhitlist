@@ -1,5 +1,6 @@
 import type { FieldSection, GeneratedQuestion } from "@/types/cold-caller"
 import { formatQgDisplayValue, isQgValueMissing } from "@/lib/utils/qg-value"
+import { toQgListValueItems } from "@/lib/utils/qg-list-value-badges"
 
 export interface MergeFieldCardDef {
   apiFieldName: string
@@ -7,10 +8,6 @@ export interface MergeFieldCardDef {
   priority: number
   value: unknown
   formatValue?: (value: unknown) => string
-}
-
-function isTechStacksApiField(field: string): boolean {
-  return field === "techStacks" || /(?:^|_)techStacks$/.test(field)
 }
 
 export interface MergeValueAndQuestionCardsOptions {
@@ -35,13 +32,12 @@ export function mergeValueAndQuestionCards(
 
   for (const def of defs) {
     if (!isQgValueMissing(def.value)) {
-      const formatted = def.formatValue
-        ? def.formatValue(def.value)
-        : formatQgDisplayValue(def.value)
-      const valueItems =
-        isTechStacksApiField(def.apiFieldName) && Array.isArray(def.value)
-          ? def.value.map((item) => String(item)).filter((s) => s.trim() !== "")
-          : undefined
+      const valueItems = toQgListValueItems(def.apiFieldName, def.value)
+      const formatted = valueItems
+        ? valueItems.join(", ")
+        : def.formatValue
+          ? def.formatValue(def.value)
+          : formatQgDisplayValue(def.value)
       rows.push({
         question: formatted,
         field: def.apiFieldName,
@@ -49,7 +45,7 @@ export function mergeValueAndQuestionCards(
         priority: def.priority,
         context: "",
         promptType: "enrichment",
-        ...(valueItems && valueItems.length > 0 ? { valueItems } : {}),
+        ...(valueItems ? { valueItems } : {}),
       })
       continue
     }
