@@ -66,6 +66,22 @@ interface ColdCallerCallNotesViewProps {
   pendingAchievementNavId?: `entry-${number}` | null
   onPendingAchievementNavHandled?: () => void
   onAddSessionAchievement?: () => void
+  sessionCertificationIndices?: number[]
+  pendingCertificationNavId?: `entry-${number}` | null
+  onPendingCertificationNavHandled?: () => void
+  onAddSessionCertification?: () => void
+  sessionWorkExperienceIndices?: number[]
+  pendingWorkExperienceNavId?: `entry-${number}` | null
+  onPendingWorkExperienceNavHandled?: () => void
+  sessionProjectsByRole?: Record<number, number[]>
+  onAddSessionWorkExperience?: () => void
+  onAddSessionProject?: (roleIndex: number) => void
+  sessionQgLoadingKey?: string | null
+  sessionQgFailedKeys?: string[]
+  sessionQgErrorsByKey?: Record<string, string>
+  onRetrySessionQgEntry?: (scopeKey: string) => void
+  /** True while Cold Caller open-enrich is still fetching catalogs. */
+  isCatalogEnriching?: boolean
 }
 
 function getSectionQuestionCount(
@@ -116,6 +132,21 @@ export function ColdCallerCallNotesView({
   pendingAchievementNavId,
   onPendingAchievementNavHandled,
   onAddSessionAchievement,
+  sessionCertificationIndices,
+  pendingCertificationNavId,
+  onPendingCertificationNavHandled,
+  onAddSessionCertification,
+  sessionWorkExperienceIndices,
+  pendingWorkExperienceNavId,
+  onPendingWorkExperienceNavHandled,
+  sessionProjectsByRole,
+  onAddSessionWorkExperience,
+  onAddSessionProject,
+  sessionQgLoadingKey,
+  sessionQgFailedKeys,
+  sessionQgErrorsByKey,
+  onRetrySessionQgEntry,
+  isCatalogEnriching,
 }: ColdCallerCallNotesViewProps) {
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
@@ -221,6 +252,21 @@ export function ColdCallerCallNotesView({
     pendingAchievementNavId,
     onPendingAchievementNavHandled,
     onAddSessionAchievement,
+    sessionCertificationIndices,
+    pendingCertificationNavId,
+    onPendingCertificationNavHandled,
+    onAddSessionCertification,
+    sessionWorkExperienceIndices,
+    pendingWorkExperienceNavId,
+    onPendingWorkExperienceNavHandled,
+    sessionProjectsByRole,
+    onAddSessionWorkExperience,
+    onAddSessionProject,
+    sessionQgLoadingKey,
+    sessionQgFailedKeys,
+    sessionQgErrorsByKey,
+    onRetrySessionQgEntry,
+    isCatalogEnriching,
   }
 
   if (displaySections.length === 0) {

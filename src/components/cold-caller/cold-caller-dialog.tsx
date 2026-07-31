@@ -44,7 +44,8 @@ import { VerificationBadge } from "@/components/ui/verification-badge"
 import { getVerificationsForCandidate } from "@/lib/sample-data/verification"
 import type { VerificationStatus } from "@/lib/types/verification"
 
-import type { Candidate } from "@/lib/types/candidate"
+import type { Candidate, WorkExperience } from "@/lib/types/candidate"
+import { enrichWorkExperiencesForColdCaller } from "@/lib/utils/map-work-experience-for-service"
 import type { 
   EmptyField, 
   GeneratedQuestion, 
@@ -67,6 +68,14 @@ import {
   mapGenerateQuestionsResponse,
   totalMissingFieldsCount,
 } from "@/lib/utils/question-generation-response"
+import {
+  applySessionQgScaffolds,
+  filterFieldsToGenerateForScope,
+  mergeIncrementalQuestionState,
+  sessionQgScopeKey,
+  type SessionQgScope,
+  type SessionQgScaffolds,
+} from "@/lib/utils/session-qg-scaffolds"
 import type { ColdCallerSectionQuestions } from "@/types/cold-caller"
 import { QuestionFieldCard } from "./question-field-card"
 // import { ColdCallerViewSwitcher } from "./cold-caller-view-switcher"
@@ -152,6 +161,58 @@ export function ColdCallerDialog({
   const [callNotesLoadState, setCallNotesLoadState] = useState<"idle" | "loading" | "ready">("idle")
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
 
+  /** Employer + project catalog merged into WE (value cards + empty detection + QG). */
+  const [enrichedWorkExperiences, setEnrichedWorkExperiences] = useState<
+    WorkExperience[] | undefined
+  >(candidate.workExperiences)
+  /** True while open-enrich (or re-enrich on link change) is in flight. */
+  const [isCatalogEnriching, setIsCatalogEnriching] = useState(false)
+
+  const workExperiencesCatalogKey = useMemo(
+    () =>
+      JSON.stringify(
+        (candidate.workExperiences ?? []).map((we) => ({
+          employerId: we.employerId ?? null,
+          projectIds: (we.projects ?? []).map((p) => p.projectId ?? null),
+        })),
+      ),
+    [candidate.workExperiences],
+  )
+
+  useEffect(() => {
+    if (!open) {
+      setIsCatalogEnriching(false)
+      return
+    }
+    let cancelled = false
+    setIsCatalogEnriching(true)
+    setEnrichedWorkExperiences(candidate.workExperiences)
+    enrichWorkExperiencesForColdCaller(candidate.workExperiences)
+      .then((enriched) => {
+        if (cancelled) return
+        setEnrichedWorkExperiences(enriched)
+        setIsCatalogEnriching(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setEnrichedWorkExperiences(candidate.workExperiences)
+        setIsCatalogEnriching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // workExperiencesCatalogKey tracks employerId/projectId link changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalog key is the intentional WE dependency
+  }, [open, candidate.id, workExperiencesCatalogKey])
+
+  const candidateWithCatalog = useMemo(
+    (): Candidate => ({
+      ...candidate,
+      workExperiences: enrichedWorkExperiences ?? candidate.workExperiences,
+    }),
+    [candidate, enrichedWorkExperiences],
+  )
+
   useEffect(() => {
     if (!open || !showCallNotesTab) {
       setCallNotesLoadState("idle")
@@ -224,6 +285,25 @@ export function ColdCallerDialog({
   const [manuallyAddedFields, setManuallyAddedFields] = useState<EmptyField[]>([])
   const [sessionAchievementIndices, setSessionAchievementIndices] = useState<number[]>([])
   const [pendingAchievementNavId, setPendingAchievementNavId] = useState<`entry-${number}` | null>(null)
+  const [sessionCertificationIndices, setSessionCertificationIndices] = useState<number[]>([])
+  const [pendingCertificationNavId, setPendingCertificationNavId] = useState<
+    `entry-${number}` | null
+  >(null)
+  const [sessionWorkExperienceIndices, setSessionWorkExperienceIndices] = useState<number[]>([])
+  const [pendingWorkExperienceNavId, setPendingWorkExperienceNavId] = useState<
+    `entry-${number}` | null
+  >(null)
+  const [sessionProjectsByRole, setSessionProjectsByRole] = useState<Record<number, number[]>>(
+    {},
+  )
+  const [sessionQgLoadingKey, setSessionQgLoadingKey] = useState<string | null>(null)
+  const [sessionQgFailedKeys, setSessionQgFailedKeys] = useState<string[]>([])
+  const [sessionQgErrorsByKey, setSessionQgErrorsByKey] = useState<Record<string, string>>(
+    {},
+  )
+  const [sessionQgScopesByKey, setSessionQgScopesByKey] = useState<
+    Record<string, SessionQgScope>
+  >({})
   
   // Creation dialog state
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false)
@@ -242,7 +322,10 @@ export function ColdCallerDialog({
 
   // Get empty fields - combine initial empty fields with manually added ones.
   // Independent Tech Stacks and Education are hidden in Cold Caller only.
-  const baseEmptyFields = useMemo(() => getEmptyFields(candidate), [candidate])
+  const baseEmptyFields = useMemo(
+    () => getEmptyFields(candidateWithCatalog),
+    [candidateWithCatalog],
+  )
   const emptyFields = useMemo(() => {
     const allFields = [...baseEmptyFields, ...manuallyAddedFields].filter(
       (field) => field.section !== "techStacks" && field.section !== "education",
@@ -325,6 +408,15 @@ export function ColdCallerDialog({
         setManuallyAddedFields([])
         setSessionAchievementIndices([])
         setPendingAchievementNavId(null)
+        setSessionCertificationIndices([])
+        setPendingCertificationNavId(null)
+        setSessionWorkExperienceIndices([])
+        setPendingWorkExperienceNavId(null)
+        setSessionProjectsByRole({})
+        setSessionQgLoadingKey(null)
+        setSessionQgFailedKeys([])
+        setSessionQgErrorsByKey({})
+        setSessionQgScopesByKey({})
         
         // Initialize field states (Independent Tech Stacks / Education excluded from Cold Caller)
         const initialStates = new Map<string, FieldState>()
@@ -540,30 +632,43 @@ export function ColdCallerDialog({
   const modeConfig = MODE_CONFIG[mode]
   const ModeIcon = MODE_ICONS[mode]
 
-  // Generate questions
-  const handleGenerateQuestions = useCallback(async () => {
-    setIsLoadingQuestions(true)
-    setQuestionsError(null)
-    
-    try {
-      const response = await generateQuestions(candidate.id, candidate, mode === "coldCaller" ? "cold_call" : mode)
-      const sections = mapGenerateQuestionsResponse(response).filter(
-        (section) => section.section !== "techStacks",
-      )
-      const flatQuestions = flattenSectionQuestions(sections)
+  const sessionQgScaffolds = useMemo((): SessionQgScaffolds => {
+    return {
+      workExperienceIndices: sessionWorkExperienceIndices,
+      projectsByRole: sessionProjectsByRole,
+      certificationIndices: sessionCertificationIndices,
+      achievementIndices: sessionAchievementIndices,
+    }
+  }, [
+    sessionWorkExperienceIndices,
+    sessionProjectsByRole,
+    sessionCertificationIndices,
+    sessionAchievementIndices,
+  ])
 
+  const questionSectionsRef = useRef(questionSections)
+  const questionsRef = useRef(questions)
+  useEffect(() => {
+    questionSectionsRef.current = questionSections
+  }, [questionSections])
+  useEffect(() => {
+    questionsRef.current = questions
+  }, [questions])
+
+  const applyQuestionsFromResponse = useCallback(
+    (sections: ColdCallerSectionQuestions[], flatQuestions: GeneratedQuestion[]) => {
+      questionSectionsRef.current = sections
+      questionsRef.current = flatQuestions
       setQuestionSections(sections)
       setQuestions(flatQuestions)
-      
       const qMap = new Map<string, GeneratedQuestion>()
-      flatQuestions.forEach(q => {
+      flatQuestions.forEach((q) => {
         qMap.set(q.field, q)
       })
       setQuestionsMap(qMap)
-      
-      setFieldStates(prev => {
+      setFieldStates((prev) => {
         const next = new Map(prev)
-        emptyFields.forEach(field => {
+        emptyFields.forEach((field) => {
           const existing = next.get(field.fieldPath)
           const question = qMap.get(field.apiFieldName)
           if (existing) {
@@ -572,19 +677,202 @@ export function ColdCallerDialog({
         })
         return next
       })
-      
+    },
+    [emptyFields],
+  )
+
+  const runSessionQg = useCallback(
+    async (scope: SessionQgScope, scaffolds: SessionQgScaffolds) => {
+      if (isCatalogEnriching) return
+      const key = sessionQgScopeKey(scope)
+      setSessionQgLoadingKey(key)
+      setSessionQgFailedKeys((prev) => prev.filter((k) => k !== key))
+      setSessionQgErrorsByKey((prev) => {
+        if (!(key in prev)) return prev
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+      setSessionQgScopesByKey((prev) => ({ ...prev, [key]: scope }))
+
+      try {
+        const candidateForQg = applySessionQgScaffolds(candidateWithCatalog, scaffolds)
+        const response = await generateQuestions(
+          candidate.id,
+          candidateForQg,
+          mode === "coldCaller" ? "cold_call" : mode,
+          {
+            fieldsToGenerateFilter: (fields) =>
+              filterFieldsToGenerateForScope(fields, scope),
+          },
+        )
+        const incomingSections = mapGenerateQuestionsResponse(response).filter(
+          (section) => section.section !== "techStacks",
+        )
+        // Merge against latest state so rapid sequential Adds don't drop prior upserts.
+        const { sections, flat } = mergeIncrementalQuestionState(
+          questionSectionsRef.current,
+          questionsRef.current,
+          incomingSections,
+        )
+        applyQuestionsFromResponse(sections, flat)
+        toast.success(
+          `Generated ${flattenSectionQuestions(incomingSections).length} question${
+            flattenSectionQuestions(incomingSections).length === 1 ? "" : "s"
+          } for new entry`,
+        )
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to generate questions"
+        setSessionQgFailedKeys((prev) => (prev.includes(key) ? prev : [...prev, key]))
+        setSessionQgErrorsByKey((prev) => ({ ...prev, [key]: message }))
+        toast.error(message)
+      } finally {
+        setSessionQgLoadingKey(null)
+      }
+    },
+    [
+      applyQuestionsFromResponse,
+      candidate.id,
+      candidateWithCatalog,
+      isCatalogEnriching,
+      mode,
+    ],
+  )
+
+  // Generate questions (full regenerate, including session scaffolds)
+  const handleGenerateQuestions = useCallback(async () => {
+    if (isCatalogEnriching) return
+    setIsLoadingQuestions(true)
+    setQuestionsError(null)
+    setSessionQgFailedKeys([])
+    setSessionQgErrorsByKey({})
+    setSessionQgScopesByKey({})
+    setSessionQgLoadingKey(null)
+
+    try {
+      const candidateForQg = applySessionQgScaffolds(
+        candidateWithCatalog,
+        sessionQgScaffolds,
+      )
+      const response = await generateQuestions(
+        candidate.id,
+        candidateForQg,
+        mode === "coldCaller" ? "cold_call" : mode,
+      )
+      const sections = mapGenerateQuestionsResponse(response).filter(
+        (section) => section.section !== "techStacks",
+      )
+      const flatQuestions = flattenSectionQuestions(sections)
+      applyQuestionsFromResponse(sections, flatQuestions)
+
       const missingCount = totalMissingFieldsCount(sections)
       toast.success(
         `Generated ${flatQuestions.length} questions across ${missingCount} missing field${missingCount === 1 ? "" : "s"}`,
       )
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to generate questions'
+      const message = error instanceof Error ? error.message : "Failed to generate questions"
       setQuestionsError(message)
       toast.error(message)
     } finally {
       setIsLoadingQuestions(false)
     }
-  }, [candidate, emptyFields, mode])
+  }, [
+    applyQuestionsFromResponse,
+    candidate.id,
+    candidateWithCatalog,
+    isCatalogEnriching,
+    mode,
+    sessionQgScaffolds,
+  ])
+
+  const handleRetryQuestions = useCallback(() => {
+    void handleGenerateQuestions()
+  }, [handleGenerateQuestions])
+
+  const handleRetrySessionQgEntry = useCallback(
+    (scopeKey: string) => {
+      const scope = sessionQgScopesByKey[scopeKey]
+      if (!scope) return
+      void runSessionQg(scope, sessionQgScaffolds)
+    },
+    [runSessionQg, sessionQgScaffolds, sessionQgScopesByKey],
+  )
+
+  const handleAddSessionWorkExperience = useCallback(() => {
+    const resumeMax = (candidateWithCatalog.workExperiences?.length ?? 0) - 1
+    const sessionMax =
+      sessionWorkExperienceIndices.length > 0
+        ? Math.max(...sessionWorkExperienceIndices)
+        : -1
+    const questionRoleMax = questions.reduce((max, question) => {
+      const match = /^work_experience_(\d+)_/.exec(question.field)
+      if (!match) return max
+      return Math.max(max, Number(match[1]))
+    }, -1)
+    const roleIndex = Math.max(resumeMax, sessionMax, questionRoleMax) + 1
+
+    const nextWe = sessionWorkExperienceIndices.includes(roleIndex)
+      ? sessionWorkExperienceIndices
+      : [...sessionWorkExperienceIndices, roleIndex].sort((a, b) => a - b)
+    const nextProjects: Record<number, number[]> = {
+      ...sessionProjectsByRole,
+      [roleIndex]: sessionProjectsByRole[roleIndex]?.includes(0)
+        ? sessionProjectsByRole[roleIndex]!
+        : [0],
+    }
+    setSessionWorkExperienceIndices(nextWe)
+    setSessionProjectsByRole(nextProjects)
+    setPendingWorkExperienceNavId(`entry-${roleIndex}`)
+    const scaffolds: SessionQgScaffolds = {
+      ...sessionQgScaffolds,
+      workExperienceIndices: nextWe,
+      projectsByRole: nextProjects,
+    }
+    void runSessionQg({ type: "workExperience", roleIndex }, scaffolds)
+  }, [
+    candidateWithCatalog.workExperiences?.length,
+    questions,
+    runSessionQg,
+    sessionProjectsByRole,
+    sessionQgScaffolds,
+    sessionWorkExperienceIndices,
+  ])
+
+  const handleAddSessionProject = useCallback(
+    (roleIndex: number) => {
+      const resumeLen =
+        candidateWithCatalog.workExperiences?.[roleIndex]?.projects?.length ?? 0
+      const resumeMax = resumeLen - 1
+      const isSessionWe = sessionWorkExperienceIndices.includes(roleIndex)
+      const hasGenerated =
+        questionSections != null || questions.some((q) => q.section === "workExperience")
+      const syntheticMax = resumeLen === 0 && (hasGenerated || isSessionWe) ? 0 : -1
+      const session = sessionProjectsByRole[roleIndex] ?? []
+      const sessionMax = session.length > 0 ? Math.max(...session) : -1
+      const projectIndex = Math.max(resumeMax, syntheticMax, sessionMax) + 1
+
+      const nextForRole = session.includes(projectIndex)
+        ? session
+        : [...session, projectIndex].sort((a, b) => a - b)
+      const nextProjects = { ...sessionProjectsByRole, [roleIndex]: nextForRole }
+      setSessionProjectsByRole(nextProjects)
+      const scaffolds: SessionQgScaffolds = {
+        ...sessionQgScaffolds,
+        projectsByRole: nextProjects,
+      }
+      void runSessionQg({ type: "project", roleIndex, projectIndex }, scaffolds)
+    },
+    [
+      candidateWithCatalog.workExperiences,
+      questionSections,
+      questions,
+      runSessionQg,
+      sessionProjectsByRole,
+      sessionQgScaffolds,
+      sessionWorkExperienceIndices,
+    ],
+  )
 
   // Check if all fields are complete
   const allFieldsComplete = emptyFields.length === 0
@@ -724,10 +1012,27 @@ export function ColdCallerDialog({
     const newFields = createEntryFields(validSection, newIndex)
 
     if (section === 'achievements') {
-      setSessionAchievementIndices((prev) =>
-        prev.includes(newIndex) ? prev : [...prev, newIndex].sort((a, b) => a - b),
-      )
+      const nextAchievements = sessionAchievementIndices.includes(newIndex)
+        ? sessionAchievementIndices
+        : [...sessionAchievementIndices, newIndex].sort((a, b) => a - b)
+      setSessionAchievementIndices(nextAchievements)
       setPendingAchievementNavId(`entry-${newIndex}`)
+      void runSessionQg(
+        { type: "achievement", achievementIndex: newIndex },
+        { ...sessionQgScaffolds, achievementIndices: nextAchievements },
+      )
+    }
+
+    if (section === 'certifications') {
+      const nextCerts = sessionCertificationIndices.includes(newIndex)
+        ? sessionCertificationIndices
+        : [...sessionCertificationIndices, newIndex].sort((a, b) => a - b)
+      setSessionCertificationIndices(nextCerts)
+      setPendingCertificationNavId(`entry-${newIndex}`)
+      void runSessionQg(
+        { type: "certification", certIndex: newIndex },
+        { ...sessionQgScaffolds, certificationIndices: nextCerts },
+      )
     }
     
     // Add to manually added fields
@@ -755,7 +1060,15 @@ export function ColdCallerDialog({
     }, 100)
     
     toast.success(`Added new ${SECTION_LABELS[section]} entry`)
-  }, [groupedFields, candidate, scrollToField])
+  }, [
+    groupedFields,
+    candidate,
+    scrollToField,
+    runSessionQg,
+    sessionAchievementIndices,
+    sessionCertificationIndices,
+    sessionQgScaffolds,
+  ])
 
   // Handle adding a new project to a work experience entry
   const handleAddProject = useCallback((workExperienceIndex: number) => {
@@ -1034,10 +1347,15 @@ export function ColdCallerDialog({
               <Button
                 size="sm"
                 onClick={handleGenerateQuestions}
-                disabled={isLoadingQuestions}
+                disabled={isLoadingQuestions || isCatalogEnriching}
                 className="gap-1.5"
+                title={
+                  isCatalogEnriching
+                    ? "Loading employer and project catalogs…"
+                    : undefined
+                }
               >
-                {isLoadingQuestions ? (
+                {isLoadingQuestions || isCatalogEnriching ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <Sparkles className="h-4 w-4" />
@@ -1086,7 +1404,7 @@ export function ColdCallerDialog({
               resumeVisible={resumeVisible}
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}
-              workExperiences={candidate.workExperiences ?? undefined}
+              workExperiences={candidateWithCatalog.workExperiences ?? undefined}
               certifications={candidate.certifications ?? undefined}
               achievements={candidate.achievements ?? undefined}
               linkedinUrl={candidate.linkedinUrl}
@@ -1102,7 +1420,7 @@ export function ColdCallerDialog({
               questionSections={questionSections}
               isLoadingQuestions={isLoadingQuestions}
               questionsError={questionsError}
-              onRetryGenerateQuestions={handleGenerateQuestions}
+              onRetryGenerateQuestions={handleRetryQuestions}
               onSaveNotes={handleSaveCallNotes}
               draftMode={draftMode}
               onApplyToCreateCandidate={handleApplyFromDraft}
@@ -1112,6 +1430,21 @@ export function ColdCallerDialog({
               pendingAchievementNavId={pendingAchievementNavId}
               onPendingAchievementNavHandled={() => setPendingAchievementNavId(null)}
               onAddSessionAchievement={() => handleAddEntry('achievements')}
+              sessionCertificationIndices={sessionCertificationIndices}
+              pendingCertificationNavId={pendingCertificationNavId}
+              onPendingCertificationNavHandled={() => setPendingCertificationNavId(null)}
+              onAddSessionCertification={() => handleAddEntry('certifications')}
+              sessionWorkExperienceIndices={sessionWorkExperienceIndices}
+              pendingWorkExperienceNavId={pendingWorkExperienceNavId}
+              onPendingWorkExperienceNavHandled={() => setPendingWorkExperienceNavId(null)}
+              sessionProjectsByRole={sessionProjectsByRole}
+              onAddSessionWorkExperience={handleAddSessionWorkExperience}
+              onAddSessionProject={handleAddSessionProject}
+              sessionQgLoadingKey={sessionQgLoadingKey}
+              sessionQgFailedKeys={sessionQgFailedKeys}
+              sessionQgErrorsByKey={sessionQgErrorsByKey}
+              onRetrySessionQgEntry={handleRetrySessionQgEntry}
+              isCatalogEnriching={isCatalogEnriching}
             />
           ) : allFieldsComplete ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-center">

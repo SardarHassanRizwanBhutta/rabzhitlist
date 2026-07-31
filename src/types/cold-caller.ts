@@ -96,7 +96,10 @@ export interface GeneratedQuestion {
   context: string             // Guidance for the interviewer
   /** From QG: `basic` | `advanced`. FE value cards may use `enrichment` locally. */
   promptType?: PromptType
-  /** FE-only: raw items for populated value cards rendered as badges (e.g. tech stacks). */
+  /**
+   * FE-only: raw items for populated list value cards rendered as badges
+   * (tech stacks, domains, technical aspects, client locations, etc.).
+   */
   valueItems?: string[]
   /**
    * QG enum display labels (`options: string[]`). Call Notes renders read-only chips

@@ -54,10 +54,24 @@ import {
 } from "@/lib/utils/qg-enum-options"
 import { mergeValueAndQuestionCards } from "@/lib/utils/merge-value-question-cards"
 import {
+  QG_LIST_VALUE_BADGE_MAX_DISPLAY,
+  qgListValueBadgeClass,
+  qgListValueBadgeVariant,
+  toQgListValueItems,
+  type QgListValueBadgeVariant,
+} from "@/lib/utils/qg-list-value-badges"
+import {
+  shiftTypeDisplayLabel,
+  workModeDisplayLabel,
+} from "@/lib/utils/shift-work-mode-display"
+import { salaryPolicyDisplayLabel } from "@/lib/utils/salary-policy-display"
+import { layoffReasonDisplayLabel } from "@/lib/utils/layoff-reason-display"
+import {
   ACHIEVEMENT_FIELD_ORDER,
   ACHIEVEMENT_FIELD_PRIORITIES,
   BASIC_FIELD_ORDER,
   BASIC_FIELD_PRIORITIES,
+  CERTIFICATION_FIELD_ORDER,
   CERTIFICATION_FIELD_PRIORITIES,
   COLD_CALLER_EXPECTED_SALARY_LABEL,
   INDEPENDENT_TECH_STACKS_PRIORITY,
@@ -123,6 +137,21 @@ interface CallNotesQuestionsSidebarProps {
   pendingAchievementNavId?: `entry-${number}` | null
   onPendingAchievementNavHandled?: () => void
   onAddSessionAchievement?: () => void
+  sessionCertificationIndices?: number[]
+  pendingCertificationNavId?: `entry-${number}` | null
+  onPendingCertificationNavHandled?: () => void
+  onAddSessionCertification?: () => void
+  sessionWorkExperienceIndices?: number[]
+  pendingWorkExperienceNavId?: `entry-${number}` | null
+  onPendingWorkExperienceNavHandled?: () => void
+  sessionProjectsByRole?: Record<number, number[]>
+  onAddSessionWorkExperience?: () => void
+  onAddSessionProject?: (roleIndex: number) => void
+  sessionQgLoadingKey?: string | null
+  sessionQgFailedKeys?: string[]
+  sessionQgErrorsByKey?: Record<string, string>
+  onRetrySessionQgEntry?: (scopeKey: string) => void
+  isCatalogEnriching?: boolean
   className?: string
 }
 
@@ -178,6 +207,10 @@ function countSessionWorkExperienceMissing(
 
 function countSessionAchievementMissing(): number {
   return ACHIEVEMENT_FIELD_ORDER.length
+}
+
+function countSessionCertificationMissing(): number {
+  return CERTIFICATION_FIELD_ORDER.length
 }
 
 function buildWorkExperienceSectionUnits(
@@ -282,31 +315,31 @@ function PriorityBadge({ priority }: { priority: number }) {
   )
 }
 
-const TECH_STACK_BADGE_CLASS =
-  "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-const TECH_STACK_BADGE_MAX_DISPLAY = 6
-
-function isTechStacksApiField(field: string): boolean {
-  return field === "techStacks" || /(?:^|_)techStacks$/.test(field)
-}
-
-function TechStackValueBadges({ items }: { items: string[] }) {
+function ListValueBadges({
+  items,
+  badgeClassName,
+  badgeVariant = "secondary",
+}: {
+  items: string[]
+  badgeClassName: string
+  badgeVariant?: QgListValueBadgeVariant
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const shouldTruncate = items.length > TECH_STACK_BADGE_MAX_DISPLAY
+  const shouldTruncate = items.length > QG_LIST_VALUE_BADGE_MAX_DISPLAY
   const visible =
     shouldTruncate && !isExpanded
-      ? items.slice(0, TECH_STACK_BADGE_MAX_DISPLAY)
+      ? items.slice(0, QG_LIST_VALUE_BADGE_MAX_DISPLAY)
       : items
   const remainingCount =
-    shouldTruncate && !isExpanded ? items.length - TECH_STACK_BADGE_MAX_DISPLAY : 0
+    shouldTruncate && !isExpanded ? items.length - QG_LIST_VALUE_BADGE_MAX_DISPLAY : 0
 
   return (
     <div className="flex flex-wrap gap-2 min-h-[1.5rem]">
-      {visible.map((item) => (
+      {visible.map((item, index) => (
         <Badge
-          key={item}
-          variant="secondary"
-          className={cn(TECH_STACK_BADGE_CLASS, "text-xs")}
+          key={`${item}-${index}`}
+          variant={badgeVariant}
+          className={cn(badgeClassName, "text-xs")}
         >
           {item}
         </Badge>
@@ -427,12 +460,12 @@ function QuestionCard({
   onSelect,
   onCopy,
 }: QuestionCardProps) {
-  const showTechStackBadges =
-    question.promptType === "enrichment" &&
-    isTechStacksApiField(question.field) &&
-    (question.valueItems?.length ?? 0) > 0
+  const showListValueBadges =
+    question.promptType === "enrichment" && (question.valueItems?.length ?? 0) > 0
+  const listValueBadgeClass = qgListValueBadgeClass(question.field)
+  const listValueBadgeVariant = qgListValueBadgeVariant(question.field)
   const enumOptions = question.options ?? []
-  const showEnumOptions = !showTechStackBadges && enumOptions.length > 0
+  const showEnumOptions = !showListValueBadges && enumOptions.length > 0
   const copyText = formatQgQuestionCopyText(question)
 
   return (
@@ -475,8 +508,12 @@ function QuestionCard({
                 </div>
               </div>
             </div>
-            {showTechStackBadges ? (
-              <TechStackValueBadges items={question.valueItems!} />
+            {showListValueBadges ? (
+              <ListValueBadges
+                items={question.valueItems!}
+                badgeClassName={listValueBadgeClass}
+                badgeVariant={listValueBadgeVariant}
+              />
             ) : (
               <p className="text-sm font-medium leading-snug break-words text-foreground">
                 {question.question}
@@ -531,21 +568,71 @@ export function CallNotesQuestionsSidebar({
   pendingAchievementNavId,
   onPendingAchievementNavHandled,
   onAddSessionAchievement,
+  sessionCertificationIndices = [],
+  pendingCertificationNavId,
+  onPendingCertificationNavHandled,
+  onAddSessionCertification,
+  sessionWorkExperienceIndices = [],
+  pendingWorkExperienceNavId,
+  onPendingWorkExperienceNavHandled,
+  sessionProjectsByRole = {},
+  onAddSessionWorkExperience,
+  onAddSessionProject,
+  sessionQgLoadingKey = null,
+  sessionQgFailedKeys = [],
+  sessionQgErrorsByKey = {},
+  onRetrySessionQgEntry,
+  isCatalogEnriching = false,
   className,
 }: CallNotesQuestionsSidebarProps) {
+  const sessionQgActionsDisabled =
+    isCatalogEnriching || sessionQgLoadingKey != null
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [activeEntryNavId, setActiveEntryNavId] = useState<QuestionEntryNavId>("overview")
   const [openWorkExperienceSectionId, setOpenWorkExperienceSectionId] =
     useState<string | null>(null)
-  // TEMP: session-only Call Notes project indices per WE role (not Candidate API until later save).
-  const [sessionProjectsByRole, setSessionProjectsByRole] = useState<
-    Record<number, number[]>
-  >({})
-  // TEMP: session-only Call Notes work experience indices (not Candidate API until later save).
-  const [sessionWorkExperienceIndices, setSessionWorkExperienceIndices] = useState<
-    number[]
-  >([])
   const pendingEntryNavIdRef = useRef<QuestionEntryNavId | null>(null)
+
+  const sessionQgFailedKeySet = useMemo(
+    () => new Set(sessionQgFailedKeys),
+    [sessionQgFailedKeys],
+  )
+  const isSessionQgLoading = useCallback(
+    (key: string) => sessionQgLoadingKey === key,
+    [sessionQgLoadingKey],
+  )
+  const isSessionQgFailed = useCallback(
+    (key: string) => sessionQgFailedKeySet.has(key),
+    [sessionQgFailedKeySet],
+  )
+  const canFillSessionAskCues = useCallback(
+    (key: string) => !isSessionQgLoading(key) && !isSessionQgFailed(key),
+    [isSessionQgFailed, isSessionQgLoading],
+  )
+  const renderSessionQgEntryFailure = useCallback(
+    (key: string) => (
+      <div className="flex flex-col items-start gap-2 px-1 py-3" role="alert">
+        <div className="flex items-start gap-2 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden />
+          <p className="text-left">
+            {sessionQgErrorsByKey[key] ?? "Failed to generate questions"}
+          </p>
+        </div>
+        {onRetrySessionQgEntry && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={() => onRetrySessionQgEntry(key)}
+          >
+            Try Again
+          </Button>
+        )}
+      </div>
+    ),
+    [onRetrySessionQgEntry, sessionQgErrorsByKey],
+  )
 
   const fieldMetaByApiName = useMemo(
     () => buildQuestionFieldLabelMap(emptyFields),
@@ -706,6 +793,7 @@ export function CallNotesQuestionsSidebar({
       const indices = new Set<number>([
         ...byIndex.keys(),
         ...Array.from({ length: certifications?.length ?? 0 }, (_, i) => i),
+        ...sessionCertificationIndices,
       ])
       if (indices.size === 0 && hasGenerated) indices.add(0)
 
@@ -763,77 +851,8 @@ export function CallNotesQuestionsSidebar({
     sessionProjectsByRole,
     sessionWorkExperienceIndices,
     sessionAchievementIndices,
+    sessionCertificationIndices,
   ])
-
-  const nextSessionProjectIndex = useCallback(
-    (roleIndex: number) => {
-      const resumeLen = workExperiences?.[roleIndex]?.projects?.length ?? 0
-      const resumeMax = resumeLen - 1
-      // Empty WE + generated questions (or session WE scaffold) still shows synthetic project_0
-      const isSessionWe = sessionWorkExperienceIndices.includes(roleIndex)
-      const syntheticMax =
-        resumeLen === 0 && (hasGenerated || isSessionWe) ? 0 : -1
-      const session = sessionProjectsByRole[roleIndex] ?? []
-      const sessionMax = session.length > 0 ? Math.max(...session) : -1
-      return Math.max(resumeMax, syntheticMax, sessionMax) + 1
-    },
-    [workExperiences, hasGenerated, sessionProjectsByRole, sessionWorkExperienceIndices],
-  )
-
-  // TEMP: session-only Add project — local UI ask cards only; no QG re-call.
-  const handleAddSessionProject = useCallback(
-    (roleIndex: number) => {
-      const projectIndex = nextSessionProjectIndex(roleIndex)
-      const apiPrefix = `work_experience_${roleIndex}_project_${projectIndex}`
-      setSessionProjectsByRole((prev) => {
-        const existing = prev[roleIndex] ?? []
-        if (existing.includes(projectIndex)) return prev
-        return {
-          ...prev,
-          [roleIndex]: [...existing, projectIndex].sort((a, b) => a - b),
-        }
-      })
-      setOpenWorkExperienceSectionId(apiPrefix)
-    },
-    [nextSessionProjectIndex],
-  )
-
-  const nextSessionWorkExperienceIndex = useCallback(() => {
-    const resumeMax = (workExperiences?.length ?? 0) - 1
-    // Empty resume + Generate still shows synthetic work_experience_0
-    const syntheticMax = resumeMax < 0 && hasGenerated ? 0 : -1
-    const sessionMax =
-      sessionWorkExperienceIndices.length > 0
-        ? Math.max(...sessionWorkExperienceIndices)
-        : -1
-    // Include any role indices already present from QG grouping
-    const questionRoleMax = questions.reduce((max, question) => {
-      const match = /^work_experience_(\d+)_/.exec(question.field)
-      if (!match) return max
-      return Math.max(max, Number(match[1]))
-    }, -1)
-    return Math.max(resumeMax, syntheticMax, sessionMax, questionRoleMax) + 1
-  }, [workExperiences, hasGenerated, sessionWorkExperienceIndices, questions])
-
-  // TEMP: session-only Add work experience — Role + Employer (Office 0 / Layoff 0) + Project 0.
-  // Local Ask-about cards only; no QG re-call / Candidate API until later save.
-  const handleAddSessionWorkExperience = useCallback(() => {
-    const roleIndex = nextSessionWorkExperienceIndex()
-    pendingEntryNavIdRef.current = `entry-${roleIndex}`
-    setSessionWorkExperienceIndices((prev) =>
-      prev.includes(roleIndex) ? prev : [...prev, roleIndex].sort((a, b) => a - b),
-    )
-    // Scaffold one project with local ask cues (same path as Add project)
-    setSessionProjectsByRole((prev) => {
-      if ((prev[roleIndex] ?? []).includes(0)) return prev
-      return {
-        ...prev,
-        [roleIndex]: [0],
-      }
-    })
-    setActiveEntryNavId(`entry-${roleIndex}`)
-    setOpenWorkExperienceSectionId(`role-${roleIndex}`)
-  }, [nextSessionWorkExperienceIndex])
 
   const accordionSplit = useMemo(() => {
     if (!displayBlocks) return null
@@ -846,7 +865,7 @@ export function CallNotesQuestionsSidebar({
     if (entryNavSection === "workExperience") {
       return accordionSplit.entryCount > 1 ? ("select" as const) : ("hidden" as const)
     }
-    if (entryNavSection === "achievements") {
+    if (entryNavSection === "achievements" || entryNavSection === "certifications") {
       return "select" as const
     }
     return resolveQuestionEntryNavChrome(
@@ -880,6 +899,9 @@ export function CallNotesQuestionsSidebar({
         }
         return countMissingFieldsForAchievementCard(missing, index)
       }
+      if (sessionCertificationIndices.includes(index)) {
+        return countSessionCertificationMissing()
+      }
       return countMissingFieldsForCertificationCard(missing, index)
     }
     return buildQuestionEntryNavItems({
@@ -903,6 +925,7 @@ export function CallNotesQuestionsSidebar({
     sessionProjectsByRole,
     sessionWorkExperienceIndices,
     sessionAchievementIndices,
+    sessionCertificationIndices,
   ])
 
   useEffect(() => {
@@ -911,6 +934,20 @@ export function CallNotesQuestionsSidebar({
       onPendingAchievementNavHandled?.()
     }
   }, [pendingAchievementNavId, onPendingAchievementNavHandled])
+
+  useEffect(() => {
+    if (pendingCertificationNavId) {
+      pendingEntryNavIdRef.current = pendingCertificationNavId
+      onPendingCertificationNavHandled?.()
+    }
+  }, [pendingCertificationNavId, onPendingCertificationNavHandled])
+
+  useEffect(() => {
+    if (pendingWorkExperienceNavId) {
+      pendingEntryNavIdRef.current = pendingWorkExperienceNavId
+      onPendingWorkExperienceNavHandled?.()
+    }
+  }, [pendingWorkExperienceNavId, onPendingWorkExperienceNavHandled])
 
   useEffect(() => {
     if (!accordionSplit) {
@@ -951,6 +988,20 @@ export function CallNotesQuestionsSidebar({
       current && sectionIds.includes(current) ? current : (sectionIds[0] ?? null),
     )
   }, [activeWorkExperienceSections])
+
+  // Project QG spinner lives inside the project collapsible — open that unit while
+  // incremental generate is in flight so the status is visible in the panel.
+  useEffect(() => {
+    if (!sessionQgLoadingKey) return
+    const match = /^we:(\d+):project:(\d+)$/.exec(sessionQgLoadingKey)
+    if (!match) return
+    const roleIndex = Number(match[1])
+    const projectIndex = Number(match[2])
+    setActiveEntryNavId(`entry-${roleIndex}`)
+    setOpenWorkExperienceSectionId(
+      `work_experience_${roleIndex}_project_${projectIndex}`,
+    )
+  }, [sessionQgLoadingKey])
 
   const handleCopy = (apiFieldName: string, text: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -1032,6 +1083,9 @@ export function CallNotesQuestionsSidebar({
         const isSessionWorkExperience = sessionWorkExperienceIndices.includes(
           block.roleIndex,
         )
+        const weSessionKey = `we:${block.roleIndex}`
+        const weSessionLoading = isSessionQgLoading(weSessionKey)
+        const weSessionFailed = isSessionQgFailed(weSessionKey)
         const weForRole = workExperiences?.[block.roleIndex]
         const includeProjectEmployerFieldsForRole = !isWorkExperienceEmployerPresent(weForRole)
         const sessionProjectMissingExtra = isSessionWorkExperience
@@ -1132,15 +1186,35 @@ export function CallNotesQuestionsSidebar({
               unit.questions.map((question) => [question.field, question]),
             )
             const roleCards = mergeValueAndQuestionCards(
-              WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => ({
-                apiFieldName: `work_experience_${block.roleIndex}_${key}`,
-                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
-                priority: WORK_EXPERIENCE_ROLE_PRIORITIES[key],
-                value: readWorkExperienceField(we, key),
-              })),
+              WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
+                const value = readWorkExperienceField(we, key)
+                const formatValue =
+                  key === "shiftType"
+                    ? (v: unknown) =>
+                        shiftTypeDisplayLabel(
+                          typeof v === "string" ? v : v == null ? null : String(v),
+                        )
+                    : key === "workMode"
+                      ? (v: unknown) =>
+                          workModeDisplayLabel(
+                            typeof v === "string" ? v : v == null ? null : String(v),
+                          )
+                      : undefined
+                return {
+                  apiFieldName: `work_experience_${block.roleIndex}_${key}`,
+                  label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
+                  priority: WORK_EXPERIENCE_ROLE_PRIORITIES[key],
+                  value,
+                  ...(formatValue ? { formatValue } : {}),
+                }
+              }),
               questionByField,
               "workExperience",
-              { fillAskCues: isSessionWorkExperience },
+              {
+                fillAskCues:
+                  isSessionWorkExperience &&
+                  canFillSessionAskCues(`we:${block.roleIndex}`),
+              },
             )
             const rendered = renderQuestionList(roleCards, globalIndex)
             globalIndex = rendered.nextIndex
@@ -1192,7 +1266,14 @@ export function CallNotesQuestionsSidebar({
                     </ul>,
                   ]
                 }
-                if (!isSessionAdded) return []
+                if (
+                  !isSessionAdded ||
+                  !canFillSessionAskCues(
+                    `we:${block.roleIndex}:project:${projectIndex}`,
+                  )
+                ) {
+                  return []
+                }
                 const askCue: GeneratedQuestion = {
                   question: `Ask about ${field.label}`,
                   field: apiFieldName,
@@ -1214,11 +1295,7 @@ export function CallNotesQuestionsSidebar({
                 project &&
                 !isProjectCatalogFieldMissing(field.payloadKey, value)
               ) {
-                const valueItems =
-                  (field.apiSuffix === "techStacks" || field.apiSuffix === "clientLocations") &&
-                  Array.isArray(value)
-                    ? value.map((item) => String(item)).filter((s) => s.trim() !== "")
-                    : undefined
+                const valueItems = toQgListValueItems(apiFieldName, value)
                 const valueCard: GeneratedQuestion = {
                   question: formatQgDisplayValue(value),
                   field: apiFieldName,
@@ -1226,7 +1303,7 @@ export function CallNotesQuestionsSidebar({
                   priority: COLD_CALLER_QG_PROJECT_PRIORITIES[field.apiSuffix] ?? 0,
                   context: "",
                   promptType: "enrichment",
-                  ...(valueItems && valueItems.length > 0 ? { valueItems } : {}),
+                  ...(valueItems ? { valueItems } : {}),
                 }
                 const rendered = renderQuestionList([valueCard], globalIndex)
                 globalIndex = rendered.nextIndex
@@ -1239,7 +1316,14 @@ export function CallNotesQuestionsSidebar({
 
               const question = questionByField.get(apiFieldName)
               if (!question) {
-                if (!isSessionAdded) return []
+                if (
+                  !isSessionAdded ||
+                  !canFillSessionAskCues(
+                    `we:${block.roleIndex}:project:${projectIndex}`,
+                  )
+                ) {
+                  return []
+                }
                 const askCue: GeneratedQuestion = {
                   question: `Ask about ${field.label}`,
                   field: apiFieldName,
@@ -1267,15 +1351,27 @@ export function CallNotesQuestionsSidebar({
             )
 
             const projectName = project?.projectName?.trim()
+            const projectSessionKey = `we:${block.roleIndex}:project:${projectIndex}`
+            const projectSessionLoading = isSessionQgLoading(projectSessionKey)
+            const projectSessionFailed = isSessionQgFailed(projectSessionKey)
             return (
               <ProjectCatalogCollapsible
                 key={unit.id}
                 label={projectName || `Project ${projectIndex + 1}`}
-                open={isOpen}
+                open={isOpen || projectSessionLoading || projectSessionFailed}
                 onOpenChange={onOpenChange}
                 missingCount={missingCount}
               >
-                <div className="space-y-1">{projectRows}</div>
+                {projectSessionLoading ? (
+                  <div className="flex items-center gap-2 px-1 py-3 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Generating questions…
+                  </div>
+                ) : projectSessionFailed ? (
+                  renderSessionQgEntryFailure(projectSessionKey)
+                ) : (
+                  <div className="space-y-1">{projectRows}</div>
+                )}
               </ProjectCatalogCollapsible>
             )
           }
@@ -1285,15 +1381,30 @@ export function CallNotesQuestionsSidebar({
             block.catalogQuestions.map((question) => [question.field, question]),
           )
           const employerScalarCards = mergeValueAndQuestionCards(
-            WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => ({
-              apiFieldName: `work_experience_${block.roleIndex}_${key}`,
-              label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
-              priority: WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key],
-              value: readWorkExperienceField(we, key),
-            })),
+            WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => {
+              const value = readWorkExperienceField(we, key)
+              const formatValue =
+                key === "salaryPolicy"
+                  ? (v: unknown) =>
+                      salaryPolicyDisplayLabel(
+                        typeof v === "string" ? v : v == null ? null : String(v),
+                      )
+                  : undefined
+              return {
+                apiFieldName: `work_experience_${block.roleIndex}_${key}`,
+                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
+                priority: WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key],
+                value,
+                ...(formatValue ? { formatValue } : {}),
+              }
+            }),
             catalogByField,
             "workExperience",
-            { fillAskCues: isSessionWorkExperience },
+            {
+              fillAskCues:
+                isSessionWorkExperience &&
+                canFillSessionAskCues(`we:${block.roleIndex}`),
+            },
           )
 
           type EmployerCardChunk = {
@@ -1333,7 +1444,11 @@ export function CallNotesQuestionsSidebar({
               })),
               questionByField,
               "workExperience",
-              { fillAskCues: isSessionWorkExperience },
+              {
+                fillAskCues:
+                  isSessionWorkExperience &&
+                  canFillSessionAskCues(`we:${block.roleIndex}`),
+              },
             )
             for (const card of officeCards) {
               const rendered = renderQuestionList([card], globalIndex)
@@ -1365,15 +1480,30 @@ export function CallNotesQuestionsSidebar({
               layoffGroup.questions.map((question) => [question.field, question]),
             )
             const layoffCards = mergeValueAndQuestionCards(
-              LAYOFF_FIELD_ORDER.map((key) => ({
-                apiFieldName: `work_experience_${block.roleIndex}_layoff_${layoffGroup.layoffIndex}_${key}`,
-                label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
-                priority: LAYOFF_FIELD_PRIORITIES[key],
-                value: layoffRow ? layoffRow[key] : null,
-              })),
+              LAYOFF_FIELD_ORDER.map((key) => {
+                const value = layoffRow ? layoffRow[key] : null
+                const formatValue =
+                  key === "reason"
+                    ? (v: unknown) =>
+                        layoffReasonDisplayLabel(
+                          typeof v === "string" ? v : v == null ? null : String(v),
+                        )
+                    : undefined
+                return {
+                  apiFieldName: `work_experience_${block.roleIndex}_layoff_${layoffGroup.layoffIndex}_${key}`,
+                  label: WORK_EXPERIENCE_FIELD_LABELS[key] ?? key,
+                  priority: LAYOFF_FIELD_PRIORITIES[key],
+                  value,
+                  ...(formatValue ? { formatValue } : {}),
+                }
+              }),
               questionByField,
               "workExperience",
-              { fillAskCues: isSessionWorkExperience },
+              {
+                fillAskCues:
+                  isSessionWorkExperience &&
+                  canFillSessionAskCues(`we:${block.roleIndex}`),
+              },
             )
             for (const card of layoffCards) {
               const rendered = renderQuestionList([card], globalIndex)
@@ -1417,13 +1547,13 @@ export function CallNotesQuestionsSidebar({
             </ProjectCatalogCollapsible>
           )
             })}
-            {/* Session-only Add project — local UI ask cards only; no QG re-call. */}
             <Button
               type="button"
               variant="outline"
               size="sm"
               className="h-8 w-full gap-1.5 text-xs"
-              onClick={() => handleAddSessionProject(block.roleIndex)}
+              onClick={() => onAddSessionProject?.(block.roleIndex)}
+              disabled={isLoading || sessionQgActionsDisabled}
             >
               <Plus className="h-3.5 w-3.5" />
               Add project
@@ -1454,7 +1584,16 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {roleContent}
+            {weSessionLoading ? (
+              <div className="flex items-center gap-2 px-1 py-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Generating questions…
+              </div>
+            ) : weSessionFailed ? (
+              renderSessionQgEntryFailure(weSessionKey)
+            ) : (
+              roleContent
+            )}
           </div>,
         )
         continue
@@ -1477,6 +1616,12 @@ export function CallNotesQuestionsSidebar({
           ]),
         )
         const cert = certifications?.[block.certIndex]
+        const isSessionCertification = sessionCertificationIndices.includes(
+          block.certIndex,
+        )
+        const certSessionKey = `cert:${block.certIndex}`
+        const certSessionLoading = isSessionQgLoading(certSessionKey)
+        const certSessionFailed = isSessionQgFailed(certSessionKey)
         // Weight-descending: Name → Issuing Body → Issue Date → Expiry Date
         const certCards = mergeValueAndQuestionCards(
           [
@@ -1507,6 +1652,11 @@ export function CallNotesQuestionsSidebar({
           ],
           questionByField,
           "certifications",
+          {
+            fillAskCues:
+              isSessionCertification &&
+              canFillSessionAskCues(`cert:${block.certIndex}`),
+          },
         )
         const rendered = renderQuestionList(certCards, globalIndex)
         globalIndex = rendered.nextIndex
@@ -1534,10 +1684,19 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {rendered.nodes.length > 0 && (
-              <ul className="space-y-1" role="list">
-                {rendered.nodes}
-              </ul>
+            {certSessionLoading ? (
+              <div className="flex items-center gap-2 px-1 py-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Generating questions…
+              </div>
+            ) : certSessionFailed ? (
+              renderSessionQgEntryFailure(certSessionKey)
+            ) : (
+              rendered.nodes.length > 0 && (
+                <ul className="space-y-1" role="list">
+                  {rendered.nodes}
+                </ul>
+              )
             )}
           </div>,
         )
@@ -1556,6 +1715,9 @@ export function CallNotesQuestionsSidebar({
         const isSessionAchievement = sessionAchievementIndices.includes(
           block.achievementIndex,
         )
+        const achievementSessionKey = `achievement:${block.achievementIndex}`
+        const achievementSessionLoading = isSessionQgLoading(achievementSessionKey)
+        const achievementSessionFailed = isSessionQgFailed(achievementSessionKey)
         const achievementCards = mergeValueAndQuestionCards(
           [
             {
@@ -1599,7 +1761,11 @@ export function CallNotesQuestionsSidebar({
           ],
           new Map(block.questions.map((question) => [question.field, question])),
           "achievements",
-          { fillAskCues: isSessionAchievement },
+          {
+            fillAskCues:
+              isSessionAchievement &&
+              canFillSessionAskCues(`achievement:${block.achievementIndex}`),
+          },
         )
         const rendered = renderQuestionList(achievementCards, globalIndex)
         globalIndex = rendered.nextIndex
@@ -1630,10 +1796,19 @@ export function CallNotesQuestionsSidebar({
                 )}
               </div>
             )}
-            {rendered.nodes.length > 0 && (
-              <ul className="space-y-1" role="list">
-                {rendered.nodes}
-              </ul>
+            {achievementSessionLoading ? (
+              <div className="flex items-center gap-2 px-1 py-3 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Generating questions…
+              </div>
+            ) : achievementSessionFailed ? (
+              renderSessionQgEntryFailure(achievementSessionKey)
+            ) : (
+              rendered.nodes.length > 0 && (
+                <ul className="space-y-1" role="list">
+                  {rendered.nodes}
+                </ul>
+              )
             )}
           </div>,
         )
@@ -1654,9 +1829,17 @@ export function CallNotesQuestionsSidebar({
     const showWorkExperienceAdd =
       entryNavSection === "workExperience" && hasGenerated
     const showAchievementAdd = entryNavSection === "achievements"
+    const showCertificationAdd = entryNavSection === "certifications"
     const showEntryNav = entryNavChrome !== "hidden" && entryNavItems.length > 0
 
-    if (!showEntryNav && !showWorkExperienceAdd && !showAchievementAdd) return null
+    if (
+      !showEntryNav &&
+      !showWorkExperienceAdd &&
+      !showAchievementAdd &&
+      !showCertificationAdd
+    ) {
+      return null
+    }
 
     const containerClassName = cn(
       "px-2 pb-1",
@@ -1664,39 +1847,84 @@ export function CallNotesQuestionsSidebar({
         "sticky top-0 z-10 border-b border-border/60 bg-muted/95 pt-2 backdrop-blur",
     )
 
-    // TEMP: single-WE (nav hidden) — full-width top-of-panel Add work experience
+    // No entry list yet — full-width add for the active dynamic section
     if (!showEntryNav) {
-      return (
-        <div className={containerClassName}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-full gap-1.5 text-xs"
-            onClick={handleAddSessionWorkExperience}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add work experience
-          </Button>
-        </div>
-      )
+      if (showWorkExperienceAdd) {
+        return (
+          <div className={containerClassName}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-full gap-1.5 text-xs"
+              onClick={() => onAddSessionWorkExperience?.()}
+              disabled={sessionQgActionsDisabled}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add work experience
+            </Button>
+          </div>
+        )
+      }
+      if (showAchievementAdd) {
+        return (
+          <div className={containerClassName}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-full gap-1.5 text-xs"
+              onClick={() => onAddSessionAchievement?.()}
+              disabled={sessionQgActionsDisabled}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add achievement
+            </Button>
+          </div>
+        )
+      }
+      if (showCertificationAdd) {
+        return (
+          <div className={containerClassName}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 w-full gap-1.5 text-xs"
+              onClick={() => onAddSessionCertification?.()}
+              disabled={sessionQgActionsDisabled}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add certification
+            </Button>
+          </div>
+        )
+      }
+      return null
     }
 
-    // TEMP: select — trailing dropdown option adds WE instead of selecting an entry
+    // Select — trailing dropdown option adds a session entry
     if (entryNavChrome === "select") {
       const addWorkExperienceSelectValue = "__add_work_experience__"
       const addAchievementSelectValue = "__add_achievement__"
+      const addCertificationSelectValue = "__add_certification__"
       return (
         <div className={containerClassName}>
           <Select
             value={activeEntryNavId}
             onValueChange={(value) => {
               if (value === addWorkExperienceSelectValue) {
-                if (showWorkExperienceAdd) handleAddSessionWorkExperience()
+                if (showWorkExperienceAdd && !sessionQgActionsDisabled) {
+                  onAddSessionWorkExperience?.()
+                }
                 return
               }
               if (value === addAchievementSelectValue) {
-                onAddSessionAchievement?.()
+                if (!sessionQgActionsDisabled) onAddSessionAchievement?.()
+                return
+              }
+              if (value === addCertificationSelectValue) {
+                if (!sessionQgActionsDisabled) onAddSessionCertification?.()
                 return
               }
               setActiveEntryNavId(value as QuestionEntryNavId)
@@ -1712,13 +1940,27 @@ export function CallNotesQuestionsSidebar({
                 </SelectItem>
               ))}
               {showWorkExperienceAdd ? (
-                <SelectItem value={addWorkExperienceSelectValue}>
+                <SelectItem
+                  value={addWorkExperienceSelectValue}
+                  disabled={sessionQgActionsDisabled}
+                >
                   + Add work experience
                 </SelectItem>
               ) : null}
               {showAchievementAdd ? (
-                <SelectItem value={addAchievementSelectValue}>
+                <SelectItem
+                  value={addAchievementSelectValue}
+                  disabled={sessionQgActionsDisabled}
+                >
                   + Add achievement
+                </SelectItem>
+              ) : null}
+              {showCertificationAdd ? (
+                <SelectItem
+                  value={addCertificationSelectValue}
+                  disabled={sessionQgActionsDisabled}
+                >
+                  + Add certification
                 </SelectItem>
               ) : null}
             </SelectContent>
@@ -1727,8 +1969,7 @@ export function CallNotesQuestionsSidebar({
       )
     }
 
-    // Certifications (and any remaining tabs chrome) — no WE add control here.
-    // WE always uses Select for 2+ entries (see entryNavChrome).
+    // Remaining tabs chrome (e.g. legacy) — no session add control here.
     return (
       <div className={containerClassName}>
         <Tabs

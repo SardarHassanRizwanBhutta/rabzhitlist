@@ -8,7 +8,6 @@ import type {
   QuestionsHealthResponse,
 } from "@/types/question-generation"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
-import { enrichWorkExperiencesWithEmployerCatalog } from "@/lib/utils/map-work-experience-for-service"
 import { buildMissingOnlyQuestionRequest } from "@/lib/utils/missing-only-question-request"
 
 function questionsApiBaseUrl(): string {
@@ -17,25 +16,38 @@ function questionsApiBaseUrl(): string {
   return "http://localhost:8002"
 }
 
+export interface GenerateQuestionsOptions {
+  /**
+   * Narrow `fields_to_generate` after sparse build (incremental session-entry QG).
+   * Return value must be non-empty or the request is rejected client-side.
+   */
+  fieldsToGenerateFilter?: (fields: string[]) => string[]
+}
+
 /**
  * Generate AI-powered cold-call questions.
  * FE sends sparse allowlisted values and authoritative `fields_to_generate`.
+ *
+ * Caller must pass an already catalog-enriched candidate (Cold Caller dialog
+ * `candidateWithCatalog`). This path does not refetch employer/project catalogs.
  */
 export async function generateQuestions(
   candidateId: string,
   candidate: Candidate,
   conversationContext = "cold_call",
+  options?: GenerateQuestionsOptions,
 ): Promise<GenerateQuestionsResponse> {
-  const workExperiences = await enrichWorkExperiencesWithEmployerCatalog(candidate.workExperiences)
-  const mappedCandidateData = mapMainAppCandidateToQuestionService({
-    ...candidate,
-    workExperiences,
-  })
-  const { candidateData, fieldsToGenerate } =
-    buildMissingOnlyQuestionRequest(mappedCandidateData)
+  const mappedCandidateData = mapMainAppCandidateToQuestionService(candidate)
+  const built = buildMissingOnlyQuestionRequest(mappedCandidateData)
+  const fieldsToGenerate = options?.fieldsToGenerateFilter
+    ? options.fieldsToGenerateFilter(built.fieldsToGenerate)
+    : built.fieldsToGenerate
+  if (fieldsToGenerate.length === 0) {
+    throw new Error("Generate questions: no fields_to_generate after filter")
+  }
   const request: GenerateQuestionsRequest = {
     candidate_id: candidateId,
-    candidate_data: candidateData,
+    candidate_data: built.candidateData,
     fields_to_generate: fieldsToGenerate,
     conversation_context: conversationContext,
   }

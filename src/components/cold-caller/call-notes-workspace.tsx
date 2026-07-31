@@ -57,6 +57,21 @@ interface CallNotesWorkspaceProps {
   pendingAchievementNavId?: `entry-${number}` | null
   onPendingAchievementNavHandled?: () => void
   onAddSessionAchievement?: () => void
+  sessionCertificationIndices?: number[]
+  pendingCertificationNavId?: `entry-${number}` | null
+  onPendingCertificationNavHandled?: () => void
+  onAddSessionCertification?: () => void
+  sessionWorkExperienceIndices?: number[]
+  pendingWorkExperienceNavId?: `entry-${number}` | null
+  onPendingWorkExperienceNavHandled?: () => void
+  sessionProjectsByRole?: Record<number, number[]>
+  onAddSessionWorkExperience?: () => void
+  onAddSessionProject?: (roleIndex: number) => void
+  sessionQgLoadingKey?: string | null
+  sessionQgFailedKeys?: string[]
+  sessionQgErrorsByKey?: Record<string, string>
+  onRetrySessionQgEntry?: (scopeKey: string) => void
+  isCatalogEnriching?: boolean
 }
 
 export function CallNotesWorkspace({
@@ -97,6 +112,21 @@ export function CallNotesWorkspace({
   pendingAchievementNavId,
   onPendingAchievementNavHandled,
   onAddSessionAchievement,
+  sessionCertificationIndices,
+  pendingCertificationNavId,
+  onPendingCertificationNavHandled,
+  onAddSessionCertification,
+  sessionWorkExperienceIndices,
+  pendingWorkExperienceNavId,
+  onPendingWorkExperienceNavHandled,
+  sessionProjectsByRole,
+  onAddSessionWorkExperience,
+  onAddSessionProject,
+  sessionQgLoadingKey,
+  sessionQgFailedKeys,
+  sessionQgErrorsByKey,
+  onRetrySessionQgEntry,
+  isCatalogEnriching,
 }: CallNotesWorkspaceProps) {
   const {
     containerRef: outerContainerRef,
@@ -201,6 +231,21 @@ export function CallNotesWorkspace({
             pendingAchievementNavId={pendingAchievementNavId}
             onPendingAchievementNavHandled={onPendingAchievementNavHandled}
             onAddSessionAchievement={onAddSessionAchievement}
+            sessionCertificationIndices={sessionCertificationIndices}
+            pendingCertificationNavId={pendingCertificationNavId}
+            onPendingCertificationNavHandled={onPendingCertificationNavHandled}
+            onAddSessionCertification={onAddSessionCertification}
+            sessionWorkExperienceIndices={sessionWorkExperienceIndices}
+            pendingWorkExperienceNavId={pendingWorkExperienceNavId}
+            onPendingWorkExperienceNavHandled={onPendingWorkExperienceNavHandled}
+            sessionProjectsByRole={sessionProjectsByRole}
+            onAddSessionWorkExperience={onAddSessionWorkExperience}
+            onAddSessionProject={onAddSessionProject}
+            sessionQgLoadingKey={sessionQgLoadingKey}
+            sessionQgFailedKeys={sessionQgFailedKeys}
+            sessionQgErrorsByKey={sessionQgErrorsByKey}
+            onRetrySessionQgEntry={onRetrySessionQgEntry}
+            isCatalogEnriching={isCatalogEnriching}
             className="h-full w-full min-w-0"
           />
         </div>
