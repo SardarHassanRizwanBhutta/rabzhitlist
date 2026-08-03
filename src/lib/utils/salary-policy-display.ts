@@ -38,3 +38,10 @@ export function salaryPolicyDisplayLabel(raw: string | null | undefined): string
   )
   return byLabel ?? "N/A"
 }
+
+/** Combobox / Select value: display label, or `""` when empty/unmapped. */
+export function salaryPolicyToSelectValue(raw: string | null | undefined): string {
+  if (!raw?.trim()) return ""
+  const label = salaryPolicyDisplayLabel(raw)
+  return label === "N/A" ? "" : label
+}

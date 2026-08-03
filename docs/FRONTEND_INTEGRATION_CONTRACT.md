@@ -131,7 +131,7 @@ Weights (section totals 100; display descending): `currentSalary` 85,
 - layoff:
   `work_experience_{i}_layoff_{j}_{layoffDate|affectedEmployees|reason}`
 - nested project:
-  `work_experience_{i}_project_{j}_{projectName|employerName|projectType|startDate|status|description|contributionNotes|techStacks|verticalDomains|horizontalDomains|technicalDomains|technicalAspects|minTeamSize|clientLocations|latestUpdate|maxTeamSize|endDate}`
+  `work_experience_{i}_project_{j}_{projectName|employerName|projectType|startDate|status|description|contributionNotes|techStacks|verticalDomains|averageTeamSize|horizontalDomains|technicalDomains|technicalAspects|clientLocations|latestUpdate|endDate}`
 
 When the parent WE has an employer (`employerId` or non-empty `employerName`),
 omit project `employerName` and `projectType` from generation and UI.

@@ -35,10 +35,9 @@ const PROJECT_SUFFIXES = new Set([
   "horizontalDomains",
   "technicalDomains",
   "technicalAspects",
-  "minTeamSize",
+  "averageTeamSize",
   "clientLocations",
   "latestUpdate",
-  "maxTeamSize",
   "endDate",
 ])
 

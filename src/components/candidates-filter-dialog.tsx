@@ -109,6 +109,11 @@ export interface CandidateFilters {
   shiftTypes: string[]
   /** `WorkModeDb` keys (same as work experience work mode in CandidateCreationDialog). */
   workModes: string[]
+  /**
+   * WE-owned salary policy display labels → API `workExperienceSalaryPolicies`.
+   * Independent of `employerSalaryPolicies`.
+   */
+  workExperienceSalaryPolicies: string[]
   // Work mode minimum years of experience
   workModeMinYears: {
     workModes: string[]
@@ -132,8 +137,8 @@ export interface CandidateFilters {
   mutualConnectionToleranceMonths: number  // Tolerance for date gaps in months (default: 0)
   mutualConnectionType: 'education' | 'work' | 'both' | null  // Filter by connection type
   // Project team size filters
-  projectTeamSizeMin: string
-  projectTeamSizeMax: string
+  averageTeamSizeMin: string
+  averageTeamSizeMax: string
   // Published project filters
   hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
   publishPlatforms: string[]  // ["App Store", "Play Store"] - filter by specific platforms
@@ -316,6 +321,9 @@ const employerSalaryPolicyOptions: MultiSelectOption[] = Object.entries(SALARY_P
   label,
 }))
 
+/** Same option catalog as employer salary policy; query param is `workExperienceSalaryPolicies`. */
+const workExperienceSalaryPolicyOptions: MultiSelectOption[] = employerSalaryPolicyOptions
+
 const employerRankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABELS).map(([value, label]) => ({
   value: value as EmployerRanking,
   label
@@ -384,6 +392,7 @@ const initialFilters: CandidateFilters = {
   shiftTypes: [],
   // Candidate work experience work modes
   workModes: [],
+  workExperienceSalaryPolicies: [],
   // Work mode minimum years of experience
   workModeMinYears: {
     workModes: [],
@@ -407,8 +416,8 @@ const initialFilters: CandidateFilters = {
   mutualConnectionToleranceMonths: 0,  // Default: 0 = exact overlap required
   mutualConnectionType: null,  // null = both education and work
   // Project team size filters
-  projectTeamSizeMin: "",
-  projectTeamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   // Published project filters
   hasPublishedProject: null,
   publishPlatforms: [],
@@ -891,6 +900,7 @@ export function CandidatesFilterDialog({
           }
           updated.shiftTypes = []
           updated.workModes = []
+          updated.workExperienceSalaryPolicies = []
           updated.workModeMinYears = {
             workModes: [],
             minYears: ""
@@ -917,8 +927,8 @@ export function CandidatesFilterDialog({
           updated.technicalAspectTypeIds = []
           updated.startDateStart = null
           updated.startDateEnd = null
-          updated.projectTeamSizeMin = ""
-          updated.projectTeamSizeMax = ""
+          updated.averageTeamSizeMin = ""
+          updated.averageTeamSizeMax = ""
           updated.hasPublishedProject = null
           updated.publishPlatforms = []
           updated.minProjectDownloadCount = ""
@@ -1035,6 +1045,7 @@ export function CandidatesFilterDialog({
           ((tempFilters.techStackMinYears?.techStacks.length || 0) > 0 && tempFilters.techStackMinYears?.minYears ? 1 : 0) +
           tempFilters.shiftTypes.length +
           tempFilters.workModes.length +
+          tempFilters.workExperienceSalaryPolicies.length +
           ((tempFilters.workModeMinYears?.workModes.length || 0) > 0 && tempFilters.workModeMinYears?.minYears ? 1 : 0) +
           tempFilters.timeSupportZones.length +
           (tempFilters.jobTitle ? 1 : 0) +
@@ -1057,8 +1068,8 @@ export function CandidatesFilterDialog({
           tempFilters.technicalAspectTypeIds.length +
           (tempFilters.startDateStart ? 1 : 0) +
           (tempFilters.startDateEnd ? 1 : 0) +
-          (tempFilters.projectTeamSizeMin ? 1 : 0) +
-          (tempFilters.projectTeamSizeMax ? 1 : 0) +
+          (tempFilters.averageTeamSizeMin ? 1 : 0) +
+          (tempFilters.averageTeamSizeMax ? 1 : 0) +
           (tempFilters.hasPublishedProject ? 1 : 0) +
           tempFilters.publishPlatforms.length +
           (tempFilters.minProjectDownloadCount ? 1 : 0)
@@ -1221,6 +1232,7 @@ export function CandidatesFilterDialog({
     (tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears) ||
     tempFilters.shiftTypes.length > 0 ||
     tempFilters.workModes.length > 0 ||
+    tempFilters.workExperienceSalaryPolicies.length > 0 ||
     (tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears) ||
     tempFilters.timeSupportZones.length > 0 ||
     tempFilters.jobTitle ||
@@ -1236,8 +1248,8 @@ export function CandidatesFilterDialog({
     tempFilters.technicalAspectTypeIds.length > 0 ||
     tempFilters.startDateStart !== null ||
     tempFilters.startDateEnd !== null ||
-    tempFilters.projectTeamSizeMin ||
-    tempFilters.projectTeamSizeMax ||
+    tempFilters.averageTeamSizeMin ||
+    tempFilters.averageTeamSizeMax ||
     tempFilters.hasPublishedProject !== null ||
     tempFilters.publishPlatforms.length > 0 ||
     tempFilters.minProjectDownloadCount ||
@@ -1751,6 +1763,22 @@ export function CandidatesFilterDialog({
                 searchPlaceholder="Search work modes..."
                 maxDisplay={3}
               />
+
+              <MultiSelect
+                items={workExperienceSalaryPolicyOptions}
+                selected={tempFilters.workExperienceSalaryPolicies}
+                onChange={(values) =>
+                  handleFilterChange("workExperienceSalaryPolicies", values)
+                }
+                placeholder="Filter by WE salary policy..."
+                label="WE Salary Policy"
+                searchPlaceholder="Search salary policies..."
+                maxDisplay={3}
+              />
+              <p className="text-xs text-muted-foreground -mt-2">
+                Filters work-experience salary policy only — not employer salary
+                policy.
+              </p>
 
               {/* Work Mode Minimum Years Filter */}
               <div className="space-y-2">
@@ -2350,39 +2378,39 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Project Team Size Range Filter */}
+              {/* Average Team Size Range Filter */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold">Project Team Size</Label>
+                <Label className="text-sm font-semibold">Average Team Size</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="projectTeamSizeMin" className="text-xs text-muted-foreground">
-                      Minimum Team Size
+                    <Label htmlFor="averageTeamSizeMin" className="text-xs text-muted-foreground">
+                      Average team size (min)
                     </Label>
                     <Input
-                      id="projectTeamSizeMin"
+                      id="averageTeamSizeMin"
                       type="number"
                       placeholder="e.g., 5"
-                      value={tempFilters.projectTeamSizeMin}
-                      onChange={(e) => handleFilterChange("projectTeamSizeMin", e.target.value)}
+                      value={tempFilters.averageTeamSizeMin}
+                      onChange={(e) => handleFilterChange("averageTeamSizeMin", e.target.value)}
                       min="1"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="projectTeamSizeMax" className="text-xs text-muted-foreground">
-                      Maximum Team Size
+                    <Label htmlFor="averageTeamSizeMax" className="text-xs text-muted-foreground">
+                      Average team size (max)
                     </Label>
                     <Input
-                      id="projectTeamSizeMax"
+                      id="averageTeamSizeMax"
                       type="number"
                       placeholder="e.g., 30"
-                      value={tempFilters.projectTeamSizeMax}
-                      onChange={(e) => handleFilterChange("projectTeamSizeMax", e.target.value)}
+                      value={tempFilters.averageTeamSizeMax}
+                      onChange={(e) => handleFilterChange("averageTeamSizeMax", e.target.value)}
                       min="1"
                     />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Filter by team size of projects the candidate worked on
+                  Filter by average team size of projects the candidate worked on
                 </p>
               </div>
 

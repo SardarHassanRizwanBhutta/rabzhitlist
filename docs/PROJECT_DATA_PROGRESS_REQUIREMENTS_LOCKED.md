@@ -32,7 +32,7 @@
 4. **Technical Aspects & Tech Stacks (20%):** **All-or-nothing** — earn full 20% when **both** conditions hold at project level: **≥1** tech stack (`techStackIds` / `techStacks`) **and** **≥1** aspect type label (`aspectTypeLabels` derived from stacks). Stack–type linkage per row is **not** required for scoring.
 5. **Domain fields (10% each):** **Binary** — 0% or full 10% when **≥1** value in that domain list.
 6. **“Filled”** means **non-null** on the stored value (see §4 per field). Strings: non-null in DB/API (empty string counts as filled if non-null).
-7. **Employer** is required for **all** project types (including Personal, Academic, etc.).
+7. **Employer** is required for **all** project types (Employer, Freelance, Independent).
 8. **End date** is **always** required (all statuses).
 9. **`isPublished`:** `true` earns the 1% weight; `false` does not.
 10. **`downloadCount`:** must be **> 0** to earn its 1% (non-null and zero does **not** earn).
@@ -41,7 +41,7 @@
 
 ## 3. Field weights (total 100%)
 
-### 3.1 Basic Information — section max **26%**
+### 3.1 Basic Information — section max **21%** (was 26%; team-size weights paused)
 
 | UI label | `missingFields` key | Weight % | Earned when |
 |----------|---------------------|----------|-------------|
@@ -50,8 +50,10 @@
 | Client Location | `Client Location` | 5 | ≥1 client location |
 | Project Type | `Project Type` | 1 | `type` not null |
 | Project Status | `Project Status` | 2.5 | `status` not null |
-| Min Team Size | `Min Team Size` | 2.5 | `min_team_size` not null |
-| Max Team Size | `Max Team Size` | 2.5 | `max_team_size` not null |
+| Min Team Size | `Min Team Size` | — | **Paused:** removed from scoring pending Average Team Size ticket |
+| Max Team Size | `Max Team Size` | — | **Paused:** removed from scoring pending Average Team Size ticket |
+
+Basic Information section max is temporarily **21** (overall denominator &lt; 100%) until Average Team Size is scored.
 
 ### 3.2 Project Dates — section max **5%**
 
@@ -87,7 +89,7 @@ If only one side is present, section earns **0%** and missing field lists `Techn
 | Platforms | `Platforms` | 1 | ≥1 publish platform |
 | Download Count | `Download Count` | 1 | `download_count` not null **and** > 0 |
 
-**Check:** 26 + 5 + 20 + 30 + 19 = **100**.
+**Check (temporary while team-size scoring is paused):** 21 + 5 + 20 + 30 + 19 = **95**.
 
 ---
 
@@ -97,7 +99,7 @@ Five sections match the project form accordions (`ProjectCreationDialog`; same k
 
 | `sectionKey` | `sectionName` | Max weight % |
 |--------------|---------------|--------------|
-| `basicInformation` | Basic Information | 26 |
+| `basicInformation` | Basic Information | 21 |
 | `projectDates` | Project Dates | 5 |
 | `technicalAspectsAndTechStacks` | Technical Aspects & Tech Stacks | 20 |
 | `domains` | Domains | 30 |

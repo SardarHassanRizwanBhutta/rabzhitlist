@@ -11,8 +11,7 @@ export interface LinkedProjectFields {
   projectType?: string | null
   status?: string | null
   teamSize?: string | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
   technicalDomains?: string[]
@@ -78,6 +77,10 @@ export interface WorkExperience {
   websiteUrl?: string | null
   linkedinUrl?: string | null
   isDplCompetitor?: boolean | null
+  /**
+   * WE-owned salary policy (independent of employer `salaryPolicy`).
+   * Display label or empty; API wire is enum int | null.
+   */
   salaryPolicy?: string | null
   locations?: WorkExperienceOfficeLocation[]
   layoffs?: WorkExperienceLayoffRow[]
@@ -165,12 +168,6 @@ export interface MatchedDomainDto {
   label: string
 }
 
-/** Team size on a matched project (`matchedProjects[].teamSize`). */
-export interface MatchedTeamSizeDto {
-  minTeamSize?: number
-  maxTeamSize?: number
-}
-
 /** Headcount range on a matched employer (`matchedEmployers[].size`). */
 export interface MatchedEmployerSizeDto {
   headcount?: number
@@ -225,6 +222,8 @@ export interface MatchedWorkExperienceDto {
   endDate: string | null
   shiftType: MatchedDomainDto | null
   workMode: MatchedDomainDto | null
+  /** When `workExperienceSalaryPolicies` filter active (WE column, not employer). */
+  salaryPolicy: MatchedDomainDto | null
   timeSupportZones: MatchedDomainDto[]
   techStacks: MatchedDomainDto[]
 }
@@ -267,8 +266,8 @@ export interface MatchedProjectDto {
   publishPlatforms: MatchedDomainDto[]
   /** Project link URL when publish-related matching applies (`projects.link`, Phase 3). */
   storeLink: string | null
-  /** Project team size when team size filter(s) satisfied (Phase 3). */
-  teamSize: MatchedTeamSizeDto | null
+  /** Project average team size when average team size filter(s) satisfied (Phase 3). */
+  averageTeamSize: number | null
   /** Actual download count when `minDownloadCount` filter satisfied (Phase 3). */
   downloadCount: number | null
   /** ISO DateOnly when start date range filter satisfied (Phase 3). */

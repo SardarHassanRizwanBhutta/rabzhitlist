@@ -203,6 +203,7 @@ const defaultFilters: CandidateFilters = {
   },
   shiftTypes: [],
   workModes: [],
+  workExperienceSalaryPolicies: [],
   workModeMinYears: {
     workModes: [],
     minYears: ""
@@ -218,8 +219,8 @@ const defaultFilters: CandidateFilters = {
   hasMutualConnectionWithDPL: null,
   mutualConnectionToleranceMonths: 0,
   mutualConnectionType: null,
-  projectTeamSizeMin: "",
-  projectTeamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   hasPublishedProject: null,
   publishPlatforms: [],
   minProjectDownloadCount: "",

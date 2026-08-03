@@ -121,10 +121,9 @@ export const COLD_CALLER_QG_PROJECT_PRIORITIES: Record<string, number> = {
   horizontalDomains: 4.42,
   technicalDomains: 3.95,
   technicalAspects: 3.57,
-  minTeamSize: 3.2,
+  averageTeamSize: 4.89,
   clientLocations: 2.82,
   latestUpdate: 2.35,
-  maxTeamSize: 1.69,
   endDate: 1.03,
 }
 
@@ -143,10 +142,9 @@ export const COLD_CALLER_QG_PROJECT_FIELD_ORDER = [
   "horizontalDomains",
   "technicalDomains",
   "technicalAspects",
-  "minTeamSize",
+  "averageTeamSize",
   "clientLocations",
   "latestUpdate",
-  "maxTeamSize",
   "endDate",
 ] as const satisfies readonly ColdCallerQgProjectApiSuffix[]
 
@@ -166,10 +164,9 @@ export const COLD_CALLER_QG_PROJECT_FIELD_LABELS: Record<
   horizontalDomains: "Horizontal Domains",
   technicalDomains: "Technical Domains",
   technicalAspects: "Technical Aspects",
-  minTeamSize: "Team Size (min)",
+  averageTeamSize: "Average Team Size",
   clientLocations: "Client Location",
   latestUpdate: "Project Latest Update",
-  maxTeamSize: "Team Size (max)",
   endDate: "Project End Date",
 }
 
@@ -337,20 +334,11 @@ export function coldCallerQgProjectFieldDefs(
       continue
     }
 
-    if (key === "minTeamSize") {
+    if (key === "averageTeamSize") {
       defs.push({
-        payloadKey: "minTeamSize",
-        apiSuffix: "minTeamSize" as ProjectFieldDef["apiSuffix"],
-        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.minTeamSize,
-        type: "number",
-      })
-      continue
-    }
-    if (key === "maxTeamSize") {
-      defs.push({
-        payloadKey: "maxTeamSize",
-        apiSuffix: "maxTeamSize" as ProjectFieldDef["apiSuffix"],
-        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.maxTeamSize,
+        payloadKey: "averageTeamSize",
+        apiSuffix: "averageTeamSize" as ProjectFieldDef["apiSuffix"],
+        label: COLD_CALLER_QG_PROJECT_FIELD_LABELS.averageTeamSize,
         type: "number",
       })
       continue
@@ -378,7 +366,7 @@ export function isProjectCatalogFieldMissing(
   payloadKey: string,
   value: unknown,
 ): boolean {
-  if (payloadKey === "downloadCount" || payloadKey === "minTeamSize" || payloadKey === "maxTeamSize") {
+  if (payloadKey === "downloadCount" || payloadKey === "averageTeamSize") {
     return value === null || value === undefined
   }
   if (Array.isArray(value)) return value.length === 0
@@ -395,8 +383,8 @@ export function readLinkedProjectPayloadValue(
     if (project.teamSize != null && String(project.teamSize).trim() !== "") {
       return project.teamSize
     }
-    if (project.minTeamSize != null || project.maxTeamSize != null) {
-      return project.teamSize ?? `${project.minTeamSize ?? ""}-${project.maxTeamSize ?? ""}`
+    if (project.averageTeamSize != null) {
+      return project.teamSize ?? String(project.averageTeamSize)
     }
     return null
   }
@@ -524,17 +512,10 @@ export function sortProjectAccordionQuestions(
 
 export function formatTeamSizeForService(
   teamSize: string | null | undefined,
-  minTeamSize?: number | null,
-  maxTeamSize?: number | null,
+  averageTeamSize?: number | null,
 ): string | null {
   const trimmed = teamSize?.trim()
   if (trimmed) return trimmed
-  if (minTeamSize == null && maxTeamSize == null) return null
-  if (minTeamSize != null && maxTeamSize != null && minTeamSize === maxTeamSize) {
-    return String(minTeamSize)
-  }
-  if (minTeamSize != null && maxTeamSize != null) return `${minTeamSize}-${maxTeamSize}`
-  if (minTeamSize != null) return String(minTeamSize)
-  if (maxTeamSize != null) return String(maxTeamSize)
+  if (averageTeamSize != null) return String(averageTeamSize)
   return null
 }

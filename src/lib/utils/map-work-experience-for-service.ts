@@ -234,7 +234,8 @@ export function mergeEmployerCatalogIntoWorkExperience(
     websiteUrl: we.websiteUrl ?? catalog.websiteUrl,
     linkedinUrl: we.linkedinUrl ?? catalog.linkedinUrl,
     isDplCompetitor: we.isDplCompetitor ?? catalog.isDplCompetitor,
-    salaryPolicy: we.salaryPolicy ?? catalog.salaryPolicy,
+    // WE `salaryPolicy` is WE-owned — never overwrite from employer catalog.
+    salaryPolicy: we.salaryPolicy ?? null,
     shiftType: we.shiftType ? we.shiftType : (catalog.shiftType as WorkExperience["shiftType"]),
     workMode: we.workMode ? we.workMode : (catalog.workMode as WorkExperience["workMode"]),
     timeSupportZones:

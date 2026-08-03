@@ -80,8 +80,10 @@ export interface EmployerFilters {
   technicalDomains: string[]
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   projectStatus: string[]
-  projectTeamSizeMin: string  // Minimum project team size
-  projectTeamSizeMax: string  // Maximum project team size (optional)
+  /** UI state; mapped to API `projectTeamSizeMin` on employer list fetch. */
+  averageTeamSizeMin: string
+  /** UI state; mapped to API `projectTeamSizeMax` on employer list fetch. */
+  averageTeamSizeMax: string
   // Published App filters
   hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
   publishPlatforms: string[]  // ["App Store", "Play Store", "Web", "Desktop"] - filter by specific platforms
@@ -266,8 +268,8 @@ const initialFilters: EmployerFilters = {
   technicalDomains: [],
   clientLocations: [],
   projectStatus: [],
-  projectTeamSizeMin: "",
-  projectTeamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   // Published App filters
   hasPublishedProject: null,
   publishPlatforms: [],
@@ -347,8 +349,8 @@ export function EmployersFilterDialog({
     filters.technicalDomains.length +
     filters.clientLocations.length +
     filters.projectStatus.length +
-    (filters.projectTeamSizeMin ? 1 : 0) +
-    (filters.projectTeamSizeMax ? 1 : 0) +
+    (filters.averageTeamSizeMin ? 1 : 0) +
+    (filters.averageTeamSizeMax ? 1 : 0) +
     (filters.hasPublishedProject !== null ? 1 : 0) +
     filters.publishPlatforms.length +
     (filters.minDownloadCount ? 1 : 0) +
@@ -436,8 +438,8 @@ export function EmployersFilterDialog({
     tempFilters.technicalDomains.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
-    tempFilters.projectTeamSizeMin ||
-    tempFilters.projectTeamSizeMax ||
+    tempFilters.averageTeamSizeMin ||
+    tempFilters.averageTeamSizeMax ||
     tempFilters.hasPublishedProject !== null ||
     tempFilters.publishPlatforms.length > 0 ||
     tempFilters.minDownloadCount ||
@@ -821,34 +823,34 @@ export function EmployersFilterDialog({
                   />
                 </div>
 
-                {/* Project Team Size Range Filter */}
+                {/* Average Team Size Range Filter (API: projectTeamSizeMin/Max) */}
                 <div className="space-y-3 mt-4">
-                  <Label className="text-sm font-semibold">Project Team Size</Label>
+                  <Label className="text-sm font-semibold">Average Team Size</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="projectTeamSizeMin" className="text-xs text-muted-foreground">
-                        Minimum Team Size
+                      <Label htmlFor="averageTeamSizeMin" className="text-xs text-muted-foreground">
+                        Average team size (min)
                       </Label>
                       <Input
-                        id="projectTeamSizeMin"
+                        id="averageTeamSizeMin"
                         type="number"
                         placeholder="e.g., 10"
-                        value={tempFilters.projectTeamSizeMin}
-                        onChange={(e) => handleFilterChange("projectTeamSizeMin", e.target.value)}
+                        value={tempFilters.averageTeamSizeMin}
+                        onChange={(e) => handleFilterChange("averageTeamSizeMin", e.target.value)}
                         min="1"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="projectTeamSizeMax" className="text-xs text-muted-foreground">
-                        Maximum Team Size (optional)
+                      <Label htmlFor="averageTeamSizeMax" className="text-xs text-muted-foreground">
+                        Average team size (max)
                       </Label>
                       <Input
-                        id="projectTeamSizeMax"
+                        id="averageTeamSizeMax"
                         type="number"
                         placeholder="e.g., 50"
-                        value={tempFilters.projectTeamSizeMax}
-                        onChange={(e) => handleFilterChange("projectTeamSizeMax", e.target.value)}
+                        value={tempFilters.averageTeamSizeMax}
+                        onChange={(e) => handleFilterChange("averageTeamSizeMax", e.target.value)}
                         min="1"
                       />
                     </div>

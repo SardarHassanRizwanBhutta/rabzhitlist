@@ -86,6 +86,8 @@ import {
   type CandidateSourceDb,
   parseCandidateSource,
 } from "@/lib/constants/candidate-enums"
+import { SALARY_POLICY_DB_LABELS, type SalaryPolicyDb } from "@/lib/types/employer"
+import { salaryPolicyToSelectValue } from "@/lib/utils/salary-policy-display"
 import {
   EmployerCombobox,
   type EmployerComboboxNestedCreationProps,
@@ -178,6 +180,8 @@ export interface WorkExperience {
   techStacks: string[]
   shiftType: string
   workMode: string
+  /** WE-owned salary policy display label (optional). */
+  salaryPolicy: string
   timeSupportZones: string[]
   benefits: WorkExperienceBenefit[]
 }
@@ -852,6 +856,7 @@ const createEmptyWorkExperience = (): WorkExperience => ({
   techStacks: [],
   shiftType: "",
   workMode: "",
+  salaryPolicy: "",
   timeSupportZones: [],
   benefits: [],
 })
@@ -883,6 +888,9 @@ const shiftTypeOptions: ComboboxOption[] = (Object.entries(SHIFT_TYPE_LABELS) as
 const workModeOptions: ComboboxOption[] = (Object.entries(WORK_MODE_LABELS) as [keyof typeof WORK_MODE_LABELS, string][]).map(
   ([value, label]) => ({ value, label })
 )
+const salaryPolicyOptions: ComboboxOption[] = (
+  Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]
+).map(([, label]) => ({ value: label, label }))
 /** Labels match DB enum `mbti_type` (four-letter codes only). */
 const personalityTypeOptions: ComboboxOption[] = MBTI_TYPES.map((t) => ({
   value: t,
@@ -959,6 +967,7 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       techStacks: we.techStacks || [],
       shiftType: we.shiftType || "",
       workMode: we.workMode || "",
+      salaryPolicy: salaryPolicyToSelectValue(we.salaryPolicy),
       timeSupportZones: we.timeSupportZones || [],
       benefits: we.benefits?.map(b => ({
         id: b.id,
@@ -1279,7 +1288,7 @@ export function CandidateCreationDialog({
     
     // Work experiences (includes nested projects)
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode']
+      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1390,7 +1399,7 @@ export function CandidateCreationDialog({
     let verified = 0
     
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'timeSupportZones']
+      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'timeSupportZones']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1705,6 +1714,7 @@ export function CandidateCreationDialog({
             `workExperiences.${idx}.techStacks`,
             `workExperiences.${idx}.shiftType`,
             `workExperiences.${idx}.workMode`,
+            `workExperiences.${idx}.salaryPolicy`,
             `workExperiences.${idx}.timeSupportZones`,
             `workExperiences.${idx}.benefits`
           )
@@ -2370,6 +2380,7 @@ export function CandidateCreationDialog({
         exp.techStacks.length > 0 ||
         exp.shiftType ||
         exp.workMode ||
+        exp.salaryPolicy ||
         exp.timeSupportZones.length > 0
 
       // Orphan WE rows may have empty employer/jobTitle when they hold nested projects
@@ -3371,6 +3382,20 @@ export function CandidateCreationDialog({
                         searchPlaceholder="Search work modes..."
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.workMode`} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy</Label>
+                      <ReusableCombobox
+                        options={salaryPolicyOptions}
+                        value={experience.salaryPolicy}
+                        onValueChange={(value) =>
+                          handleWorkExperienceChange(index, "salaryPolicy", value)
+                        }
+                        placeholder="Select salary policy..."
+                        searchPlaceholder="Search salary policies..."
+                      />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.salaryPolicy`} />
                     </div>
                   </div>
 

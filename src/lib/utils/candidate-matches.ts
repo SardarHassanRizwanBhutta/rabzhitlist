@@ -6,6 +6,7 @@ import {
   parseCandidateSource,
 } from "@/lib/constants/candidate-enums"
 import { normalizeSalaryPolicy } from "@/lib/types/employer"
+import { salaryPolicyDisplayLabel } from "@/lib/utils/salary-policy-display"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -28,7 +29,6 @@ import type {
   MatchedEmployerDto,
   MatchedEmployerSizeDto,
   MatchedProjectDto,
-  MatchedTeamSizeDto,
   MatchedWorkExperienceDto,
 } from "@/lib/types/candidate"
 import {
@@ -147,14 +147,15 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     (filters.workModeMinYears && filters.workModeMinYears.workModes.length > 0 && filters.workModeMinYears.minYears) ||
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
+    filters.workExperienceSalaryPolicies.length > 0 ||
     filters.timeSupportZones.length > 0 ||
     filters.jobTitle ||
     filters.yearsOfExperienceMin ||
     filters.yearsOfExperienceMax ||
     filters.hasMutualConnectionWithDPL !== null ||
     filters.joinedProjectFromStart !== null ||
-    filters.projectTeamSizeMin ||
-    filters.projectTeamSizeMax ||
+    filters.averageTeamSizeMin ||
+    filters.averageTeamSizeMax ||
     filters.hasPublishedProject === true ||
     filters.publishPlatforms.length > 0 ||
     filters.minProjectDownloadCount ||
@@ -328,13 +329,8 @@ function resolvePublishPlatformLabel(platform: MatchedDomainDto): string {
   return platform.label
 }
 
-function formatTeamSizeBadge(teamSize: MatchedTeamSizeDto): string {
-  const min = teamSize.minTeamSize
-  const max = teamSize.maxTeamSize
-  if (min != null && max != null) return `${min}-${max}`
-  if (min != null) return String(min)
-  if (max != null) return String(max)
-  return ""
+function formatAverageTeamSizeBadge(averageTeamSize: number): string {
+  return String(averageTeamSize)
 }
 
 function formatEmployerSizeBadge(size: MatchedEmployerSizeDto): string {
@@ -380,10 +376,12 @@ function resolveEmployerTypeLabel(domain: MatchedDomainDto): string {
 }
 
 function resolveSalaryPolicyLabel(domain: MatchedDomainDto): string {
-  const trimmed = domain.label.trim()
-  if (trimmed) return trimmed
+  const fromLabel = salaryPolicyDisplayLabel(domain.label)
+  if (fromLabel !== "N/A") return fromLabel
   const db = API_TO_SALARY_POLICY[domain.id] as SalaryPolicyDb | undefined
-  return db ? SALARY_POLICY_DB_LABELS[db] : String(domain.id)
+  if (db) return SALARY_POLICY_DB_LABELS[db]
+  const trimmed = domain.label.trim()
+  return trimmed || String(domain.id)
 }
 
 function resolveEmployerRankingLabel(domain: MatchedDomainDto): string {
@@ -430,8 +428,8 @@ function hasBackendMatchedProjectFilterDrivers(filters: CandidateFilters): boole
     filters.publishPlatforms.length > 0 ||
     filters.hasPublishedProject === true ||
     !!filters.minProjectDownloadCount.trim() ||
-    !!filters.projectTeamSizeMin.trim() ||
-    !!filters.projectTeamSizeMax.trim() ||
+    !!filters.averageTeamSizeMin.trim() ||
+    !!filters.averageTeamSizeMax.trim() ||
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
     filters.technicalAspectTypeIds.length > 0
@@ -542,17 +540,14 @@ function appendBackendMatchedProjectItem(
   }
 
   if (
-    (filters.projectTeamSizeMin.trim() || filters.projectTeamSizeMax.trim()) &&
-    mp.teamSize != null
+    (filters.averageTeamSizeMin.trim() || filters.averageTeamSizeMax.trim()) &&
+    mp.averageTeamSize != null
   ) {
-    const badge = formatTeamSizeBadge(mp.teamSize)
-    if (badge) {
-      matchedCriteria.push({
-        type: "teamSize",
-        label: "Team Size",
-        values: [badge],
-      })
-    }
+    matchedCriteria.push({
+      type: "averageTeamSize",
+      label: "Average Team Size",
+      values: [formatAverageTeamSizeBadge(mp.averageTeamSize)],
+    })
   }
 
   if (filters.minProjectDownloadCount.trim() && mp.downloadCount != null) {
@@ -1009,6 +1004,7 @@ function hasBackendMatchedWorkExperienceFilterDrivers(filters: CandidateFilters)
   return (
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
+    filters.workExperienceSalaryPolicies.length > 0 ||
     filters.timeSupportZones.length > 0 ||
     filters.candidateTechStacks.length > 0
   )
@@ -1050,6 +1046,14 @@ function appendBackendMatchedWorkExperienceItem(
       type: "workMode",
       label: "Work Mode",
       values: [resolveMatchedDomainLabel(mwe.workMode)],
+    })
+  }
+
+  if (filters.workExperienceSalaryPolicies.length > 0 && mwe.salaryPolicy != null) {
+    matchedCriteria.push({
+      type: "salaryPolicy",
+      label: "WE Salary Policy",
+      values: [resolveSalaryPolicyLabel(mwe.salaryPolicy)],
     })
   }
 
@@ -1107,8 +1111,8 @@ export function getCandidateMatchContext(
     filters.clientLocations.length > 0 ||
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
-    filters.projectTeamSizeMin ||
-    filters.projectTeamSizeMax ||
+    filters.averageTeamSizeMin ||
+    filters.averageTeamSizeMax ||
     filters.hasPublishedProject === true ||
     filters.publishPlatforms.length > 0 ||
     filters.minProjectDownloadCount
@@ -1737,6 +1741,29 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
       }
+
+          if (
+            filters.workExperienceSalaryPolicies.length > 0 &&
+            we.salaryPolicy
+          ) {
+            const wePolicyLabel = salaryPolicyDisplayLabel(we.salaryPolicy)
+            const matchesPolicy =
+              wePolicyLabel !== "N/A" &&
+              filters.workExperienceSalaryPolicies.some(
+                (selected) =>
+                  selected === we.salaryPolicy ||
+                  selected === wePolicyLabel ||
+                  selected.toLowerCase() === wePolicyLabel.toLowerCase(),
+              )
+            if (matchesPolicy) {
+              matchedCriteria.push({
+                type: "salaryPolicy",
+                label: "WE Salary Policy",
+                values: [wePolicyLabel],
+              })
+              hasMatch = true
+            }
+          }
 
           if (
             filters.timeSupportZones.length > 0 &&

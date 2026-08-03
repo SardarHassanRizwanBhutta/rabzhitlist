@@ -10,8 +10,8 @@
 2. Replace **Employer Details** allowlist/weights/`prompt_type` map (drop awards;
    add `types`, `foundedYear`, employer `linkedinUrl`, office `isHeadquarters`).
 3. Replace **nested Project** allowlist/weights/`prompt_type` map
-   (`minTeamSize` / `maxTeamSize` / `clientLocations` / `contributionNotes`;
-   drop download / publish / link / single `teamSize`).
+   (`averageTeamSize` / `clientLocations` / `contributionNotes`;
+   drop `minTeamSize` / `maxTeamSize` / download / publish / link / single `teamSize`).
 4. When parent WE has an employer, **FE** omits project `employerName` /
    `projectType` from `fields_to_generate`. Python **trusts FE only** (no
    `employerId` / extra Python filter).
@@ -76,13 +76,12 @@ Display/sort weight descending:
 | `contributionNotes` | 6 | advanced |
 | `techStacks` | 5.45 | advanced |
 | `verticalDomains` | 4.89 | advanced (enum) |
+| `averageTeamSize` | 4.89 | basic |
 | `horizontalDomains` | 4.42 | advanced (enum) |
 | `technicalDomains` | 3.95 | advanced (enum) |
 | `technicalAspects` | 3.57 | advanced (enum) |
-| `minTeamSize` | 3.2 | basic |
 | `clientLocations` | 2.82 | basic |
 | `latestUpdate` | 2.35 | basic |
-| `maxTeamSize` | 1.69 | basic |
 | `endDate` | 1.03 | basic |
 
 `contributionNotes` is always listed in `fields_to_generate` (even when
@@ -111,7 +110,8 @@ if those keys are absent, do not generate them.
 - Project emits `contributionNotes` (weight 6, `prompt_type: "advanced"`) whenever
   FE lists the key — including when Contribution is populated (populated value
   omitted from sparse `candidate_data`). Still does not emit `downloadCount`,
-  `publishPlatforms`, `projectLink`, or single `teamSize`.
+  `publishPlatforms`, `projectLink`, single `teamSize`, `minTeamSize`, or
+  `maxTeamSize`.
 - Employer-present WE never returns project Employer / Project Type questions.
 - Awards never returned for WE Employer Details.
 - Preferences weights 85 / 15.
@@ -122,3 +122,4 @@ See also:
 - `docs/FRONTEND_INTEGRATION_CONTRACT.md`
 - `docs/QG_BASIC_PREFERENCES_HANDOFF.md`
 - `docs/QG_PYTHON_SYNC_HANDOFF.md` (consolidated Achievements → Contribution)
+- `docs/QG_AVERAGE_TEAM_SIZE_HANDOFF.md` (min/max → `averageTeamSize` Python sync)

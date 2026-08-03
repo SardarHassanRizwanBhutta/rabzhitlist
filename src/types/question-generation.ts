@@ -65,8 +65,7 @@ export interface LinkedProjectForService {
   projectType?: string | null
   status?: string | null
   teamSize?: string | number | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
   technicalDomains?: string[]

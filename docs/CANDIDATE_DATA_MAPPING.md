@@ -101,10 +101,9 @@ and `projectType` from `fields_to_generate` / generation.
 | `horizontalDomains` | `horizontalDomains` |
 | `technicalDomains` | `technicalDomains` |
 | `technicalAspects` | `technicalAspects` |
-| `minTeamSize` | `minTeamSize` |
+| `averageTeamSize` | `averageTeamSize` |
 | `clientLocations` | `clientLocations` |
 | `latestUpdate` | `latestUpdate` |
-| `maxTeamSize` | `maxTeamSize` |
 | `endDate` | `endDate` |
 
 **Contribution exception:** always include in `fields_to_generate` even when

@@ -97,6 +97,17 @@ import {
   workModeDisplayLabel,
   workModeToSelectValue,
 } from "@/lib/utils/shift-work-mode-display"
+import {
+  salaryPolicyDisplayLabel,
+  salaryPolicyToSelectValue,
+} from "@/lib/utils/salary-policy-display"
+import {
+  SALARY_POLICY_DB_LABELS,
+  SALARY_POLICY_DISPLAY_TO_DB,
+  type SalaryPolicy,
+  type SalaryPolicyDb,
+} from "@/lib/types/employer"
+import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
@@ -219,6 +230,10 @@ const shiftTypeSelectOptions: ComboboxOption[] = (
 const workModeSelectOptions: ComboboxOption[] = (
   Object.entries(WORK_MODE_LABELS) as [WorkModeDb, string][]
 ).map(([value, label]) => ({ value, label }))
+
+const salaryPolicySelectOptions: ComboboxOption[] = (
+  Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]
+).map(([, label]) => ({ value: label, label }))
 
 function enumIndex<T extends string>(arr: readonly T[], val: string): number | null {
   const i = arr.indexOf(val as T)
@@ -4754,6 +4769,7 @@ export function CandidateDetailsModal({
     patch: {
       shiftType?: string
       workMode?: string
+      salaryPolicy?: string | null
       employerId?: number
       employerName?: string
     },
@@ -4787,6 +4803,16 @@ export function CandidateDetailsModal({
       patch.workMode !== undefined
         ? workModeToSelectValue(patch.workMode)
         : workModeToSelectValue(we.workMode ?? "")
+    const nextSalaryPolicy =
+      patch.salaryPolicy !== undefined
+        ? salaryPolicyToSelectValue(patch.salaryPolicy)
+        : salaryPolicyToSelectValue(we.salaryPolicy)
+    const nextSalaryPolicyApi =
+      nextSalaryPolicy && nextSalaryPolicy in SALARY_POLICY_DISPLAY_TO_DB
+        ? SALARY_POLICY_TO_API[
+            SALARY_POLICY_DISPLAY_TO_DB[nextSalaryPolicy as SalaryPolicy]
+          ]
+        : null
 
     await updateCandidateWorkExperience(candidateId, weId, {
       employerId,
@@ -4795,6 +4821,7 @@ export function CandidateDetailsModal({
       endDate: formatCertDateForApi(we.endDate),
       shiftType: nextShiftType ? enumIndex(SHIFT_TYPE_DB, nextShiftType) : null,
       workMode: nextWorkMode ? enumIndex(WORK_MODE_DB, nextWorkMode) : null,
+      salaryPolicy: nextSalaryPolicyApi,
     })
 
     setFullCandidate((prev) => {
@@ -4808,6 +4835,9 @@ export function CandidateDetailsModal({
           : {}),
         ...(patch.workMode !== undefined
           ? { workMode: (nextWorkMode || "") as WorkExperience["workMode"] }
+          : {}),
+        ...(patch.salaryPolicy !== undefined
+          ? { salaryPolicy: nextSalaryPolicy || null }
           : {}),
         ...(patch.employerId !== undefined ? { employerId: patch.employerId } : {}),
         ...(patch.employerName !== undefined ? { employerName: patch.employerName } : {}),
@@ -4905,6 +4935,31 @@ export function CandidateDetailsModal({
         return
       }
       toast.error(err instanceof Error ? err.message : "Failed to update work mode.")
+      throw err
+    }
+  }
+
+  const handleWorkExperienceSalaryPolicySave = async (
+    weIndex: number,
+    salaryPolicyValue: string,
+    shouldVerify: boolean
+  ) => {
+    try {
+      await persistWorkExperienceRow(
+        weIndex,
+        { salaryPolicy: salaryPolicyValue || null },
+        shouldVerify,
+        "Salary policy"
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid work experience id" ||
+          err.message === "Employer not linked")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update salary policy.")
       throw err
     }
   }
@@ -6275,6 +6330,27 @@ export function CandidateDetailsModal({
                               }
                                 getFieldVerification={getFieldVerification}
                               />
+                            <InlineEditableSelect
+                              label="Salary Policy"
+                              value={experience.salaryPolicy}
+                              fieldName={`workExperiences[${idx}].salaryPolicy`}
+                              options={salaryPolicySelectOptions}
+                              normalizeValue={salaryPolicyToSelectValue}
+                              formatDisplay={salaryPolicyDisplayLabel}
+                              onSave={async (_fieldName, newValue, shouldVerify) => {
+                                await handleWorkExperienceSalaryPolicySave(
+                                  idx,
+                                  newValue,
+                                  shouldVerify,
+                                )
+                              }}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].salaryPolicy`}
+                                />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
                           </div>
 
                           {/* Time Support Zones */}

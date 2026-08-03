@@ -84,8 +84,7 @@ export interface ProjectFormData {
   projectName: string
   selectedEmployer: SelectedEmployer
   projectType: string
-  minTeamSize: string
-  maxTeamSize: string
+  averageTeamSize: string
   startDate: Date | undefined
   endDate: Date | undefined
   status: ProjectStatus | ""
@@ -151,8 +150,7 @@ const initialFormData: ProjectFormData = {
   projectName: "",
   selectedEmployer: null,
   projectType: "",
-  minTeamSize: "",
-  maxTeamSize: "",
+  averageTeamSize: "",
   startDate: undefined,
   endDate: undefined,
   status: "",
@@ -217,32 +215,23 @@ const projectTypeOptions: MultiSelectOption[] = PROJECT_TYPES.map((type) => ({
 
 
 
-// Parse project.teamSize ("5" or "10-20") into min/max for form
-function parseTeamSizeToForm(teamSize: string | null): { min: string; max: string } {
-  if (!teamSize?.trim()) return { min: "", max: "" }
-  const t = teamSize.trim()
-  const rangeMatch = t.match(/^(\d+)-(\d+)$/)
-  if (rangeMatch) {
-    return { min: rangeMatch[1], max: rangeMatch[2] }
-  }
-  const num = parseInt(t, 10)
-  if (!isNaN(num)) return { min: String(num), max: String(num) }
-  return { min: "", max: "" }
-}
-
 // Helper function to convert Project to ProjectFormData
 const projectToFormData = (project: Project): ProjectFormData => {
-  const { min: minTeamSize, max: maxTeamSize } = parseTeamSizeToForm(project.teamSize ?? "")
   const selectedEmployer: SelectedEmployer =
     project.employerId != null && project.employerName
       ? { id: project.employerId, name: project.employerName }
       : null
+  const averageTeamSize =
+    project.averageTeamSize != null
+      ? String(project.averageTeamSize)
+      : project.teamSize?.trim() && /^\d+$/.test(project.teamSize.trim())
+        ? project.teamSize.trim()
+        : ""
   return {
     projectName: project.projectName || "",
     selectedEmployer,
     projectType: project.projectType || "",
-    minTeamSize,
-    maxTeamSize,
+    averageTeamSize,
     startDate: project.startDate ? new Date(project.startDate) : undefined,
     endDate: project.endDate ? new Date(project.endDate) : undefined,
     status: project.status || "",
@@ -265,7 +254,7 @@ const projectToFormData = (project: Project): ProjectFormData => {
 
 // All verifiable fields for projects
 const PROJECT_VERIFICATION_FIELDS = [
-  'projectName', 'selectedEmployer', 'projectType', 'minTeamSize', 'maxTeamSize', 'status',
+  'projectName', 'selectedEmployer', 'projectType', 'averageTeamSize', 'status',
   'startDate', 'endDate', 'description', 'latestUpdate', 'projectLink',
   'isPublished', 'publishPlatforms', 'downloadCount',
   'techStacks',
@@ -842,7 +831,7 @@ export function ProjectCreationDialog({
 
   // Section progress calculations
   const basicInfoProgress = useMemo(() => 
-    calculateSectionProgress(['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'minTeamSize', 'maxTeamSize', 'status']),
+    calculateSectionProgress(['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'averageTeamSize', 'status']),
     [verifiedFields]
   )
 
@@ -876,7 +865,7 @@ export function ProjectCreationDialog({
   // Helper to get field names for a section
   const getSectionFieldNames = (sectionId: string): string[] => {
     const fieldMap: Record<string, string[]> = {
-      'basic-info': ['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'minTeamSize', 'maxTeamSize', 'status'],
+      'basic-info': ['projectName', 'selectedEmployer', 'clientLocations', 'projectType', 'averageTeamSize', 'status'],
       'dates': ['startDate', 'endDate'],
       'tech-stack': ['techStacks', 'technicalAspectTypeIds'],
       'domains': ['verticalDomains', 'horizontalDomains', 'technicalDomains'],
@@ -967,17 +956,10 @@ export function ProjectCreationDialog({
       newErrors.projectName = "Project name is required"
     }
 
-    const minTeamSizeNum = formData.minTeamSize.trim() ? parseInt(formData.minTeamSize, 10) : null
-    const maxTeamSizeNum = formData.maxTeamSize.trim() ? parseInt(formData.maxTeamSize, 10) : null
-    if (minTeamSizeNum !== null || maxTeamSizeNum !== null) {
-      if (formData.minTeamSize.trim() && (isNaN(minTeamSizeNum!) || minTeamSizeNum! < 0)) {
-        newErrors.minTeamSize = "Must be 0 or greater"
-      }
-      if (formData.maxTeamSize.trim() && (isNaN(maxTeamSizeNum!) || maxTeamSizeNum! < 0)) {
-        newErrors.maxTeamSize = "Must be 0 or greater"
-      }
-      if (minTeamSizeNum !== null && maxTeamSizeNum !== null && minTeamSizeNum > maxTeamSizeNum) {
-        newErrors.maxTeamSize = "Maximum team size must be greater than or equal to minimum"
+    if (formData.averageTeamSize.trim()) {
+      const averageTeamSizeNum = parseInt(formData.averageTeamSize, 10)
+      if (isNaN(averageTeamSizeNum) || averageTeamSizeNum < 0 || !Number.isInteger(averageTeamSizeNum)) {
+        newErrors.averageTeamSize = "Must be a whole number 0 or greater"
       }
     }
 
@@ -1376,43 +1358,25 @@ export function ProjectCreationDialog({
                         </div>
                       </div>
 
-                      {/* Team Size — own row */}
+                      {/* Average Team Size */}
                       <div className="space-y-2">
-                        <Label className="text-sm font-medium">Team Size</Label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <Label htmlFor="minTeamSize" className="text-xs text-muted-foreground">
-                              Minimum
-                            </Label>
-                            <Input
-                              id="minTeamSize"
-                              type="number"
-                              placeholder="e.g., 5"
-                              min={0}
-                              value={formData.minTeamSize}
-                              onChange={(e) => handleInputChange("minTeamSize", e.target.value)}
-                              className={errors.minTeamSize ? "border-red-500" : ""}
-                            />
-                            {errors.minTeamSize && <p className="text-xs text-red-500">{errors.minTeamSize}</p>}
-                            <VerificationCheckbox fieldName="minTeamSize" />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="maxTeamSize" className="text-xs text-muted-foreground">
-                              Maximum
-                            </Label>
-                            <Input
-                              id="maxTeamSize"
-                              type="number"
-                              placeholder="e.g., 30"
-                              min={0}
-                              value={formData.maxTeamSize}
-                              onChange={(e) => handleInputChange("maxTeamSize", e.target.value)}
-                              className={errors.maxTeamSize ? "border-red-500" : ""}
-                            />
-                            {errors.maxTeamSize && <p className="text-xs text-red-500">{errors.maxTeamSize}</p>}
-                            <VerificationCheckbox fieldName="maxTeamSize" />
-                          </div>
-                        </div>
+                        <Label htmlFor="averageTeamSize" className="text-sm font-medium">
+                          Average Team Size
+                        </Label>
+                        <Input
+                          id="averageTeamSize"
+                          type="number"
+                          placeholder="e.g., 15"
+                          min={0}
+                          step={1}
+                          value={formData.averageTeamSize}
+                          onChange={(e) => handleInputChange("averageTeamSize", e.target.value)}
+                          className={errors.averageTeamSize ? "border-red-500" : ""}
+                        />
+                        {errors.averageTeamSize && (
+                          <p className="text-xs text-red-500">{errors.averageTeamSize}</p>
+                        )}
+                        <VerificationCheckbox fieldName="averageTeamSize" />
                       </div>
                     </CardContent>
                   </CollapsibleContent>
