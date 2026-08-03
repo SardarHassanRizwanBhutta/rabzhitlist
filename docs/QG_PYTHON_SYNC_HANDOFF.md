@@ -228,13 +228,12 @@ is FE-only).
 | `contributionNotes` | 6 | advanced |
 | `techStacks` | 5.45 | advanced |
 | `verticalDomains` | 4.89 | advanced (enum) |
+| `averageTeamSize` | 4.89 | basic |
 | `horizontalDomains` | 4.42 | advanced (enum) |
 | `technicalDomains` | 3.95 | advanced (enum) |
 | `technicalAspects` | 3.57 | advanced (enum) |
-| `minTeamSize` | 3.2 | basic |
 | `clientLocations` | 2.82 | basic |
 | `latestUpdate` | 2.35 | basic |
-| `maxTeamSize` | 1.69 | basic |
 | `endDate` | 1.03 | basic |
 
 **Contribution exception:** FE always includes
@@ -251,7 +250,7 @@ employer-present filter; if those keys are absent from `fields_to_generate`,
 do not generate them.
 
 **Do not emit for Project QG:** `downloadCount`, `publishPlatforms`,
-`projectLink` / `link`, single `teamSize`.
+`projectLink` / `link`, single `teamSize`, `minTeamSize`, `maxTeamSize`.
 
 ---
 
@@ -285,7 +284,9 @@ Python must match the **final tables in this file** and the allowlist contract.
       `contributionNotes` = 6 advanced; `timeSupportZones` = basic open).
 - [ ] Project Employer / Type omitted only when FE leaves them out of
       `fields_to_generate` (trust FE).
-- [ ] No awards; no project download/publish/link/single `teamSize`.
+- [ ] No awards; no project download/publish/link/single `teamSize` /
+      `minTeamSize` / `maxTeamSize`.
+- [ ] Nested Project uses `averageTeamSize` (weight 4.89, `basic`) — not min/max.
 - [ ] `options[]` / LONG_ENUM **not** required this round.
 - [ ] Tests, fixtures, OpenAPI/examples updated for six sections and new keys.
 
@@ -296,9 +297,11 @@ Python must match the **final tables in this file** and the allowlist contract.
 ```text
 Education removal is already done. Implement the Next.js Cold Caller QG sync
 from docs/QG_PYTHON_SYNC_HANDOFF.md in phase order (Achievements → Certs →
-Basic/Preferences → WE Role/Employer/Project including contributionNotes).
-Use COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md and FRONTEND_INTEGRATION_CONTRACT.md
-as field/key source of truth. Use PROJECT_DOCUMENTATION.md for service
+Basic/Preferences → WE Role/Employer/Project including contributionNotes and
+averageTeamSize). Use COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md and
+FRONTEND_INTEGRATION_CONTRACT.md as field/key source of truth. For the
+minTeamSize/maxTeamSize → averageTeamSize cutover alone, use
+docs/QG_AVERAGE_TEAM_SIZE_HANDOFF.md. Use PROJECT_DOCUMENTATION.md for service
 architecture only — override any outdated section counts/weights with this
 sync handoff. Keep Education HTTP 422. fields_to_generate is authoritative.
 ```

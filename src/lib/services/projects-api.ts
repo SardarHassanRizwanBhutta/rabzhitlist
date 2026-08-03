@@ -24,8 +24,7 @@ export interface ProjectListItemDto {
   endDate?: string | null
   isPublished?: boolean
   downloadCount?: number | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStacks?: string[]
   verticalDomains?: number[]
   horizontalDomains?: number[]
@@ -68,8 +67,7 @@ export interface ProjectDto {
   endDate: string | null
   isPublished: boolean
   downloadCount: number | null
-  minTeamSize: number | null
-  maxTeamSize: number | null
+  averageTeamSize: number | null
   techStacks: string[]
   verticalDomains: number[]
   horizontalDomains: number[]
@@ -100,8 +98,7 @@ export interface CreateProjectDto {
   endDate?: string | null
   isPublished?: boolean
   downloadCount?: number | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStackIds?: number[] | null
   verticalDomains?: number[] | null
   horizontalDomains?: number[] | null
@@ -124,8 +121,7 @@ export interface UpdateProjectDto {
   endDate?: string | null
   isPublished: boolean
   downloadCount?: number | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStackIds?: number[] | null
   verticalDomains?: number[] | null
   horizontalDomains?: number[] | null
@@ -356,8 +352,8 @@ export interface ProjectsListFilterInput {
   startEndDateEnd: Date | null
   startDateStart: Date | null
   startDateEnd: Date | null
-  teamSizeMin: string
-  teamSizeMax: string
+  averageTeamSizeMin: string
+  averageTeamSizeMax: string
   projectName: string
   projectLink: string
   isPublished: boolean | null
@@ -387,8 +383,8 @@ export interface FetchProjectsParams {
   publishPlatforms?: number[]
   minDownloadCount?: number
   maxDownloadCount?: number
-  minTeamSize?: number
-  maxTeamSize?: number
+  averageTeamSizeMin?: number
+  averageTeamSizeMax?: number
   /** Inclusive lower bound on `EndDate` (requires non-null EndDate). */
   completionFrom?: string
   /** Inclusive upper bound on `EndDate` (requires non-null EndDate). */
@@ -436,8 +432,12 @@ export function buildFetchProjectsParams(
     technicalAspectEnumValues?: number[]
   } = {}
 ): FetchProjectsParams {
-  const minTeamSize = filters.teamSizeMin?.trim() ? parseInt(filters.teamSizeMin, 10) : undefined
-  const maxTeamSize = filters.teamSizeMax?.trim() ? parseInt(filters.teamSizeMax, 10) : undefined
+  const averageTeamSizeMin = filters.averageTeamSizeMin?.trim()
+    ? parseInt(filters.averageTeamSizeMin, 10)
+    : undefined
+  const averageTeamSizeMax = filters.averageTeamSizeMax?.trim()
+    ? parseInt(filters.averageTeamSizeMax, 10)
+    : undefined
   const minDownloadCount = filters.minDownloadCount?.trim() ? parseInt(filters.minDownloadCount, 10) : undefined
   const minDataProgress = filters.dataProgressMin?.trim()
     ? parseFloat(filters.dataProgressMin)
@@ -489,8 +489,14 @@ export function buildFetchProjectsParams(
     isPublished: filters.isPublished === null ? undefined : filters.isPublished,
     publishPlatforms: publishPlatforms.length ? publishPlatforms : undefined,
     minDownloadCount: minDownloadCount !== undefined && !Number.isNaN(minDownloadCount) ? minDownloadCount : undefined,
-    minTeamSize: minTeamSize !== undefined && !Number.isNaN(minTeamSize) ? minTeamSize : undefined,
-    maxTeamSize: maxTeamSize !== undefined && !Number.isNaN(maxTeamSize) ? maxTeamSize : undefined,
+    averageTeamSizeMin:
+      averageTeamSizeMin !== undefined && !Number.isNaN(averageTeamSizeMin)
+        ? averageTeamSizeMin
+        : undefined,
+    averageTeamSizeMax:
+      averageTeamSizeMax !== undefined && !Number.isNaN(averageTeamSizeMax)
+        ? averageTeamSizeMax
+        : undefined,
     completionFrom,
     completionTo,
     projectStartFrom,
@@ -510,13 +516,9 @@ export function buildFetchProjectsParams(
 
 // --- Mappers: API -> Frontend Project ---
 
-function formatTeamSize(min: number | null, max: number | null): string | null {
-  if (min == null && max == null) return null
-  if (min != null && max != null && min === max) return String(min)
-  if (min != null && max != null) return `${min}-${max}`
-  if (min != null) return String(min)
-  if (max != null) return String(max)
-  return null
+function formatTeamSize(averageTeamSize: number | null | undefined): string | null {
+  if (averageTeamSize == null) return null
+  return String(averageTeamSize)
 }
 
 export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
@@ -539,9 +541,8 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
     technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
     aspectTypeLabels: dto.aspectTypeLabels ?? [],
-    teamSize: formatTeamSize(dto.minTeamSize ?? null, dto.maxTeamSize ?? null),
-    minTeamSize: dto.minTeamSize ?? undefined,
-    maxTeamSize: dto.maxTeamSize ?? undefined,
+    teamSize: formatTeamSize(dto.averageTeamSize ?? null),
+    averageTeamSize: dto.averageTeamSize ?? undefined,
     startDate: dto.startDate ? new Date(dto.startDate) : null,
     endDate: dto.endDate ? new Date(dto.endDate) : null,
     status: statusStr,
@@ -576,9 +577,8 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
     technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
     aspectTypeLabels: dto.aspectTypeLabels ?? [],
-    teamSize: formatTeamSize(dto.minTeamSize, dto.maxTeamSize),
-    minTeamSize: dto.minTeamSize ?? undefined,
-    maxTeamSize: dto.maxTeamSize ?? undefined,
+    teamSize: formatTeamSize(dto.averageTeamSize),
+    averageTeamSize: dto.averageTeamSize ?? undefined,
     startDate: dto.startDate ? new Date(dto.startDate) : null,
     endDate: dto.endDate ? new Date(dto.endDate) : null,
     status: statusStr,
@@ -607,8 +607,12 @@ function buildListQuery(params: FetchProjectsParams): string {
   if (params.isPublished !== undefined) search.set("isPublished", String(params.isPublished))
   if (params.minDownloadCount != null) search.set("minDownloadCount", String(params.minDownloadCount))
   if (params.maxDownloadCount != null) search.set("maxDownloadCount", String(params.maxDownloadCount))
-  if (params.minTeamSize != null) search.set("minTeamSize", String(params.minTeamSize))
-  if (params.maxTeamSize != null) search.set("maxTeamSize", String(params.maxTeamSize))
+  if (params.averageTeamSizeMin != null) {
+    search.set("averageTeamSizeMin", String(params.averageTeamSizeMin))
+  }
+  if (params.averageTeamSizeMax != null) {
+    search.set("averageTeamSizeMax", String(params.averageTeamSizeMax))
+  }
   if (params.completionFrom) search.set("completionFrom", params.completionFrom)
   if (params.completionTo) search.set("completionTo", params.completionTo)
   if (params.projectStartFrom) search.set("projectStartFrom", params.projectStartFrom)
@@ -719,8 +723,7 @@ export interface ProjectFormDataLike {
   projectName: string
   selectedEmployer: { id: number; name: string } | null
   projectType: string
-  minTeamSize: string
-  maxTeamSize: string
+  averageTeamSize: string
   startDate: Date | undefined
   endDate: Date | undefined
   status: string
@@ -762,8 +765,7 @@ export function buildCreateProjectDto(
   form: ProjectFormDataLike,
   options: CreateProjectOptions = {}
 ): CreateProjectDto {
-  const min = parseOptionalInt(form.minTeamSize)
-  const max = parseOptionalInt(form.maxTeamSize)
+  const averageTeamSize = parseOptionalInt(form.averageTeamSize)
   const typeNum = form.projectType ? PROJECT_TYPE_UI_TO_NUM[form.projectType as ProjectType] ?? null : null
   const statusNum = form.status ? PROJECT_STATUS_UI_TO_NUM[form.status as ProjectStatus] ?? null : null
   const publishPlatforms = (form.publishPlatforms ?? [])
@@ -782,8 +784,7 @@ export function buildCreateProjectDto(
     endDate: toDateString(form.endDate),
     isPublished: form.isPublished ?? false,
     downloadCount: form.downloadCount ? parseInt(form.downloadCount, 10) : null,
-    minTeamSize: min !== null ? min : null,
-    maxTeamSize: max !== null ? max : null,
+    averageTeamSize: averageTeamSize !== null ? averageTeamSize : null,
     techStackIds: options.techStackIds ?? null,
     verticalDomains: options.verticalDomains ?? null,
     horizontalDomains: options.horizontalDomains ?? null,

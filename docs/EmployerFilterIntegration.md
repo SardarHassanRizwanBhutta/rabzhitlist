@@ -125,8 +125,8 @@ Unless stated, â€œmatchâ€ means: employer has **at least one** project 
 | `technicalAspects` | `TechnicalAspect[]?` | Length > 0 | Project technical aspect in list. |
 | `clientLocations` | `long[]?` | Length > 0 | Project client location id in list. |
 | `projectStatus` | `ProjectStatus[]?` | Length > 0 | Project `Status` non-null and in list. |
-| `projectTeamSizeMin` | `int?` | Has value | At least one project with `(MinTeamSize ?? MaxTeamSize ?? 0) >= value`. |
-| `projectTeamSizeMax` | `int?` | Has value | At least one project with `MaxTeamSize != null` and `MaxTeamSize <= value`. |
+| `projectTeamSizeMin` | `int?` | Has value | At least one project with non-null `AverageTeamSize` and `AverageTeamSize >= value`. |
+| `projectTeamSizeMax` | `int?` | Has value | At least one project with non-null `AverageTeamSize` and `AverageTeamSize <= value`. |
 | `hasPublishedProject` | `bool?` | Has value | `true` if **any** project `IsPublished`; `false` requires **no** published projects. |
 | `publishPlatforms` | `PublishedPlatform[]?` | Length > 0 | At least one project published on a listed platform. |
 | `minDownloadCount` | `long?` | Has value | At least one project with `DownloadCount >= value`. |

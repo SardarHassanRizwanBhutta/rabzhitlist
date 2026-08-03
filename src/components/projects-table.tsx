@@ -2900,16 +2900,6 @@ function ProjectDetailDialog({
     return user?.name
   }
 
-  // Format team size string from min/max (for display in table)
-  const formatTeamSizeFromMinMax = (min: number | null | undefined, max: number | null | undefined): string | null => {
-    if (min == null && max == null) return null
-    if (min != null && max != null && min === max) return String(min)
-    if (min != null && max != null) return `${min}-${max}`
-    if (min != null) return String(min)
-    if (max != null) return String(max)
-    return null
-  }
-
   // Handle field save
   const handleFieldSave = async (fieldName: string, newValue: string | number | Date | string[] | boolean | null | undefined, verify: boolean = false) => {
     try {
@@ -2917,24 +2907,18 @@ function ProjectDetailDialog({
       if (fieldName === 'downloadCount' && typeof newValue === 'string') {
         processedValue = newValue.trim() === '' ? undefined : parseInt(newValue, 10)
       }
-      if (fieldName === 'minTeamSize') {
-        processedValue = typeof newValue === 'string'
-          ? (newValue.trim() === '' ? null : parseInt(newValue, 10))
-          : newValue
-      }
-      if (fieldName === 'maxTeamSize') {
+      if (fieldName === 'averageTeamSize') {
         processedValue = typeof newValue === 'string'
           ? (newValue.trim() === '' ? null : parseInt(newValue, 10))
           : newValue
       }
 
-      // Optimistic update; when min/max team size changes, also update teamSize
+      // Optimistic update; when average team size changes, also update teamSize display
       setLocalProject(prev => {
         const next = { ...prev, [fieldName]: processedValue }
-        if (fieldName === 'minTeamSize' || fieldName === 'maxTeamSize') {
-          const min = fieldName === 'minTeamSize' ? (processedValue as number | null) : (prev.minTeamSize ?? null)
-          const max = fieldName === 'maxTeamSize' ? (processedValue as number | null) : (prev.maxTeamSize ?? null)
-          next.teamSize = formatTeamSizeFromMinMax(min, max)
+        if (fieldName === 'averageTeamSize') {
+          const average = processedValue as number | null
+          next.teamSize = average != null ? String(average) : null
         }
         return next
       })
@@ -3170,29 +3154,15 @@ function ProjectDetailDialog({
               />
             </div>
 
-            <div className="md:col-span-2 space-y-1">
-              <Label className="text-sm font-medium text-muted-foreground">Team Size</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <InlineEditField
-                  label="Minimum"
-                  value={localProject.minTeamSize != null ? String(localProject.minTeamSize) : ""}
-                  fieldName="minTeamSize"
-                  fieldType="number"
-                  onSave={handleFieldSave}
-                  placeholder="e.g., 5"
-                  getFieldVerification={getFieldVerification}
-                />
-                <InlineEditField
-                  label="Maximum"
-                  value={localProject.maxTeamSize != null ? String(localProject.maxTeamSize) : ""}
-                  fieldName="maxTeamSize"
-                  fieldType="number"
-                  onSave={handleFieldSave}
-                  placeholder="e.g., 30"
-                  getFieldVerification={getFieldVerification}
-                />
-              </div>
-            </div>
+            <InlineEditField
+              label="Average Team Size"
+              value={localProject.averageTeamSize != null ? String(localProject.averageTeamSize) : ""}
+              fieldName="averageTeamSize"
+              fieldType="number"
+              onSave={handleFieldSave}
+              placeholder="e.g., 15"
+              getFieldVerification={getFieldVerification}
+            />
 
             <InlineEditableSelect
               label="Status"

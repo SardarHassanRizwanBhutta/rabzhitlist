@@ -45,11 +45,10 @@ export interface Project {
    * This is the value rendered in the Technical Aspects column.
    */
   aspectTypeLabels: string[]
-  teamSize: string | null  // "5" or "20-30" (derived from min/max for display)
-  /** Min team size (from API); used for inline edit in detail dialog. */
-  minTeamSize?: number | null
-  /** Max team size (from API); used for inline edit in detail dialog. */
-  maxTeamSize?: number | null
+  /** Display string derived from `averageTeamSize` when set. */
+  teamSize: string | null
+  /** Average team size (from API); used for forms and inline edit. */
+  averageTeamSize?: number | null
   startDate: Date | null
   endDate: Date | null
   status: ProjectStatus

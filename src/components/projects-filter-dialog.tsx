@@ -150,8 +150,8 @@ const initialFilters: ProjectFilters = {
   startEndDateEnd: null,
   startDateStart: null,
   startDateEnd: null,
-  teamSizeMin: "",
-  teamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   projectName: "",
   projectLink: "",
   isPublished: null,
@@ -408,8 +408,8 @@ export function ProjectsFilterDialog({
     (filters.startEndDateEnd ? 1 : 0) +
     (filters.startDateStart ? 1 : 0) +
     (filters.startDateEnd ? 1 : 0) +
-    (filters.teamSizeMin ? 1 : 0) +
-    (filters.teamSizeMax ? 1 : 0) +
+    (filters.averageTeamSizeMin ? 1 : 0) +
+    (filters.averageTeamSizeMax ? 1 : 0) +
     (filters.projectName.trim() ? 1 : 0) +
     (filters.projectLink.trim() ? 1 : 0) +
     (filters.isPublished !== null ? 1 : 0) +
@@ -450,12 +450,12 @@ export function ProjectsFilterDialog({
   }
 
   // Validate team size range
-  const validateTeamSizeRange = (): string | null => {
-    if (tempFilters.teamSizeMin && tempFilters.teamSizeMax) {
-      const min = parseInt(tempFilters.teamSizeMin)
-      const max = parseInt(tempFilters.teamSizeMax)
+  const validateAverageTeamSizeRange = (): string | null => {
+    if (tempFilters.averageTeamSizeMin && tempFilters.averageTeamSizeMax) {
+      const min = parseInt(tempFilters.averageTeamSizeMin)
+      const max = parseInt(tempFilters.averageTeamSizeMax)
       if (!isNaN(min) && !isNaN(max) && min > max) {
-        return 'Minimum team size must be less than or equal to maximum'
+        return 'Minimum average team size must be less than or equal to maximum'
       }
     }
     return null
@@ -482,12 +482,12 @@ export function ProjectsFilterDialog({
   }
 
   const dateRangeError = validateDateRanges()
-  const teamSizeError = validateTeamSizeRange()
+  const averageTeamSizeError = validateAverageTeamSizeRange()
   const dataProgressError = validateDataProgressPercentage()
 
   const handleApplyFilters = () => {
     // Validate before applying
-    if (dateRangeError || teamSizeError || dataProgressError) {
+    if (dateRangeError || averageTeamSizeError || dataProgressError) {
       return // Don't apply if there are validation errors
     }
     const payload: ProjectFilters = {
@@ -537,8 +537,8 @@ export function ProjectsFilterDialog({
     tempFilters.startEndDateEnd !== null ||
     tempFilters.startDateStart !== null ||
     tempFilters.startDateEnd !== null ||
-    tempFilters.teamSizeMin !== "" ||
-    tempFilters.teamSizeMax !== "" ||
+    tempFilters.averageTeamSizeMin !== "" ||
+    tempFilters.averageTeamSizeMax !== "" ||
     tempFilters.projectName.trim() !== "" ||
     tempFilters.projectLink.trim() !== "" ||
     tempFilters.isPublished !== null ||
@@ -1122,43 +1122,43 @@ export function ProjectsFilterDialog({
               )}
             </div>
 
-            {/* Team Size Range Filter */}
+            {/* Average Team Size Range Filter */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Team Size</Label>
+                <Label className="text-sm font-medium">Average Team Size</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="teamSizeMin" className="text-xs text-muted-foreground">
-                      Minimum Team Size
+                    <Label htmlFor="averageTeamSizeMin" className="text-xs text-muted-foreground">
+                      Average team size (min)
                     </Label>
                     <Input
-                      id="teamSizeMin"
+                      id="averageTeamSizeMin"
                       type="number"
                       placeholder="e.g., 5"
-                      value={tempFilters.teamSizeMin}
-                      onChange={(e) => handleFilterChange("teamSizeMin", e.target.value)}
-                      className={teamSizeError ? "border-red-500" : ""}
+                      value={tempFilters.averageTeamSizeMin}
+                      onChange={(e) => handleFilterChange("averageTeamSizeMin", e.target.value)}
+                      className={averageTeamSizeError ? "border-red-500" : ""}
                       min="1"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="teamSizeMax" className="text-xs text-muted-foreground">
-                      Maximum Team Size
+                    <Label htmlFor="averageTeamSizeMax" className="text-xs text-muted-foreground">
+                      Average team size (max)
                     </Label>
                     <Input
-                      id="teamSizeMax"
+                      id="averageTeamSizeMax"
                       type="number"
                       placeholder="e.g., 30"
-                      value={tempFilters.teamSizeMax}
-                      onChange={(e) => handleFilterChange("teamSizeMax", e.target.value)}
-                      className={teamSizeError ? "border-red-500" : ""}
+                      value={tempFilters.averageTeamSizeMax}
+                      onChange={(e) => handleFilterChange("averageTeamSizeMax", e.target.value)}
+                      className={averageTeamSizeError ? "border-red-500" : ""}
                       min="1"
                     />
                   </div>
                 </div>
-                {teamSizeError && (
-                  <p className="text-xs text-red-500">{teamSizeError}</p>
+                {averageTeamSizeError && (
+                  <p className="text-xs text-red-500">{averageTeamSizeError}</p>
                 )}
               </div>
             </div>
@@ -1297,7 +1297,7 @@ export function ProjectsFilterDialog({
             
             <Button 
               onClick={handleApplyFilters}
-              disabled={!!(dateRangeError || teamSizeError)}
+              disabled={!!(dateRangeError || averageTeamSizeError)}
               className="ml-auto transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Apply Filters

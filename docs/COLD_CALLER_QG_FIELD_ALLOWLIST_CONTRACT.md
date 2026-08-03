@@ -212,10 +212,9 @@ verticalDomains
 horizontalDomains
 technicalDomains
 technicalAspects
-minTeamSize
+averageTeamSize
 clientLocations
 latestUpdate
-maxTeamSize
 endDate
 ```
 
@@ -336,13 +335,12 @@ parent WE has an employer, omit `employerName` and `projectType`.
 | `contributionNotes` | 6 | advanced |
 | `techStacks` | 5.45 | advanced |
 | `verticalDomains` | 4.89 | advanced (enum) |
+| `averageTeamSize` | 4.89 | basic |
 | `horizontalDomains` | 4.42 | advanced (enum) |
 | `technicalDomains` | 3.95 | advanced (enum) |
 | `technicalAspects` | 3.57 | advanced (enum) |
-| `minTeamSize` | 3.2 | basic |
 | `clientLocations` | 2.82 | basic |
 | `latestUpdate` | 2.35 | basic |
-| `maxTeamSize` | 1.69 | basic |
 | `endDate` | 1.03 | basic |
 
 `contributionNotes` is always listed in `fields_to_generate` (even when

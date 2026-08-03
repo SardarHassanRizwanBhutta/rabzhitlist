@@ -80,8 +80,7 @@ interface WorkExperienceProjectForService {
   employerName?: string | null
   projectType?: string | null
   status?: string | null
-  minTeamSize?: number | null
-  maxTeamSize?: number | null
+  averageTeamSize?: number | null
   techStacks?: string[]
   technicalAspects?: string[]
   technicalDomains?: string[]
@@ -130,8 +129,9 @@ interface AchievementForService {
 - String values are trimmed; blank values become `null`.
 - Missing arrays become `[]` when that property is included because it is missing.
 - Dates become ISO-8601 strings.
-- Project QG uses `minTeamSize` / `maxTeamSize` / `clientLocations` (not single
-  `teamSize`, `link` / `projectLink`, contribution, download, or publish platforms).
+- Project QG uses `averageTeamSize` / `clientLocations` (not `minTeamSize` /
+  `maxTeamSize`, single `teamSize`, `link` / `projectLink`, download, or publish
+  platforms).
 - When WE has an employer, omit project `employerName` / `projectType` from sparse
   request generation.
 - **All** allowlisted sections are sparse missing-only: populated properties are

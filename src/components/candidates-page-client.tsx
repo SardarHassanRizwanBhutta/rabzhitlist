@@ -128,6 +128,7 @@ const initialFilters: CandidateFilters = {
   },
   shiftTypes: [],
   workModes: [],
+  workExperienceSalaryPolicies: [],
   workModeMinYears: {
     workModes: [],
     minYears: "",
@@ -143,8 +144,8 @@ const initialFilters: CandidateFilters = {
   hasMutualConnectionWithDPL: null,
   mutualConnectionToleranceMonths: 0,
   mutualConnectionType: null,
-  projectTeamSizeMin: "",
-  projectTeamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   hasPublishedProject: null,
   publishPlatforms: [],
   minProjectDownloadCount: "",
@@ -551,6 +552,11 @@ export function CandidatesPageClient() {
     const workModes = combinedFiltersForBackend.workModes
       .map((k) => WORK_MODE_TO_API[k as WorkModeDb])
       .filter((v): v is number => typeof v === "number")
+    const workExperienceSalaryPolicies =
+      combinedFiltersForBackend.workExperienceSalaryPolicies
+        .map((p) => SALARY_POLICY_DISPLAY_TO_DB[p as keyof typeof SALARY_POLICY_DISPLAY_TO_DB])
+        .map((db) => (db != null ? SALARY_POLICY_TO_API[db] : undefined))
+        .filter((n): n is number => n != null)
     const timeSupportZoneIds = combinedFiltersForBackend.timeSupportZones
       .map((name) => timeSupportZonesLookup.find((z) => z.name === name)?.id)
       .filter((id): id is number => id != null)
@@ -607,8 +613,8 @@ export function CandidatesPageClient() {
       publishPlatforms: publishPlatforms.length > 0 ? publishPlatforms : undefined,
       isPublished: combinedFiltersForBackend.hasPublishedProject ?? undefined,
       minDownloadCount: toOptionalNumber(combinedFiltersForBackend.minProjectDownloadCount),
-      minTeamSize: toOptionalNumber(combinedFiltersForBackend.projectTeamSizeMin),
-      maxTeamSize: toOptionalNumber(combinedFiltersForBackend.projectTeamSizeMax),
+      averageTeamSizeMin: toOptionalNumber(combinedFiltersForBackend.averageTeamSizeMin),
+      averageTeamSizeMax: toOptionalNumber(combinedFiltersForBackend.averageTeamSizeMax),
       projectStartFrom: toDateOnly(combinedFiltersForBackend.startDateStart),
       projectStartTo: toDateOnly(combinedFiltersForBackend.startDateEnd),
       achievementTypes: achievementTypes.length > 0 ? achievementTypes : undefined,
@@ -619,6 +625,10 @@ export function CandidatesPageClient() {
       maxExperienceYears: toOptionalNumber(combinedFiltersForBackend.yearsOfExperienceMax),
       shiftTypes: shiftTypes.length > 0 ? shiftTypes : undefined,
       workModes: workModes.length > 0 ? workModes : undefined,
+      workExperienceSalaryPolicies:
+        workExperienceSalaryPolicies.length > 0
+          ? workExperienceSalaryPolicies
+          : undefined,
       timeSupportZoneIds:
         timeSupportZoneIds.length > 0 ? timeSupportZoneIds : undefined,
       workExperienceTechStackIds:

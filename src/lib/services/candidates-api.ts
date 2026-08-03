@@ -17,7 +17,6 @@ import type {
   MatchedEducationDto,
   MatchedProjectDto,
   MatchedWorkExperienceDto,
-  MatchedTeamSizeDto,
   ProjectExperience,
   WorkExperience,
 } from "@/lib/types/candidate"
@@ -46,8 +45,50 @@ import {
   type AchievementTypeDb,
 } from "@/lib/constants/candidate-enums"
 import { employerBenefitToApiValueFields, type BenefitUnit, type EmployerBenefit } from "@/lib/types/benefits"
+import {
+  SALARY_POLICY_DB_LABELS,
+  SALARY_POLICY_DISPLAY_TO_DB,
+  type SalaryPolicy,
+  type SalaryPolicyDb,
+} from "@/lib/types/employer"
+import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 import { API_BASE_URL } from "@/lib/config/api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
+
+const API_TO_SALARY_POLICY_DB: Record<number, SalaryPolicyDb> = {
+  0: "gross_salary",
+  1: "remittance_salary",
+  2: "net_salary",
+  3: "fixed_salary_plus_commission_or_monthly_bonus",
+}
+
+/** Map WE API `salaryPolicy` int|string → display label for UI forms. */
+function salaryPolicyFromApi(raw: unknown): string | null {
+  if (typeof raw === "number" && Number.isFinite(raw) && raw in API_TO_SALARY_POLICY_DB) {
+    return SALARY_POLICY_DB_LABELS[API_TO_SALARY_POLICY_DB[raw]!]
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const trimmed = raw.trim()
+    if (trimmed in SALARY_POLICY_DISPLAY_TO_DB) return trimmed
+    if (trimmed in SALARY_POLICY_DB_LABELS) {
+      return SALARY_POLICY_DB_LABELS[trimmed as SalaryPolicyDb]
+    }
+  }
+  return null
+}
+
+/** Map WE UI salary policy → API enum int; empty clears (`null`). */
+function salaryPolicyToApi(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null
+  const trimmed = value.trim()
+  if (trimmed in SALARY_POLICY_DISPLAY_TO_DB) {
+    return SALARY_POLICY_TO_API[SALARY_POLICY_DISPLAY_TO_DB[trimmed as SalaryPolicy]]
+  }
+  if (trimmed in SALARY_POLICY_TO_API) {
+    return SALARY_POLICY_TO_API[trimmed as SalaryPolicyDb]
+  }
+  return null
+}
 // import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 
 // --- API DTOs (aligned with Candidates-API-Reference.md) ---
@@ -176,6 +217,8 @@ interface CreateCandidateWorkExperienceDto {
   endDate?: string | null
   shiftType?: number | null
   workMode?: number | null
+  /** WE-owned salary policy enum int; `null` clears on update. */
+  salaryPolicy?: number | null
   timeSupportZoneIds?: number[]
   techStackIds?: number[]
   benefits?: CreateCandidateWorkExperienceBenefitDto[]
@@ -344,6 +387,7 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     workMode: typeof raw.workMode === "number"
       ? (WORK_MODE_DB[raw.workMode] ?? "") as WorkExperience["workMode"]
       : (raw.workMode as WorkExperience["workMode"]) ?? "",
+    salaryPolicy: salaryPolicyFromApi(raw.salaryPolicy),
     timeSupportZones,
     benefits,
   }
@@ -483,19 +527,16 @@ function mapMatchedDomains(raw: unknown): MatchedDomainDto[] {
     .filter((item) => Number.isFinite(item.id))
 }
 
-function mapMatchedTeamSize(raw: unknown): MatchedTeamSizeDto | null {
-  if (raw == null || typeof raw !== "object") return null
-  const item = raw as Record<string, unknown>
-  const minTeamSize =
-    item.minTeamSize != null && Number.isFinite(Number(item.minTeamSize))
-      ? Number(item.minTeamSize)
-      : undefined
-  const maxTeamSize =
-    item.maxTeamSize != null && Number.isFinite(Number(item.maxTeamSize))
-      ? Number(item.maxTeamSize)
-      : undefined
-  if (minTeamSize == null && maxTeamSize == null) return null
-  return { minTeamSize, maxTeamSize }
+function mapMatchedAverageTeamSize(raw: unknown): number | null {
+  if (raw == null) return null
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw
+  if (typeof raw === "object") {
+    const item = raw as Record<string, unknown>
+    if (item.averageTeamSize != null && Number.isFinite(Number(item.averageTeamSize))) {
+      return Number(item.averageTeamSize)
+    }
+  }
+  return null
 }
 
 function mapMatchedEmployerSize(raw: unknown): MatchedEmployerSizeDto | null {
@@ -652,6 +693,7 @@ function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
             : null,
       shiftType: mapMatchedDomain(item.shiftType),
       workMode: mapMatchedDomain(item.workMode),
+      salaryPolicy: mapMatchedDomain(item.salaryPolicy),
       timeSupportZones: mapMatchedDomains(item.timeSupportZones),
       techStacks: mapMatchedDomains(item.techStacks),
     }))
@@ -725,7 +767,7 @@ function mapMatchedProjects(raw: unknown): MatchedProjectDto[] {
         typeof item.storeLink === "string" && item.storeLink.trim()
           ? item.storeLink.trim()
           : null,
-      teamSize: mapMatchedTeamSize(item.teamSize),
+      averageTeamSize: mapMatchedAverageTeamSize(item.averageTeamSize),
       downloadCount:
         item.downloadCount != null && Number.isFinite(Number(item.downloadCount))
           ? Number(item.downloadCount)
@@ -1043,6 +1085,7 @@ export function candidateFormDataToCreateDto(
         (we.techStacks?.length ?? 0) > 0 ||
         !!we.shiftType ||
         !!we.workMode ||
+        !!we.salaryPolicy ||
         (we.timeSupportZones?.length ?? 0) > 0 ||
         (we.benefits?.length ?? 0) > 0
       return hasEmployer || hasJob || hasProjects || hasOther
@@ -1086,6 +1129,7 @@ export function candidateFormDataToCreateDto(
         endDate: formatDateForApi(we.endDate),
         shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
         workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
+        salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
         timeSupportZoneIds: weTszIds.length > 0 ? weTszIds : undefined,
         techStackIds: weTechStackIds.length > 0 ? weTechStackIds : undefined,
         benefits: weBenefits.length > 0 ? weBenefits : undefined,
@@ -1190,8 +1234,8 @@ export async function fetchCandidatesPage(
     publishPlatforms?: number[]
     isPublished?: boolean
     minDownloadCount?: number
-    minTeamSize?: number
-    maxTeamSize?: number
+    averageTeamSizeMin?: number
+    averageTeamSizeMax?: number
     projectStartFrom?: string
     projectStartTo?: string
     achievementTypes?: number[]
@@ -1205,6 +1249,8 @@ export async function fetchCandidatesPage(
     shiftTypes?: number[]
     /** Work experience `WorkMode` enum ints (OR within array). */
     workModes?: number[]
+    /** WE-owned `SalaryPolicy` enum ints — independent of `employerSalaryPolicies`. */
+    workExperienceSalaryPolicies?: number[]
     /** Work experience time support zone catalog ids (OR within array). */
     timeSupportZoneIds?: number[]
     /** Work experience tech stack catalog ids — not project `techStackIds`. */
@@ -1283,8 +1329,12 @@ export async function fetchCandidatesPage(
   appendNumberList("publishPlatforms", options?.publishPlatforms)
   if (options?.isPublished != null) params.set("isPublished", String(options.isPublished))
   if (options?.minDownloadCount != null) params.set("minDownloadCount", String(options.minDownloadCount))
-  if (options?.minTeamSize != null) params.set("minTeamSize", String(options.minTeamSize))
-  if (options?.maxTeamSize != null) params.set("maxTeamSize", String(options.maxTeamSize))
+  if (options?.averageTeamSizeMin != null) {
+    params.set("averageTeamSizeMin", String(options.averageTeamSizeMin))
+  }
+  if (options?.averageTeamSizeMax != null) {
+    params.set("averageTeamSizeMax", String(options.averageTeamSizeMax))
+  }
   if (options?.projectStartFrom) params.set("projectStartFrom", options.projectStartFrom)
   if (options?.projectStartTo) params.set("projectStartTo", options.projectStartTo)
 
@@ -1305,6 +1355,7 @@ export async function fetchCandidatesPage(
 
   appendNumberList("shiftTypes", options?.shiftTypes)
   appendNumberList("workModes", options?.workModes)
+  appendNumberList("workExperienceSalaryPolicies", options?.workExperienceSalaryPolicies)
   appendNumberList("timeSupportZoneIds", options?.timeSupportZoneIds)
   appendNumberList("workExperienceTechStackIds", options?.workExperienceTechStackIds)
 
@@ -1480,6 +1531,8 @@ interface CreateWorkExperienceBody {
   endDate?: string | null
   shiftType?: number | null
   workMode?: number | null
+  /** WE-owned; send `null` to clear. */
+  salaryPolicy?: number | null
 }
 
 export function createCandidateWorkExperience(candidateId: number, body: CreateWorkExperienceBody) {
@@ -1647,6 +1700,7 @@ export async function syncCandidateSubResources(
       (we.techStacks?.length ?? 0) > 0 ||
       !!we.shiftType ||
       !!we.workMode ||
+      !!we.salaryPolicy ||
       (we.timeSupportZones?.length ?? 0) > 0 ||
       (we.benefits?.length ?? 0) > 0
     if (!hasEmployer && !hasJob && !hasProjects && !hasOther) continue
@@ -1659,6 +1713,7 @@ export async function syncCandidateSubResources(
       endDate: formatDateForApi(we.endDate),
       shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
       workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
+      salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
     }
 
     const numId = Number(we.id)

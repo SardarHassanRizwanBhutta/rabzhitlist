@@ -154,8 +154,8 @@ const initialFilters: EmployerFilters = {
   technicalDomains: [],
   clientLocations: [],
   projectStatus: [],
-  projectTeamSizeMin: "",
-  projectTeamSizeMax: "",
+  averageTeamSizeMin: "",
+  averageTeamSizeMax: "",
   hasPublishedProject: null,
   publishPlatforms: [],
   minDownloadCount: "",
@@ -234,8 +234,9 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     const sizeMax = parseOptionalNonNegativeInt(filters.sizeMax)
     const minLocationsCount = parseOptionalNonNegativeInt(filters.minLocationsCount)
     const minCitiesCount = parseOptionalNonNegativeInt(filters.minCitiesCount)
-    const projectTeamSizeMin = parseOptionalNonNegativeInt(filters.projectTeamSizeMin)
-    const projectTeamSizeMax = parseOptionalNonNegativeInt(filters.projectTeamSizeMax)
+    // UI uses averageTeamSize*; employer list API still expects projectTeamSize*.
+    const projectTeamSizeMin = parseOptionalNonNegativeInt(filters.averageTeamSizeMin)
+    const projectTeamSizeMax = parseOptionalNonNegativeInt(filters.averageTeamSizeMax)
     const minDownloadCount = parseOptionalNonNegativeLong(filters.minDownloadCount)
     const minLayoffEmployees = parseOptionalNonNegativeInt(filters.minLayoffEmployees)
     const avgJobTenureMin = parseOptionalDouble(filters.avgJobTenureMin)

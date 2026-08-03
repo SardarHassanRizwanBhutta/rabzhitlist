@@ -96,17 +96,12 @@ export function parseLinkedProjectCatalogFromApi(
 ): LinkedProjectFields {
   const nested = asRecord(raw.project) ?? raw
   const employer = asRecord(nested.employer)
-  const minTeam =
-    typeof nested.minTeamSize === "number"
-      ? nested.minTeamSize
-      : nested.minTeamSize != null
-        ? Number(nested.minTeamSize)
-        : null
-  const maxTeam =
-    typeof nested.maxTeamSize === "number"
-      ? nested.maxTeamSize
-      : nested.maxTeamSize != null
-        ? Number(nested.maxTeamSize)
+  const averageTeamSizeRaw = nested.averageTeamSize
+  const averageTeamSize =
+    typeof averageTeamSizeRaw === "number"
+      ? averageTeamSizeRaw
+      : averageTeamSizeRaw != null
+        ? Number(averageTeamSizeRaw)
         : null
 
   const publishRaw = nested.publishPlatforms
@@ -134,9 +129,13 @@ export function parseLinkedProjectCatalogFromApi(
           : null,
     projectType: normalizeProjectType(nested.type ?? nested.projectType),
     status: enumLabel(nested.status, PROJECT_STATUS_FROM_API),
-    teamSize: nested.teamSize != null ? String(nested.teamSize) : null,
-    minTeamSize: Number.isFinite(minTeam as number) ? (minTeam as number) : null,
-    maxTeamSize: Number.isFinite(maxTeam as number) ? (maxTeam as number) : null,
+    teamSize:
+      nested.teamSize != null
+        ? String(nested.teamSize)
+        : Number.isFinite(averageTeamSize as number)
+          ? String(averageTeamSize)
+          : null,
+    averageTeamSize: Number.isFinite(averageTeamSize as number) ? (averageTeamSize as number) : null,
     techStacks: parseStringArray(nested.techStacks ?? nested.techStackNames),
     technicalAspects: parseStringArray(
       nested.technicalAspects ?? nested.aspectTypeLabels,
@@ -197,13 +196,8 @@ export function mapLinkedProjectToServicePayload(
     employerName: emptyToNull(project.employerName),
     projectType: emptyToNull(project.projectType),
     status: emptyToNull(project.status),
-    teamSize: formatTeamSizeForService(
-      project.teamSize,
-      project.minTeamSize,
-      project.maxTeamSize,
-    ),
-    minTeamSize: project.minTeamSize ?? null,
-    maxTeamSize: project.maxTeamSize ?? null,
+    teamSize: formatTeamSizeForService(project.teamSize, project.averageTeamSize),
+    averageTeamSize: project.averageTeamSize ?? null,
     techStacks: stringArray(project.techStacks),
     technicalAspects: stringArray(project.technicalAspects),
     technicalDomains: stringArray(project.technicalDomains),
@@ -242,13 +236,9 @@ const PROJECT_STATUS_LABELS = ["Development", "Maintenance", "Closed"] as const
 const VERTICAL_LABEL_BY_VALUE = new Map(VERTICAL_DOMAINS.map((d) => [d.value, d.label]))
 const HORIZONTAL_LABEL_BY_VALUE = new Map(HORIZONTAL_DOMAINS.map((d) => [d.value, d.label]))
 
-function formatTeamSizeDisplay(min: number | null, max: number | null): string | null {
-  if (min == null && max == null) return null
-  if (min != null && max != null && min === max) return String(min)
-  if (min != null && max != null) return `${min}-${max}`
-  if (min != null) return String(min)
-  if (max != null) return String(max)
-  return null
+function formatAverageTeamSizeDisplay(averageTeamSize: number | null): string | null {
+  if (averageTeamSize == null) return null
+  return String(averageTeamSize)
 }
 
 function resolveDomainLabels(
@@ -298,9 +288,8 @@ export function projectDtoToLinkedCatalogFields(
     employerName: dto.employerName != null ? String(dto.employerName) : null,
     projectType: PROJECT_TYPES[typeNum] ?? normalizeProjectType(dto.type) ?? null,
     status: PROJECT_STATUS_LABELS[statusNum] ?? null,
-    teamSize: formatTeamSizeDisplay(dto.minTeamSize, dto.maxTeamSize),
-    minTeamSize: dto.minTeamSize ?? null,
-    maxTeamSize: dto.maxTeamSize ?? null,
+    teamSize: formatAverageTeamSizeDisplay(dto.averageTeamSize),
+    averageTeamSize: dto.averageTeamSize ?? null,
     techStacks: Array.isArray(dto.techStacks) ? dto.techStacks.map(String).filter((s) => s.trim() !== "") : [],
     technicalAspects,
     technicalDomains: resolveDomainLabels(dto.technicalDomains, TECHNICAL_DOMAIN_HUMAN_LABELS),
@@ -352,8 +341,7 @@ export function mergeProjectCatalogIntoProjectExperience(
     projectType: pickScalar(project.projectType, catalog.projectType) ?? null,
     status: pickScalar(project.status, catalog.status) ?? null,
     teamSize: pickScalar(project.teamSize, catalog.teamSize) ?? null,
-    minTeamSize: pickScalar(project.minTeamSize, catalog.minTeamSize) ?? null,
-    maxTeamSize: pickScalar(project.maxTeamSize, catalog.maxTeamSize) ?? null,
+    averageTeamSize: pickScalar(project.averageTeamSize, catalog.averageTeamSize) ?? null,
     techStacks: pickStringArray(project.techStacks, catalog.techStacks) ?? [],
     technicalAspects: pickStringArray(project.technicalAspects, catalog.technicalAspects) ?? [],
     technicalDomains: pickStringArray(project.technicalDomains, catalog.technicalDomains) ?? [],

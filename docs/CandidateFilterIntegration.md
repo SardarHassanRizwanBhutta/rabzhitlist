@@ -106,6 +106,7 @@ Filters on `candidate_work_experiences` rows (any matching stint; OR within arra
 |-------------|------|-------------|----------|
 | `shiftTypes` | `ShiftType[]?` | length > 0 | any work experience with non-null `shift_type` in array |
 | `workModes` | `WorkMode[]?` | length > 0 | any work experience with non-null `work_mode` in array |
+| `workExperienceSalaryPolicies` | `SalaryPolicy[]?` | length > 0 | any work experience with non-null **WE** `salary_policy` in array. **Independent** of `employerSalaryPolicies`. |
 | `timeSupportZoneIds` | `long[]?` | length > 0 | any work experience with at least one linked time support zone id in array (`candidate_work_experience_time_support_zones`) |
 | `workExperienceTechStackIds` | `long[]?` | length > 0 | any work experience with at least one linked tech stack id in array (`candidate_work_experience_tech_stacks`). **Not** the same as project `techStackIds`. |
 
@@ -113,9 +114,13 @@ Filters on `candidate_work_experiences` rows (any matching stint; OR within arra
 
 **WorkMode** enum: `0` Onsite, `1` Remote, `2` Hybrid.
 
+**SalaryPolicy** enum (same as employer): `0` GrossSalary, `1` RemittanceSalary, `2` NetSalary, `3` FixedSalaryPlusCommissionOrMonthlyBonus.
+
 Example: `GET /api/candidates?shiftTypes=0&shiftTypes=4` — candidates with at least one Day or Flexible shift work experience.
 
 Example: `GET /api/candidates?workModes=1&workModes=2` — candidates with at least one Remote or Hybrid work experience.
+
+Example: `GET /api/candidates?workExperienceSalaryPolicies=0&workExperienceSalaryPolicies=2` — candidates with at least one WE whose `salaryPolicy` is Gross or Net.
 
 Example: `GET /api/candidates?timeSupportZoneIds=1&timeSupportZoneIds=3` — candidates with at least one work experience linked to time support zone id 1 or 3.
 
@@ -136,8 +141,8 @@ These use candidate work experiences linked to employer rows (`CandidateWorkExpe
 | `employerCity` | `string?` | non-empty after trim | linked employer has any location city containing substring |
 | `employerStatuses` | `EmployerStatus[]?` | length > 0 | linked employer has any status in array |
 | `employerRankings` | `Ranking[]?` | length > 0 | linked employer ranking non-null and in array |
-| `employerSizeMin` | `int?` | has value | `(MaxEmployees ?? MinEmployees ?? 0) >= min` on linked employer |
-| `employerSizeMax` | `int?` | has value | `(MinEmployees ?? MaxEmployees ?? 0) <= max` on linked employer |
+| `employerSizeMin` | `int?` | has value | Linked employer `Headcount` is **not null** and `Headcount >= min` |
+| `employerSizeMax` | `int?` | has value | Linked employer `Headcount` is **not null** and `Headcount <= max` |
 
 Employer driver filters trigger **`matchedEmployers`** on the list response (see below). Filtering behavior is unchanged.
 
@@ -165,8 +170,8 @@ For project filters, backend enforces `Project.DeletedAt == null`.
 | `publishPlatforms` | `PublishedPlatform[]?` | length > 0 | linked project has any publish platform in array |
 | `isPublished` | `bool?` | has value | `(hasAnyLinkedPublishedProject == value)` |
 | `minDownloadCount` | `long?` | has value | linked project `DownloadCount` non-null and `>=` min |
-| `minTeamSize` | `int?` | has value | linked project `MinTeamSize` non-null and `>=` min |
-| `maxTeamSize` | `int?` | has value | linked project `MaxTeamSize` non-null and `<=` max |
+| `averageTeamSizeMin` | `int?` | has value | linked project `AverageTeamSize` non-null and `>=` min |
+| `averageTeamSizeMax` | `int?` | has value | linked project `AverageTeamSize` non-null and `<=` max |
 | `projectStartFrom` | `DateOnly?` | has value | linked project `StartDate` non-null and `>= from` |
 | `projectStartTo` | `DateOnly?` | has value | linked project `StartDate` non-null and `<= to` |
 
@@ -215,7 +220,7 @@ which projects/domains caused the match (project name heading + matched-value ba
     "clientLocations": [{ "id": 5, "label": "San Francisco" }],
     "publishPlatforms": [{ "id": 0, "label": "AppStore" }],
     "storeLink": "https://apps.apple.com/app/example",
-    "teamSize": { "minTeamSize": 20, "maxTeamSize": 30 },
+    "averageTeamSize": 25,
     "downloadCount": 150000,
     "startDate": "2024-06-15"
   }
@@ -236,7 +241,7 @@ which projects/domains caused the match (project name heading + matched-value ba
 | `clientLocations` | `{ id: number, label: string }[]` | Intersection with requested `clientLocations` filter (catalog id + name). |
 | `publishPlatforms` | `{ id: number, label: string }[]` | Intersection with requested `publishPlatforms` filter. |
 | `storeLink` | `string \| null` | Project link URL when publish-related matching applies (`projects.link`). |
-| `teamSize` | `{ minTeamSize?: number, maxTeamSize?: number } \| null` | Project's actual team size when team size filter(s) satisfied. |
+| `averageTeamSize` | `number \| null` | Project's `averageTeamSize` when `averageTeamSizeMin` and/or `averageTeamSizeMax` active and this project matched. |
 | `downloadCount` | `number \| null` | Project's actual count when `minDownloadCount` filter satisfied. |
 | `startDate` | `string \| null` (ISO `DateOnly`) | Project's start date when start date range filter satisfied. |
 
@@ -250,7 +255,7 @@ Each matched enum/catalog value is a `{ id, label }` object:
 - Phase 1–2: `verticalDomains`, `horizontalDomains`, `technicalDomains`, `techStackIds`, `projectStatus`
 - Aspect types: `technicalAspectTypeIds`
 - Phase 3: `projectTypes`, `clientLocations`, `publishPlatforms`, `isPublished`, `minDownloadCount`,
-  `minTeamSize`, `maxTeamSize`, `projectStartFrom`, `projectStartTo`
+  `averageTeamSizeMin`, `averageTeamSizeMax`, `projectStartFrom`, `projectStartTo`
 
 Otherwise → `matchedProjects: []` (never `null`). Other project filters alone (`projectIds`, `technicalAspects`) do not trigger population.
 
@@ -258,7 +263,7 @@ Semantics:
 
 - **Matched-only:** a project appears only if it matched ≥1 **active** driver filter (OR across drivers).
 - Each field holds only the **intersection** with its filter. When a sub-filter is not applied, defaults per field:
-  arrays → `[]`; scalars (`status`, `projectType`, `storeLink`, `teamSize`, `downloadCount`, `startDate`) → `null`.
+  arrays → `[]`; scalars (`status`, `projectType`, `storeLink`, `averageTeamSize`, `downloadCount`, `startDate`) → `null`.
 - **Publish:** if only `publishPlatforms` is set, unpublished projects with matching platforms appear (same as list filter).
   `storeLink` from `projects.link` when publish-related matching applies on the item.
 - Values are **distinct by `id`**, ordered **ascending by `id`**; projects ordered by `projectId`.
@@ -270,7 +275,7 @@ Semantics:
 ## Response: `matchedWorkExperiences` (Work Experience row match summary)
 
 Each `CandidateListItemDto` includes a **`matchedWorkExperiences`** array so the Cards View can render, per candidate,
-which work experiences caused the match for shift type, work mode, time support zones, or work-experience tech stacks
+which work experiences caused the match for shift type, work mode, WE salary policy, time support zones, or work-experience tech stacks
 (heading: `{employerName} - {jobTitle}`).
 
 ```jsonc
@@ -284,6 +289,7 @@ which work experiences caused the match for shift type, work mode, time support 
     "endDate": null,
     "shiftType": { "id": 0, "label": "Day" },
     "workMode": { "id": 1, "label": "Remote" },
+    "salaryPolicy": { "id": 0, "label": "Gross Salary" },
     "timeSupportZones": [{ "id": 1, "label": "PST" }],
     "techStacks": [{ "id": 12, "label": "React" }]
   }
@@ -300,12 +306,13 @@ which work experiences caused the match for shift type, work mode, time support 
 | `endDate` | `string \| null` (ISO `DateOnly`) | Work experience end date; `null` = current role. |
 | `shiftType` | `{ id: number, label: string } \| null` | When `shiftTypes` filter active and this WE's shift matched (scalar, not array). |
 | `workMode` | `{ id: number, label: string } \| null` | When `workModes` filter active and this WE's mode matched (scalar). |
+| `salaryPolicy` | `{ id: number, label: string } \| null` | When `workExperienceSalaryPolicies` filter active and this WE's policy matched (WE column, not employer). |
 | `timeSupportZones` | `{ id: number, label: string }[]` | Intersection with requested `timeSupportZoneIds` filter. |
 | `techStacks` | `{ id: number, label: string }[]` | Intersection with requested `workExperienceTechStackIds` (WE stacks only, not project `techStackIds`). |
 
 **When `matchedWorkExperiences` is computed:** any of these filters is active:
 
-- `shiftTypes`, `workModes`, `timeSupportZoneIds`, `workExperienceTechStackIds`
+- `shiftTypes`, `workModes`, `workExperienceSalaryPolicies`, `timeSupportZoneIds`, `workExperienceTechStackIds`
 
 Otherwise → `matchedWorkExperiences: []` (never `null`).
 
@@ -313,7 +320,7 @@ Semantics:
 
 - **Matched-only:** a work experience appears only if it matched ≥1 **active** driver filter (OR across drivers), with a non-deleted employer.
 - **One entry per work experience** — not deduped by `employerId`.
-- Each field holds only the **intersection** with its filter. When a sub-filter is not applied: `shiftType` / `workMode` → `null`; arrays → `[]`.
+- Each field holds only the **intersection** with its filter. When a sub-filter is not applied: `shiftType` / `workMode` / `salaryPolicy` → `null`; arrays → `[]`.
 - The same `workExperienceId` may appear in both `matchedEmployers` and `matchedWorkExperiences` when both filter groups are active — payloads are independent.
 - Enum `{ id, label }` uses the **same integer** as the query-param filter; arrays distinct by `id`, ascending; items ordered by `workExperienceId`.
 
@@ -502,7 +509,7 @@ which work experiences / employers caused the match (employer name heading + job
 | `employerTypes` | `{ id: number, label: string }[]` | Intersection with requested `employerTypes` filter. |
 | `salaryPolicy` | `{ id: number, label: string } \| null` | When `employerSalaryPolicies` filter active and employer policy matched. |
 | `ranking` | `{ id: number, label: string } \| null` | When `employerRankings` filter active and employer ranking matched. |
-| `size` | `{ headcount?: number } \| null` | Employer's headcount when size filter(s) satisfied. |
+| `size` | `{ headcount?: number } \| null` | Employer's `headcount` when size filter(s) satisfied. |
 
 **When `matchedEmployers` is computed:** any of these filters is active:
 
