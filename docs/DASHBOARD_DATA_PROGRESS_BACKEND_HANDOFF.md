@@ -41,7 +41,8 @@ Handoff for the **backend AI agent** implementing **`GET /api/dashboard/data-pro
 | # | Decision | Status |
 |---|----------|--------|
 | **C1** | **Remove `GET /api/dashboard/intake`** from the API when data-progress is deployed. Dashboard is the only consumer; intake SQL moves into data-progress service (no duplicate public endpoint). | **Locked** |
-| **C2** | **Universities / certifications** use same semantics as intake Option A: `newRecords` = all `created_at` by calendar day (ignore `deleted_at`); `recordCount` = active fleet (`deleted_at IS NULL`). | **Locked** |
+| **C2** | **Universities / certifications** fleet `recordCount` = `deleted_at IS NULL`. **+N as implemented:** shared `GetDailyCountsAsync` by `created_at` only (ignores `deleted_at`); delete API is **hard delete**. See [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md). | **Locked** (code-aligned 2026-08-03) |
+| **C6** | **Candidates +N (B1) shipped:** candidate `GetDailyCountsAsync` uses `deleted_at IS NULL`; soft-delete calls `UpsertTodayForModuleAsync(Candidates, Asia/Karachi)`; historical `new_records` via `EnsureBackfillAsync` / `UpdateSnapshotNewRecordsAsync`. Other modules unchanged. See [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md). | **Shipped** (2026-08-04) |
 | **C3** | **Today’s snapshot:** upsert continuously through the day; **past days frozen** at midnight (`Asia/Karachi`). | **Locked** |
 | **C4** | **Backfill** on first deploy: **150 calendar days** of snapshot history per module. | **Locked** |
 | **C5** | Modules with `available: false` show **`avgDataProgress: 0`** on overview (no frontend mock progress). `avgDataProgressDelta: null`. | **Locked** |
@@ -68,13 +69,13 @@ See [Appendix A](#appendix-a--legacy-intake-code-migrate-then-remove) for existi
 
 ### 1.1b Intake logic to internalize in data-progress
 
-| Module | `recordCount` | `newRecords` / `newInPeriod` |
-|--------|---------------|------------------------------|
-| `candidates` | Active fleet | `created_at` day bucket; ignore `deleted_at` |
-| `employers` | Active fleet | Same (parity with intake API) |
-| `projects` | Active fleet | Same (parity with intake API) |
-| `universities` | Active fleet (`deleted_at IS NULL`) | `created_at` day bucket; ignore `deleted_at` (C2) |
-| `certifications` | Active fleet (`deleted_at IS NULL`) | `created_at` day bucket; ignore `deleted_at` (C2) |
+| Module | `recordCount` | `newRecords` / `newInPeriod` (**as implemented**) | Delete API |
+|--------|---------------|-----------------------------------------------------|------------|
+| `candidates` | Active fleet | `created_at` TZ day **and** `deleted_at IS NULL` (C6 B1) | Soft-delete + upsert on delete |
+| `employers` | Active fleet | `created_at` TZ day; **ignores `deleted_at`** (row gone after hard delete) | Hard delete + upsert |
+| `projects` | Active fleet | Same | Hard delete + upsert |
+| `universities` | Active fleet | Same | Hard delete + upsert |
+| `certifications` | Active fleet | Same | Hard delete + upsert |
 
 ### 1.2 What intake does **not** cover (gaps for data-progress)
 
@@ -164,7 +165,7 @@ type DataProgressModule =
 
 interface DataProgressDailyRow {
   date: string                    // YYYY-MM-DD in timezone
-  newRecords: number              // intake count that day (ignore deleted_at)
+  newRecords: number              // created that day; candidates: also deleted_at IS NULL (C6 B1)
   totalDataProgress: number       // fleet sum of progress points EOD
   progressPointsGained: number    // net day-over-day change in totalDataProgress
   avgDataProgress: number         // totalDataProgress / recordCount, 1 decimal
@@ -332,11 +333,13 @@ Includes effect of:
 
 ### 4.5 `newRecords` (daily intake per module)
 
-Count rows where **local calendar date of `created_at` = D** in `timezone`.
+`GetDailyCountsAsync` — count by `created_at` in `timezone` day bounds.
 
-**Soft-delete:** **do not** filter `deleted_at` (Option A — same as intake).
+- **Candidates (C6 B1):** also `deleted_at IS NULL`; soft-delete upserts today.
+- **Other modules:** no `deleted_at` predicate; hard delete removes the row.
 
-For **candidates / employers / projects**, counts **must match** intake daily fields when the same `from`/`to`/`timezone` is used.
+See [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md)
+and [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md) (shipped).
 
 ### 4.6 `summary.current` (stock — always now)
 
@@ -514,11 +517,11 @@ Store in snapshot row; serve via API `daily[]`.
 
 | Module | Table (expected) | Fleet filter | Progress column | `newRecords` | Dashboard `available` |
 |--------|------------------|--------------|-----------------|--------------|------------------------|
-| `candidates` | `candidates` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped) |
-| `employers` | `employers` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md)) |
-| `projects` | `projects` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` | `true` (shipped — [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)) |
-| `universities` | `universities` | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` (C2) | `true` (shipped — [`DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md)) |
-| `certifications` | Confirm table name with schema | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | `created_at`; ignore `deleted_at` (C2) | `true` (shipped — same UC Phase 2 doc) |
+| `candidates` | `candidates` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at` TZ day **and** `deleted_at IS NULL` (C6 B1) | `true` (shipped) |
+| `employers` | `employers` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | `created_at` TZ day; ignore `deleted_at` (hard delete removes row) | `true` (shipped — [`DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_EMPLOYERS_DATA_PROGRESS_PHASE2.md)) |
+| `projects` | `projects` | `deleted_at IS NULL` | `data_progress_percentage` ✓ | same | `true` (shipped — [`DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_PROJECTS_DATA_PROGRESS_PHASE2.md)) |
+| `universities` | `universities` | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | same | `true` (shipped — [`DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md`](./DASHBOARD_UNIVERSITIES_CERTIFICATIONS_DATA_PROGRESS_PHASE2.md)) |
+| `certifications` | Confirm table name with schema | `deleted_at IS NULL` (C2) | `data_progress_percentage` ✓ | same | `true` (shipped — same UC Phase 2 doc) |
 
 ---
 
@@ -605,11 +608,18 @@ Reuse validation filter pattern and `FormattableString` SQL style in data-progre
 
 ### A.3 Intake metric rules (carry forward into data-progress)
 
-**Daily `newRecords` (candidates, employers, projects):** count by local calendar date of `created_at` in `timezone`; **ignore `deleted_at`** (Option A).
+**Daily `newRecords`:** bucket by `created_at` in `timezone`.
+
+- **Candidates (C6 B1):** also `deleted_at IS NULL`; soft-delete upserts today.
+- **Other modules:** no `deleted_at` filter; hard delete removes the row.
+
+See [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md)
+and [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md).
 
 ```sql
--- Bucketing pattern
+-- Bucketing
 (created_at AT TIME ZONE {timezone})::date
+-- candidates only: AND deleted_at IS NULL
 ```
 
 **Fleet `recordCount`:** `COUNT(*)` where `deleted_at IS NULL` (active fleet at `generatedAt`).

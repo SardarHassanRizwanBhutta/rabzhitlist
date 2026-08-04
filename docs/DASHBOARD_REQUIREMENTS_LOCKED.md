@@ -1,8 +1,10 @@
 # Dashboard — Locked Product Requirements (v1)
 
-**Status:** Locked for backend contract (2026-06).  
+**Status:** Locked for backend contract (2026-06; +N active-only updated 2026-08-03).  
 **Audience:** Product, frontend, backend.  
-**Backend handoff:** [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md)
+**Backend handoff:** [`DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md`](./DASHBOARD_DATA_PROGRESS_BACKEND_HANDOFF.md)  
+**Create/delete code matrix:** [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md)  
+**Candidates +N soft-delete fix:** [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md)
 
 ---
 
@@ -41,7 +43,7 @@ Single dashboard page (`/`) with:
 |-------|------|
 | **Avg completion %** | Unweighted mean of active records’ completeness (0–100). **Always as of now** (`generatedAt`). |
 | **Total count** | Active fleet (`deleted_at IS NULL`). **Fixed** — not affected by filter. |
-| **+N new** | Count of records whose `created_at` falls in selected window (inclusive calendar days in `timezone`). **Dynamic.** Intake semantics: **ignore `deleted_at`** for creation-day count (Option A). |
+| **+N new** | Count of records whose `created_at` falls in selected window (inclusive calendar days in `timezone`). **Dynamic.** **Candidates (C6 B1 shipped):** `created_at` in window **and** `deleted_at IS NULL`; soft-delete upserts today so +N drops — [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md). **Other modules:** +N by `created_at` only; hard-delete removes the row so +N drops. See [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md). |
 | **Delta pill** | **Percentage points (pp):** `avg(today) − avg(end of prior equal-length window)`. **Only when `to` = today** in `timezone`; otherwise **`null`** (UI shows —). |
 | **Delta tooltip** | Contextual to filter length, e.g. “Change vs prior 7 days” (not “vs yesterday” when range ≠ 1 day). |
 | **Today / 1-day filter** | Prior window = **yesterday only** → `avg(today) − avg(yesterday)`. |
