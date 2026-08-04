@@ -89,7 +89,7 @@ type DataProgressModule =
 
 interface DataProgressDailyRow {
   date: string                    // YYYY-MM-DD
-  newRecords: number              // created that day; ignore deleted_at
+  newRecords: number              // created that day; candidates also deleted_at IS NULL (C6 B1)
   totalDataProgress: number       // fleet sum of progress points (0 for non-candidate modules)
   progressPointsGained: number    // day-over-day change in totalDataProgress
   avgDataProgress: number         // 1 decimal; 0 when no progress column
@@ -310,11 +310,14 @@ Observed (abbreviated):
 
 | Module | Table | `recordCount` | `newRecords` / `newInPeriod` | Progress |
 |--------|-------|---------------|-------------------------------|----------|
-| `candidates` | `candidates` | `deleted_at IS NULL` | `created_at` day; **ignore** `deleted_at` | `data_progress_percentage` |
-| `employers` | `employers` | active fleet | same intake semantics | none (`available: false`) |
-| `projects` | `projects` | active fleet | same | none |
-| `universities` | `universities` | active fleet | same (C2) | none |
-| `certifications` | `certifications` | active fleet | same (C2) | none |
+| `candidates` | `candidates` | `deleted_at IS NULL` | `created_at` TZ day **and** `deleted_at IS NULL` (C6 B1 shipped) | `data_progress_percentage` |
+| `employers` | `employers` | active fleet | `created_at` TZ day; ignore `deleted_at` (hard delete removes row) | progress when `available: true` |
+| `projects` | `projects` | active fleet | same | progress when `available: true` |
+| `universities` | `universities` | active fleet | same | progress when `available: true` |
+| `certifications` | `certifications` | active fleet | same | progress when `available: true` |
+
+Code matrix: [`DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md`](./DASHBOARD_CREATE_DELETE_BEHAVIOR_BY_MODULE.md).  
+Candidates fix: [`DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md`](./DASHBOARD_CANDIDATES_NEW_IN_PERIOD_SOFT_DELETE_HANDOFF.md).
 
 **Progress aggregation (candidates):**
 
