@@ -33,6 +33,11 @@ interface CallNotesWorkspaceProps {
   onSave: () => void
   draftMode?: boolean
   onApplyToCreateCandidate?: () => void
+  onAnalyzeNotes?: () => void
+  isAnalyzingNotes?: boolean
+  showAnalyzeButton?: boolean
+  analyzeDisabled?: boolean
+  analyzeDisabledReason?: string | null
   isSaving?: boolean
   notesEditorDisabled?: boolean
   questions: GeneratedQuestion[]
@@ -88,6 +93,11 @@ export function CallNotesWorkspace({
   onSave,
   draftMode = false,
   onApplyToCreateCandidate,
+  onAnalyzeNotes,
+  isAnalyzingNotes = false,
+  showAnalyzeButton = true,
+  analyzeDisabled = false,
+  analyzeDisabledReason = null,
   isSaving = false,
   notesEditorDisabled = false,
   questions,
@@ -191,6 +201,11 @@ export function CallNotesWorkspace({
             onSave={onSave}
             draftMode={draftMode}
             onApplyToCreateCandidate={onApplyToCreateCandidate}
+            onAnalyzeNotes={onAnalyzeNotes}
+            isAnalyzing={isAnalyzingNotes}
+            showAnalyzeButton={showAnalyzeButton}
+            analyzeDisabled={analyzeDisabled}
+            analyzeDisabledReason={analyzeDisabledReason}
             isSaving={isSaving}
             disabled={notesEditorDisabled}
             showDraftSavedHint={showDraftSavedHint}

@@ -31,6 +31,7 @@ import {
   buildDraftCreateFormSnapshot,
 } from "@/lib/candidate/draft-cold-caller-candidate"
 import { clearCallNotesDraft } from "@/lib/utils/call-notes-draft-storage"
+import type { ApplyCallNotesExtractionsResult } from "@/lib/utils/call-notes-apply-extractions"
 import {
   fetchTechStacks,
   fetchClientLocations,
@@ -323,6 +324,25 @@ export function CandidatesPageClient() {
       setCreateCandidateOpen(true)
     },
     [draftColdCallerSession],
+  )
+
+  const handleDraftExtractApplyComplete = useCallback(
+    (result: ApplyCallNotesExtractionsResult) => {
+      if (result.applied.length === 0) return
+      setDraftColdCallerSession((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          formSnapshot: result.formData,
+          candidate: buildDraftColdCallerCandidate({
+            form: result.formData,
+            resumeFile: prev.resumeFile,
+            draftId: prev.candidate.id,
+          }),
+        }
+      })
+    },
+    [],
   )
 
   const refetchCandidates = useCallback(() => {
@@ -1255,6 +1275,8 @@ export function CandidatesPageClient() {
               draftMode
               localResumeUrl={draftColdCallerSession.localResumeUrl}
               onApplyToCreateCandidate={handleDraftApplyToCreate}
+              applyFormBase={draftColdCallerSession.formSnapshot}
+              onApplyExtractComplete={handleDraftExtractApplyComplete}
             />
           ) : null}
         </div>

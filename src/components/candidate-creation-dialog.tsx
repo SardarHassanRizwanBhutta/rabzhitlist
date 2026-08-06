@@ -89,6 +89,10 @@ import {
 import { SALARY_POLICY_DB_LABELS, type SalaryPolicyDb } from "@/lib/types/employer"
 import { salaryPolicyToSelectValue } from "@/lib/utils/salary-policy-display"
 import {
+  shiftTypeToSelectValue,
+  workModeToSelectValue,
+} from "@/lib/utils/shift-work-mode-display"
+import {
   EmployerCombobox,
   type EmployerComboboxNestedCreationProps,
   type SelectedEmployer as WorkExperienceSelectedEmployer,
@@ -814,6 +818,13 @@ interface CandidateCreationDialogProps {
   /** Called after prefill is merged so parent can set `createPrefill` to null (avoids resetting form on re-render). */
   onCreatePrefillConsumed?: () => void
   /**
+   * When opening Edit Candidate after Call Notes extract, use this form snapshot once
+   * instead of re-deriving from `candidateData` (empty-only merges already applied).
+   */
+  editFormBootstrap?: CandidateFormData | null
+  /** Called after edit bootstrap is consumed. */
+  onEditFormBootstrapConsumed?: () => void
+  /**
    * When set (Create Candidate flow), work-experience "+ Add New Employer" opens
    * {@link EmployerCreationDialog} with full lookups and create handlers.
    */
@@ -938,7 +949,7 @@ const initialFormData: CandidateFormData = {
 }
 
 // Convert Candidate to CandidateFormData for edit mode
-const candidateToFormData = (candidate: Candidate): CandidateFormData => {
+export const candidateToFormData = (candidate: Candidate): CandidateFormData => {
   return {
     name: candidate.name || "",
     postingTitle: candidate.postingTitle || "",  // Add this
@@ -965,8 +976,8 @@ const candidateToFormData = (candidate: Candidate): CandidateFormData => {
       startDate: we.startDate,
       endDate: we.endDate,
       techStacks: we.techStacks || [],
-      shiftType: we.shiftType || "",
-      workMode: we.workMode || "",
+      shiftType: shiftTypeToSelectValue(we.shiftType || "") || "",
+      workMode: workModeToSelectValue(we.workMode || "") || "",
       salaryPolicy: salaryPolicyToSelectValue(we.salaryPolicy),
       timeSupportZones: we.timeSupportZones || [],
       benefits: we.benefits?.map(b => ({
@@ -1058,6 +1069,8 @@ export function CandidateCreationDialog({
   createPrefill = null,
   createPrefillResumeFile = null,
   onCreatePrefillConsumed,
+  editFormBootstrap = null,
+  onEditFormBootstrapConsumed,
   nestedEmployerCreation,
   nestedProjectCreation,
 }: CandidateCreationDialogProps) {
@@ -1074,9 +1087,13 @@ export function CandidateCreationDialog({
   const initialFormDataRef = useRef<CandidateFormData | null>(null)
   /** After resume (or other) prefill is applied in create mode, keep form when parent clears `createPrefill`. */
   const appliedPrefillSessionRef = useRef(false)
+  /** After Call Notes extract bootstrap is applied in edit mode, keep form when parent clears `editFormBootstrap`. */
+  const appliedEditBootstrapSessionRef = useRef(false)
   const createDialogPrevOpenRef = useRef(false)
   const onCreatePrefillConsumedRef = useRef(onCreatePrefillConsumed)
   onCreatePrefillConsumedRef.current = onCreatePrefillConsumed
+  const onEditFormBootstrapConsumedRef = useRef(onEditFormBootstrapConsumed)
+  onEditFormBootstrapConsumedRef.current = onEditFormBootstrapConsumed
   
   // Verification state - track which fields have been verified this session
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
@@ -2610,6 +2627,7 @@ export function CandidateCreationDialog({
   React.useEffect(() => {
     if (!open) {
       appliedPrefillSessionRef.current = false
+      appliedEditBootstrapSessionRef.current = false
       createDialogPrevOpenRef.current = false
       return
     }
@@ -2618,19 +2636,30 @@ export function CandidateCreationDialog({
     createDialogPrevOpenRef.current = true
 
     if (mode === "edit" && candidateData) {
-      const newFormData = candidateToFormData(candidateData)
-      setFormData(newFormData)
-      initialFormDataRef.current = newFormData
-      setErrors({})
-      setVerifiedFields(new Set())
-      setModifiedFields(new Set())
-      setResumeFile(null)
-      setPendingResumeRetry(null)
-      setResumeUploadError(null)
-      setWorkExperienceOpen(true)
-      setTechStacksOpen(true)
-      setCertificationsOpen(true)
-      setEducationOpen(true)
+      const hadBootstrap = !!editFormBootstrap
+      if (hadBootstrap) {
+        setFormData(editFormBootstrap!)
+        initialFormDataRef.current = editFormBootstrap!
+        appliedEditBootstrapSessionRef.current = true
+        onEditFormBootstrapConsumedRef.current?.()
+      } else if (justOpened && !appliedEditBootstrapSessionRef.current) {
+        const newFormData = candidateToFormData(candidateData)
+        setFormData(newFormData)
+        initialFormDataRef.current = newFormData
+      }
+
+      if (justOpened || hadBootstrap) {
+        setErrors({})
+        setVerifiedFields(new Set())
+        setModifiedFields(new Set())
+        setResumeFile(null)
+        setPendingResumeRetry(null)
+        setResumeUploadError(null)
+        setWorkExperienceOpen(true)
+        setTechStacksOpen(true)
+        setCertificationsOpen(true)
+        setEducationOpen(true)
+      }
       return
     }
 
@@ -2660,7 +2689,7 @@ export function CandidateCreationDialog({
         setEducationOpen(true)
       }
     }
-  }, [mode, candidateData, open, createPrefill, createPrefillResumeFile])
+  }, [mode, candidateData, open, createPrefill, createPrefillResumeFile, editFormBootstrap])
 
   const resetForm = () => {
     if (mode === "edit" && candidateData) {
