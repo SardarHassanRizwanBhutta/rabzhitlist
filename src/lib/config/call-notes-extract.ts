@@ -13,7 +13,9 @@ export const CALL_NOTES_EXTRACT_TIMEOUT_MS = (() => {
 })()
 
 export function questionsApiBaseUrl(): string {
-  const raw = process.env.QUESTIONS_API_URL?.trim()
+  const raw =
+    process.env.QUESTIONS_API_URL?.trim() ||
+    process.env.NEXT_PUBLIC_QUESTIONS_API_URL?.trim()
   if (raw) return raw.replace(/\/+$/, "")
   return "http://localhost:8002"
 }
