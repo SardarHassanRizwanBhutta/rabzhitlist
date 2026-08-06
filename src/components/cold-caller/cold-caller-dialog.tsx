@@ -87,6 +87,27 @@ import {
   fetchCandidateCallNotes,
   patchCandidateCallNotes,
 } from "@/lib/services/candidate-call-notes-api"
+import { extractCallNotes } from "@/lib/services/call-notes-extract-api"
+import {
+  buildCallNotesAllowedEmptyFields,
+  getCallNotesExtractAnalyzeDisabledReason,
+} from "@/lib/utils/call-notes-allowed-empty-fields"
+import { buildCallNotesExtractCandidateSnapshot } from "@/lib/utils/call-notes-extract-snapshot"
+import {
+  CallNotesExtractReviewDialog,
+  buildReviewRows,
+  type CallNotesExtractReviewRow,
+} from "./call-notes-extract-review-dialog"
+import {
+  candidateToFormData,
+  type CandidateFormData,
+} from "@/components/candidate-creation-dialog"
+import type { CallNotesExtraction } from "@/types/call-notes-extraction"
+import {
+  applyCallNotesExtractionsToFormData,
+  formatCallNotesApplyToast,
+  type ApplyCallNotesExtractionsResult,
+} from "@/lib/utils/call-notes-apply-extractions"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog, EmployerFormData } from "@/components/employer-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
@@ -108,6 +129,13 @@ interface ColdCallerDialogProps {
   localResumeUrl?: string | null
   /** Called when user clicks Apply to Create Candidate in draft mode (receives current notes text). */
   onApplyToCreateCandidate?: (callNotes: string) => void
+  /**
+   * Form snapshot to merge Call Notes extractions into (draft: session formSnapshot;
+   * saved: omit to derive from `candidate`).
+   */
+  applyFormBase?: CandidateFormData
+  /** Called after Apply Selected merges extractions (parent opens Edit or updates draft session). */
+  onApplyExtractComplete?: (result: ApplyCallNotesExtractionsResult) => void
 }
 
 // Mode icon mapping
@@ -127,6 +155,8 @@ export function ColdCallerDialog({
   draftMode = false,
   localResumeUrl = null,
   onApplyToCreateCandidate,
+  applyFormBase,
+  onApplyExtractComplete,
 }: ColdCallerDialogProps) {
   // Field states
   const [fieldStates, setFieldStates] = useState<Map<string, FieldState>>(new Map())
@@ -280,6 +310,123 @@ export function ColdCallerDialog({
       setIsSavingCallNotes(false)
     }
   }, [candidate.id, rawNotesDraft, clearDraftStorage])
+
+  const [isAnalyzingCallNotes, setIsAnalyzingCallNotes] = useState(false)
+  const [extractReviewOpen, setExtractReviewOpen] = useState(false)
+  const [extractReviewRows, setExtractReviewRows] = useState<CallNotesExtractReviewRow[]>([])
+  const [extractReviewError, setExtractReviewError] = useState<string | null>(null)
+  const [isApplyingExtract, setIsApplyingExtract] = useState(false)
+  const extractAbortRef = useRef<AbortController | null>(null)
+
+  const callNotesAllowedEmptyFields = useMemo(
+    () =>
+      buildCallNotesAllowedEmptyFields(candidateWithCatalog, {
+        hasResume: candidate.hasResume === true,
+      }),
+    [candidateWithCatalog, candidate.hasResume],
+  )
+
+  const callNotesAnalyzeDisabledReason = useMemo(
+    () =>
+      getCallNotesExtractAnalyzeDisabledReason(
+        rawNotesDraft,
+        callNotesAllowedEmptyFields,
+      ),
+    [rawNotesDraft, callNotesAllowedEmptyFields],
+  )
+
+  const runCallNotesExtract = useCallback(async () => {
+    const disabledReason = getCallNotesExtractAnalyzeDisabledReason(
+      rawNotesDraft,
+      callNotesAllowedEmptyFields,
+    )
+    if (disabledReason) {
+      toast.error(disabledReason)
+      return
+    }
+
+    extractAbortRef.current?.abort()
+    const controller = new AbortController()
+    extractAbortRef.current = controller
+
+    setIsAnalyzingCallNotes(true)
+    setExtractReviewError(null)
+    try {
+      const allowedEmptyFields = callNotesAllowedEmptyFields
+      const response = await extractCallNotes(
+        {
+          rawNotes: rawNotesDraft,
+          candidateSnapshot: buildCallNotesExtractCandidateSnapshot(candidateWithCatalog),
+          allowedEmptyFields,
+        },
+        controller.signal,
+      )
+      setExtractReviewRows(
+        buildReviewRows(response.extractions, allowedEmptyFields),
+      )
+      setExtractReviewOpen(true)
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return
+      const message =
+        e instanceof Error ? e.message : "Call notes extract failed."
+      setExtractReviewRows([])
+      setExtractReviewError(message)
+      setExtractReviewOpen(true)
+      toast.error(message)
+    } finally {
+      setIsAnalyzingCallNotes(false)
+    }
+  }, [
+    rawNotesDraft,
+    callNotesAllowedEmptyFields,
+    candidateWithCatalog,
+  ])
+
+  const handleAnalyzeCallNotes = useCallback(() => {
+    void runCallNotesExtract()
+  }, [runCallNotesExtract])
+
+  const handleApplyExtractSelected = useCallback(
+    (selected: CallNotesExtractReviewRow[]) => {
+      if (selected.length === 0) return
+
+      const baseForm = applyFormBase ?? candidateToFormData(candidate)
+      const extractions: CallNotesExtraction[] = selected.map((row) => ({
+        fieldPath: row.fieldPath,
+        apiFieldName: row.apiFieldName,
+        value: row.value,
+        sourceText: row.sourceText,
+        confidence: row.confidence,
+      }))
+
+      setIsApplyingExtract(true)
+      try {
+        const result = applyCallNotesExtractionsToFormData(
+          baseForm,
+          extractions,
+          callNotesAllowedEmptyFields,
+        )
+        setExtractReviewOpen(false)
+
+        const message = formatCallNotesApplyToast(result)
+        if (result.applied.length === 0) {
+          toast.warning(message)
+        } else {
+          toast.success(message)
+        }
+
+        onApplyExtractComplete?.(result)
+      } finally {
+        setIsApplyingExtract(false)
+      }
+    },
+    [
+      applyFormBase,
+      candidate,
+      callNotesAllowedEmptyFields,
+      onApplyExtractComplete,
+    ],
+  )
 
   // Track manually added entries for dynamic sections
   const [manuallyAddedFields, setManuallyAddedFields] = useState<EmptyField[]>([])
@@ -1424,6 +1571,10 @@ export function ColdCallerDialog({
               onSaveNotes={handleSaveCallNotes}
               draftMode={draftMode}
               onApplyToCreateCandidate={handleApplyFromDraft}
+              onAnalyzeNotes={handleAnalyzeCallNotes}
+              isAnalyzingNotes={isAnalyzingCallNotes}
+              analyzeDisabled={callNotesAnalyzeDisabledReason != null}
+              analyzeDisabledReason={callNotesAnalyzeDisabledReason}
               isSaving={isSavingCallNotes}
               notesEditorDisabled={callNotesLoadState === "loading"}
               sessionAchievementIndices={sessionAchievementIndices}
@@ -2000,6 +2151,17 @@ export function ColdCallerDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    <CallNotesExtractReviewDialog
+      open={extractReviewOpen}
+      onOpenChange={setExtractReviewOpen}
+      rows={extractReviewRows}
+      isApplying={isApplyingExtract}
+      isReAnalyzing={isAnalyzingCallNotes}
+      extractError={extractReviewError}
+      onApplySelected={handleApplyExtractSelected}
+      onAnalyzeAgain={handleAnalyzeCallNotes}
+    />
     </>
   )
 }

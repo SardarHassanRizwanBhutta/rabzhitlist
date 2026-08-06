@@ -4,7 +4,7 @@
 **Audience:** Product, frontend, backend.  
 **Backend handoff:** [`CALL_NOTES_PERSISTENCE_BACKEND_HANDOFF.md`](./CALL_NOTES_PERSISTENCE_BACKEND_HANDOFF.md)  
 **Frontend handoff:** [`CALL_NOTES_PERSISTENCE_FRONTEND_INTEGRATION.md`](./CALL_NOTES_PERSISTENCE_FRONTEND_INTEGRATION.md)  
-**Related (deferred AI extract):** [`call_notes_frontend_api_contract.md`](./call_notes_frontend_api_contract.md)
+**Related (AI extract v1):** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md) (CNE3 supersedes CN3 deferral).
 
 ---
 
@@ -98,7 +98,8 @@ A value is **empty** when it is:
 |-------|------|
 | **Backend** | Migration + GET/PATCH + validation (this handoff) |
 | **Frontend** | After backend ships; see FE handoff (no FE implementation until API is available) |
-| **Later** | AI extract; optional Details visibility; concurrent edits; rich text if product revisits |
+| **Later** | Optional Details visibility; concurrent edits; rich text if product revisits |
+| **Extract v1** | See [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md) |
 
 ---
 

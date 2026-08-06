@@ -4,7 +4,7 @@
 **Audience:** Frontend / Next.js AI agent.  
 **Product spec (locked):** [`CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md)  
 **Backend handoff:** [`CALL_NOTES_PERSISTENCE_BACKEND_HANDOFF.md`](./CALL_NOTES_PERSISTENCE_BACKEND_HANDOFF.md)  
-**Deferred AI extract (do not wire for save):** [`call_notes_frontend_api_contract.md`](./call_notes_frontend_api_contract.md)
+**AI extract v1 (separate from save):** [`CALL_NOTES_EXTRACT_FRONTEND_HANDOFF.md`](./CALL_NOTES_EXTRACT_FRONTEND_HANDOFF.md) — Analyze Notes must not replace Save Notes / PATCH persistence.
 
 ---
 

@@ -60,6 +60,11 @@ interface ColdCallerCallNotesViewProps {
   onSaveNotes: () => void | Promise<void>
   draftMode?: boolean
   onApplyToCreateCandidate?: () => void
+  onAnalyzeNotes?: () => void
+  isAnalyzingNotes?: boolean
+  showAnalyzeButton?: boolean
+  analyzeDisabled?: boolean
+  analyzeDisabledReason?: string | null
   isSaving?: boolean
   notesEditorDisabled?: boolean
   sessionAchievementIndices?: number[]
@@ -126,6 +131,11 @@ export function ColdCallerCallNotesView({
   onSaveNotes,
   draftMode = false,
   onApplyToCreateCandidate,
+  onAnalyzeNotes,
+  isAnalyzingNotes = false,
+  showAnalyzeButton = true,
+  analyzeDisabled = false,
+  analyzeDisabledReason = null,
   isSaving = false,
   notesEditorDisabled = false,
   sessionAchievementIndices,
@@ -230,6 +240,11 @@ export function ColdCallerCallNotesView({
     onSave: handleSave,
     draftMode,
     onApplyToCreateCandidate,
+    onAnalyzeNotes,
+    isAnalyzingNotes,
+    showAnalyzeButton,
+    analyzeDisabled,
+    analyzeDisabledReason,
     isSaving,
     notesEditorDisabled,
     questions: activeSectionQuestions,

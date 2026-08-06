@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useMemo, useEffect, useRef, Fragment } from "react"
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from "react"
 import { useRouter } from "next/navigation"
 import { 
   ExternalLink, 
@@ -110,7 +110,7 @@ import {
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
-import { CandidateCreationDialog, CandidateFormData, VerificationState, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
+import { CandidateCreationDialog, CandidateFormData, VerificationState, candidateToFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
 import { CandidateResumeField } from "@/components/candidates/candidate-resume-field"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import {
@@ -154,6 +154,7 @@ import { toast } from "sonner"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
 import { ColdCallerDialog } from "@/components/cold-caller"
+import type { ApplyCallNotesExtractionsResult } from "@/lib/utils/call-notes-apply-extractions"
 import type { InteractionMode } from "@/types/cold-caller"
 import { MODE_CONFIG } from "@/types/cold-caller"
 import { Plus } from "lucide-react"
@@ -4322,6 +4323,16 @@ export function CandidateDetailsModal({
   
   // State for Edit dialog (now includes verification by default)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editFormBootstrap, setEditFormBootstrap] = useState<CandidateFormData | null>(null)
+
+  const handleCallNotesExtractApplyComplete = useCallback(
+    (result: ApplyCallNotesExtractionsResult) => {
+      if (result.applied.length === 0) return
+      setEditFormBootstrap(result.formData)
+      setEditDialogOpen(true)
+    },
+    [],
+  )
 
   // Lookups for the edit dialog (loaded lazily when edit dialog opens)
   const [editLookups, setEditLookups] = useState<CandidateLookups>({ techStacks: [] })
@@ -7104,6 +7115,8 @@ export function CandidateDetailsModal({
             onCandidateUpdated?.()
           }}
           lookups={editLookups}
+          editFormBootstrap={editFormBootstrap}
+          onEditFormBootstrapConsumed={() => setEditFormBootstrap(null)}
         />
       )}
 
@@ -7114,6 +7127,8 @@ export function CandidateDetailsModal({
           onOpenChange={setInteractionDialogOpen}
           candidate={viewCandidate}
           mode={interactionMode}
+          applyFormBase={candidateToFormData(viewCandidate)}
+          onApplyExtractComplete={handleCallNotesExtractApplyComplete}
           onSaveField={async (fieldPath, value, verified) => {
             // Handle field save - this will update the candidate data
             // In a real implementation, this would call an API

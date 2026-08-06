@@ -116,3 +116,20 @@ export function isQuestionFieldAllowed(
       )
   }
 }
+
+/**
+ * Call Notes Extract v1 — QG allowlist keys eligible for Analyze Notes.
+ * Excludes top-level independent `techStacks` (CNE16).
+ */
+export function isCallNotesExtractApiFieldAllowed(apiFieldName: string): boolean {
+  if (apiFieldName === "techStacks") return false
+  if (BASIC_FIELDS.has(apiFieldName) || PREFERENCES_FIELDS.has(apiFieldName)) {
+    return true
+  }
+  if (isWorkExperienceFieldAllowed(apiFieldName)) return true
+  const certSuffix = /^certification_\d+_(.+)$/.exec(apiFieldName)?.[1]
+  if (certSuffix && CERTIFICATION_SUFFIXES.has(certSuffix)) return true
+  const achSuffix = /^achievement_\d+_(.+)$/.exec(apiFieldName)?.[1]
+  if (achSuffix && ACHIEVEMENT_SUFFIXES.has(achSuffix)) return true
+  return false
+}
