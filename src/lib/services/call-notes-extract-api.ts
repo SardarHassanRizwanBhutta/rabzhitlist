@@ -1,5 +1,7 @@
 /**
- * Browser client for Call Notes Extract (same-origin proxy only).
+ * Browser client for Call Notes Extract.
+ * Calls the QG service directly (same path as generate-questions) so hosted
+ * deployments (e.g. Amplify) are not blocked by server-side outbound fetch.
  * @see docs/CALL_NOTES_EXTRACT_API_CONTRACT.md
  */
 
@@ -9,14 +11,13 @@ import type {
 } from "@/types/call-notes-extraction"
 import { callNotesExtractResponseSchema } from "@/types/call-notes-extraction"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
-
-const EXTRACT_PROXY_PATH = "/api/call-notes/extract"
+import { getQuestionsApiBaseUrl } from "@/lib/services/questions-api"
 
 export async function extractCallNotes(
   request: CallNotesExtractRequest,
   signal?: AbortSignal,
 ): Promise<CallNotesExtractResponse> {
-  const response = await fetch(EXTRACT_PROXY_PATH, {
+  const response = await fetch(`${getQuestionsApiBaseUrl()}/api/call-notes/extract`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

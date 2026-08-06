@@ -61,12 +61,19 @@ export async function POST(request: NextRequest) {
         signal: controller.signal,
       })
     } catch (err) {
+      const cause =
+        err instanceof Error && "cause" in err && err.cause instanceof Error
+          ? err.cause.message
+          : null
       const message =
         err instanceof Error && err.name === "AbortError"
           ? "Call notes extract timed out."
           : err instanceof Error
-            ? err.message
+            ? cause
+              ? `${err.message} (${cause})`
+              : err.message
             : "Failed to reach call notes extract service."
+      console.error("call-notes/extract upstream fetch failed:", base, err)
       return NextResponse.json({ error: message }, { status: 502 })
     } finally {
       clearTimeout(timeout)
