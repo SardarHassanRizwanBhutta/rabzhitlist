@@ -1,6 +1,6 @@
 # Call Notes Extract — Frontend Implementation Handoff
 
-**Status:** Locked (2026-08-04).  
+**Status:** Locked (2026-08-04). Updated 2026-08-06 — browser calls QG directly (Amplify fix).  
 **Audience:** Next.js / TypeScript AI agent.  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **API contract:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
@@ -11,7 +11,7 @@
 
 ## 1. Goal
 
-Add **Analyze Notes** to Cold Caller Call Notes view. On click, send textarea text + empty QG-allowlisted fields to `/api/call-notes/extract`, show results in a **review modal**, and **Apply Selected** into:
+Add **Analyze Notes** to Cold Caller Call Notes view. On click, send textarea text + empty QG-allowlisted fields to the **QG service** (`POST …/api/call-notes/extract`, same base URL as generate-questions), show results in a **review modal**, and **Apply Selected** into:
 
 - **Saved candidate:** Candidate Details Edit Mode (opened from Cold Caller as today).  
 - **Draft candidate:** `CandidateCreationDialog` prefill (same path as resume prefill / Apply to Create).
@@ -34,7 +34,7 @@ Do **not** change Save Notes, GET/PATCH call-notes, or draft `callNotes` on crea
 | QG empty check | `src/lib/utils/qg-value.ts` (`isQgValueMissing`) |
 | Draft → Create | `src/components/candidates-page-client.tsx` (`pendingCreateCallNotes`, `handleApplyCallNotesToCreate`) |
 | Resume prefill pattern | `src/lib/candidate/resume-to-candidate-form.ts`, `src/components/resume-parser-dialog.tsx` |
-| QG proxy pattern | `src/app/api/generate-questions/route.ts` |
+| QG client (generate + extract) | `src/lib/services/questions-api.ts`, `src/lib/services/call-notes-extract-api.ts` |
 | Stage types (already defined) | `src/types/cold-caller.ts` (`CallNotesStage`) |
 
 ---
@@ -43,9 +43,9 @@ Do **not** change Save Notes, GET/PATCH call-notes, or draft `callNotes` on crea
 
 | File | Purpose |
 |------|---------|
-| `src/app/api/call-notes/extract/route.ts` | Server proxy to Python |
+| `src/app/api/call-notes/extract/route.ts` | **Optional** server proxy to Python (not used by shipped UI) |
 | `src/types/call-notes-extraction.ts` | Request/response types + Zod schemas |
-| `src/lib/services/call-notes-extract-api.ts` | Browser client `extractCallNotes()` |
+| `src/lib/services/call-notes-extract-api.ts` | Browser client `extractCallNotes()` → QG direct |
 | `src/lib/utils/call-notes-allowed-empty-fields.ts` | Build whitelist from candidate |
 | `src/lib/utils/call-notes-apply-extractions.ts` | Map extractions → form paths |
 | `src/components/cold-caller/call-notes-extract-review-dialog.tsx` | Review modal UI |
@@ -208,31 +208,33 @@ Replace array **index** paths from `getEmptyFields` with **stable id** paths whe
 
 ---
 
-## 8. Proxy route
+## 8. QG integration
 
-Mirror `src/app/api/generate-questions/route.ts`:
+**Shipped (primary):** `src/lib/services/call-notes-extract-api.ts` calls QG directly:
 
 ```ts
-// POST /api/call-notes/extract
-// Validate body with Zod
-// POST `${questionsApiBaseUrl()}/api/call-notes/extract`
-// Forward status + JSON
-// Do not log rawNotes
+// POST `${getQuestionsApiBaseUrl()}/api/call-notes/extract`
+// Same NEXT_PUBLIC_QUESTIONS_API_URL as generate-questions
 ```
+
+**Optional:** `src/app/api/call-notes/extract/route.ts` — server proxy for non-browser callers. Not used by Analyze Notes UI. Validates with Zod, forwards to Python, does not log `rawNotes`.
 
 ---
 
 ## 9. Environment
 
-Analyze Notes is always available when prerequisites pass (no feature flag). Server proxy uses the same QG base URL as generate-questions:
+Analyze Notes is always available when prerequisites pass (no feature flag). Uses the **same public QG URL** as Generate Questions:
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `QUESTIONS_API_URL` | Next.js server | Python base URL for `/api/call-notes/extract` proxy (default `http://localhost:8002`) |
-| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional; default `100000` |
-| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional; default `60000` |
+| `NEXT_PUBLIC_QUESTIONS_API_URL` | Browser (build-time) | **Required on Amplify / hosted apps.** QG base URL (e.g. `https://example.com/questions`). Client calls `{base}/api/call-notes/extract`. |
+| `QUESTIONS_API_URL` | Next.js server | Optional — only for `/api/call-notes/extract` proxy route (not shipped UI path) |
+| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional proxy-only; default `100000` |
+| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional proxy-only; default `60000` |
 
-On EC2, set `QUESTIONS_API_URL` to the same value used for the QG service (co-located with generate-questions).
+**Why direct browser call:** Hosted Next.js (e.g. AWS Amplify) may fail server-side `fetch` to QG (`{"error":"fetch failed"}`) while browser → QG works (same as generate-questions). Shipped UI therefore mirrors `questions-api.ts`.
+
+Ensure QG **CORS** allows `POST /api/call-notes/extract` from the app origin.
 
 ---
 
@@ -254,7 +256,7 @@ On EC2, set `QUESTIONS_API_URL` to the same value used for the QG service (co-lo
 | Error | UX |
 |-------|-----|
 | `400` whitelist empty | Disable Analyze; inline hint |
-| `502` / timeout | Toast + retry in modal |
+| `502` / timeout / network | Toast + retry in modal (check QG URL + CORS on hosted apps) |
 | Partial lookup unresolved | Disable Apply for those rows; show validation |
 | Apply skip (field filled) | Silent skip + count in toast |
 | Extract while Save in flight | Disable Analyze |
@@ -296,5 +298,6 @@ Implement Call Notes Extract v1 frontend per:
 
 Add Analyze Notes beside Save Notes; modal review; empty-only apply to Edit Mode
 and Create prefill; QG allowlist whitelist only (exclude top-level techStacks per CNE16);
-proxy /api/call-notes/extract; do not change call_notes persistence or draft callNotes on create.
+browser POST to {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract (same as generate-questions);
+do not change call_notes persistence or draft callNotes on create.
 ```

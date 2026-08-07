@@ -141,7 +141,7 @@ catalog in the prose. Put every display label in `options` only.
 3. If `options` absent/empty: show stem only (no chips).
 4. No chip selection / no persistence of check-off (read-only).
 5. `context` (including any `Valid values: …` text) is not surfaced on the Call Notes card.
-6. Fields View and other surfaces: unchanged in this round.
+6. Other Cold Caller surfaces: unchanged in this round.
 
 ---
 

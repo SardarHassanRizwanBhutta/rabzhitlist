@@ -21,8 +21,7 @@ Your written notes stay **exactly as you typed them**. The system does not rewri
 ## Where you use it
 
 1. Open a candidate in **Cold Caller** mode.  
-2. Switch to the **Call Notes** view (the unstructured notes area — not the field-by-field “Fields” view).  
-3. Type or paste what was said on the call in the **Call Notes** box.
+2. Type or paste what was said on the call in the **Call Notes** box.
 
 That is the only place this feature lives for now. Call notes are not shown on the main candidate details screen elsewhere in the app.
 
@@ -162,7 +161,7 @@ The button may be disabled if:
 - The notes box is **empty**  
 - There are **no empty fields** left that Analyze Notes supports  
 - Analysis is **already running**  
-- The feature is **not yet enabled** in your environment (early rollout)
+- The AI service is **temporarily unreachable** (try again in a moment)
 
 Short messages on screen will explain which case applies.
 

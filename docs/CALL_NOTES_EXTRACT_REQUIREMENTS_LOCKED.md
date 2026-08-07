@@ -1,6 +1,6 @@
 # Call Notes Extract — Locked Product Requirements (v1)
 
-**Status:** Locked (2026-08-04). Updated 2026-08-05 — exclude top-level independent tech stacks (CNE16).  
+**Status:** Locked (2026-08-04). Updated 2026-08-05 — exclude top-level independent tech stacks (CNE16). Updated 2026-08-06 — CNE12 browser-direct QG call (Amplify).  
 **Audience:** Product, frontend, Python QG service.  
 **Supersedes:** Removed deferred extract docs (`call_notes_frontend_api_contract.md`, `cold_caller_call_notes_view_design.md`, `cold_caller_call_notes_frontend_implementation_handoff.md`).  
 **Related (persistence, shipped):** [`CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md) (CN16).  
@@ -29,7 +29,7 @@ Stored notes remain the **human source of truth** (CN16). Extract never rewrites
 | **Empty-only** apply to Edit Mode (saved) and Create prefill (draft) | Full Create-form fields outside QG allowlist |
 | **QG allowlist keys only** (Basic, Preferences, WE, projects, certs, achievements — see §7) | Education, CNIC, personalityType, postingTitle, top-level independent tech stacks, etc. |
 | **Modal review** before apply | Inline-only review without modal |
-| Next.js proxy → Python on **same QG process/port** (`:8002`) | Separate greenfield AI service |
+| Browser → QG on **same base URL as generate-questions** (`NEXT_PUBLIC_QUESTIONS_API_URL`) | Separate greenfield AI service |
 | Recruiter **must review** before apply | Auto-apply after extract |
 | Draft: **`callNotes`** still sent on `POST /api/candidates` when non-empty | Call notes on Candidate Details / list / main PUT |
 | Lookup match / create / skip in review UI | Python creating catalog rows or resolving IDs |
@@ -51,7 +51,7 @@ Stored notes remain the **human source of truth** (CN16). Extract never rewrites
 | **CNE9** | **Draft create:** after Apply to Create prefill, **`callNotes`** is still included on `POST /api/candidates` when non-empty (existing persistence behavior) |
 | **CNE10** | **CN16:** AI must **not** modify stored `call_notes` / editor text on extract or apply. Notes change only via explicit Save Notes / create body |
 | **CNE11** | **Naming:** persisted sub-resource property **`call_notes`** (snake_case); create body **`callNotes`** (camelCase). Not `save_notes` |
-| **CNE12** | **Browser → Python:** never direct; always **Next.js** `POST /api/call-notes/extract` proxy |
+| **CNE12** | **Browser → QG:** call `POST {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract` **directly** (same pattern as generate-questions). Optional Next.js proxy route exists for server-side callers only — **not** the shipped Analyze Notes path (required for Amplify / hosted apps where server outbound fetch to QG fails) |
 | **CNE13** | **Contribution (`contributionNotes`):** empty-only like other fields (unlike QG question exception) |
 | **CNE14** | **Project `employerName` / `projectType`:** omit from extract allowlist when parent WE already has an employer (same rule as QG §3 nested projects) |
 | **CNE15** | **`resume`:** include in allowlist only when candidate has **no** attached resume (`hasResume !== true`); notes cannot attach binary resume — extract may propose URL/text cues only if product adds later; v1 typically excludes populated resume attachment targets |
@@ -72,7 +72,7 @@ Stored notes remain the **human source of truth** (CN16). Extract never rewrites
 1. Open Cold Caller → Call Notes view.  
 2. Edit notes in textarea (loaded from GET and/or session draft).  
 3. Optional: **Save Notes** → PATCH `call_notes`.  
-4. **Analyze Notes** → build `allowedEmptyFields` from current candidate + QG allowlist → proxy extract.  
+4. **Analyze Notes** → build `allowedEmptyFields` from current candidate + QG allowlist → QG extract (browser direct).  
 5. **Review modal:** accept/reject rows; resolve lookups.  
 6. **Apply Selected** → merge into Edit Mode form (empty fields only).  
 7. Recruiter **Update & Verify** → existing ASP.NET APIs persist fields.  
@@ -166,7 +166,7 @@ Same as QG / persistence trim rules:
 | Phase | Owner | Deliverable |
 |-------|-------|-------------|
 | **1 — Python** | QG service | `POST /api/call-notes/extract` + tests |
-| **2 — Next proxy** | Next.js | `/api/call-notes/extract` route + Zod types |
+| **2 — Next client + optional proxy** | Next.js | Browser `extractCallNotes()` + optional `/api/call-notes/extract` route + Zod types |
 | **3 — FE** | Next.js | Analyze button, allowlist builder, review modal, apply engine (Edit + Create) |
 | **4 — QA** | All | Saved + draft smoke; field matrix vs QG allowlist |
 

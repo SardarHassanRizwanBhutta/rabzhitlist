@@ -265,7 +265,8 @@ Use anonymized fixture notes; no PII in committed tests.
 
 - Same `python question_generator.py` / Uvicorn entrypoint.  
 - No extra port.  
-- Next.js proxy unchanged except new path.  
+- Expose `POST /api/call-notes/extract` on the same public base path as generate-questions (e.g. reverse-proxy `/questions`).  
+- **CORS:** allow browser `POST /api/call-notes/extract` from the app origin (required — shipped FE calls QG directly, same as generate-questions).  
 - Coordinate release: deploy Python extract route with generate-questions on the same QG host; FE Analyze is always on when prerequisites pass.
 
 ---

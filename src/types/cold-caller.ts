@@ -47,12 +47,6 @@ export type FieldSection =
   | 'techStacks'
   | 'preferences'
 
-// Field status for tracking progress during Fields View cold call
-export type FieldStatus = 'pending' | 'answered' | 'skipped' | 'askLater'
-
-/** Internal dialog view: field-by-field vs unstructured call notes */
-export type ColdCallerViewMode = 'fields' | 'callNotes'
-
 /** Call Notes View workflow stage (Phase 2+ wires backend) */
 export type CallNotesStage =
   | 'draft'
@@ -75,15 +69,6 @@ export interface EmptyField {
   currentValue: unknown
   parentIndex?: number        // Index for array fields (work experience, education, etc.)
   onCreateEntity?: 'project' | 'employer' | 'university' | 'certification'  // Which entity to create for combobox fields
-}
-
-// Extended field state with status tracking
-export interface FieldState {
-  field: EmptyField
-  status: FieldStatus
-  value: unknown
-  note?: string               // Optional note for skipped/askLater
-  question?: GeneratedQuestion // Linked question for this field
 }
 
 export type PromptType = "basic" | "advanced" | "enrichment"
@@ -116,19 +101,6 @@ export interface ColdCallerSectionQuestions {
   questions: GeneratedQuestion[]
 }
 
-export interface ColdCallerState {
-  isOpen: boolean
-  emptyFields: EmptyField[]
-  fieldStates: Map<string, FieldState>  // Map<fieldPath, FieldState>
-  questionsMap: Map<string, GeneratedQuestion>  // Map<apiFieldName, Question>
-  questions: GeneratedQuestion[]
-  isLoadingQuestions: boolean
-  questionsError: string | null
-  expandedSections: Set<string>
-  isSaving: boolean
-  viewMode: ColdCallerViewMode
-}
-
 export interface CallNotesViewState {
   stage: CallNotesStage
   rawNotesDraft: string
@@ -159,12 +131,4 @@ export const SECTION_ICONS: Record<FieldSection, string> = {
   achievements: 'Trophy',
   techStacks: 'Code',
   preferences: 'SlidersHorizontal',
-}
-
-// Status labels and colors
-export const FIELD_STATUS_CONFIG: Record<FieldStatus, { label: string; color: string; icon: string }> = {
-  pending: { label: 'Pending', color: 'text-muted-foreground', icon: 'Circle' },
-  answered: { label: 'Answered', color: 'text-green-600', icon: 'CheckCircle' },
-  skipped: { label: 'Skipped', color: 'text-gray-500', icon: 'SkipForward' },
-  askLater: { label: 'Ask Later', color: 'text-amber-600', icon: 'Clock' },
 }

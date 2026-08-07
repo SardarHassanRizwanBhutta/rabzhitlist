@@ -1,6 +1,6 @@
 # Call Notes Extract — QG Service Agent Contract (v1)
 
-**Status:** Locked (2026-08-05).  
+**Status:** Locked (2026-08-05). Updated 2026-08-06 — browser calls QG directly (same as generate-questions).  
 **Audience:** AI agent implementing **`POST /api/call-notes/extract`** in the **Python Question Generation (QG) service** (`llm-questions` / FastAPI on port **`8002`**).  
 **This document is the primary implementation contract for the QG agent.**  
 **Related (shorter summary):** [`CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md`](./CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md)  
@@ -32,9 +32,10 @@ DELIVER:
 - No full rawNotes in production logs
 
 The Next.js frontend repo already ships:
-- POST /api/call-notes/extract proxy → {QUESTIONS_API_URL}/api/call-notes/extract
+- Browser client → {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract (same as generate-questions)
+- Optional POST /api/call-notes/extract server proxy (not used by shipped UI)
 - allowedEmptyFields builder (QG allowlist minus CNE16)
-- Analyze Notes UI + review modal (Apply to profile is separate FE work)
+- Analyze Notes UI + review modal + apply to Edit Mode / Create prefill
 
 Your endpoint must accept the exact JSON body defined in §4 and return §5.
 ```
@@ -48,7 +49,7 @@ Your endpoint must accept the exact JSON body defined in §4 and return §5.
 | **Endpoint** | `POST /api/call-notes/extract` |
 | **Host app** | Existing QG FastAPI application (same process as `/api/generate-questions`, `/health`) |
 | **Port** | `8002` (local default) |
-| **Caller** | Next.js server proxy (browser never calls Python directly) |
+| **Caller** | Browser (primary — same as `/api/generate-questions`) or optional Next.js server proxy |
 | **Purpose** | Read recruiter **plain-text call notes** + an **explicit whitelist** of empty candidate fields → return **high-confidence structured value proposals** |
 | **Not** | Question generation, DB writes, catalog creation, notes rewriting, auto-apply |
 
@@ -67,16 +68,16 @@ Your endpoint must accept the exact JSON body defined in §4 and return §5.
 ## 2. End-to-end flow (your boundary)
 
 ```text
-Next.js POST /api/call-notes/extract
-    → forwards JSON unchanged
-Python POST /api/call-notes/extract   ← YOU IMPLEMENT THIS
+Browser POST {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract   ← primary (shipped UI)
     → validate request
     → LLM structured extract (whitelist-only)
     → post-process + confidence filter
     → JSON { extractions, meta? }
 Next.js review modal (already shipped)
-    → recruiter reviews → Apply Selected (FE — not your scope)
+    → recruiter reviews → Apply Selected
 ASP.NET candidate APIs (not your scope)
+
+Optional: Next.js POST /api/call-notes/extract → forwards to Python (server-side only)
 ```
 
 ---
@@ -654,7 +655,8 @@ Exact paths may follow existing QG repo conventions — adapt to match.
 - [ ] Tests §12 pass  
 - [ ] OpenAPI `/docs` shows endpoint with §8 example  
 - [ ] No full `rawNotes` in production logs  
-- [ ] Manual smoke: Next.js proxy → Python `:8002` returns `200`  
+- [ ] Manual smoke: browser or curl → Python `/api/call-notes/extract` returns `200`  
+- [ ] CORS allows app origin for `POST /api/call-notes/extract` (same as generate-questions)
 
 ---
 
@@ -664,13 +666,14 @@ Already shipped in frontend repo (do not re-implement there):
 
 | Item | Status |
 |------|--------|
-| `POST /api/call-notes/extract` Next.js proxy | Shipped |
+| Browser client → QG `/api/call-notes/extract` | Shipped |
+| Optional `POST /api/call-notes/extract` Next.js proxy | Shipped (not used by UI) |
 | Zod types `src/types/call-notes-extraction.ts` | Shipped |
 | `buildCallNotesAllowedEmptyFields()` (QG allowlist − CNE16) | Shipped |
 | Analyze Notes button + review modal | Shipped |
-| Apply to Edit Mode / Create prefill | **Pending** (FE step 3) |
+| Apply to Edit Mode / Create prefill | Shipped |
 
-Local / EC2: ensure QG is reachable at `QUESTIONS_API_URL` (Next.js server; default `http://localhost:8002`). Analyze UI requires no env flag — always on when prerequisites pass.
+**Hosted apps (Amplify):** set `NEXT_PUBLIC_QUESTIONS_API_URL` to the public QG base (same as generate-questions). `QUESTIONS_API_URL` is optional (proxy only). Ensure QG CORS includes extract route.
 
 ---
 

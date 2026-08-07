@@ -1269,9 +1269,6 @@ export function CandidatesPageClient() {
                 }
               }}
               candidate={draftColdCallerSession.candidate}
-              onSaveField={async () => {
-                /* Draft v1: in-call profile edits out of scope */
-              }}
               draftMode
               localResumeUrl={draftColdCallerSession.localResumeUrl}
               onApplyToCreateCandidate={handleDraftApplyToCreate}
