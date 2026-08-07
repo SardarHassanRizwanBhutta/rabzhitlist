@@ -1,7 +1,7 @@
 # Call Notes Extract — API Contract
 
-**Status:** Locked (2026-08-04).  
-**Audience:** Next.js proxy, frontend client, Python QG service.  
+**Status:** Locked (2026-08-04). Updated 2026-08-06 — browser calls QG directly (same as generate-questions); optional Next.js proxy.  
+**Audience:** Next.js client, optional server proxy, Python QG service.  
 **QG agent contract:** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md)  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **Field keys:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -12,32 +12,39 @@
 
 ```text
 Browser (Cold Caller)
-    ↓  POST /api/call-notes/extract  (same-origin)
-Next.js route (server)
-    ↓  POST {QUESTIONS_API_URL}/api/call-notes/extract
-Python QG FastAPI (:8002)
+    ↓  POST {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract  (primary — same as generate-questions)
+Python QG FastAPI (:8002 or reverse-proxy path e.g. /questions)
     ↓  JSON extractions[]
 Browser review modal → Apply Selected → Edit Mode / Create prefill
     ↓  Update & Verify / POST /api/candidates (+ optional callNotes)
 ASP.NET Candidate APIs
 ```
 
-- The browser **must not** call Python directly.  
-- Extract shares the **same base URL** as question generation: `QUESTIONS_API_URL` (server) / `NEXT_PUBLIC_QUESTIONS_API_URL` (browser health checks only). Default `http://localhost:8002`.  
-- Extract is **stateless**: no DB writes on Python or Next proxy.
+**Optional** (local / server-side callers only — not used by shipped Analyze Notes UI):
+
+```text
+Browser → POST /api/call-notes/extract (Next.js route)
+       → POST {QUESTIONS_API_URL}/api/call-notes/extract
+       → Python QG
+```
+
+- **Shipped FE path:** browser calls Python **directly** via `NEXT_PUBLIC_QUESTIONS_API_URL` (mirrors `src/lib/services/questions-api.ts`). Required for hosted deployments (e.g. AWS Amplify) where server-side outbound fetch to QG may fail.  
+- Extract shares the **same public base URL** as question generation. Default `http://localhost:8002` when unset.  
+- Extract is **stateless**: no DB writes on Python.  
+- QG must expose **CORS** for `POST /api/call-notes/extract` from the app origin (same policy as `/api/generate-questions`).
 
 ---
 
 ## 2. Endpoints
 
-| Layer | Method | Path |
-|-------|--------|------|
-| Next.js (public to browser) | `POST` | `/api/call-notes/extract` |
-| Python QG service | `POST` | `/api/call-notes/extract` |
+| Layer | Method | Path | Used by shipped UI |
+|-------|--------|------|--------------------|
+| Python QG service | `POST` | `/api/call-notes/extract` | **Yes** (browser direct) |
+| Next.js (optional proxy) | `POST` | `/api/call-notes/extract` | No (legacy / server-side) |
 
 ---
 
-## 3. Request (browser → Next.js)
+## 3. Request (browser → Python)
 
 ### 3.1 Headers
 
@@ -45,7 +52,7 @@ ASP.NET Candidate APIs
 Content-Type: application/json
 ```
 
-No browser auth beyond existing app session (same as other Next API routes).
+Browser calls the QG base URL directly. CORS must allow the app origin (same as generate-questions).
 
 ### 3.2 Body
 
@@ -151,7 +158,11 @@ interface AllowedEmptyField {
 }
 ```
 
-### 3.4 Validation (Next.js — reject before proxy)
+### 3.4 Validation
+
+**Browser client** (`extractCallNotes`): builds request from Cold Caller state; relies on Python for allowlist enforcement.
+
+**Optional Next.js proxy** (`src/app/api/call-notes/extract/route.ts`) — reject before upstream forward:
 
 | Rule | HTTP |
 |------|------|
@@ -164,11 +175,11 @@ interface AllowedEmptyField {
 
 ---
 
-## 4. Request (Next.js → Python)
+## 4. Request (optional Next.js proxy → Python)
 
-Same JSON body as §3.2. Next.js forwards unchanged (optionally strip unknown top-level keys).
+When the optional proxy is used, forward the same JSON body as §3.2 unchanged (optionally strip unknown top-level keys).
 
-Optional future: internal service key header if QG adds auth — **not required in v1** (matches current `generate-questions` proxy).
+Optional future: internal service key header if QG adds auth — **not required in v1**.
 
 ---
 
@@ -239,14 +250,24 @@ interface CallNotesExtraction {
 
 ## 6. Error responses
 
-### 6.1 Next.js proxy
+### 6.1 Browser → Python (primary path)
+
+| Status | When |
+|--------|------|
+| `400` | Python validation failed (empty whitelist, unknown key, etc.) |
+| `422` | Pydantic validation failure |
+| `500` / `502` | LLM / internal failure |
+| Network / CORS | Browser fetch error — check QG CORS and public URL |
+
+Pass through Python JSON error bodies when present.
+
+### 6.2 Optional Next.js proxy
 
 | Status | When |
 |--------|------|
 | `400` | Client validation failed (§3.4) |
 | `502` | Python unreachable or non-JSON body |
 | `504` | Upstream timeout (recommend 60s proxy timeout) |
-| `503` | `QUESTIONS_API_URL` not configured |
 
 Error body (minimum):
 
@@ -257,9 +278,9 @@ Error body (minimum):
 }
 ```
 
-Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` for browser when appropriate.
+Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` when appropriate.
 
-### 6.2 Python service
+### 6.3 Python service
 
 | Status | When |
 |--------|------|
@@ -273,10 +294,12 @@ Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` f
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `QUESTIONS_API_URL` | Next.js server | Python base URL (same as generate-questions proxy) |
-| `NEXT_PUBLIC_QUESTIONS_API_URL` | Browser | Optional health / dev only |
-| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional; default e.g. `100000` |
-| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional; default e.g. `60000` |
+| `NEXT_PUBLIC_QUESTIONS_API_URL` | Browser (build-time) | **Required for hosted apps.** QG base URL for Analyze Notes and Generate Questions (e.g. `https://example.com/questions`). Default `http://localhost:8002`. |
+| `QUESTIONS_API_URL` | Next.js server | Optional. Used only by `/api/call-notes/extract` **proxy route** (not shipped UI path). Falls back to `NEXT_PUBLIC_QUESTIONS_API_URL` then `http://localhost:8002`. |
+| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional proxy-only; default `100000` |
+| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional proxy-only; default `60000` |
+
+**Amplify / production:** set `NEXT_PUBLIC_QUESTIONS_API_URL` to the public QG path (same value already used for Generate Questions). `QUESTIONS_API_URL` is **not** required for Analyze Notes unless something calls the optional proxy.
 
 ---
 
@@ -401,13 +424,19 @@ Apply Selected is **client-side only**:
 
 ## 12. Checklist
 
-### Next.js proxy
+### Next.js browser client (shipped)
 
-- [ ] `POST /api/call-notes/extract` route  
-- [ ] Zod validation for request/response  
-- [ ] Proxy to `{QUESTIONS_API_URL}/api/call-notes/extract`  
-- [ ] Timeout + no notes in logs  
-- [ ] `400` when whitelist empty  
+- [x] `extractCallNotes()` → `{NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract`
+- [x] Zod validation for response
+- [x] Same base URL helper as generate-questions (`getQuestionsApiBaseUrl()`)
+
+### Next.js proxy (optional — not used by shipped UI)
+
+- [x] `POST /api/call-notes/extract` route  
+- [x] Zod validation for request/response  
+- [x] Proxy to `{QUESTIONS_API_URL\|NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract`  
+- [x] Timeout + no notes in logs  
+- [x] `400` when whitelist empty  
 
 ### Python
 

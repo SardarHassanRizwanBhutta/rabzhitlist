@@ -7129,16 +7129,6 @@ export function CandidateDetailsModal({
           mode={interactionMode}
           applyFormBase={candidateToFormData(viewCandidate)}
           onApplyExtractComplete={handleCallNotesExtractApplyComplete}
-          onSaveField={async (fieldPath, value, verified) => {
-            // Handle field save - this will update the candidate data
-            // In a real implementation, this would call an API
-            console.log('Saving field:', fieldPath, value, 'verified:', verified)
-            await handleFieldSave(
-              fieldPath, 
-              value as string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, 
-              verified ?? false
-            )
-          }}
         />
       )}
 
