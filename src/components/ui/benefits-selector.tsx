@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useState } from "react"
-import { X, Plus, ChevronsUpDown } from "lucide-react"
+import { X, Plus, ChevronsUpDown, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -77,17 +77,16 @@ export function BenefitsSelector({
   const [valuePopoverBenefitId, setValuePopoverBenefitId] = useState<string | null>(null)
 
   const selectedNames = benefits.map((b) => b.name)
+
+  const isBenefitNameSelected = (name: string) =>
+    selectedNames.some((n) => n.toLowerCase() === name.toLowerCase())
+
   const searchLower = searchValue.trim().toLowerCase()
 
-  // Options that match search and are not already selected
   const filteredOptions = React.useMemo(() => {
     if (!searchLower) return benefitOptions
-    return benefitOptions.filter(
-      (opt) =>
-        opt.name.toLowerCase().includes(searchLower) &&
-        !selectedNames.some((n) => n.toLowerCase() === opt.name.toLowerCase())
-    )
-  }, [benefitOptions, searchLower, selectedNames])
+    return benefitOptions.filter((opt) => opt.name.toLowerCase().includes(searchLower))
+  }, [benefitOptions, searchLower])
 
   // Search matches an existing option (by name)
   const searchMatchesOption = React.useMemo(
@@ -106,6 +105,8 @@ export function BenefitsSelector({
     !!onCreateBenefit
 
   const addBenefitToSelection = (opt: BenefitOption) => {
+    if (isBenefitNameSelected(opt.name)) return
+
     const newBenefit: EmployerBenefit = {
       id: String(opt.id),
       name: opt.name,
@@ -116,12 +117,25 @@ export function BenefitsSelector({
     onChange([...benefits, newBenefit])
   }
 
+  const removeBenefitByName = (name: string) => {
+    const nameLower = name.toLowerCase()
+    onChange(benefits.filter((b) => b.name.toLowerCase() !== nameLower))
+  }
+
+  const toggleBenefitOption = (opt: BenefitOption) => {
+    if (isBenefitNameSelected(opt.name)) {
+      removeBenefitByName(opt.name)
+    } else {
+      addBenefitToSelection(opt)
+    }
+  }
+
   const handleAddBenefitViaApi = async () => {
     if (!searchValue.trim() || searchValueExists || !onCreateBenefit) return
     setIsAddingBenefit(true)
     try {
       const added = await onCreateBenefit(searchValue.trim())
-      if (added) {
+      if (added && !isBenefitNameSelected(added.name)) {
         onChange([...benefits, added])
         setSearchValue("")
         setOpen(false)
@@ -147,7 +161,7 @@ export function BenefitsSelector({
   }
 
   const handleAddCustomBenefit = () => {
-    if (!customBenefitName.trim()) return
+    if (!customBenefitName.trim() || isBenefitNameSelected(customBenefitName.trim())) return
 
     const newBenefit: EmployerBenefit = {
       id: generateBenefitId(),
@@ -166,32 +180,32 @@ export function BenefitsSelector({
   }
 
 
-  const updateBenefitHasValue = (benefitId: string, hasValue: boolean) => {
+  const updateBenefitHasValue = (index: number, hasValue: boolean) => {
     onChange(
-      benefits.map((b) =>
-        b.id === benefitId
+      benefits.map((b, i) =>
+        i === index
           ? hasValue
             ? { ...b, hasValue: true, unit: b.unit ?? "PKR", amount: b.amount ?? null }
             : { ...b, hasValue: false, amount: null, unit: null }
-          : b
-      )
+          : b,
+      ),
     )
-    if (!hasValue && valuePopoverBenefitId === benefitId) {
+    const rowKey = `${benefits[index]?.id}-${index}`
+    if (!hasValue && valuePopoverBenefitId === rowKey) {
       setValuePopoverBenefitId(null)
     }
   }
 
-  const updateBenefitAmount = (benefitId: string, amount: number | null) => {
-    onChange(benefits.map((b) => (b.id === benefitId ? { ...b, amount } : b)))
+  const updateBenefitAmount = (index: number, amount: number | null) => {
+    onChange(benefits.map((b, i) => (i === index ? { ...b, amount } : b)))
   }
 
-  const updateBenefitUnit = (benefitId: string, unit: BenefitUnit) => {
-    onChange(benefits.map((b) => (b.id === benefitId ? { ...b, unit } : b)))
+  const updateBenefitUnit = (index: number, unit: BenefitUnit) => {
+    onChange(benefits.map((b, i) => (i === index ? { ...b, unit } : b)))
   }
 
-  // Remove a benefit
-  const removeBenefit = (benefitId: string) => {
-    onChange(benefits.filter(b => b.id !== benefitId))
+  const removeBenefitAtIndex = (index: number) => {
+    onChange(benefits.filter((_, i) => i !== index))
   }
 
 
@@ -272,19 +286,26 @@ export function BenefitsSelector({
               <CommandList>
                 {filteredOptions.length > 0 && (
                   <CommandGroup heading="Benefits">
-                    {filteredOptions.map((opt) => (
+                    {filteredOptions.map((opt) => {
+                      const selected = isBenefitNameSelected(opt.name)
+                      return (
                       <CommandItem
                         key={opt.id}
                         value={opt.name}
                         onSelect={() => {
-                          addBenefitToSelection(opt)
-                          setSearchValue("")
+                          toggleBenefitOption(opt)
                         }}
                         className="cursor-pointer"
                       >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4 shrink-0",
+                            selected ? "opacity-100" : "opacity-0",
+                          )}
+                        />
                         {opt.name}
                       </CommandItem>
-                    ))}
+                    )})}
                   </CommandGroup>
                 )}
                 {shouldShowAddBenefit && (
@@ -404,13 +425,14 @@ export function BenefitsSelector({
       {/* Selected Benefits Display */}
       {benefits.length > 0 && (
         <div className="space-y-2">
-          {benefits.map((benefit) => {
+          {benefits.map((benefit, index) => {
+            const benefitRowKey = `${benefit.id}-${index}`
             const currentUnit = benefit.unit ?? "PKR"
-            const valuePopoverOpen = valuePopoverBenefitId === benefit.id
+            const valuePopoverOpen = valuePopoverBenefitId === benefitRowKey
 
             return (
               <div
-                key={benefit.id}
+                key={benefitRowKey}
                 className="flex flex-wrap items-center gap-2 rounded-lg border border-border/80 bg-muted/20 p-2.5 shadow-xs transition-colors hover:bg-muted/35"
               >
                 <Badge
@@ -425,7 +447,7 @@ export function BenefitsSelector({
                   open={valuePopoverOpen}
                   onOpenChange={(isOpen) => {
                     if (!isOpen) {
-                      setValuePopoverBenefitId((id) => (id === benefit.id ? null : id))
+                      setValuePopoverBenefitId((id) => (id === benefitRowKey ? null : id))
                     }
                   }}
                 >
@@ -434,21 +456,21 @@ export function BenefitsSelector({
                       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:flex-nowrap">
                         <div className="flex items-center gap-2 shrink-0 rounded-md px-0.5 py-0.5">
                           <Checkbox
-                            id={`benefit-has-value-${benefit.id}`}
+                            id={`benefit-has-value-${benefitRowKey}`}
                             checked={benefit.hasValue}
                             onCheckedChange={(checked) => {
                               const on = checked === true
                               if (on) {
-                                updateBenefitHasValue(benefit.id, true)
-                                setValuePopoverBenefitId(benefit.id)
+                                updateBenefitHasValue(index, true)
+                                setValuePopoverBenefitId(benefitRowKey)
                               } else {
-                                updateBenefitHasValue(benefit.id, false)
+                                updateBenefitHasValue(index, false)
                               }
                             }}
                             disabled={disabled}
                           />
                           <Label
-                            htmlFor={`benefit-has-value-${benefit.id}`}
+                            htmlFor={`benefit-has-value-${benefitRowKey}`}
                             className="cursor-pointer text-sm font-medium text-foreground/90"
                           >
                             Has value
@@ -461,7 +483,7 @@ export function BenefitsSelector({
                             size="sm"
                             disabled={disabled}
                             className="h-8 shrink-0 border-dashed text-xs font-normal text-muted-foreground hover:border-solid hover:text-foreground"
-                            onClick={() => setValuePopoverBenefitId(benefit.id)}
+                            onClick={() => setValuePopoverBenefitId(benefitRowKey)}
                           >
                             {benefitValueSummary(benefit)}
                           </Button>
@@ -491,7 +513,7 @@ export function BenefitsSelector({
                         <Select
                           value={currentUnit}
                           onValueChange={(value) =>
-                            updateBenefitUnit(benefit.id, value as BenefitUnit)
+                            updateBenefitUnit(index, value as BenefitUnit)
                           }
                           disabled={disabled}
                         >
@@ -506,13 +528,13 @@ export function BenefitsSelector({
                       </div>
                       <div className="space-y-1.5">
                         <Label
-                          htmlFor={`benefit-value-${benefit.id}`}
+                          htmlFor={`benefit-value-${benefitRowKey}`}
                           className="text-xs font-medium text-muted-foreground"
                         >
                           {valueFieldLabel(currentUnit)}
                         </Label>
                         <Input
-                          id={`benefit-value-${benefit.id}`}
+                          id={`benefit-value-${benefitRowKey}`}
                           type="number"
                           step="any"
                           inputMode="decimal"
@@ -521,14 +543,11 @@ export function BenefitsSelector({
                           onChange={(e) => {
                             const v = e.target.value
                             if (v === "") {
-                              updateBenefitAmount(benefit.id, null)
+                              updateBenefitAmount(index, null)
                               return
                             }
                             const n = parseFloat(v)
-                            updateBenefitAmount(
-                              benefit.id,
-                              Number.isNaN(n) ? null : n
-                            )
+                            updateBenefitAmount(index, Number.isNaN(n) ? null : n)
                           }}
                           disabled={disabled}
                           className="h-9 bg-background"
@@ -549,7 +568,7 @@ export function BenefitsSelector({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => removeBenefit(benefit.id)}
+                  onClick={() => removeBenefitAtIndex(index)}
                   disabled={disabled}
                   className="h-8 w-8 shrink-0 p-0 hover:bg-destructive/10 hover:text-destructive"
                   title="Remove benefit"
