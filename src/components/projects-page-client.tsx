@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { Globe, Plus } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Building2, Globe, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { ProjectsTable } from "@/components/projects-table"
 import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from "@/components/project-creation-dialog"
 import { toast } from "sonner"
@@ -105,8 +107,40 @@ function technicalAspectEnumsForProjectBody(
 }
 
 export function ProjectsPageClient() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<ProjectFilters>(initialFilters)
+  const [employerFilter, setEmployerFilter] = useState<{ name: string; id: string } | null>(null)
+
+  const employerIdFromUrl = useMemo(() => {
+    const raw = searchParams.get("employerId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [searchParams])
+
+  useEffect(() => {
+    const employerFilterName = searchParams.get("employerFilter")
+    const employerId = searchParams.get("employerId")
+    if (employerFilterName && employerId) {
+      setEmployerFilter({ name: employerFilterName, id: employerId })
+    } else {
+      setEmployerFilter(null)
+    }
+  }, [searchParams])
+
+  const combinedFilters = useMemo((): ProjectFilters => {
+    if (employerIdFromUrl == null) return filters
+    const idStr = String(employerIdFromUrl)
+    return {
+      ...filters,
+      employers: filters.employers.includes(idStr)
+        ? filters.employers
+        : [...filters.employers, idStr],
+    }
+  }, [filters, employerIdFromUrl])
+
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -116,6 +150,14 @@ export function ProjectsPageClient() {
   const [totalPages, setTotalPages] = useState(0)
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
+
+  const listFilterKey = `${employerIdFromUrl ?? ""}`
+  const prevListFilterKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (prevListFilterKeyRef.current === listFilterKey) return
+    prevListFilterKeyRef.current = listFilterKey
+    setPageNumber(1)
+  }, [listFilterKey])
 
   // Lookup data for dropdowns (prefetched on mount)
   const [techStacksLookup, setTechStacksLookup] = useState<LookupItem[]>([])
@@ -224,7 +266,7 @@ export function ProjectsPageClient() {
       try {
         await ensureTechnicalDomainsCatalogLoaded()
         if (cancelled) return
-        const params = buildFetchProjectsParams(filters, pageNumber, pageSize, {
+        const params = buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
           techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
           verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
           horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
@@ -256,11 +298,11 @@ export function ProjectsPageClient() {
     return () => {
       cancelled = true
     }
-  }, [filters, pageNumber, pageSize, filterIds])
+  }, [combinedFilters, pageNumber, pageSize, filterIds])
 
   const loadProjects = useCallback(async () => {
     await ensureTechnicalDomainsCatalogLoaded()
-    const params = buildFetchProjectsParams(filters, pageNumber, pageSize, {
+    const params = buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
       techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
       verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
       horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
@@ -277,7 +319,7 @@ export function ProjectsPageClient() {
     setTotalPages(result?.totalPages ?? 0)
     setHasNext(result?.hasNext ?? false)
     setHasPrevious(result?.hasPrevious ?? false)
-  }, [filters, pageNumber, pageSize, filterIds])
+  }, [combinedFilters, pageNumber, pageSize, filterIds])
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -438,6 +480,11 @@ export function ProjectsPageClient() {
     setPageNumber(1)
   }
 
+  const handleClearEmployerFilter = () => {
+    setEmployerFilter(null)
+    router.push("/projects")
+  }
+
   const handleClearFilters = () => {
     setFilters(initialFilters)
     setPageNumber(1)
@@ -541,6 +588,24 @@ export function ProjectsPageClient() {
           <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
             Global filters active ({getGlobalFilterCount(globalFilters)} filters applied across all tables)
           </span>
+        </div>
+      )}
+
+      {employerFilter && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Building2 className="h-3 w-3" />
+            Employer: {employerFilter.name}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0 hover:bg-transparent"
+              onClick={handleClearEmployerFilter}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
         </div>
       )}
 
