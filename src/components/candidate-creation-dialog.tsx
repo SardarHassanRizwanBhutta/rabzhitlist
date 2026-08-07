@@ -121,6 +121,10 @@ import {
   getWorkExperienceDateSuggestion,
   getWorkExperienceDateWarningMessage,
 } from "@/lib/utils/work-experience-dates"
+import {
+  showCandidateCreationValidationToast,
+  type CandidateCreationValidationErrors,
+} from "@/lib/utils/candidate-creation-validation-toast"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
 import type {
@@ -2514,7 +2518,16 @@ export function CandidateCreationDialog({
     }
 
     setErrors(newErrors)
-    return !newErrors.basic && !newErrors.workExperiences && !newErrors.certifications && !newErrors.educations && !newErrors.achievements
+    const isValid =
+      !newErrors.basic &&
+      !newErrors.workExperiences &&
+      !newErrors.certifications &&
+      !newErrors.educations &&
+      !newErrors.achievements
+    if (!isValid) {
+      showCandidateCreationValidationToast(newErrors as CandidateCreationValidationErrors)
+    }
+    return isValid
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
