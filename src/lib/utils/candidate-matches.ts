@@ -79,6 +79,14 @@ function candidateCityContainsNeedle(candidate: Candidate, cityNeedle: string): 
   return cand.includes(needle)
 }
 
+/** True when candidate.name contains the filter text (case-insensitive). */
+function candidateNameContainsNeedle(candidate: Candidate, nameNeedle: string): boolean {
+  const needle = nameNeedle.trim().toLowerCase()
+  if (!needle) return false
+  const cand = (candidate.name ?? "").trim().toLowerCase()
+  return cand.includes(needle)
+}
+
 /** Stored profile completion (`dataProgressPercentage`, 0â€“100) within filter bounds. */
 function candidateMatchesDataProgressFilter(candidate: Candidate, filters: CandidateFilters): boolean {
   if (!filters.dataProgressMin.trim() && !filters.dataProgressMax.trim()) return false
@@ -124,6 +132,7 @@ export interface CandidateMatchContext {
  */
 export function hasActiveFilters(filters: CandidateFilters): boolean {
   return !!(
+    filters.name.trim() ||
     filters.postingTitle ||
     filters.city.trim() ||
     filters.currentSalaryMin ||
@@ -1595,6 +1604,7 @@ export function getCandidateMatchContext(
 
   // Basic Information Matches
   const hasBasicFilters = !!(
+    filters.name.trim() ||
     filters.city.trim() ||
     filters.personalityTypes.length > 0 ||
     filters.source.length > 0 ||
@@ -1609,6 +1619,15 @@ export function getCandidateMatchContext(
   if (hasBasicFilters) {
     const basicItems: MatchItem[] = []
     const matchedCriteria: MatchCriterion[] = []
+
+    // Name (free-text substring)
+    if (filters.name.trim() && candidateNameContainsNeedle(candidate, filters.name)) {
+      matchedCriteria.push({
+        type: 'name',
+        label: 'Name',
+        values: [candidate.name],
+      })
+    }
 
     // City (free-text substring)
     if (filters.city.trim() && candidateCityContainsNeedle(candidate, filters.city)) {

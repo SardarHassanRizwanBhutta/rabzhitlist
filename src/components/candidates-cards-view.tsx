@@ -51,6 +51,7 @@ import {
 } from "@/lib/services/candidates-api"
 
 const defaultFilters: CandidateFilters = {
+  name: "",
   postingTitle: "",
   city: "",
   currentSalaryMin: "",

@@ -104,6 +104,7 @@ import {
 const DEFAULT_PAGE_SIZE = 20
 
 const initialFilters: CandidateFilters = {
+  name: "",
   postingTitle: "",
   city: "",
   currentSalaryMin: "",
@@ -588,6 +589,7 @@ export function CandidatesPageClient() {
       .filter((id): id is number => id != null)
 
     return {
+      name: combinedFiltersForBackend.name.trim() || undefined,
       postingTitle: combinedFiltersForBackend.postingTitle.trim() || undefined,
       jobTitle: combinedFiltersForBackend.jobTitle.trim() || undefined,
       city: combinedFiltersForBackend.city.trim() || undefined,

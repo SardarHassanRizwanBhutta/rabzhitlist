@@ -71,6 +71,8 @@ import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
 // Filter interfaces
 export interface CandidateFilters {
+  /** Free-text substring on candidate name (case-insensitive when applied). */
+  name: string
   // Dedicated posting title filter
   postingTitle: string
   /** Free-text substring on candidate residence city (matches DB text; case-insensitive when applied). */
@@ -362,6 +364,7 @@ const sourceFilterOptions: MultiSelectOption[] = CANDIDATE_SOURCE_DB.map((key: C
 }))
 
 const initialFilters: CandidateFilters = {
+  name: "",
   postingTitle: "",
   city: "",
   currentSalaryMin: "",
@@ -879,6 +882,7 @@ export function CandidatesFilterDialog({
       const updated = { ...prev }
       switch (sectionId) {
         case "basic":
+          updated.name = ""
           updated.city = ""
           updated.personalityTypes = []
           updated.source = []
@@ -1026,6 +1030,7 @@ export function CandidatesFilterDialog({
     switch (sectionId) {
       case "basic":
         return (
+          (tempFilters.name.trim() ? 1 : 0) +
           (tempFilters.city.trim() ? 1 : 0) +
           tempFilters.personalityTypes.length +
           tempFilters.source.length +
@@ -1210,6 +1215,7 @@ export function CandidatesFilterDialog({
   }
 
   const hasAnyTempFilters = 
+    tempFilters.name.trim() ||
     tempFilters.city.trim() ||
     tempFilters.personalityTypes.length > 0 ||
     tempFilters.source.length > 0 ||
@@ -1364,6 +1370,23 @@ export function CandidatesFilterDialog({
                     Clear
                   </Button>
                 )}
+              </div>
+
+              {/* Name Filter */}
+              <div className="space-y-3">
+                <Label htmlFor="filter-candidate-name" className="text-sm font-semibold">
+                  Name
+                </Label>
+                <Input
+                  id="filter-candidate-name"
+                  type="text"
+                  placeholder="Filter by name..."
+                  value={tempFilters.name}
+                  onChange={(e) => handleFilterChange("name", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Matches candidates whose name contains this text (case-insensitive).
+                </p>
               </div>
 
               {/* Posting Title Filter */}

@@ -180,6 +180,7 @@ const calculateCandidateAverageTenure = (candidate: Candidate): number => {
 }
 
 const defaultFilters: CandidateFilters = {
+  name: "",
   postingTitle: "",
   city: "",
   currentSalaryMin: "",
