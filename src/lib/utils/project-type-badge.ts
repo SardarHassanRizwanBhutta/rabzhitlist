@@ -43,3 +43,17 @@ export function normalizeProjectType(value: unknown): ProjectType | null {
 export function isProjectType(value: unknown): value is ProjectType {
   return typeof value === "string" && PROJECT_TYPES.includes(value as ProjectType)
 }
+
+/**
+ * Whether to show a project-type badge on a work-experience nested project row.
+ * When the parent WE has an employer linked, "Employer" project type is redundant.
+ */
+export function shouldShowWorkExperienceProjectTypeBadge(
+  projectType: ProjectType,
+  workExperienceHasEmployer: boolean,
+): boolean {
+  if (workExperienceHasEmployer && projectType === "Employer") {
+    return false
+  }
+  return true
+}

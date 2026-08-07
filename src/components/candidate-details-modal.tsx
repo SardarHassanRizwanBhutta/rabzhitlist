@@ -162,7 +162,9 @@ import { Badge } from "@/components/ui/badge"
 import {
   isProjectType,
   PROJECT_TYPE_BADGE_CLASS,
+  shouldShowWorkExperienceProjectTypeBadge,
 } from "@/lib/utils/project-type-badge"
+import { isWorkExperienceEmployerPresent } from "@/lib/utils/work-experience-questions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -3486,6 +3488,8 @@ interface InlineEditableProjectProps {
   projectLookups?: ProjectLookups
   titleClassName?: string
   className?: string
+  /** When true, suppress "Employer" project-type badge (parent WE already has employer). */
+  workExperienceHasEmployer?: boolean
 }
 
 const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
@@ -3499,6 +3503,7 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
   projectLookups,
   titleClassName = "font-semibold text-lg",
   className = "",
+  workExperienceHasEmployer = false,
 }) => {
   const [preloadedName, setPreloadedName] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -3673,7 +3678,11 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
           >
             {displayName}
           </button>
-          {isProjectType(project.projectType) ? (
+          {isProjectType(project.projectType) &&
+          shouldShowWorkExperienceProjectTypeBadge(
+            project.projectType,
+            workExperienceHasEmployer,
+          ) ? (
             <Badge
               variant="secondary"
               className={cn(
@@ -6481,6 +6490,9 @@ export function CandidateDetailsModal({
                                             project={project}
                                             comboboxId={`work-exp-project-${idx}-${projIdx}`}
                                             fieldName={`workExperiences[${idx}].projects[${projIdx}].projectId`}
+                                            workExperienceHasEmployer={isWorkExperienceEmployerPresent(
+                                              experience,
+                                            )}
                                             onSave={(selection, shouldVerify) =>
                                               handleWorkExperienceProjectLinkSave(
                                                 idx,
