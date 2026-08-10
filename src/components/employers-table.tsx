@@ -17,7 +17,6 @@ import {
   Globe,
   Linkedin,
   MapPinIcon,
-  BuildingIcon,
   Building2Icon,
   FolderIcon,
   UsersIcon,
@@ -195,6 +194,9 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
+/** Office sub-rows (no row-level menu): merge Type through Actions. */
+const EMPLOYER_EXPANDED_LOCATION_ROW_MERGE_COL_SPAN = 17
+
 function getEmployerSalaryPolicy(employer: Employer) {
   return employer.salaryPolicy ?? employer.locations[0]?.salaryPolicy ?? null
 }
@@ -256,7 +258,6 @@ export function EmployersTable({
   onView,
   onEdit,
   onDelete,
-  onAddLocation,
   onEditLocation,
   onDeleteLocation,
   countries,
@@ -816,84 +817,29 @@ export function EmployersTable({
                       {/* Empty expand column */}
                       <TableCell></TableCell>
                       <TableCell>
-                        <div className="flex items-start gap-3 pl-6">
-                          {location.isHeadquarters ? (
-                            <BuildingIcon className="h-5 w-5 text-amber-600 mt-0.5" />
-                          ) : (
-                            <MapPinIcon className="h-4 w-4 text-blue-500 mt-1" />
-                          )}
+                        <div className="flex items-center gap-2 pl-6">
+                          <MapPinIcon className="h-4 w-4 text-blue-500" />
                           <div className="flex flex-col">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">
-                                {location.city}, {location.country}
-                              </span>
-                              {location.isHeadquarters && (
-                                <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                                  Headquarters
-                                </Badge>
-                              )}
-                            </div>
+                            <span className="font-medium text-sm">
+                              {[location.city, location.country].filter(Boolean).join(", ") || "—"}
+                            </span>
                             <span className="text-xs text-muted-foreground">{location.address}</span>
                           </div>
+                          {location.isHeadquarters && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              Headquarters
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
-                      <TableCell colSpan={16} className="text-muted-foreground text-sm">
-                        —
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open location menu</span>
-                              <MoreHorizontalIcon className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Office Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {onEditLocation && (
-                              <DropdownMenuItem onClick={() => onEditLocation(location)}>
-                                <EditIcon className="mr-2 h-4 w-4" />
-                                Edit Office
-                              </DropdownMenuItem>
-                            )}
-                            {onDeleteLocation && (
-                              <DropdownMenuItem
-                                onClick={() => onDeleteLocation(location)}
-                                className="text-red-600"
-                                disabled={location.isHeadquarters}
-                              >
-                                <TrashIcon className="mr-2 h-4 w-4" />
-                                {location.isHeadquarters ? "Cannot Delete HQ" : "Delete Office"}
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+                      <TableCell
+                        colSpan={EMPLOYER_EXPANDED_LOCATION_ROW_MERGE_COL_SPAN}
+                        className="p-0 align-middle"
+                        aria-hidden
+                      />
                     </TableRow>
                   ))}
 
-                  {/* Add Location Row (when expanded and has addLocation handler) */}
-                  {isExpanded && onAddLocation && (
-                    <TableRow className="bg-muted/10 border-dashed">
-                      {/* Empty expand column */}
-                      <TableCell></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 pl-6">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onAddLocation(employer)}
-                            className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-                          >
-                            <PlusIcon className="h-4 w-4" />
-                            Add office to {employer.name}
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell colSpan={17} className="text-muted-foreground text-sm" />
-                    </TableRow>
-                  )}
                 </React.Fragment>
               )
             })}
