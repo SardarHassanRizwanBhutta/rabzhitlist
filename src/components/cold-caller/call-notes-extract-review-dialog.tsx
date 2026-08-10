@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
   AllowedEmptyField,
   CallNotesExtraction,
@@ -89,8 +88,8 @@ export function CallNotesExtractReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+      <DialogContent className="flex max-h-[85vh] min-h-0 max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
           <DialogTitle>Review extracted fields</DialogTitle>
           <DialogDescription>
             {hasRows
@@ -100,14 +99,14 @@ export function CallNotesExtractReviewDialog({
         </DialogHeader>
 
         {extractError ? (
-          <p className="px-6 text-sm text-destructive" role="alert">
+          <p className="shrink-0 px-6 text-sm text-destructive" role="alert">
             {extractError}
           </p>
         ) : null}
 
-        <ScrollArea className="flex-1 min-h-0 max-h-[50vh] px-6">
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-6">
           {hasRows ? (
-            <ul className="space-y-3 pb-4">
+            <ul className="space-y-3 py-1 pb-4">
               {rows.map((row) => {
                 const checked = selectedPaths.has(row.fieldPath)
                 const confidencePct = Math.round(row.confidence * 100)
@@ -155,9 +154,9 @@ export function CallNotesExtractReviewDialog({
               })}
             </ul>
           ) : null}
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="px-6 py-4 border-t shrink-0 gap-2 sm:gap-2">
+        <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:gap-2">
           <Button
             type="button"
             variant="outline"
