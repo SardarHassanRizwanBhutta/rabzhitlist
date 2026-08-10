@@ -79,7 +79,9 @@ import {
   CallNotesExtractReviewDialog,
   buildReviewRows,
   type CallNotesExtractReviewRow,
+  type CallNotesExtractApplyPayload,
 } from "./call-notes-extract-review-dialog"
+import type { CallNotesExtractLookupContext } from "@/lib/utils/call-notes-extract-lookup"
 import {
   candidateToFormData,
   type CandidateFormData,
@@ -111,6 +113,8 @@ interface ColdCallerDialogProps {
   applyFormBase?: CandidateFormData
   /** Called after Apply Selected merges extractions (parent opens Edit or updates draft session). */
   onApplyExtractComplete?: (result: ApplyCallNotesExtractionsResult) => void
+  /** Lookups + create handlers for catalog resolution in the extract review modal (Step 4). */
+  extractLookupContext?: CallNotesExtractLookupContext
 }
 
 const MODE_ICONS: Record<InteractionMode, React.ElementType> = {
@@ -130,6 +134,7 @@ export function ColdCallerDialog({
   onApplyToCreateCandidate,
   applyFormBase,
   onApplyExtractComplete,
+  extractLookupContext,
 }: ColdCallerDialogProps) {
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([])
   const [questionSections, setQuestionSections] = useState<ColdCallerSectionQuestions[] | null>(
@@ -375,7 +380,8 @@ export function ColdCallerDialog({
   }, [runCallNotesExtract])
 
   const handleApplyExtractSelected = useCallback(
-    (selected: CallNotesExtractReviewRow[]) => {
+    (payload: CallNotesExtractApplyPayload) => {
+      const { selected, lookupResolutions } = payload
       if (selected.length === 0) return
 
       const baseForm = applyFormBase ?? candidateToFormData(candidate)
@@ -393,6 +399,7 @@ export function ColdCallerDialog({
           baseForm,
           extractions,
           callNotesAllowedEmptyFields,
+          lookupResolutions,
         )
         setExtractReviewOpen(false)
 
@@ -991,6 +998,8 @@ export function ColdCallerDialog({
         open={extractReviewOpen}
         onOpenChange={setExtractReviewOpen}
         rows={extractReviewRows}
+        formBase={applyFormBase ?? candidateToFormData(candidate)}
+        lookupContext={extractLookupContext}
         isApplying={isApplyingExtract}
         isReAnalyzing={isAnalyzingCallNotes}
         extractError={extractReviewError}

@@ -6,6 +6,7 @@
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import type { AllowedEmptyField, CallNotesExtraction } from "@/types/call-notes-extraction"
 import type { EmployerBenefit } from "@/lib/types/benefits"
+import type { CallNotesCatalogResolution } from "@/lib/utils/call-notes-extract-lookup"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
 import {
   shiftTypeToSelectValue,
@@ -293,6 +294,7 @@ function writeWeField(
   fieldType: AllowedEmptyField["fieldType"],
   value: unknown,
   meta: AllowedEmptyField,
+  lookupResolution?: CallNotesCatalogResolution,
 ): boolean {
   if (!WE_KEYS.has(key)) return false
   const weIdx = ensureWorkExperience(form, weId)
@@ -361,8 +363,15 @@ function writeWeField(
   if (coerced == null) return false
   if (typeof coerced === "string" || typeof coerced === "number" || typeof coerced === "boolean") {
     if (key === "jobTitle") we.jobTitle = String(coerced)
-    else if (key === "employerName") we.employerName = String(coerced)
-    else if (key === "salaryPolicy") we.salaryPolicy = String(coerced)
+    else if (key === "employerName") {
+      if (meta.requiresLookupResolution) {
+        if (!lookupResolution || lookupResolution.kind !== "employer") return false
+        we.employerId = lookupResolution.catalogId
+        we.employerName = lookupResolution.catalogName
+      } else {
+        we.employerName = String(coerced)
+      }
+    } else if (key === "salaryPolicy") we.salaryPolicy = String(coerced)
     else return false
     return true
   }
@@ -376,6 +385,8 @@ function writeProjectField(
   key: string,
   fieldType: AllowedEmptyField["fieldType"],
   value: unknown,
+  meta: AllowedEmptyField,
+  lookupResolution?: CallNotesCatalogResolution,
 ): boolean {
   if (!PROJECT_KEYS.has(key)) return false
   const weIdx = ensureWorkExperience(form, weId)
@@ -387,8 +398,15 @@ function writeProjectField(
 
   const coerced = coerceScalarForForm(fieldType, value)
   if (coerced == null || typeof coerced !== "string") return false
-  if (key === "projectName") project.projectName = coerced
-  else if (key === "contributionNotes") project.contributionNotes = coerced
+  if (key === "projectName") {
+    if (meta.requiresLookupResolution) {
+      if (!lookupResolution || lookupResolution.kind !== "project") return false
+      project.projectId = lookupResolution.catalogId
+      project.projectName = lookupResolution.catalogName
+    } else {
+      project.projectName = coerced
+    }
+  } else if (key === "contributionNotes") project.contributionNotes = coerced
   else return false
   return true
 }
@@ -399,6 +417,8 @@ function writeCertField(
   key: string,
   fieldType: AllowedEmptyField["fieldType"],
   value: unknown,
+  meta: AllowedEmptyField,
+  lookupResolution?: CallNotesCatalogResolution,
 ): boolean {
   if (!CERT_KEYS.has(key)) return false
   const certIdx = ensureCertification(form, certId)
@@ -421,7 +441,16 @@ function writeCertField(
     return true
   }
   if (formKey === "certificationName") {
-    cert.certificationName = coerced
+    if (meta.requiresLookupResolution) {
+      if (!lookupResolution || lookupResolution.kind !== "certification") return false
+      cert.certificationId = lookupResolution.catalogId
+      cert.certificationName = lookupResolution.catalogName
+      if (lookupResolution.issuerName?.trim()) {
+        cert.certificationIssuerName = lookupResolution.issuerName.trim()
+      }
+    } else {
+      cert.certificationName = coerced
+    }
     return true
   }
   if (formKey === "certificationUrl") {
@@ -464,12 +493,45 @@ function writeAchievementField(
   return false
 }
 
+function writeProjectEmployerToWorkExperience(
+  form: CandidateFormData,
+  weId: string,
+  lookupResolution: CallNotesCatalogResolution | undefined,
+): boolean {
+  const weIdx = ensureWorkExperience(form, weId)
+  const we = form.workExperiences[weIdx]
+  if (!isEmptyFormValue(we.employerName) || we.employerId != null) return false
+  if (!lookupResolution || lookupResolution.kind !== "employer") return false
+  we.employerId = lookupResolution.catalogId
+  we.employerName = lookupResolution.catalogName
+  return true
+}
+
 function applyExtractionToForm(
   form: CandidateFormData,
   extraction: CallNotesExtraction,
   meta: AllowedEmptyField,
+  lookupResolutions?: ReadonlyMap<string, CallNotesCatalogResolution>,
 ): { ok: true } | { ok: false; reason: string } {
   const path = extraction.fieldPath
+  const lookupResolution = lookupResolutions?.get(path)
+
+  if (meta.requiresLookupResolution && !lookupResolution) {
+    return { ok: false, reason: "Catalog lookup must be resolved before apply." }
+  }
+
+  const projectEmployerMatch =
+    /^workExperiences\[([^\]]+)\]\.projects\[([^\]]+)\]\.employerName$/.exec(path)
+  if (projectEmployerMatch) {
+    const ok = writeProjectEmployerToWorkExperience(form, projectEmployerMatch[1], lookupResolution)
+    return ok
+      ? { ok: true }
+      : {
+          ok: false,
+          reason:
+            "Work experience employer is no longer empty or employer catalog is unresolved.",
+        }
+  }
 
   const rootMatch = /^([a-zA-Z]+)$/.exec(path)
   if (rootMatch && ROOT_KEYS.has(rootMatch[1])) {
@@ -480,7 +542,15 @@ function applyExtractionToForm(
 
   const weMatch = /^workExperiences\[([^\]]+)\]\.([a-zA-Z]+)$/.exec(path)
   if (weMatch) {
-    const ok = writeWeField(form, weMatch[1], weMatch[2], meta.fieldType, extraction.value, meta)
+    const ok = writeWeField(
+      form,
+      weMatch[1],
+      weMatch[2],
+      meta.fieldType,
+      extraction.value,
+      meta,
+      lookupResolution,
+    )
     return ok
       ? { ok: true }
       : {
@@ -501,6 +571,8 @@ function applyExtractionToForm(
       projMatch[3],
       meta.fieldType,
       extraction.value,
+      meta,
+      lookupResolution,
     )
     return ok
       ? { ok: true }
@@ -514,7 +586,15 @@ function applyExtractionToForm(
 
   const certMatch = /^certifications\[([^\]]+)\]\.([a-zA-Z]+)$/.exec(path)
   if (certMatch) {
-    const ok = writeCertField(form, certMatch[1], certMatch[2], meta.fieldType, extraction.value)
+    const ok = writeCertField(
+      form,
+      certMatch[1],
+      certMatch[2],
+      meta.fieldType,
+      extraction.value,
+      meta,
+      lookupResolution,
+    )
     return ok
       ? { ok: true }
       : {
@@ -566,6 +646,7 @@ export function applyCallNotesExtractionsToFormData(
   baseForm: CandidateFormData,
   extractions: CallNotesExtraction[],
   allowedEmptyFields: AllowedEmptyField[],
+  lookupResolutions?: ReadonlyMap<string, CallNotesCatalogResolution>,
 ): ApplyCallNotesExtractionsResult {
   const metaByPath = new Map(allowedEmptyFields.map((f) => [f.fieldPath, f]))
   const form = cloneFormData(baseForm)
@@ -578,7 +659,7 @@ export function applyCallNotesExtractionsToFormData(
       skipped.push({ fieldPath: extraction.fieldPath, reason: "Not in extract whitelist." })
       continue
     }
-    const result = applyExtractionToForm(form, extraction, meta)
+    const result = applyExtractionToForm(form, extraction, meta, lookupResolutions)
     if (result.ok) {
       applied.push(extraction.fieldPath)
     } else {
