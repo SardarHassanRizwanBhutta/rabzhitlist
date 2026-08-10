@@ -43,6 +43,10 @@ export function ProjectCatalogCollapsible({
           type="button"
           variant="ghost"
           className="group h-auto w-full min-w-0 justify-start gap-2 overflow-hidden px-2 py-1.5 text-xs font-medium text-muted-foreground"
+          onMouseDown={(event) => {
+            // Avoid focus-driven scroll-into-view when expanding sections with the mouse.
+            if (event.button === 0) event.preventDefault()
+          }}
         >
           <span className="min-w-0 flex-1 truncate text-left" title={label}>
             {label}
