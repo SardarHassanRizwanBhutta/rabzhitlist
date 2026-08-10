@@ -40,6 +40,8 @@ interface CallNotesEditorProps {
   showDraftSavedHint?: boolean
   readOnly?: boolean
   className?: string
+  /** Increment to move focus back to the textarea (e.g. dialog open, extract review closed). */
+  focusSignal?: number
 }
 
 function isCallNotesEmpty(value: string): boolean {
@@ -62,8 +64,79 @@ export function CallNotesEditor({
   showDraftSavedHint = false,
   readOnly = false,
   className,
+  focusSignal = 0,
 }: CallNotesEditorProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  const canFocus = !disabled && !readOnly
+
+  const focusTextarea = React.useCallback(
+    (moveCursorToEnd = true) => {
+      const el = textareaRef.current
+      if (!el || !canFocus) return
+      el.focus({ preventScroll: true })
+      if (moveCursorToEnd) {
+        const len = el.value.length
+        el.setSelectionRange(len, len)
+      }
+    },
+    [canFocus],
+  )
+
+  React.useEffect(() => {
+    if (!canFocus) return
+    const frame = requestAnimationFrame(() => focusTextarea())
+    return () => cancelAnimationFrame(frame)
+  }, [canFocus, focusSignal, focusTextarea])
+
+  React.useEffect(() => {
+    if (!canFocus) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      const ta = textareaRef.current
+      if (!ta) return
+      if (document.activeElement === ta) return
+
+      const active = document.activeElement
+      if (
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement
+      ) {
+        return
+      }
+      if (active instanceof HTMLElement && active.isContentEditable) return
+
+      const editorDialog = ta.closest('[role="dialog"]')
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      const topDialog = dialogs[dialogs.length - 1] ?? null
+      if (topDialog && editorDialog && topDialog !== editorDialog) return
+
+      const isPrintable =
+        e.key.length === 1 || e.key === "Enter" || e.key === " "
+      if (!isPrintable) return
+
+      e.preventDefault()
+      ta.focus()
+
+      const start = ta.selectionStart ?? value.length
+      const end = ta.selectionEnd ?? value.length
+      const insert = e.key === "Enter" ? "\n" : e.key
+      const next = value.slice(0, start) + insert + value.slice(end)
+      onChange(next)
+
+      requestAnimationFrame(() => {
+        const pos = start + insert.length
+        ta.setSelectionRange(pos, pos)
+      })
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [canFocus, value, onChange])
 
   const canSave =
     !isCallNotesEmpty(value) && !disabled && !isSaving && !readOnly
@@ -105,7 +178,10 @@ export function CallNotesEditor({
   ) : null
 
   return (
-    <div className={cn("flex flex-col min-h-0 gap-3 h-full", className)}>
+    <div
+      data-call-notes-editor
+      className={cn("flex flex-col min-h-0 gap-3 h-full", className)}
+    >
       <div className="shrink-0">
         <Label htmlFor="cold-caller-call-notes" className="text-base font-semibold">
           Call Notes
