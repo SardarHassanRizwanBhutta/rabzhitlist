@@ -223,27 +223,6 @@ function buildWorkExperienceSectionUnits(
   const we = workExperiences?.[block.roleIndex]
   const forceRoleAndEmployer = options?.forceRoleAndEmployer === true
 
-  const roleQuestions = block.linkQuestions
-  const roleHasPopulated = WORK_EXPERIENCE_ROLE_FIELD_ORDER.some((key) => {
-    return !isQgValueMissing(readWorkExperienceField(we, key))
-  })
-  if (forceRoleAndEmployer || roleQuestions.length > 0 || roleHasPopulated) {
-    units.push({
-      type: "role",
-      id: `role-${block.roleIndex}`,
-      priority: Math.max(
-        ...roleQuestions.map((question) => question.priority),
-        ...WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
-          const value = readWorkExperienceField(we, key)
-          return !isQgValueMissing(value) ? WORK_EXPERIENCE_ROLE_PRIORITIES[key] : 0
-        }),
-        0,
-      ),
-      order: order++,
-      questions: roleQuestions,
-    })
-  }
-
   const employerQuestions = [
     ...block.catalogQuestions,
     ...block.officeGroups.flatMap((group) => group.questions),
@@ -275,6 +254,27 @@ function buildWorkExperienceSectionUnits(
     })
   }
 
+  const roleQuestions = block.linkQuestions
+  const roleHasPopulated = WORK_EXPERIENCE_ROLE_FIELD_ORDER.some((key) => {
+    return !isQgValueMissing(readWorkExperienceField(we, key))
+  })
+  if (forceRoleAndEmployer || roleQuestions.length > 0 || roleHasPopulated) {
+    units.push({
+      type: "role",
+      id: `role-${block.roleIndex}`,
+      priority: Math.max(
+        ...roleQuestions.map((question) => question.priority),
+        ...WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
+          const value = readWorkExperienceField(we, key)
+          return !isQgValueMissing(value) ? WORK_EXPERIENCE_ROLE_PRIORITIES[key] : 0
+        }),
+        0,
+      ),
+      order: order++,
+      questions: roleQuestions,
+    })
+  }
+
   for (const accordion of block.projectAccordions) {
     const projectIndexMatch = /_project_(\d+)$/.exec(accordion.apiPrefix)
     const projectIndex = projectIndexMatch ? Number(projectIndexMatch[1]) : 0
@@ -302,7 +302,7 @@ function buildWorkExperienceSectionUnits(
     })
   }
 
-  // Structural Call Notes order: Role → Employer → Projects (by push order).
+  // Structural Call Notes order: Employer → Role → Projects (by push order).
   return units
 }
 
