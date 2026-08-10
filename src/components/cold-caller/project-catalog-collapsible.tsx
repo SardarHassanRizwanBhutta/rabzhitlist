@@ -36,19 +36,21 @@ export function ProjectCatalogCollapsible({
       defaultOpen={open === undefined ? defaultOpen : undefined}
       open={open}
       onOpenChange={onOpenChange}
-      className={cn("rounded-md data-[state=open]:bg-muted", className)}
+      className={cn("min-w-0 overflow-hidden rounded-md data-[state=open]:bg-muted", className)}
     >
       <CollapsibleTrigger asChild>
         <Button
           type="button"
           variant="ghost"
-          className="group h-auto w-full justify-start gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground"
+          className="group h-auto w-full min-w-0 justify-start gap-2 overflow-hidden px-2 py-1.5 text-xs font-medium text-muted-foreground"
         >
-          <span className="flex-1 text-left">{label}</span>
+          <span className="min-w-0 flex-1 truncate text-left" title={label}>
+            {label}
+          </span>
           {missingCount > 0 && (
             <Badge
               variant="default"
-              className="h-4 bg-red-500 px-1 text-[9px] text-white hover:bg-red-600"
+              className="h-4 shrink-0 bg-red-500 px-1 text-[9px] text-white hover:bg-red-600"
             >
               {missingCount}
             </Badge>
