@@ -77,6 +77,7 @@ interface CallNotesWorkspaceProps {
   sessionQgErrorsByKey?: Record<string, string>
   onRetrySessionQgEntry?: (scopeKey: string) => void
   isCatalogEnriching?: boolean
+  notesFocusSignal?: number
 }
 
 export function CallNotesWorkspace({
@@ -137,6 +138,7 @@ export function CallNotesWorkspace({
   sessionQgErrorsByKey,
   onRetrySessionQgEntry,
   isCatalogEnriching,
+  notesFocusSignal = 0,
 }: CallNotesWorkspaceProps) {
   const {
     containerRef: outerContainerRef,
@@ -210,6 +212,7 @@ export function CallNotesWorkspace({
             disabled={notesEditorDisabled}
             showDraftSavedHint={showDraftSavedHint}
             className="h-full"
+            focusSignal={notesFocusSignal}
           />
         </div>
 

@@ -87,6 +87,8 @@ interface ColdCallerCallNotesViewProps {
   onRetrySessionQgEntry?: (scopeKey: string) => void
   /** True while Cold Caller open-enrich is still fetching catalogs. */
   isCatalogEnriching?: boolean
+  /** Bumps when the notes textarea should reclaim focus. */
+  notesFocusSignal?: number
 }
 
 function getSectionQuestionCount(
@@ -157,6 +159,7 @@ export function ColdCallerCallNotesView({
   sessionQgErrorsByKey,
   onRetrySessionQgEntry,
   isCatalogEnriching,
+  notesFocusSignal = 0,
 }: ColdCallerCallNotesViewProps) {
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
@@ -282,6 +285,7 @@ export function ColdCallerCallNotesView({
     sessionQgErrorsByKey,
     onRetrySessionQgEntry,
     isCatalogEnriching,
+    notesFocusSignal,
   }
 
   if (displaySections.length === 0) {

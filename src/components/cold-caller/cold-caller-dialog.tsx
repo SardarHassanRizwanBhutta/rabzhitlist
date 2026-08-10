@@ -161,6 +161,8 @@ export function ColdCallerDialog({
 
   const [isAnalyzingCallNotes, setIsAnalyzingCallNotes] = useState(false)
   const [extractReviewOpen, setExtractReviewOpen] = useState(false)
+  const [notesFocusSignal, setNotesFocusSignal] = useState(0)
+  const prevExtractReviewOpenRef = useRef(false)
   const [extractReviewRows, setExtractReviewRows] = useState<CallNotesExtractReviewRow[]>([])
   const [extractReviewError, setExtractReviewError] = useState<string | null>(null)
   const [isApplyingExtract, setIsApplyingExtract] = useState(false)
@@ -276,6 +278,19 @@ export function ColdCallerDialog({
       cancelled = true
     }
   }, [open, draftMode, candidate.id, hydrateCallNotesDraft, readStoredDraft])
+
+  useEffect(() => {
+    if (open && callNotesLoadState === "ready") {
+      setNotesFocusSignal((n) => n + 1)
+    }
+  }, [open, callNotesLoadState])
+
+  useEffect(() => {
+    if (prevExtractReviewOpenRef.current && !extractReviewOpen && open) {
+      setNotesFocusSignal((n) => n + 1)
+    }
+    prevExtractReviewOpenRef.current = extractReviewOpen
+  }, [extractReviewOpen, open])
 
   const handleSaveCallNotes = useCallback(async () => {
     const candidateIdNum = Number(candidate.id)
@@ -937,6 +952,7 @@ export function ColdCallerDialog({
               sessionQgErrorsByKey={sessionQgErrorsByKey}
               onRetrySessionQgEntry={handleRetrySessionQgEntry}
               isCatalogEnriching={isCatalogEnriching}
+              notesFocusSignal={notesFocusSignal}
             />
           </div>
 
