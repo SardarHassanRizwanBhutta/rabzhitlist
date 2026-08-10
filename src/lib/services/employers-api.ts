@@ -202,6 +202,8 @@ export interface EmployerListItemLocationDto {
   id: number
   country: string
   city: string
+  address?: string | null
+  isHeadquarters?: boolean
   /** @deprecated Prefer employer-level salary policy. */
   salaryPolicy?: string | null
 }
@@ -794,8 +796,8 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       employerId: String(item.id),
       country: loc.country,
       city: loc.city,
-      address: null,
-      isHeadquarters: false,
+      address: loc.address ?? null,
+      isHeadquarters: loc.isHeadquarters ?? false,
       salaryPolicy: employerSalaryPolicy,
       createdAt: new Date(),
       updatedAt: new Date(),
