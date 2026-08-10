@@ -2,8 +2,8 @@
 
 import * as React from "react"
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
-import {
-  Phone,
+import { 
+  Phone, 
   Sparkles,
   Loader2,
   MessageSquare,
@@ -36,16 +36,16 @@ import { toast } from "sonner"
 
 import type { Candidate, WorkExperience } from "@/lib/types/candidate"
 import { enrichWorkExperiencesForColdCaller } from "@/lib/utils/map-work-experience-for-service"
-import type {
-  EmptyField,
-  GeneratedQuestion,
-  FieldSection,
+import type { 
+  EmptyField, 
+  GeneratedQuestion, 
+  FieldSection, 
   InteractionMode,
 } from "@/types/cold-caller"
 import { SECTION_LABELS, MODE_CONFIG } from "@/types/cold-caller"
-import {
-  getEmptyFields,
-  groupEmptyFieldsBySection,
+import { 
+  getEmptyFields, 
+  groupEmptyFieldsBySection, 
   createEntryFields,
 } from "@/lib/utils/empty-field-detection"
 import { generateQuestions } from "@/lib/services/questions-api"
@@ -137,7 +137,7 @@ export function ColdCallerDialog({
   )
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false)
   const [questionsError, setQuestionsError] = useState<string | null>(null)
-
+  
   const [resumeVisible, setResumeVisible] = useState(true)
 
   const {
@@ -422,7 +422,7 @@ export function ColdCallerDialog({
     return Array.from(new Map(allFields.map((field) => [field.fieldPath, field])).values())
   }, [baseEmptyFields, manuallyAddedFields])
   const groupedFields = useMemo(() => groupEmptyFieldsBySection(emptyFields), [emptyFields])
-
+  
   const sectionsWithFields = useMemo(() => {
     const dynamicSections: FieldSection[] = ["workExperience", "certifications", "achievements"]
     const sectionOrder: FieldSection[] = [
@@ -436,7 +436,7 @@ export function ColdCallerDialog({
       const fields = groupedFields.get(section)
       return fields && fields.length > 0
     })
-
+    
     const sectionsWithData: FieldSection[] = []
     dynamicSections.forEach((section) => {
       if (section === "workExperience" && (candidate.workExperiences?.length || 0) > 0) {
@@ -447,7 +447,7 @@ export function ColdCallerDialog({
         sectionsWithData.push(section)
       }
     })
-
+    
     const allSections = new Set([...sectionsWithEmptyFields, ...sectionsWithData])
     allSections.delete("techStacks")
     allSections.delete("education")
@@ -455,14 +455,14 @@ export function ColdCallerDialog({
       (a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b),
     )
   }, [groupedFields, candidate])
-
+  
   const prevCandidateIdRef = React.useRef<string | undefined>(undefined)
   const prevOpenRef = React.useRef<boolean>(false)
-
+  
   useEffect(() => {
     const dialogJustOpened = open && !prevOpenRef.current
     const candidateChanged = prevCandidateIdRef.current !== candidate.id
-
+    
     if (open) {
       if (dialogJustOpened || candidateChanged) {
         setManuallyAddedFields([])
@@ -483,14 +483,14 @@ export function ColdCallerDialog({
           setQuestionSections(null)
           setQuestionsError(null)
         }
-
+        
         if (dialogJustOpened || candidateChanged) {
           setResumeVisible(true)
         }
 
         prevCandidateIdRef.current = candidate.id
         prevOpenRef.current = true
-      }
+        }
     } else {
       prevOpenRef.current = false
     }
@@ -542,8 +542,8 @@ export function ColdCallerDialog({
         if (!(key in prev)) return prev
         const next = { ...prev }
         delete next[key]
-        return next
-      })
+      return next
+    })
       setSessionQgScopesByKey((prev) => ({ ...prev, [key]: scope }))
 
       try {
@@ -714,16 +714,16 @@ export function ColdCallerDialog({
   const handleAddEntry = useCallback(
     (section: FieldSection) => {
       if (section !== "achievements" && section !== "certifications") {
-        toast.error(`Cannot add entries to ${SECTION_LABELS[section]}`)
-        return
-      }
+      toast.error(`Cannot add entries to ${SECTION_LABELS[section]}`)
+      return
+    }
 
-      const currentFields = groupedFields.get(section) || []
-
-      let maxIndex = -1
+    const currentFields = groupedFields.get(section) || []
+    
+    let maxIndex = -1
       currentFields.forEach((field) => {
-        const match = field.fieldPath.match(/\[(\d+)\]/)
-        if (match) {
+      const match = field.fieldPath.match(/\[(\d+)\]/)
+      if (match) {
           maxIndex = Math.max(maxIndex, parseInt(match[1], 10))
         }
       })
@@ -733,7 +733,7 @@ export function ColdCallerDialog({
           ? (candidate.certifications?.length || 0) - 1
           : (candidate.achievements?.length || 0) - 1
 
-      const newIndex = Math.max(maxIndex, candidateMaxIndex) + 1
+    const newIndex = Math.max(maxIndex, candidateMaxIndex) + 1
       const newFields = createEntryFields(section, newIndex)
 
       if (section === "achievements") {
@@ -761,7 +761,7 @@ export function ColdCallerDialog({
       }
 
       setManuallyAddedFields((prev) => [...prev, ...newFields])
-      toast.success(`Added new ${SECTION_LABELS[section]} entry`)
+    toast.success(`Added new ${SECTION_LABELS[section]} entry`)
     },
     [
       groupedFields,
@@ -821,7 +821,7 @@ export function ColdCallerDialog({
     <>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="!fixed !inset-0 !top-0 !left-0 !translate-x-0 !translate-y-0 !max-w-none !w-screen !h-[100dvh] !max-h-[100dvh] rounded-none border-0 shadow-none overflow-hidden !flex !flex-col p-0 gap-0 sm:!max-w-none">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-4 min-w-0">
                 <div
@@ -830,8 +830,8 @@ export function ColdCallerDialog({
                     modeConfig.color,
                   )}
                 >
-                  <ModeIcon className="h-6 w-6 text-primary" />
-                </div>
+                <ModeIcon className="h-6 w-6 text-primary" />
+              </div>
                 <div className="min-w-0">
                   <DialogTitle className="text-xl font-semibold mb-1 flex items-center gap-2">
                     <span>{modeConfig.label} Mode</span>
@@ -840,33 +840,33 @@ export function ColdCallerDialog({
                         Draft
                       </Badge>
                     ) : null}
-                  </DialogTitle>
+                </DialogTitle>
                   <p className="text-sm text-muted-foreground truncate">
                     {candidate.name} • {candidate.mobileNo || "No phone"}
-                  </p>
-                </div>
+                </p>
               </div>
-
+            </div>
+            
               <div className="mr-8 shrink-0 flex items-center gap-2">
-                <Button
+              <Button
                   type="button"
-                  size="sm"
+                size="sm"
                   variant={resumeVisible ? "secondary" : "outline"}
                   onClick={() => setResumeVisible((v) => !v)}
-                  className="gap-1.5"
+                className="gap-1.5"
                   aria-pressed={resumeVisible}
-                >
+              >
                   {resumeVisible ? (
                     <PanelLeftClose className="h-4 w-4" />
-                  ) : (
+                ) : (
                     <PanelLeftOpen className="h-4 w-4" />
-                  )}
+                )}
                   {resumeVisible ? "Hide Resume" : "Show Resume"}
-                </Button>
-                <Button
+              </Button>
+                                              <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
+                                                size="sm"
+                                                variant="outline"
                   onClick={handlePopOutResume}
                   disabled={!candidate.hasResume && !localResumeUrl}
                   className="gap-1.5"
@@ -874,9 +874,9 @@ export function ColdCallerDialog({
                 >
                   <ExternalLink className="h-4 w-4" />
                   Pop Out
-                </Button>
-                <Button
-                  size="sm"
+                                              </Button>
+                                      <Button
+                                        size="sm"
                   onClick={handleGenerateQuestions}
                   disabled={isLoadingQuestions || isCatalogEnriching}
                   className="gap-1.5"
@@ -892,9 +892,9 @@ export function ColdCallerDialog({
                     <Sparkles className="h-4 w-4" />
                   )}
                   Generate Questions
-                </Button>
-              </div>
-            </div>
+                                    </Button>
+                                  </div>
+                                </div>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -954,22 +954,22 @@ export function ColdCallerDialog({
               isCatalogEnriching={isCatalogEnriching}
               notesFocusSignal={notesFocusSignal}
             />
-          </div>
+        </div>
 
-          <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
-            <div className="text-sm text-muted-foreground">
+        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+          <div className="text-sm text-muted-foreground">
               {rawNotesDraft.trim() ? (
                 <span className="text-muted-foreground">Call notes draft in progress</span>
               ) : null}
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>
-                Close
-              </Button>
-            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => handleDialogOpenChange(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
 
       <AlertDialog open={discardConfirmOpen} onOpenChange={setDiscardConfirmOpen}>
         <AlertDialogContent>
@@ -996,7 +996,7 @@ export function ColdCallerDialog({
         extractError={extractReviewError}
         onApplySelected={handleApplyExtractSelected}
         onAnalyzeAgain={handleAnalyzeCallNotes}
-      />
+    />
     </>
   )
 }

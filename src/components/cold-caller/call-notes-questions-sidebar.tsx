@@ -589,8 +589,10 @@ export function CallNotesQuestionsSidebar({
     isCatalogEnriching || sessionQgLoadingKey != null
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [activeEntryNavId, setActiveEntryNavId] = useState<QuestionEntryNavId>("overview")
-  const [openWorkExperienceSectionId, setOpenWorkExperienceSectionId] =
-    useState<string | null>(null)
+  const [openWorkExperienceSectionIds, setOpenWorkExperienceSectionIds] = useState<
+    Set<string>
+  >(() => new Set())
+  const questionsScrollRef = useRef<HTMLDivElement>(null)
   const pendingEntryNavIdRef = useRef<QuestionEntryNavId | null>(null)
 
   const sessionQgFailedKeySet = useMemo(
@@ -984,10 +986,32 @@ export function CallNotesQuestionsSidebar({
 
   useEffect(() => {
     const sectionIds = activeWorkExperienceSections.map((unit) => unit.id)
-    setOpenWorkExperienceSectionId((current) =>
-      current && sectionIds.includes(current) ? current : (sectionIds[0] ?? null),
-    )
+    setOpenWorkExperienceSectionIds((current) => {
+      const next = new Set([...current].filter((id) => sectionIds.includes(id)))
+      if (next.size === 0 && sectionIds[0]) {
+        next.add(sectionIds[0])
+      }
+      return next
+    })
   }, [activeWorkExperienceSections])
+
+  const toggleWorkExperienceSection = useCallback((sectionId: string, open: boolean) => {
+    const scrollEl = questionsScrollRef.current
+    const scrollTop = scrollEl?.scrollTop ?? 0
+
+    setOpenWorkExperienceSectionIds((current) => {
+      const next = new Set(current)
+      if (open) next.add(sectionId)
+      else next.delete(sectionId)
+      return next
+    })
+
+    // Expanding/collapsing shifts layout; restore scroll so the panel doesn't jump
+    // to the bottom of newly opened sections (e.g. Employer Details, Projects).
+    requestAnimationFrame(() => {
+      if (scrollEl) scrollEl.scrollTop = scrollTop
+    })
+  }, [])
 
   // Project QG spinner lives inside the project collapsible — open that unit while
   // incremental generate is in flight so the status is visible in the panel.
@@ -998,9 +1022,11 @@ export function CallNotesQuestionsSidebar({
     const roleIndex = Number(match[1])
     const projectIndex = Number(match[2])
     setActiveEntryNavId(`entry-${roleIndex}`)
-    setOpenWorkExperienceSectionId(
-      `work_experience_${roleIndex}_project_${projectIndex}`,
-    )
+    setOpenWorkExperienceSectionIds((current) => {
+      const next = new Set(current)
+      next.add(`work_experience_${roleIndex}_project_${projectIndex}`)
+      return next
+    })
   }, [sessionQgLoadingKey])
 
   const handleCopy = (apiFieldName: string, text: string, e: React.MouseEvent) => {
@@ -1174,9 +1200,9 @@ export function CallNotesQuestionsSidebar({
         const roleContent = (
           <>
             {roleUnits.map((unit) => {
-          const isOpen = openWorkExperienceSectionId === unit.id
+          const isOpen = openWorkExperienceSectionIds.has(unit.id)
           const onOpenChange = (open: boolean) => {
-            setOpenWorkExperienceSectionId(open ? unit.id : null)
+            toggleWorkExperienceSection(unit.id, open)
           }
           const missingCount = countUnitMissing(unit)
 
@@ -2046,7 +2072,10 @@ export function CallNotesQuestionsSidebar({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+      <div
+        ref={questionsScrollRef}
+        className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
+      >
         {isLoading ? (
           <div className="p-4 space-y-3" aria-live="polite">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
