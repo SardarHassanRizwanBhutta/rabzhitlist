@@ -897,6 +897,41 @@ export function CandidatesPageClient() {
     })
   }, [])
 
+  const extractLookupContext = useMemo(
+    () => ({
+      nestedEmployerCreation,
+      createEmployerLookups: {
+        timeSupportZonesLookup,
+        awardsLookup,
+      },
+      projectLookups: {
+        techStacks: techStacksLookup,
+        technicalAspects: technicalAspectsLookup,
+        clientLocations: clientLocationsLookup,
+      },
+      onCreateTechStack: handleCreateTechStack,
+      onCreateTechnicalAspect: handleCreateTechnicalAspect,
+      onCreateClientLocation: handleCreateClientLocation,
+      certificationIssuers: certificationIssuersLookup,
+      certificationIssuersLoading: lookupsLoading,
+      onCertificationIssuerCreated: handleCertificationIssuerCreated,
+    }),
+    [
+      nestedEmployerCreation,
+      timeSupportZonesLookup,
+      awardsLookup,
+      techStacksLookup,
+      technicalAspectsLookup,
+      clientLocationsLookup,
+      handleCreateTechStack,
+      handleCreateTechnicalAspect,
+      handleCreateClientLocation,
+      certificationIssuersLookup,
+      lookupsLoading,
+      handleCertificationIssuerCreated,
+    ],
+  )
+
   useEffect(() => {
     const projectFilterName = searchParams.get("projectFilter")
     const projectId = searchParams.get("projectId")
@@ -1276,6 +1311,7 @@ export function CandidatesPageClient() {
               onApplyToCreateCandidate={handleDraftApplyToCreate}
               applyFormBase={draftColdCallerSession.formSnapshot}
               onApplyExtractComplete={handleDraftExtractApplyComplete}
+              extractLookupContext={extractLookupContext}
             />
           ) : null}
         </div>

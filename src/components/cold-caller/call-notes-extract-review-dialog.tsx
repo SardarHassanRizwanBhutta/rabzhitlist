@@ -16,21 +16,36 @@ import type {
   AllowedEmptyField,
   CallNotesExtraction,
 } from "@/types/call-notes-extraction"
+import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatQgDisplayValue } from "@/lib/utils/qg-value"
+import {
+  hasUnresolvedCheckedLookupRows,
+  type CallNotesCatalogResolution,
+  type CallNotesExtractLookupContext,
+} from "@/lib/utils/call-notes-extract-lookup"
+import { CallNotesExtractLookupResolver } from "./call-notes-extract-lookup-resolver"
 
 export interface CallNotesExtractReviewRow extends CallNotesExtraction {
   fieldLabel: string
   context?: string
+  requiresLookupResolution?: boolean
+}
+
+export interface CallNotesExtractApplyPayload {
+  selected: CallNotesExtractReviewRow[]
+  lookupResolutions: Map<string, CallNotesCatalogResolution>
 }
 
 interface CallNotesExtractReviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   rows: CallNotesExtractReviewRow[]
+  formBase: CandidateFormData
+  lookupContext?: CallNotesExtractLookupContext
   isApplying?: boolean
   isReAnalyzing?: boolean
   extractError?: string | null
-  onApplySelected: (selected: CallNotesExtractReviewRow[]) => void
+  onApplySelected: (payload: CallNotesExtractApplyPayload) => void
   onAnalyzeAgain: () => void
 }
 
@@ -47,6 +62,7 @@ function buildReviewRows(
       ...extraction,
       fieldLabel: meta?.fieldLabel ?? extraction.fieldPath,
       context: meta?.context,
+      requiresLookupResolution: meta?.requiresLookupResolution === true,
     }
   })
 }
@@ -57,6 +73,8 @@ export function CallNotesExtractReviewDialog({
   open,
   onOpenChange,
   rows,
+  formBase,
+  lookupContext,
   isApplying = false,
   isReAnalyzing = false,
   extractError = null,
@@ -66,10 +84,14 @@ export function CallNotesExtractReviewDialog({
   const [selectedPaths, setSelectedPaths] = React.useState<Set<string>>(
     () => new Set(rows.map((r) => r.fieldPath)),
   )
+  const [lookupResolutions, setLookupResolutions] = React.useState<
+    Map<string, CallNotesCatalogResolution>
+  >(() => new Map())
 
   React.useEffect(() => {
     if (open) {
       setSelectedPaths(new Set(rows.map((r) => r.fieldPath)))
+      setLookupResolutions(new Map())
     }
   }, [open, rows])
 
@@ -82,9 +104,26 @@ export function CallNotesExtractReviewDialog({
     })
   }
 
+  const setResolutionForPath = (
+    fieldPath: string,
+    resolution: CallNotesCatalogResolution | undefined,
+  ) => {
+    setLookupResolutions((prev) => {
+      const next = new Map(prev)
+      if (resolution) next.set(fieldPath, resolution)
+      else next.delete(fieldPath)
+      return next
+    })
+  }
+
   const selectedRows = rows.filter((r) => selectedPaths.has(r.fieldPath))
   const hasRows = rows.length > 0
   const busy = isApplying || isReAnalyzing
+  const hasUnresolvedLookups = hasUnresolvedCheckedLookupRows(
+    selectedPaths,
+    rows,
+    lookupResolutions,
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,10 +149,16 @@ export function CallNotesExtractReviewDialog({
               {rows.map((row) => {
                 const checked = selectedPaths.has(row.fieldPath)
                 const confidencePct = Math.round(row.confidence * 100)
+                const resolution = lookupResolutions.get(row.fieldPath)
+                const needsLookup = row.requiresLookupResolution === true
+                const lookupPending = needsLookup && checked && !resolution
+
                 return (
                   <li
                     key={row.fieldPath}
-                    className="rounded-lg border p-3 space-y-2"
+                    className={`rounded-lg border p-3 space-y-2 ${
+                      lookupPending ? "border-amber-500/60" : ""
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <Checkbox
@@ -147,6 +192,19 @@ export function CallNotesExtractReviewDialog({
                         <p className="text-xs text-muted-foreground">
                           Confidence: {confidencePct}%
                         </p>
+                        {needsLookup && checked ? (
+                          <CallNotesExtractLookupResolver
+                            fieldPath={row.fieldPath}
+                            extractedValue={row.value}
+                            resolution={resolution}
+                            onResolutionChange={(next) =>
+                              setResolutionForPath(row.fieldPath, next)
+                            }
+                            lookupContext={lookupContext}
+                            formBase={formBase}
+                            disabled={busy}
+                          />
+                        ) : null}
                       </div>
                     </div>
                   </li>
@@ -156,41 +214,60 @@ export function CallNotesExtractReviewDialog({
           ) : null}
         </div>
 
-        <DialogFooter className="shrink-0 gap-2 border-t bg-background px-6 py-4 sm:gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={busy}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onAnalyzeAgain}
-            disabled={busy}
-            className="gap-1.5"
-          >
-            {isReAnalyzing ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
-            Analyze again
-          </Button>
-          <Button
-            type="button"
-            onClick={() => onApplySelected(selectedRows)}
-            disabled={busy || selectedRows.length === 0}
-            className="gap-1.5"
-          >
-            {isApplying ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
-            Apply Selected
-            {selectedRows.length > 0 ? ` (${selectedRows.length})` : ""}
-          </Button>
+        <DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+          {hasUnresolvedLookups ? (
+            <p
+              className="text-xs text-amber-700 dark:text-amber-400 sm:mr-auto sm:max-w-[55%]"
+              role="status"
+            >
+              Resolve all selected employer, project, and certification lookups
+              before applying, or uncheck those rows.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onAnalyzeAgain}
+              disabled={busy}
+              className="gap-1.5"
+            >
+              {isReAnalyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Analyze again
+            </Button>
+            <Button
+              type="button"
+              onClick={() =>
+                onApplySelected({
+                  selected: selectedRows,
+                  lookupResolutions,
+                })
+              }
+              disabled={
+                busy || selectedRows.length === 0 || hasUnresolvedLookups
+              }
+              className="gap-1.5"
+            >
+              {isApplying ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Apply Selected
+              {selectedRows.length > 0 ? ` (${selectedRows.length})` : ""}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
+

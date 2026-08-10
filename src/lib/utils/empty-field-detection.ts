@@ -9,6 +9,8 @@ import {
   ACHIEVEMENT_TYPE_LABELS,
   CERTIFICATION_LEVEL_DB,
   CERTIFICATION_LEVEL_LABELS_DB,
+  SHIFT_TYPE_DB,
+  SHIFT_TYPE_LABELS,
 } from '@/lib/constants/candidate-enums'
 import {
   buildLinkedProjectEmptyFields,
@@ -16,14 +18,11 @@ import {
 } from '@/lib/utils/project-catalog-fields'
 import { RANKING_DISPLAY_TO_DB, type RankingDb } from '@/lib/types/employer'
 
-// Shift type options
-export const SHIFT_TYPE_OPTIONS = [
-  { value: 'Morning', label: 'Morning' },
-  { value: 'Evening', label: 'Evening' },
-  { value: 'Night', label: 'Night' },
-  { value: 'Rotational', label: 'Rotational' },
-  { value: '24x7', label: '24x7' },
-]
+// Shift type options — canonical labels aligned with Candidate form / backend enum.
+export const SHIFT_TYPE_OPTIONS = SHIFT_TYPE_DB.map((key) => ({
+  value: SHIFT_TYPE_LABELS[key],
+  label: SHIFT_TYPE_LABELS[key],
+}))
 
 // Work mode options
 export const WORK_MODE_OPTIONS = [
