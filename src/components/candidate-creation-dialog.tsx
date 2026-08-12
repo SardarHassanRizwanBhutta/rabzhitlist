@@ -112,6 +112,10 @@ import {
   hasPrefillContent,
   mergeCandidatePrefill,
 } from "@/lib/candidate/resume-to-candidate-form"
+import {
+  buildEmployerCreatePrefillFromWorkExperience,
+  buildProjectCreatePrefillFromProjectExperience,
+} from "@/lib/utils/call-notes-extract-create-prefill"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -166,6 +170,39 @@ export interface ProjectExperience {
   projectId: number | null
   projectName: string
   contributionNotes: string
+  /** Linked project catalog fields (persisted via PATCH /api/projects/{id}). */
+  projectType?: string
+  status?: string
+  description?: string
+  latestUpdate?: string
+  startDate?: Date | undefined
+  endDate?: Date | undefined
+  link?: string
+  averageTeamSize?: string
+  verticalDomains?: string[]
+  horizontalDomains?: string[]
+  technicalDomains?: string[]
+  technicalAspects?: string[]
+  clientLocations?: string[]
+  publishPlatforms?: string[]
+  downloadCount?: string
+  /** Set when project catalog fields change and need explicit catalog save. */
+  projectCatalogDirty?: boolean
+}
+
+export interface WorkExperienceOfficeLocation {
+  id: string
+  country: string
+  city: string
+  address: string
+  isHeadquarters: boolean
+}
+
+export interface WorkExperienceLayoffRow {
+  id: string
+  layoffDate: Date | undefined
+  affectedEmployees: string
+  reason: string
 }
 
 export interface WorkExperienceBenefit {
@@ -192,6 +229,17 @@ export interface WorkExperience {
   salaryPolicy: string
   timeSupportZones: string[]
   benefits: WorkExperienceBenefit[]
+  /** Employer catalog scalars (persisted via PATCH /api/employers/{id}). */
+  headcount?: string
+  foundedYear?: string
+  types?: string[]
+  status?: string
+  /** Employer catalog LinkedIn URL. */
+  linkedinUrl?: string
+  locations?: WorkExperienceOfficeLocation[]
+  layoffs?: WorkExperienceLayoffRow[]
+  /** Set when employer catalog fields change and need explicit catalog save. */
+  employerCatalogDirty?: boolean
 }
 
 export interface CandidateCertification {
@@ -527,6 +575,14 @@ function WorkExperienceEmployerCombobox({
           }
         : null
 
+  const createEmployerPrefill = React.useMemo(
+    () =>
+      experience.employerId == null
+        ? buildEmployerCreatePrefillFromWorkExperience(experience)
+        : undefined,
+    [experience],
+  )
+
   return (
     <EmployerCombobox
       id={`work-experience-employer-${index}`}
@@ -540,6 +596,7 @@ function WorkExperienceEmployerCombobox({
       parsedNameHint={
         experience.employerId == null ? experience.employerName?.trim() || undefined : undefined
       }
+      createEmployerPrefill={createEmployerPrefill}
     />
   )
 }
@@ -645,6 +702,14 @@ function WorkExperienceProjectCombobox({
   const createProjectEmployerNameHint =
     experience.employerId == null ? experience.employerName?.trim() || undefined : undefined
 
+  const createProjectPrefill = React.useMemo(
+    () =>
+      project.projectId == null
+        ? buildProjectCreatePrefillFromProjectExperience(project)
+        : undefined,
+    [project],
+  )
+
   return (
     <ProjectCombobox
       id={`work-exp-project-${experienceIndex}-${projectIndex}`}
@@ -656,6 +721,7 @@ function WorkExperienceProjectCombobox({
       parsedNameHint={project.projectId == null ? project.projectName?.trim() || undefined : undefined}
       createProjectInitialEmployer={createProjectInitialEmployer}
       createProjectEmployerNameHint={createProjectEmployerNameHint}
+      createProjectPrefill={createProjectPrefill}
       projectLookups={projectLookups}
       onCreateTechStack={onCreateTechStack}
       onCreateTechnicalAspect={onCreateTechnicalAspect}
@@ -858,6 +924,34 @@ const createEmptyProject = (): ProjectExperience => ({
   projectId: null,
   projectName: "",
   contributionNotes: "",
+  projectType: "",
+  status: "",
+  description: "",
+  latestUpdate: "",
+  link: "",
+  averageTeamSize: "",
+  verticalDomains: [],
+  horizontalDomains: [],
+  technicalDomains: [],
+  technicalAspects: [],
+  clientLocations: [],
+  publishPlatforms: [],
+  downloadCount: "",
+})
+
+const createEmptyOffice = (): WorkExperienceOfficeLocation => ({
+  id: crypto.randomUUID(),
+  country: "",
+  city: "",
+  address: "",
+  isHeadquarters: false,
+})
+
+const createEmptyLayoff = (): WorkExperienceLayoffRow => ({
+  id: crypto.randomUUID(),
+  layoffDate: undefined,
+  affectedEmployees: "",
+  reason: "",
 })
 
 const createEmptyWorkExperience = (): WorkExperience => ({
@@ -976,6 +1070,27 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
         projectId: proj.projectId ?? null,
         projectName: proj.projectName || "",
         contributionNotes: proj.contributionNotes ?? "",
+        projectType: proj.projectType ?? "",
+        status: proj.status ?? "",
+        description: proj.description ?? "",
+        latestUpdate: proj.latestUpdate ?? "",
+        startDate: proj.startDate,
+        endDate: proj.endDate,
+        link: proj.link ?? "",
+        averageTeamSize:
+          proj.averageTeamSize != null
+            ? String(proj.averageTeamSize)
+            : proj.teamSize != null
+              ? String(proj.teamSize)
+              : "",
+        verticalDomains: proj.verticalDomains ?? [],
+        horizontalDomains: proj.horizontalDomains ?? [],
+        technicalDomains: proj.technicalDomains ?? [],
+        technicalAspects: proj.technicalAspects ?? [],
+        clientLocations: proj.clientLocations ?? [],
+        publishPlatforms: proj.publishPlatforms ?? [],
+        downloadCount:
+          proj.downloadCount != null ? String(proj.downloadCount) : "",
       })),
       startDate: we.startDate,
       endDate: we.endDate,
@@ -984,6 +1099,27 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       workMode: workModeToSelectValue(we.workMode || "") || "",
       salaryPolicy: salaryPolicyToSelectValue(we.salaryPolicy),
       timeSupportZones: we.timeSupportZones || [],
+      headcount: we.headcount != null ? String(we.headcount) : "",
+      foundedYear: we.foundedYear != null ? String(we.foundedYear) : "",
+      types: we.types ?? [],
+      status: we.status ?? "",
+      linkedinUrl: we.linkedinUrl ?? "",
+      locations:
+        we.locations?.map((loc, i) => ({
+          id: `office-${we.id}-${i}`,
+          country: loc.country ?? "",
+          city: loc.city ?? "",
+          address: loc.address ?? "",
+          isHeadquarters: loc.isHeadquarters ?? false,
+        })) ?? [],
+      layoffs:
+        we.layoffs?.map((row, i) => ({
+          id: `layoff-${we.id}-${i}`,
+          layoffDate: row.layoffDate ?? undefined,
+          affectedEmployees:
+            row.affectedEmployees != null ? String(row.affectedEmployees) : "",
+          reason: row.reason ?? "",
+        })) ?? [],
       benefits: we.benefits?.map(b => ({
         id: b.id,
         name: b.name,
@@ -1139,7 +1275,7 @@ export function CandidateCreationDialog({
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
-  
+
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
       timeSupportZonesLookup:
@@ -1364,8 +1500,8 @@ export function CandidateCreationDialog({
   }, [showVerification, verifiedFields, formData])
 
   const unresolvedCatalogRefs = useMemo(
-    () => (mode === "create" ? collectUnresolvedCatalogRefs(formData) : []),
-    [mode, formData]
+    () => collectUnresolvedCatalogRefs(formData),
+    [formData],
   )
 
   const scrollToCatalogAnchor = useCallback((anchorId: string) => {
@@ -2424,7 +2560,9 @@ export function CandidateCreationDialog({
         
         // Only validate if at least one project field is filled
         const hasProjectData =
-          project.projectId != null || !!(project.contributionNotes && String(project.contributionNotes).trim())
+          project.projectId != null ||
+          !!(project.projectName && String(project.projectName).trim()) ||
+          !!(project.contributionNotes && String(project.contributionNotes).trim())
 
         if (hasProjectData) {
           if (project.projectId == null) projErrors.projectId = "Project is required"
@@ -2450,6 +2588,7 @@ export function CandidateCreationDialog({
       // Only validate if at least one field is filled (user started entering data)
       const hasAnyData =
         cert.certificationId != null ||
+        !!(cert.certificationName && String(cert.certificationName).trim()) ||
         cert.issueDate ||
         cert.expiryDate ||
         cert.certificationUrl
@@ -2841,7 +2980,7 @@ export function CandidateCreationDialog({
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
           <form id="candidate-form" onSubmit={handleSubmit} className="space-y-6">
-          {mode === "create" && unresolvedCatalogRefs.length > 0 ? (
+          {unresolvedCatalogRefs.length > 0 ? (
             <Card className="border-amber-200/90 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/25">
               <CardHeader className="py-3 pb-2">
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -2851,9 +2990,10 @@ export function CandidateCreationDialog({
               </CardHeader>
               <CardContent className="space-y-3 pt-0 text-sm">
                 <p className="text-muted-foreground">
-                  Parsed resume filled names below, but these rows still need a matching database record.
-                  Open each field to search — the parsed name is filled in when you open it. Use{" "}
-                  <span className="font-medium text-foreground">Add New</span> when there is no match.
+                  Imported fields filled names below, but these rows still need a matching database
+                  record. Open each field to search — the parsed name is filled in when you open it.
+                  Use <span className="font-medium text-foreground">Add New</span> when there is no
+                  match.
                 </p>
                 <ul className="space-y-1.5">
                   {unresolvedCatalogRefs.map((r) => (

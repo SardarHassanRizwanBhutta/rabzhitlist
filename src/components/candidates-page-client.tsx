@@ -1311,7 +1311,6 @@ export function CandidatesPageClient() {
               onApplyToCreateCandidate={handleDraftApplyToCreate}
               applyFormBase={draftColdCallerSession.formSnapshot}
               onApplyExtractComplete={handleDraftExtractApplyComplete}
-              extractLookupContext={extractLookupContext}
             />
           ) : null}
         </div>

@@ -16,32 +16,41 @@ import type {
   AllowedEmptyField,
   CallNotesExtraction,
 } from "@/types/call-notes-extraction"
-import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatQgDisplayValue } from "@/lib/utils/qg-value"
 import {
   hasUnresolvedCheckedLookupRows,
   type CallNotesCatalogResolution,
   type CallNotesExtractLookupContext,
 } from "@/lib/utils/call-notes-extract-lookup"
+import { hasUnresolvedCheckedCatalogIdRows } from "@/lib/utils/call-notes-extract-catalog"
+import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { CallNotesExtractLookupResolver } from "./call-notes-extract-lookup-resolver"
 
 export interface CallNotesExtractReviewRow extends CallNotesExtraction {
   fieldLabel: string
   context?: string
   requiresLookupResolution?: boolean
+  requiresLinkedCatalogId?: "employer" | "project"
 }
 
 export interface CallNotesExtractApplyPayload {
   selected: CallNotesExtractReviewRow[]
-  lookupResolutions: Map<string, CallNotesCatalogResolution>
+  lookupResolutions?: Map<string, CallNotesCatalogResolution>
 }
 
 interface CallNotesExtractReviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   rows: CallNotesExtractReviewRow[]
-  formBase: CandidateFormData
+  allowedEmptyFields: AllowedEmptyField[]
+  /** Required when catalog linking happens in the review dialog (saved-candidate edit flow). */
+  formBase?: CandidateFormData
   lookupContext?: CallNotesExtractLookupContext
+  /**
+   * Draft Auto-Profiler flow: apply names + catalog values without linking here;
+   * user links in Create Candidate (same as resume import).
+   */
+  deferCatalogLinking?: boolean
   isApplying?: boolean
   isReAnalyzing?: boolean
   extractError?: string | null
@@ -63,6 +72,7 @@ function buildReviewRows(
       fieldLabel: meta?.fieldLabel ?? extraction.fieldPath,
       context: meta?.context,
       requiresLookupResolution: meta?.requiresLookupResolution === true,
+      requiresLinkedCatalogId: meta?.requiresLinkedCatalogId,
     }
   })
 }
@@ -73,8 +83,10 @@ export function CallNotesExtractReviewDialog({
   open,
   onOpenChange,
   rows,
+  allowedEmptyFields,
   formBase,
   lookupContext,
+  deferCatalogLinking = false,
   isApplying = false,
   isReAnalyzing = false,
   extractError = null,
@@ -119,11 +131,20 @@ export function CallNotesExtractReviewDialog({
   const selectedRows = rows.filter((r) => selectedPaths.has(r.fieldPath))
   const hasRows = rows.length > 0
   const busy = isApplying || isReAnalyzing
-  const hasUnresolvedLookups = hasUnresolvedCheckedLookupRows(
-    selectedPaths,
-    rows,
-    lookupResolutions,
-  )
+
+  const hasUnresolvedLookups =
+    !deferCatalogLinking &&
+    hasUnresolvedCheckedLookupRows(selectedPaths, rows, lookupResolutions)
+  const hasUnresolvedCatalogIds =
+    !deferCatalogLinking &&
+    formBase != null &&
+    hasUnresolvedCheckedCatalogIdRows(
+      selectedPaths,
+      rows,
+      formBase,
+      lookupResolutions,
+    )
+  const applyBlocked = hasUnresolvedLookups || hasUnresolvedCatalogIds
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -132,7 +153,7 @@ export function CallNotesExtractReviewDialog({
           <DialogTitle>Review extracted fields</DialogTitle>
           <DialogDescription>
             {hasRows
-              ? `${rows.length} proposal${rows.length === 1 ? "" : "s"} from call notes. Uncheck any row you do not want to apply.`
+              ? `${rows.length} proposal${rows.length === 1 ? "" : "s"} from call notes. Uncheck any row you do not want to apply. Link employers and projects in the candidate form after applying.`
               : "No high-confidence values were found for the candidate's currently empty fields."}
           </DialogDescription>
         </DialogHeader>
@@ -150,7 +171,8 @@ export function CallNotesExtractReviewDialog({
                 const checked = selectedPaths.has(row.fieldPath)
                 const confidencePct = Math.round(row.confidence * 100)
                 const resolution = lookupResolutions.get(row.fieldPath)
-                const needsLookup = row.requiresLookupResolution === true
+                const needsLookup =
+                  !deferCatalogLinking && row.requiresLookupResolution === true
                 const lookupPending = needsLookup && checked && !resolution
 
                 return (
@@ -192,7 +214,7 @@ export function CallNotesExtractReviewDialog({
                         <p className="text-xs text-muted-foreground">
                           Confidence: {confidencePct}%
                         </p>
-                        {needsLookup && checked ? (
+                        {needsLookup && checked && formBase ? (
                           <CallNotesExtractLookupResolver
                             fieldPath={row.fieldPath}
                             extractedValue={row.value}
@@ -203,6 +225,9 @@ export function CallNotesExtractReviewDialog({
                             lookupContext={lookupContext}
                             formBase={formBase}
                             disabled={busy}
+                            extractRows={rows}
+                            selectedPaths={selectedPaths}
+                            allowedEmptyFields={allowedEmptyFields}
                           />
                         ) : null}
                       </div>
@@ -215,13 +240,14 @@ export function CallNotesExtractReviewDialog({
         </div>
 
         <DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
-          {hasUnresolvedLookups ? (
+          {applyBlocked ? (
             <p
               className="text-xs text-amber-700 dark:text-amber-400 sm:mr-auto sm:max-w-[55%]"
               role="status"
             >
-              Resolve all selected employer, project, and certification lookups
-              before applying, or uncheck those rows.
+              {hasUnresolvedLookups
+                ? "Resolve all selected employer, project, and certification lookups before applying, or uncheck those rows."
+                : "Link employer and project catalog records (resolve name lookups or select existing IDs) before applying catalog fields, or uncheck those rows."}
             </p>
           ) : null}
           <div className="flex flex-wrap justify-end gap-2">
@@ -250,12 +276,12 @@ export function CallNotesExtractReviewDialog({
               onClick={() =>
                 onApplySelected({
                   selected: selectedRows,
-                  lookupResolutions,
+                  lookupResolutions: deferCatalogLinking
+                    ? undefined
+                    : lookupResolutions,
                 })
               }
-              disabled={
-                busy || selectedRows.length === 0 || hasUnresolvedLookups
-              }
+              disabled={busy || selectedRows.length === 0 || applyBlocked}
               className="gap-1.5"
             >
               {isApplying ? (
@@ -270,4 +296,3 @@ export function CallNotesExtractReviewDialog({
     </Dialog>
   )
 }
-

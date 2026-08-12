@@ -68,6 +68,10 @@ export interface ProjectComboboxProps {
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
   onCreateClientLocation?: (name: string) => Promise<void>
+  /** Prefill catalog fields when opening "+ Add New Project" (e.g. Call Notes extract review). */
+  createProjectPrefill?: Partial<ProjectFormData>
+  /** Extra employer name hint for project create (from extract project employer row). */
+  createProjectEmployerNameHintFromExtract?: string
 }
 
 export function ProjectCombobox({
@@ -85,6 +89,8 @@ export function ProjectCombobox({
   onCreateTechStack,
   onCreateTechnicalAspect,
   onCreateClientLocation,
+  createProjectPrefill,
+  createProjectEmployerNameHintFromExtract,
 }: ProjectComboboxProps) {
   const [open, setOpen] = useState(false)
   const [addProjectOpen, setAddProjectOpen] = useState(false)
@@ -145,7 +151,11 @@ export function ProjectCombobox({
   const openCreateProjectDialog = () => {
     setAddProjectInitialName(query.trim())
     setAddProjectInitialEmployer(createProjectInitialEmployer ?? null)
-    setAddProjectEmployerNameHint(createProjectEmployerNameHint?.trim() ?? "")
+    setAddProjectEmployerNameHint(
+      createProjectEmployerNameHintFromExtract?.trim() ||
+        createProjectEmployerNameHint?.trim() ||
+        "",
+    )
     handleOpenChange(false)
     setAddProjectOpen(true)
   }
@@ -266,6 +276,7 @@ export function ProjectCombobox({
         initialName={addProjectInitialName}
         initialSelectedEmployer={addProjectInitialEmployer}
         initialEmployerNameHint={addProjectEmployerNameHint || undefined}
+        initialCreatePrefill={createProjectPrefill}
         lookups={projectLookups}
         onCreateTechStack={onCreateTechStack}
         onCreateTechnicalAspect={onCreateTechnicalAspect}

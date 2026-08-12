@@ -67,6 +67,7 @@ import {
   technicalDomainCatalogToSelectOptions,
 } from "@/lib/services/projects-api"
 import { mergeStacksFromAspectSelections } from "@/lib/utils/technical-aspect-type-selection"
+import { mergeProjectFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { searchEmployers, fetchEmployerById, createEmployer, buildCreateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
@@ -138,6 +139,8 @@ interface ProjectCreationDialogProps {
   initialSelectedEmployer?: SelectedEmployer
   /** Parsed employer name when parent row has no employerId yet; seeds employer search only. */
   initialEmployerNameHint?: string
+  /** Call Notes extract / resume import — prefill other create fields. */
+  initialCreatePrefill?: Partial<ProjectFormData>
   /** When provided, Technologies, Domains, and Client Location dropdowns use these; "+ Add" calls the create handlers. */
   lookups?: ProjectLookups
   /** Optional `context.aspectTypeId` when adding from a scoped list (backend may use later). */
@@ -277,6 +280,7 @@ export function ProjectCreationDialog({
   initialName,
   initialSelectedEmployer = null,
   initialEmployerNameHint,
+  initialCreatePrefill,
   lookups,
   onCreateTechStack,
   onCreateTechnicalAspect,
@@ -475,11 +479,12 @@ export function ProjectCreationDialog({
         setFormData(formDataFromProject)
         initialFormDataRef.current = formDataFromProject
       } else {
-        const formDataToUse: ProjectFormData = {
-          ...initialFormData,
-          projectName: initialName?.trim() ?? "",
-          selectedEmployer: initialSelectedEmployer ?? null,
-        }
+        const formDataToUse = mergeProjectFormCreatePrefill(
+          initialFormData,
+          initialCreatePrefill,
+          initialName,
+          initialSelectedEmployer ?? null,
+        )
         setFormData(formDataToUse)
         initialFormDataRef.current = formDataToUse
         const employerHint = initialEmployerNameHint?.trim()
@@ -514,6 +519,7 @@ export function ProjectCreationDialog({
     initialName,
     initialSelectedEmployer,
     initialEmployerNameHint,
+    initialCreatePrefill,
   ])
 
   // Seed employer search when opening combobox with a parsed name hint (no selection yet).
