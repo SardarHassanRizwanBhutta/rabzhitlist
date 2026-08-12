@@ -32,6 +32,8 @@ export const allowedEmptyFieldSchema = z.object({
   context: z.string().optional(),
   options: z.array(fieldOptionSchema).optional(),
   requiresLookupResolution: z.boolean().optional(),
+  /** v2 — block apply until employerId / projectId is linked on the form. */
+  requiresLinkedCatalogId: z.enum(["employer", "project"]).optional(),
 })
 
 export type AllowedEmptyField = z.infer<typeof allowedEmptyFieldSchema>

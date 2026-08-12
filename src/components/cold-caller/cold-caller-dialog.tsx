@@ -81,7 +81,6 @@ import {
   type CallNotesExtractReviewRow,
   type CallNotesExtractApplyPayload,
 } from "./call-notes-extract-review-dialog"
-import type { CallNotesExtractLookupContext } from "@/lib/utils/call-notes-extract-lookup"
 import {
   candidateToFormData,
   type CandidateFormData,
@@ -113,8 +112,6 @@ interface ColdCallerDialogProps {
   applyFormBase?: CandidateFormData
   /** Called after Apply Selected merges extractions (parent opens Edit or updates draft session). */
   onApplyExtractComplete?: (result: ApplyCallNotesExtractionsResult) => void
-  /** Lookups + create handlers for catalog resolution in the extract review modal (Step 4). */
-  extractLookupContext?: CallNotesExtractLookupContext
 }
 
 const MODE_ICONS: Record<InteractionMode, React.ElementType> = {
@@ -134,7 +131,6 @@ export function ColdCallerDialog({
   onApplyToCreateCandidate,
   applyFormBase,
   onApplyExtractComplete,
-  extractLookupContext,
 }: ColdCallerDialogProps) {
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([])
   const [questionSections, setQuestionSections] = useState<ColdCallerSectionQuestions[] | null>(
@@ -381,7 +377,7 @@ export function ColdCallerDialog({
 
   const handleApplyExtractSelected = useCallback(
     (payload: CallNotesExtractApplyPayload) => {
-      const { selected, lookupResolutions } = payload
+      const { selected } = payload
       if (selected.length === 0) return
 
       const baseForm = applyFormBase ?? candidateToFormData(candidate)
@@ -399,7 +395,8 @@ export function ColdCallerDialog({
           baseForm,
           extractions,
           callNotesAllowedEmptyFields,
-          lookupResolutions,
+          undefined,
+          { deferCatalogLinking: true },
         )
         setExtractReviewOpen(false)
 
@@ -407,7 +404,11 @@ export function ColdCallerDialog({
         if (result.applied.length === 0) {
           toast.warning(message)
         } else {
-          toast.success(message)
+          toast.success(
+            draftMode
+              ? `${message} Link employers and projects when you open Create Candidate.`
+              : `${message} Link employers and projects in the edit form before saving.`,
+          )
         }
 
         onApplyExtractComplete?.(result)
@@ -415,7 +416,7 @@ export function ColdCallerDialog({
         setIsApplyingExtract(false)
       }
     },
-    [applyFormBase, candidate, callNotesAllowedEmptyFields, onApplyExtractComplete],
+    [applyFormBase, candidate, callNotesAllowedEmptyFields, onApplyExtractComplete, draftMode],
   )
 
   const baseEmptyFields = useMemo(
@@ -998,8 +999,8 @@ export function ColdCallerDialog({
         open={extractReviewOpen}
         onOpenChange={setExtractReviewOpen}
         rows={extractReviewRows}
-        formBase={applyFormBase ?? candidateToFormData(candidate)}
-        lookupContext={extractLookupContext}
+        allowedEmptyFields={callNotesAllowedEmptyFields}
+        deferCatalogLinking
         isApplying={isApplyingExtract}
         isReAnalyzing={isAnalyzingCallNotes}
         extractError={extractReviewError}

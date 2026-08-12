@@ -9,6 +9,10 @@ import type { AllowedEmptyField } from "@/types/call-notes-extraction"
 import { getEmptyFields } from "@/lib/utils/empty-field-detection"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
 import { buildMissingOnlyQuestionRequest } from "@/lib/utils/missing-only-question-request"
+import {
+  enrichAllowedEmptyFieldWithCatalogGating,
+  isWeTechStacksApiField,
+} from "@/lib/utils/call-notes-extract-catalog"
 import { isCallNotesExtractApiFieldAllowed } from "@/lib/utils/question-field-allowlist"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
 
@@ -100,6 +104,9 @@ function isExtractEligibleEmptyField(
   if (field.section === "techStacks" || field.apiFieldName === "techStacks") {
     return false
   }
+  if (isWeTechStacksApiField(field.apiFieldName)) {
+    return false
+  }
   return true
 }
 
@@ -122,7 +129,9 @@ export function buildCallNotesAllowedEmptyFields(
     if (!isExtractEligibleEmptyField(field, allowedApiNames, { hasResume })) {
       continue
     }
-    const allowed = emptyFieldToAllowedEmptyField(field, candidate)
+    const allowed = enrichAllowedEmptyFieldWithCatalogGating(
+      emptyFieldToAllowedEmptyField(field, candidate),
+    )
     if (seenPaths.has(allowed.fieldPath)) continue
     seenPaths.add(allowed.fieldPath)
     result.push(allowed)

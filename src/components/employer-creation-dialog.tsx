@@ -55,6 +55,7 @@ import {
 import { format } from "date-fns"
 import type { Country } from "@/lib/types/country"
 import { cn } from "@/lib/utils"
+import { mergeEmployerFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
 
 // Form data interfaces
 export interface EmployerLocationFormData {
@@ -126,6 +127,8 @@ interface EmployerCreationDialogProps {
   onOpenChange?: (open: boolean) => void
   open?: boolean
   initialName?: string  // For pre-filling employer name in create mode
+  /** Call Notes extract / resume import — prefill other create fields. */
+  initialCreatePrefill?: Partial<EmployerFormData>
   /** Normalized countries for location country combobox (from API). */
   countries?: Country[]
   countriesLoading?: boolean
@@ -294,6 +297,7 @@ export function EmployerCreationDialog({
   onOpenChange,
   open: controlledOpen,
   initialName,
+  initialCreatePrefill,
   countries = [],
   countriesLoading = false,
   lookups,
@@ -358,9 +362,11 @@ export function EmployerCreationDialog({
         setFormData(formDataFromEmployer)
         initialFormDataRef.current = formDataFromEmployer
       } else {
-        const initialData = initialName 
-          ? { ...initialFormData, name: initialName }
-          : initialFormData
+        const initialData = mergeEmployerFormCreatePrefill(
+          initialFormData,
+          initialCreatePrefill,
+          initialName,
+        )
         setFormData(initialData)
         initialFormDataRef.current = initialData
       }
@@ -381,7 +387,7 @@ export function EmployerCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, employerData, showVerification, initialName])
+  }, [open, mode, employerData, showVerification, initialName, initialCreatePrefill])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {

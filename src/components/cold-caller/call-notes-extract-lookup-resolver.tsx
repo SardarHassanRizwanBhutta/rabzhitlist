@@ -6,6 +6,7 @@ import { EmployerCombobox } from "@/components/employer-combobox"
 import { ProjectCombobox } from "@/components/project-combobox"
 import { CertificationCombobox } from "@/components/certification-combobox"
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
+import type { AllowedEmptyField } from "@/types/call-notes-extraction"
 import {
   extractedNameFromValue,
   getProjectCreateEmployerHints,
@@ -14,6 +15,11 @@ import {
   type CallNotesCatalogResolution,
   type CallNotesExtractLookupContext,
 } from "@/lib/utils/call-notes-extract-lookup"
+import {
+  buildEmployerCreatePrefillFromExtractRows,
+  buildProjectCreatePrefillFromExtractRows,
+} from "@/lib/utils/call-notes-extract-create-prefill"
+import type { CallNotesExtractReviewRow } from "./call-notes-extract-review-dialog"
 
 interface CallNotesExtractLookupResolverProps {
   fieldPath: string
@@ -23,6 +29,10 @@ interface CallNotesExtractLookupResolverProps {
   lookupContext?: CallNotesExtractLookupContext
   formBase: CandidateFormData
   disabled?: boolean
+  /** All review rows — used to prefill create dialogs from related catalog extractions. */
+  extractRows: CallNotesExtractReviewRow[]
+  selectedPaths: ReadonlySet<string>
+  allowedEmptyFields: AllowedEmptyField[]
 }
 
 export function CallNotesExtractLookupResolver({
@@ -33,10 +43,41 @@ export function CallNotesExtractLookupResolver({
   lookupContext,
   formBase,
   disabled = false,
+  extractRows,
+  selectedPaths,
+  allowedEmptyFields,
 }: CallNotesExtractLookupResolverProps) {
   const kind = inferExtractLookupKind(fieldPath)
   const parsed = parseExtractFieldPath(fieldPath)
   const parsedNameHint = extractedNameFromValue(extractedValue)
+
+  const metaByPath = React.useMemo(
+    () => new Map(allowedEmptyFields.map((f) => [f.fieldPath, f])),
+    [allowedEmptyFields],
+  )
+
+  const employerCreatePrefill = React.useMemo(() => {
+    if (kind !== "employer" || !parsed?.workExperienceId) return undefined
+    return buildEmployerCreatePrefillFromExtractRows(
+      extractRows,
+      selectedPaths,
+      parsed.workExperienceId,
+      metaByPath,
+    )
+  }, [kind, parsed?.workExperienceId, extractRows, selectedPaths, metaByPath])
+
+  const projectCreatePrefill = React.useMemo(() => {
+    if (kind !== "project" || !parsed?.workExperienceId || !parsed.projectId) {
+      return undefined
+    }
+    return buildProjectCreatePrefillFromExtractRows(
+      extractRows,
+      selectedPaths,
+      parsed.workExperienceId,
+      parsed.projectId,
+      metaByPath,
+    )
+  }, [kind, parsed?.workExperienceId, parsed?.projectId, extractRows, selectedPaths, metaByPath])
 
   if (!kind) return null
 
@@ -47,6 +88,7 @@ export function CallNotesExtractLookupResolver({
       <div className="space-y-2 pt-2 border-t">
         <p className="text-xs text-muted-foreground">
           Search and select the employer catalog record to link (required before apply).
+          Creating a new employer will prefill catalog fields from selected extract rows.
         </p>
         <EmployerCombobox
           label="Catalog employer"
@@ -70,6 +112,7 @@ export function CallNotesExtractLookupResolver({
           disabled={disabled}
           createEmployerLookups={lookupContext?.createEmployerLookups}
           nestedEmployerCreation={lookupContext?.nestedEmployerCreation}
+          createEmployerPrefill={employerCreatePrefill}
         />
         {resolution?.kind === "employer" ? (
           <ResolvedBadge name={resolution.catalogName} />
@@ -83,6 +126,7 @@ export function CallNotesExtractLookupResolver({
       <div className="space-y-2 pt-2 border-t">
         <p className="text-xs text-muted-foreground">
           Search and select the project catalog record to link (required before apply).
+          Creating a new project will prefill catalog fields from selected extract rows.
         </p>
         <ProjectCombobox
           label="Catalog project"
@@ -110,6 +154,8 @@ export function CallNotesExtractLookupResolver({
           onCreateClientLocation={lookupContext?.onCreateClientLocation}
           createProjectInitialEmployer={projectHints.createProjectInitialEmployer}
           createProjectEmployerNameHint={projectHints.createProjectEmployerNameHint}
+          createProjectPrefill={projectCreatePrefill?.formPrefill}
+          createProjectEmployerNameHintFromExtract={projectCreatePrefill?.employerNameHint}
         />
         {resolution?.kind === "project" ? (
           <ResolvedBadge name={resolution.catalogName} />

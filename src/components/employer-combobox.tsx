@@ -53,6 +53,8 @@ export interface EmployerComboboxProps {
   parsedNameHint?: string
   /** When set, nested employer creation dialog receives lookups and create handlers (e.g. from Create Candidate). */
   nestedEmployerCreation?: EmployerComboboxNestedCreationProps
+  /** Prefill catalog fields when opening "+ Add New Employer" (e.g. Call Notes extract review). */
+  createEmployerPrefill?: Partial<EmployerFormData>
 }
 
 const defaultCreateLookups: BuildCreateEmployerDtoOptions = {
@@ -71,6 +73,7 @@ export function EmployerCombobox({
   createEmployerLookups = defaultCreateLookups,
   parsedNameHint,
   nestedEmployerCreation,
+  createEmployerPrefill,
 }: EmployerComboboxProps) {
   const [open, setOpen] = useState(false)
   const [addEmployerOpen, setAddEmployerOpen] = useState(false)
@@ -212,6 +215,7 @@ export function EmployerCombobox({
           if (!next) setAddEmployerInitialName("")
         }}
         initialName={addEmployerInitialName}
+        initialCreatePrefill={createEmployerPrefill}
         countries={nestedEmployerCreation?.countries}
         countriesLoading={nestedEmployerCreation?.countriesLoading}
         lookups={nestedEmployerCreation?.lookups}

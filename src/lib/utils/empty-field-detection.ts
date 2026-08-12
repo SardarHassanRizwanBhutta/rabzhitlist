@@ -16,6 +16,10 @@ import {
   buildLinkedProjectEmptyFields,
   collectMissingLinkedProjectFields,
 } from '@/lib/utils/project-catalog-fields'
+import {
+  buildWorkExperienceEmployerCatalogPlaceholderFields,
+  collectMissingWorkExperienceEmployerCatalogFields,
+} from '@/lib/utils/employer-catalog-empty-fields'
 import { RANKING_DISPLAY_TO_DB, type RankingDb } from '@/lib/types/employer'
 
 // Shift type options — canonical labels aligned with Candidate form / backend enum.
@@ -312,6 +316,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       apiPrefix: 'work_experience_0_project_0',
       parentIndex: 0,
     }))
+    emptyFields.push(...buildWorkExperienceEmployerCatalogPlaceholderFields(0))
   } else {
     // Existing work experiences - check for empty fields within them
     candidate.workExperiences.forEach((we, index) => {
@@ -349,6 +354,10 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
           })
         }
       })
+
+      emptyFields.push(
+        ...collectMissingWorkExperienceEmployerCatalogFields(we, index, context),
+      )
 
       if (!we.projects || we.projects.length === 0) {
         emptyFields.push(...buildLinkedProjectEmptyFields({

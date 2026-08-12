@@ -4719,24 +4719,6 @@ export function CandidateDetailsModal({
     })
   }
 
-  const extractLookupContext = useMemo(
-    () => ({
-      nestedEmployerCreation,
-      createEmployerLookups: employerCreateLookups,
-      projectLookups,
-      certificationIssuers,
-      certificationIssuersLoading,
-      onCertificationIssuerCreated: handleCertificationIssuerCreated,
-    }),
-    [
-      nestedEmployerCreation,
-      employerCreateLookups,
-      projectLookups,
-      certificationIssuers,
-      certificationIssuersLoading,
-    ],
-  )
-
   const persistEducationUniversity = async (
     eduIndex: number,
     selection: SelectedUniversity,
@@ -7159,7 +7141,6 @@ export function CandidateDetailsModal({
           mode={interactionMode}
           applyFormBase={candidateToFormData(viewCandidate)}
           onApplyExtractComplete={handleCallNotesExtractApplyComplete}
-          extractLookupContext={extractLookupContext}
         />
       )}
 
