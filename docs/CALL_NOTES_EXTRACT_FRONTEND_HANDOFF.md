@@ -86,15 +86,15 @@ Layout (draft):
 
 ### 4.2 Review modal (`CallNotesExtractReviewDialog`)
 
-Open as **second step** after successful extract (not inline in sidebar).
+Open as **second step** after successful extract (not inline in sidebar). **Split-pane layout:** read-only **Call notes** snapshot beside scrollable **Proposals** checklist. **Dialog shell** matches `CandidateCreationDialog`: `sm:max-w-[750px] lg:max-w-[850px] xl:max-w-[950px]`, `max-h-[95vh]` (see `candidate-form-dialog-layout.ts`). Side-by-side from `sm`; stacks on very narrow viewports.
 
 **Defer-catalog linking (shipped):** The review modal is **select-only**. It does **not** host employer/project/certification comboboxes or block Apply on unresolved lookups. After **Apply Selected**, catalog linking happens in **CandidateCreationDialog** (Create or Edit opened from Cold Caller) via comboboxes, the **Link catalog records** checklist, and `validateForm()` before save.
 
 | Element | Behavior |
 |---------|----------|
 | Title | “Review extracted fields” |
-| Summary | “N proposals from call notes. Uncheck any row you do not want to apply. Link employers and projects in the candidate form after applying.” / zero-state copy |
-| List | Label, context, proposed value (formatted), source snippet, confidence % |
+| Call notes pane | Full `rawNotes` snapshot sent to extract; read-only; independent scroll |
+| Proposals pane | Label, context, proposed value, source snippet, confidence %; row checkboxes |
 | Row checkbox | Default **checked** for all returned rows |
 | Primary | **Apply Selected** → `applyCallNotesExtractionsToFormData(..., { deferCatalogLinking: true })`; closes modal |
 | Secondary | **Cancel** → discard unsaved review session |

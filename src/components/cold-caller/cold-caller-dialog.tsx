@@ -165,6 +165,7 @@ export function ColdCallerDialog({
   const [notesFocusSignal, setNotesFocusSignal] = useState(0)
   const prevExtractReviewOpenRef = useRef(false)
   const [extractReviewRows, setExtractReviewRows] = useState<CallNotesExtractReviewRow[]>([])
+  const [extractNotesSnapshot, setExtractNotesSnapshot] = useState("")
   const [extractReviewError, setExtractReviewError] = useState<string | null>(null)
   const [isApplyingExtract, setIsApplyingExtract] = useState(false)
   const extractAbortRef = useRef<AbortController | null>(null)
@@ -347,21 +348,24 @@ export function ColdCallerDialog({
 
     setIsAnalyzingCallNotes(true)
     setExtractReviewError(null)
+    const notesSnapshot = rawNotesDraft
     try {
       const allowedEmptyFields = callNotesAllowedEmptyFields
       const response = await extractCallNotes(
         {
-          rawNotes: rawNotesDraft,
+          rawNotes: notesSnapshot,
           candidateSnapshot: buildCallNotesExtractCandidateSnapshot(candidateWithCatalog),
           allowedEmptyFields,
         },
         controller.signal,
       )
+      setExtractNotesSnapshot(notesSnapshot)
       setExtractReviewRows(buildReviewRows(response.extractions, allowedEmptyFields))
       setExtractReviewOpen(true)
     } catch (e) {
       if (e instanceof Error && e.name === "AbortError") return
       const message = e instanceof Error ? e.message : "Call notes extract failed."
+      setExtractNotesSnapshot(notesSnapshot)
       setExtractReviewRows([])
       setExtractReviewError(message)
       setExtractReviewOpen(true)
@@ -999,6 +1003,7 @@ export function ColdCallerDialog({
         open={extractReviewOpen}
         onOpenChange={setExtractReviewOpen}
         rows={extractReviewRows}
+        notesSnapshot={extractNotesSnapshot}
         isApplying={isApplyingExtract}
         isReAnalyzing={isAnalyzingCallNotes}
         extractError={extractReviewError}
