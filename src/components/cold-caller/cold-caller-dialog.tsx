@@ -999,8 +999,6 @@ export function ColdCallerDialog({
         open={extractReviewOpen}
         onOpenChange={setExtractReviewOpen}
         rows={extractReviewRows}
-        allowedEmptyFields={callNotesAllowedEmptyFields}
-        deferCatalogLinking
         isApplying={isApplyingExtract}
         isReAnalyzing={isAnalyzingCallNotes}
         extractError={extractReviewError}
