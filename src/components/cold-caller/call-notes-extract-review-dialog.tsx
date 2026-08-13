@@ -17,6 +17,12 @@ import type {
   CallNotesExtraction,
 } from "@/types/call-notes-extraction"
 import { formatQgDisplayValue } from "@/lib/utils/qg-value"
+import { cn } from "@/lib/utils"
+import {
+  CANDIDATE_FORM_DIALOG_FOOTER_CLASS,
+  CANDIDATE_FORM_DIALOG_HEADER_CLASS,
+  CANDIDATE_FORM_DIALOG_SHELL_CLASS,
+} from "@/lib/utils/candidate-form-dialog-layout"
 
 export interface CallNotesExtractReviewRow extends CallNotesExtraction {
   fieldLabel: string
@@ -33,6 +39,8 @@ interface CallNotesExtractReviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   rows: CallNotesExtractReviewRow[]
+  /** Read-only notes text sent to extract (frozen at Analyze time). */
+  notesSnapshot: string
   isApplying?: boolean
   isReAnalyzing?: boolean
   extractError?: string | null
@@ -61,10 +69,98 @@ function buildReviewRows(
 
 export { buildReviewRows }
 
+function CallNotesSnapshotPanel({ notesSnapshot }: { notesSnapshot: string }) {
+  return (
+    <section
+      className="flex min-h-[min(28vh,240px)] min-w-0 flex-col sm:min-h-0 sm:w-1/2 sm:shrink-0 sm:border-r"
+      aria-label="Call notes snapshot"
+    >
+      <h3 className="shrink-0 border-b bg-muted/40 px-5 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Call notes
+      </h3>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/10 px-5 py-4">
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+          {notesSnapshot.trim() || "—"}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function ExtractProposalsList({
+  rows,
+  selectedPaths,
+  busy,
+  onTogglePath,
+}: {
+  rows: CallNotesExtractReviewRow[]
+  selectedPaths: Set<string>
+  busy: boolean
+  onTogglePath: (fieldPath: string, checked: boolean) => void
+}) {
+  if (rows.length === 0) {
+    return (
+      <p className="px-4 py-6 text-sm text-muted-foreground">
+        No field proposals to review.
+      </p>
+    )
+  }
+
+  return (
+    <ul className="space-y-3 px-5 py-4">
+      {rows.map((row) => {
+        const checked = selectedPaths.has(row.fieldPath)
+        const confidencePct = Math.round(row.confidence * 100)
+
+        return (
+          <li
+            key={row.fieldPath}
+            className="rounded-lg border bg-background p-3 space-y-2"
+          >
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id={`extract-row-${row.fieldPath}`}
+                checked={checked}
+                onCheckedChange={(v) => onTogglePath(row.fieldPath, v === true)}
+                disabled={busy}
+                aria-label={`Apply ${row.fieldLabel}`}
+              />
+              <div className="flex-1 min-w-0 space-y-1">
+                <label
+                  htmlFor={`extract-row-${row.fieldPath}`}
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  {row.fieldLabel}
+                  {row.context ? (
+                    <span className="text-muted-foreground font-normal">
+                      {" "}
+                      — {row.context}
+                    </span>
+                  ) : null}
+                </label>
+                <p className="text-sm font-semibold break-words">
+                  {formatQgDisplayValue(row.value)}
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  &ldquo;{row.sourceText}&rdquo;
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Confidence: {confidencePct}%
+                </p>
+              </div>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function CallNotesExtractReviewDialog({
   open,
   onOpenChange,
   rows,
+  notesSnapshot,
   isApplying = false,
   isReAnalyzing = false,
   extractError = null,
@@ -96,12 +192,19 @@ export function CallNotesExtractReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] min-h-0 max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
-        <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
+      <DialogContent
+        className={cn(
+          CANDIDATE_FORM_DIALOG_SHELL_CLASS,
+          "min-h-0 gap-0 overflow-hidden",
+        )}
+      >
+        <DialogHeader
+          className={cn(CANDIDATE_FORM_DIALOG_HEADER_CLASS, "shrink-0 text-left")}
+        >
           <DialogTitle>Review extracted fields</DialogTitle>
           <DialogDescription>
             {hasRows
-              ? `${rows.length} proposal${rows.length === 1 ? "" : "s"} from call notes. Uncheck any row you do not want to apply. Link employers and projects in the candidate form after applying.`
+              ? `${rows.length} proposal${rows.length === 1 ? "" : "s"} from call notes. Compare with the full notes snapshot, uncheck any row you do not want to apply, then link employers and projects in the candidate form after applying.`
               : "No high-confidence values were found for the candidate's currently empty fields."}
           </DialogDescription>
         </DialogHeader>
@@ -112,60 +215,31 @@ export function CallNotesExtractReviewDialog({
           </p>
         ) : null}
 
-        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-6">
-          {hasRows ? (
-            <ul className="space-y-3 py-1 pb-4">
-              {rows.map((row) => {
-                const checked = selectedPaths.has(row.fieldPath)
-                const confidencePct = Math.round(row.confidence * 100)
+        <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+          <CallNotesSnapshotPanel notesSnapshot={notesSnapshot} />
 
-                return (
-                  <li
-                    key={row.fieldPath}
-                    className="rounded-lg border p-3 space-y-2"
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id={`extract-row-${row.fieldPath}`}
-                        checked={checked}
-                        onCheckedChange={(v) =>
-                          togglePath(row.fieldPath, v === true)
-                        }
-                        disabled={busy}
-                        aria-label={`Apply ${row.fieldLabel}`}
-                      />
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <label
-                          htmlFor={`extract-row-${row.fieldPath}`}
-                          className="text-sm font-medium leading-none cursor-pointer"
-                        >
-                          {row.fieldLabel}
-                          {row.context ? (
-                            <span className="text-muted-foreground font-normal">
-                              {" "}
-                              — {row.context}
-                            </span>
-                          ) : null}
-                        </label>
-                        <p className="text-sm font-semibold break-words">
-                          {formatQgDisplayValue(row.value)}
-                        </p>
-                        <p className="text-xs text-muted-foreground italic">
-                          &ldquo;{row.sourceText}&rdquo;
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Confidence: {confidencePct}%
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : null}
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col sm:w-1/2">
+            <h3 className="shrink-0 border-b bg-muted/40 px-5 py-2.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Proposals
+              {hasRows ? ` (${rows.length})` : ""}
+            </h3>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <ExtractProposalsList
+                rows={rows}
+                selectedPaths={selectedPaths}
+                busy={busy}
+                onTogglePath={togglePath}
+              />
+            </div>
+          </section>
         </div>
 
-        <DialogFooter className="shrink-0 flex-col items-stretch gap-2 border-t bg-background px-6 py-4 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+        <DialogFooter
+          className={cn(
+            CANDIDATE_FORM_DIALOG_FOOTER_CLASS,
+            "shrink-0 bg-background sm:flex-row sm:items-center sm:justify-end",
+          )}
+        >
           <div className="flex flex-wrap justify-end gap-2">
             <Button
               type="button"

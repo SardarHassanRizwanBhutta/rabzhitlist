@@ -119,6 +119,9 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  CANDIDATE_FORM_DIALOG_SHELL_CLASS,
+} from "@/lib/utils/candidate-form-dialog-layout"
 import { toast } from "sonner"
 import {
   getWorkExperienceDateFieldErrors,
@@ -2898,7 +2901,7 @@ export function CandidateCreationDialog({
           )}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[750px] lg:max-w-[850px] xl:max-w-[950px] max-h-[95vh] flex flex-col p-0 [&>button]:cursor-pointer">
+      <DialogContent className={CANDIDATE_FORM_DIALOG_SHELL_CLASS}>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border space-y-3">
           <DialogTitle className="flex items-center gap-2">
             {mode === "edit" && <ShieldCheck className="h-5 w-5 text-primary" />}
