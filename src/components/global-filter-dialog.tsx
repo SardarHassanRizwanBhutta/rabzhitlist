@@ -20,6 +20,7 @@ import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 
 interface GlobalFilterDialogProps {
   children?: React.ReactNode
@@ -145,10 +146,10 @@ const cityOptions: MultiSelectOption[] = extractGlobalCities().map(city => ({
   label: city
 }))
 
-const techStackOptions: MultiSelectOption[] = extractGlobalTechStacks().map(tech => ({
-  value: tech,
-  label: tech
-}))
+const techStackOptions: MultiSelectOption[] = buildTechStackMultiSelectOptions(
+  [],
+  extractGlobalTechStacks(),
+)
 
 const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
   value: d.label,

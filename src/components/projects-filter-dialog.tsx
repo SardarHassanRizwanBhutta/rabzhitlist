@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import { buildTechStackMultiSelectOptions, techStackLookupItemsToMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { toast } from "sonner"
 
 function countStacksInAspectMap(byAspect: Record<string, string[]> | undefined): number {
@@ -286,7 +287,13 @@ export function ProjectsFilterDialog({
     }))
   }
 
-  const techStackOptions: MultiSelectOption[] = lookupOptions?.techStacks ?? extractUniqueTechStacks().map((tech) => ({ value: tech, label: tech }))
+  const techStackOptions: MultiSelectOption[] = useMemo(
+    () =>
+      lookupOptions?.techStacks?.length
+        ? lookupOptions.techStacks
+        : buildTechStackMultiSelectOptions([], extractUniqueTechStacks()),
+    [lookupOptions?.techStacks],
+  )
   const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
   const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
   const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
@@ -782,9 +789,9 @@ export function ProjectsFilterDialog({
                       {selectedAspectTypesSorted.map((aspectType) => {
                         const idStr = String(aspectType.id)
                         const rows = scopedStacksByTypeId[idStr]
-                        const items: MultiSelectOption[] = (rows ?? [])
-                          .map((r) => ({ value: r.name, label: r.name }))
-                          .sort((a, b) => a.label.localeCompare(b.label))
+                        const items: MultiSelectOption[] = techStackLookupItemsToMultiSelectOptions(
+                          rows ?? [],
+                        )
                         return (
                           <div
                             key={aspectType.id}

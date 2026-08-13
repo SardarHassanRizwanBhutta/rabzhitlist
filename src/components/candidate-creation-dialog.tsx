@@ -143,6 +143,7 @@ import { ResumeUploadStatus } from "@/components/candidates/resume-upload-status
 import { ResumeOpenButton } from "@/components/candidates/resume-open-button"
 import { formatResumeFileSize } from "@/lib/utils/candidate-resume"
 import { format } from "date-fns"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 
 /** Lookups from backend for candidate form dropdowns (aligned with employer/project dialogs). */
 export interface CandidateLookups {
@@ -1311,19 +1312,14 @@ export function CandidateCreationDialog({
     return names
   }, [formData.techStacks, formData.workExperiences])
 
-  const techStackOptions: MultiSelectOption[] = useMemo(() => {
-    const byValue = new Map<string, MultiSelectOption>()
-    for (const l of lookups?.techStacks ?? []) {
-      if (l?.name?.trim()) {
-        const n = l.name.trim()
-        byValue.set(n, { value: n, label: n })
-      }
-    }
-    selectedTechStackNames.forEach((name) => {
-      if (!byValue.has(name)) byValue.set(name, { value: name, label: name })
-    })
-    return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.techStacks, selectedTechStackNames])
+  const techStackOptions: MultiSelectOption[] = useMemo(
+    () =>
+      buildTechStackMultiSelectOptions(
+        lookups?.techStacks ?? [],
+        selectedTechStackNames,
+      ),
+    [lookups?.techStacks, selectedTechStackNames],
+  )
 
   /** Time support zones: API list + values already on work experiences. */
   const selectedTimeSupportZoneNames = useMemo(() => {

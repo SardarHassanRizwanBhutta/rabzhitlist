@@ -133,6 +133,7 @@ import {
 // import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
 // import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
@@ -4096,17 +4097,15 @@ export function CandidateDetailsModal({
   )
 
   const techStackOptions = useMemo(() => {
-    const catalogOptions: MultiSelectOption[] = apiTechStacks
-      .filter((l) => l?.name?.trim())
-      .map((l) => {
-        const n = l.name.trim()
-        return { value: n, label: n }
-      })
     const selectedNames = collectCandidateTechStackNames(resolvedCandidate)
-    return mergeMultiSelectOptions(
-      [...baseTechStackOptions, ...catalogOptions, ...extraTechStackOptions],
-      selectedNames
-    )
+    const extraNames = new Set<string>(selectedNames)
+    for (const option of baseTechStackOptions) {
+      if (option.value?.trim()) extraNames.add(option.value.trim())
+    }
+    for (const option of extraTechStackOptions) {
+      if (option.value?.trim()) extraNames.add(option.value.trim())
+    }
+    return buildTechStackMultiSelectOptions(apiTechStacks, extraNames)
   }, [apiTechStacks, extraTechStackOptions, resolvedCandidate])
 
   const timeSupportZoneOptions = useMemo(() => {
