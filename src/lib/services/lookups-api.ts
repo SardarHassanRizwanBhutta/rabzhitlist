@@ -5,6 +5,13 @@
  */
 
 import { API_BASE_URL } from "@/lib/config/api"
+import {
+  normalizeTechStackLookupList,
+  sortTechStackLookupItems,
+  type TechStackLookupItem,
+} from "@/lib/utils/tech-stack-lookup"
+
+export type { TechStackLookupItem }
 
 export interface LookupItem {
   id: number
@@ -65,11 +72,14 @@ export async function fetchTechnicalAspectTypes(): Promise<TechnicalAspectTypeCa
  * GET /api/TechStacks — no filter returns all stacks (backward compatible).
  * With `technicalAspectTypeId`, returns stacks linked to that aspect type (M:N). Invalid/inactive id → 400 from API.
  */
-export async function fetchTechStacks(technicalAspectTypeId?: number): Promise<LookupItem[]> {
+export async function fetchTechStacks(
+  technicalAspectTypeId?: number,
+): Promise<TechStackLookupItem[]> {
   const hasFilter =
     technicalAspectTypeId != null && typeof technicalAspectTypeId === "number" && !Number.isNaN(technicalAspectTypeId)
   const qs = hasFilter ? `?technicalAspectTypeId=${technicalAspectTypeId}` : ""
-  return getList<LookupItem>(`${TECH_STACKS_PATH}${qs}`)
+  const raw = await getList<unknown>(`${TECH_STACKS_PATH}${qs}`)
+  return sortTechStackLookupItems(normalizeTechStackLookupList(raw))
 }
 
 /** POST /api/TechStacks — optional technicalAspectTypeIds merges join links (idempotent if name exists). */

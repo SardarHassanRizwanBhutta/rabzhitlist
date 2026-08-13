@@ -42,6 +42,7 @@ import {
   createTechnicalAspect,
   createClientLocation,
 } from "@/lib/services/lookups-api"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 
 const DEFAULT_PAGE_SIZE = 20
@@ -502,7 +503,7 @@ export function ProjectsPageClient() {
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
             lookupOptions={{
-              techStacks: techStacksLookup.map((l) => ({ value: l.name, label: l.name })),
+              techStacks: buildTechStackMultiSelectOptions(techStacksLookup),
               verticalDomains: VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
               horizontalDomains: HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
               technicalDomains: technicalDomainSelectOptions,

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/command"
 import { Filter, CalendarIcon, X, ChevronsUpDown, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -528,14 +529,17 @@ export function CandidatesFilterDialog({
   /** Project Expertise technology stack filter — API catalog, fallback to sample projects. */
   const projectTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
     if (techStacks.length > 0) {
-      return [...techStacks]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((l) => ({ value: l.name, label: l.name }))
+      return buildTechStackMultiSelectOptions(techStacks)
     }
-    return extractUniqueProjectTechStacks().map((tech) => ({
-      value: tech,
-      label: tech,
-    }))
+    return buildTechStackMultiSelectOptions([], extractUniqueProjectTechStacks())
+  }, [techStacks])
+
+  /** Candidate work-experience tech stacks — same master list as creation dialog. */
+  const candidateTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    if (techStacks.length > 0) {
+      return buildTechStackMultiSelectOptions(techStacks)
+    }
+    return buildTechStackMultiSelectOptions([], extractUniqueCandidateTechStacks())
   }, [techStacks])
 
   /** Same catalog as ProjectsFilterDialog when TechnicalAspectTypes API is available. */
@@ -543,19 +547,6 @@ export function CandidatesFilterDialog({
     () => technicalAspectTypes,
     [technicalAspectTypes],
   )
-
-  /** Candidate work-experience tech stacks — same master list as creation dialog. */
-  const candidateTechStackFilterOptions = useMemo<MultiSelectOption[]>(() => {
-    if (techStacks.length > 0) {
-      return [...techStacks]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((l) => ({ value: l.name, label: l.name }))
-    }
-    return extractUniqueCandidateTechStacks().map((tech) => ({
-      value: tech,
-      label: tech,
-    }))
-  }, [techStacks])
 
   // Projects: same debounced search as ProjectCombobox (`useProjectSearch` → `/api/projects/search`)
   const {

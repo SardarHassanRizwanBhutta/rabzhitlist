@@ -93,6 +93,7 @@ import { Switch } from "@/components/ui/switch"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import {
   formatProjectDataProgress,
   getDataProgressBadgeClasses,
@@ -2848,8 +2849,8 @@ function ProjectDetailDialog({
   }, [open, project])
 
   const techStackOptions = useMemo<MultiSelectOption[]>(
-    () => lookups?.techStacks?.map((l) => ({ value: l.name, label: l.name })) ?? [],
-    [lookups?.techStacks]
+    () => buildTechStackMultiSelectOptions(lookups?.techStacks ?? []),
+    [lookups?.techStacks],
   )
 
   const clientLocationOptions = useMemo<MultiSelectOption[]>(

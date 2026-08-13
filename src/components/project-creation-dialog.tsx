@@ -68,6 +68,7 @@ import {
 } from "@/lib/services/projects-api"
 import { mergeStacksFromAspectSelections } from "@/lib/utils/technical-aspect-type-selection"
 import { mergeProjectFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
+import { techStackLookupItemsToMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { searchEmployers, fetchEmployerById, createEmployer, buildCreateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
@@ -1589,9 +1590,8 @@ export function ProjectCreationDialog({
                           {selectedAspectTypesSorted.map((aspectType) => {
                             const idStr = String(aspectType.id)
                             const rows = scopedStacksByTypeId[idStr]
-                            const items: MultiSelectOption[] = (rows ?? [])
-                              .map((r) => ({ value: r.name, label: r.name }))
-                              .sort((a, b) => a.label.localeCompare(b.label))
+                            const items: MultiSelectOption[] =
+                              techStackLookupItemsToMultiSelectOptions(rows ?? [])
                             return (
                               <div
                                 key={aspectType.id}
