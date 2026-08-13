@@ -1,6 +1,6 @@
 # Call Notes Extract — Frontend Implementation Handoff
 
-**Status:** Locked (2026-08-04). Updated 2026-08-06 — browser calls QG directly (Amplify fix).  
+**Status:** Locked (2026-08-04). Updated 2026-08-13 — defer-catalog review modal (no inline lookups). Updated 2026-08-06 — browser calls QG directly (Amplify fix).  
 **Audience:** Next.js / TypeScript AI agent.  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **API contract:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
@@ -88,18 +88,28 @@ Layout (draft):
 
 Open as **second step** after successful extract (not inline in sidebar).
 
+**Defer-catalog linking (shipped):** The review modal is **select-only**. It does **not** host employer/project/certification comboboxes or block Apply on unresolved lookups. After **Apply Selected**, catalog linking happens in **CandidateCreationDialog** (Create or Edit opened from Cold Caller) via comboboxes, the **Link catalog records** checklist, and `validateForm()` before save.
+
 | Element | Behavior |
 |---------|----------|
 | Title | “Review extracted fields” |
-| Summary | “N proposals from call notes” / zero-state copy |
-| Table / list | Label, context, proposed value (formatted), source snippet, confidence % |
+| Summary | “N proposals from call notes. Uncheck any row you do not want to apply. Link employers and projects in the candidate form after applying.” / zero-state copy |
+| List | Label, context, proposed value (formatted), source snippet, confidence % |
 | Row checkbox | Default **checked** for all returned rows |
-| Lookup rows | Inline match picker / create / skip (reuse Cold Caller combobox patterns from `cold-caller-dialog.tsx`) |
-| Primary | **Apply Selected** → runs apply engine, closes modal on success |
+| Primary | **Apply Selected** → `applyCallNotesExtractionsToFormData(..., { deferCatalogLinking: true })`; closes modal |
 | Secondary | **Cancel** → discard unsaved review session |
 | Tertiary | **Analyze again** → re-run extract (replaces review list) |
 
-Zero extractions copy (suggested):
+**Post-apply (both draft and saved):**
+
+| Target | Next step |
+|--------|-----------|
+| **Draft** | Merge into draft session → **Apply to Create Candidate** → Create dialog with prefilled values + catalog linking UI |
+| **Saved** | Open Edit dialog via `editFormBootstrap` → same catalog linking UI → **Update & Verify** |
+
+Apply writes **names only** for employer/project/cert lookups (`*Id` stays `null`); employer/project **catalog scalars** (headcount, office, layoff, project description, etc.) land on form state for **+ Add New Employer/Project** prefill.
+
+Zero extractions copy:
 
 > No high-confidence values were found for the candidate’s currently empty fields.
 
@@ -140,12 +150,12 @@ Store `extractions` in component state; open modal.
 
 ### Step D — Apply Selected
 
-1. Filter to checked rows with resolved lookups.  
-2. Call `applyCallNotesExtractions({ extractions, candidate, target: 'edit' | 'create' })`.  
-3. **Saved:** merge into Edit Mode form state; optionally navigate/focus Details modal.  
-4. **Draft:** merge into Create prefill (`setCreatePrefill` / existing resume prefill hook).  
+1. Filter to **checked** rows only (no lookup resolution in the modal).  
+2. Call `applyCallNotesExtractionsToFormData(baseForm, extractions, allowedEmptyFields, undefined, { deferCatalogLinking: true })`.  
+3. **Saved:** `onApplyExtractComplete` → `editFormBootstrap` → Edit dialog.  
+4. **Draft:** `onApplyExtractComplete` → update draft session → **Apply to Create Candidate**.  
 5. **Do not** PATCH call notes or mutate textarea.  
-6. Toast: “Applied N fields — review and save.”
+6. Toast: applied count + reminder to link catalog records in the candidate form before save.
 
 ---
 
@@ -197,7 +207,7 @@ Replace array **index** paths from `getEmptyFields` with **stable id** paths whe
 
 1. **Empty-only guard:** for each extraction, read current value at `fieldPath`; skip if `!isQgValueMissing(current)`.  
 2. **Type coercion:** dates → `Date`; numbers → number; enums → validate against `options`.  
-3. **Lookup resolution:** for combobox fields, require resolved `employerId` / `projectId` before apply (reuse handlers from Cold Caller create-entity flow).  
+3. **Defer-catalog apply:** employer/project/cert **names** and catalog scalars on form state; IDs resolved in Create/Edit via comboboxes (not in review modal).  
 4. **Benefits / multiselect:** merge policy for v1 = **set** (field was empty).  
 5. **Form integration:**  
    - **Edit Mode:** use same update helpers as manual field entry in `CandidateDetailsModal`.  
@@ -257,7 +267,7 @@ Ensure QG **CORS** allows `POST /api/call-notes/extract` from the app origin.
 |-------|-----|
 | `400` whitelist empty | Disable Analyze; inline hint |
 | `502` / timeout / network | Toast + retry in modal (check QG URL + CORS on hosted apps) |
-| Partial lookup unresolved | Disable Apply for those rows; show validation |
+| Catalog not linked at save | `validateForm()` blocks Create/Update until employer/project/cert IDs resolved |
 | Apply skip (field filled) | Silent skip + count in toast |
 | Extract while Save in flight | Disable Analyze |
 
@@ -273,18 +283,20 @@ Ensure QG **CORS** allows `POST /api/call-notes/extract` from the app origin.
 
 ## 13. Testing checklist
 
-- [ ] Saved: Analyze → review → apply → Update & Verify persists  
-- [ ] Saved: Analyze with unsaved textarea edits (no prior Save Notes)  
-- [ ] Saved: populated field not in whitelist / not overwritten  
-- [ ] Draft: Analyze → apply → Create shows prefilled empty fields  
-- [ ] Draft: create includes `callNotes` when non-empty  
-- [ ] Zero extractions modal copy  
-- [ ] Whitelist empty disables Analyze
-- [ ] Notes textarea unchanged after apply  
-- [ ] No raw notes in console  
-- [ ] Lookup create / match flows  
-- [ ] Synthetic `[0]` draft WE row  
-- [ ] Top-level `techStacks` not in whitelist (CNE16); WE/project tech stacks still work  
+Signed off **2026-08-13** (staging/prod FE + QG).
+
+- [x] Saved: Analyze → review → apply → Update & Verify persists  
+- [x] Saved: Analyze with unsaved textarea edits (no prior Save Notes)  
+- [x] Saved: populated field not in whitelist / not overwritten  
+- [x] Draft: Analyze → apply → Create shows prefilled empty fields  
+- [x] Draft: create includes `callNotes` when non-empty  
+- [x] Zero extractions modal copy  
+- [x] Whitelist empty disables Analyze
+- [x] Notes textarea unchanged after apply  
+- [x] No raw notes in console  
+- [x] Catalog linking in Create/Edit form (employer/project/cert comboboxes + Link catalog checklist)  
+- [x] Synthetic `[0]` draft WE row  
+- [x] Top-level `techStacks` not in whitelist (CNE16); WE/project tech stacks still work  
 
 ---
 
@@ -296,8 +308,8 @@ Implement Call Notes Extract v1 frontend per:
 - docs/CALL_NOTES_EXTRACT_API_CONTRACT.md
 - docs/CALL_NOTES_EXTRACT_FRONTEND_HANDOFF.md
 
-Add Analyze Notes beside Save Notes; modal review; empty-only apply to Edit Mode
-and Create prefill; QG allowlist whitelist only (exclude top-level techStacks per CNE16);
+Add Analyze Notes beside Save Notes; modal review (checkboxes only); defer-catalog apply to Edit Mode
+and Create prefill; link employers/projects/certs in candidate form; QG allowlist whitelist only (exclude top-level techStacks per CNE16);
 browser POST to {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract (same as generate-questions);
 do not change call_notes persistence or draft callNotes on create.
 ```
