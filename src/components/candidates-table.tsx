@@ -74,6 +74,7 @@ import {
 
 import { getDataProgressBadgeClasses, normalizeProgress } from "@/lib/utils/candidate-data-progress"
 import { formatYearsOfExperience } from "@/lib/utils/candidate-experience"
+import { formatSalaryDisplayValue } from "@/lib/utils/qg-value"
 import { calculateDataCompletion } from "@/lib/utils/data-completion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -388,14 +389,6 @@ export function CandidatesTable({
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false)
     setCandidateToDelete(null)
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0
-    }).format(amount)
   }
 
   const handleSort = (column: SortableColumn) => {
@@ -743,7 +736,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     className="font-medium"
                     onClick={() => setSelectedCandidate(candidate)}
                   >
-                    {candidate.expectedSalary !== null ? formatCurrency(candidate.expectedSalary) : "N/A"}
+                    {candidate.expectedSalary !== null ? formatSalaryDisplayValue(candidate.expectedSalary) : "N/A"}
                   </TableCell>
                   
                   {/* City - Hidden on mobile */}
