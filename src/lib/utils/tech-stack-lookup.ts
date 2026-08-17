@@ -112,3 +112,30 @@ export function buildTechStackMultiSelectOptions(
     return a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
   })
 }
+
+/** Case-insensitive dedupe; keeps the first occurrence's casing. */
+export function dedupeTechStackNames(names: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of names) {
+    const trimmed = raw?.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(trimmed)
+  }
+  return out
+}
+
+/** Preserve first-seen order; drop duplicate catalog ids. */
+export function dedupeTechStackIds(ids: readonly number[]): number[] {
+  const seen = new Set<number>()
+  const out: number[] = []
+  for (const id of ids) {
+    if (!Number.isFinite(id) || seen.has(id)) continue
+    seen.add(id)
+    out.push(id)
+  }
+  return out
+}

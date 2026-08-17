@@ -9,6 +9,7 @@ import type { Achievement, AchievementType } from "@/lib/types/candidate"
 import type { CertificationLevelDb } from "@/lib/constants/candidate-enums"
 import { CERTIFICATION_LEVEL_DB } from "@/lib/constants/candidate-enums"
 import { unwrapResumeParsedRoot } from "@/lib/services/resume-parser-api"
+import { dedupeTechStackNames } from "@/lib/utils/tech-stack-lookup"
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -204,13 +205,9 @@ function mapWorkExperiences(raw: unknown): WorkExperience[] {
     }
 
     const techRaw = pick(o, ["techStacks", "tech_stacks", "technologies", "skills", "tech"])
-    const techStacks: string[] = []
-    if (Array.isArray(techRaw)) {
-      for (const t of techRaw) {
-        const n = str(t)
-        if (n) techStacks.push(n)
-      }
-    }
+    const techStacks = Array.isArray(techRaw)
+      ? dedupeTechStackNames(techRaw.map((t) => str(t)).filter(Boolean))
+      : []
 
     out.push({
       id: crypto.randomUUID(),
@@ -383,7 +380,7 @@ function mapAchievements(raw: unknown): Achievement[] {
 function mapTechStacks(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   const names = raw.map((t) => str(t)).filter(Boolean)
-  return [...new Set(names)].sort((a, b) => a.localeCompare(b))
+  return dedupeTechStackNames(names).sort((a, b) => a.localeCompare(b))
 }
 
 /**

@@ -54,6 +54,7 @@ import {
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 import { API_BASE_URL } from "@/lib/config/api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
+import { dedupeTechStackIds } from "@/lib/utils/tech-stack-lookup"
 
 const API_TO_SALARY_POLICY_DB: Record<number, SalaryPolicyDb> = {
   0: "gross_salary",
@@ -1032,9 +1033,11 @@ export function candidateFormDataToCreateDto(
   data: CandidateFormData,
   lookups?: CandidateCreateLookups,
 ): CreateCandidateDto {
-  const techStackIds = (data.techStacks ?? [])
-    .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
-    .filter((id): id is number => id != null)
+  const techStackIds = dedupeTechStackIds(
+    (data.techStacks ?? [])
+      .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
+      .filter((id): id is number => id != null),
+  )
 
   const educations: CreateCandidateEducationDto[] = (data.educations ?? [])
     .filter((e) => e.universityLocationId)
@@ -1098,9 +1101,11 @@ export function candidateFormDataToCreateDto(
           contribution: nullIfEmpty(p.contributionNotes ?? ""),
         }))
 
-      const weTechStackIds = (we.techStacks ?? [])
-        .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
-        .filter((id): id is number => id != null)
+      const weTechStackIds = dedupeTechStackIds(
+        (we.techStacks ?? [])
+          .map((name) => lookupIdByName(lookups?.techStacks ?? [], name))
+          .filter((id): id is number => id != null),
+      )
 
       const weTszIds = (we.timeSupportZones ?? [])
         .map((name) => lookupIdByName(lookups?.timeSupportZones ?? [], name))
