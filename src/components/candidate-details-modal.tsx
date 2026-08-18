@@ -101,6 +101,7 @@ import {
   salaryPolicyDisplayLabel,
   salaryPolicyToSelectValue,
 } from "@/lib/utils/salary-policy-display"
+import { formatSalaryDisplayValue } from "@/lib/utils/qg-value"
 import {
   SALARY_POLICY_DB_LABELS,
   SALARY_POLICY_DISPLAY_TO_DB,
@@ -5743,14 +5744,6 @@ export function CandidateDetailsModal({
     )
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0
-    }).format(amount)
-  }
-
   const formatDate = (date: Date | undefined) => {
     if (!date) return "N/A"
     return new Intl.DateTimeFormat('en-US', {
@@ -6112,7 +6105,7 @@ export function CandidateDetailsModal({
                       fieldType="number"
                       validation={validateSalary}
                       onSave={handleFieldSave}
-                      formatDisplay={(val) => val ? formatCurrency(Number(val)) : 'N/A'}
+                      formatDisplay={(val) => val ? formatSalaryDisplayValue(Number(val)) : 'N/A'}
                       verificationIndicator={<VerificationIndicator fieldName="currentSalary" />}
                       getFieldVerification={getFieldVerification}
                     />
@@ -6123,7 +6116,7 @@ export function CandidateDetailsModal({
                       fieldType="number"
                       validation={validateSalary}
                       onSave={handleFieldSave}
-                      formatDisplay={(val) => val ? formatCurrency(Number(val)) : 'N/A'}
+                      formatDisplay={(val) => val ? formatSalaryDisplayValue(Number(val)) : 'N/A'}
                       verificationIndicator={<VerificationIndicator fieldName="expectedSalary" />}
                       getFieldVerification={getFieldVerification}
                     />
