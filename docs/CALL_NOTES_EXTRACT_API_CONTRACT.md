@@ -1,7 +1,7 @@
 # Call Notes Extract — API Contract
 
-**Status:** Locked (2026-08-04). Updated 2026-08-06 — browser calls QG directly (same as generate-questions); optional Next.js proxy.  
-**Audience:** Next.js client, optional server proxy, Python QG service.  
+**Status:** Locked (2026-08-04).  
+**Audience:** Next.js proxy, frontend client, Python QG service.  
 **QG agent contract:** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md)  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **Field keys:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -12,39 +12,32 @@
 
 ```text
 Browser (Cold Caller)
-    ↓  POST {NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract  (primary — same as generate-questions)
-Python QG FastAPI (:8002 or reverse-proxy path e.g. /questions)
+    ↓  POST /api/call-notes/extract  (same-origin)
+Next.js route (server)
+    ↓  POST {QUESTIONS_API_URL}/api/call-notes/extract
+Python QG FastAPI (:8002)
     ↓  JSON extractions[]
 Browser review modal → Apply Selected → Edit Mode / Create prefill
     ↓  Update & Verify / POST /api/candidates (+ optional callNotes)
 ASP.NET Candidate APIs
 ```
 
-**Optional** (local / server-side callers only — not used by shipped Analyze Notes UI):
-
-```text
-Browser → POST /api/call-notes/extract (Next.js route)
-       → POST {QUESTIONS_API_URL}/api/call-notes/extract
-       → Python QG
-```
-
-- **Shipped FE path:** browser calls Python **directly** via `NEXT_PUBLIC_QUESTIONS_API_URL` (mirrors `src/lib/services/questions-api.ts`). Required for hosted deployments (e.g. AWS Amplify) where server-side outbound fetch to QG may fail.  
-- Extract shares the **same public base URL** as question generation. Default `http://localhost:8002` when unset.  
-- Extract is **stateless**: no DB writes on Python.  
-- QG must expose **CORS** for `POST /api/call-notes/extract` from the app origin (same policy as `/api/generate-questions`).
+- The browser **must not** call Python directly.  
+- Extract shares the **same base URL** as question generation: `QUESTIONS_API_URL` (server) / `NEXT_PUBLIC_QUESTIONS_API_URL` (browser health checks only). Default `http://localhost:8002`.  
+- Extract is **stateless**: no DB writes on Python or Next proxy.
 
 ---
 
 ## 2. Endpoints
 
-| Layer | Method | Path | Used by shipped UI |
-|-------|--------|------|--------------------|
-| Python QG service | `POST` | `/api/call-notes/extract` | **Yes** (browser direct) |
-| Next.js (optional proxy) | `POST` | `/api/call-notes/extract` | No (legacy / server-side) |
+| Layer | Method | Path |
+|-------|--------|------|
+| Next.js (public to browser) | `POST` | `/api/call-notes/extract` |
+| Python QG service | `POST` | `/api/call-notes/extract` |
 
 ---
 
-## 3. Request (browser → Python)
+## 3. Request (browser → Next.js)
 
 ### 3.1 Headers
 
@@ -52,7 +45,7 @@ Browser → POST /api/call-notes/extract (Next.js route)
 Content-Type: application/json
 ```
 
-Browser calls the QG base URL directly. CORS must allow the app origin (same as generate-questions).
+No browser auth beyond existing app session (same as other Next API routes).
 
 ### 3.2 Body
 
@@ -158,11 +151,9 @@ interface AllowedEmptyField {
 }
 ```
 
-### 3.4 Validation
+**Benefits rows:** omit `options`. The benefit catalog is dynamic and can be large; extract returns **spoken names** from notes (same free-text pattern as `combobox`). FE resolves or creates catalog rows on Apply via `GET /api/benefits` — not during extract.
 
-**Browser client** (`extractCallNotes`): builds request from Cold Caller state; relies on Python for allowlist enforcement.
-
-**Optional Next.js proxy** (`src/app/api/call-notes/extract/route.ts`) — reject before upstream forward:
+### 3.4 Validation (Next.js — reject before proxy)
 
 | Rule | HTTP |
 |------|------|
@@ -175,11 +166,11 @@ interface AllowedEmptyField {
 
 ---
 
-## 4. Request (optional Next.js proxy → Python)
+## 4. Request (Next.js → Python)
 
-When the optional proxy is used, forward the same JSON body as §3.2 unchanged (optionally strip unknown top-level keys).
+Same JSON body as §3.2. Next.js forwards unchanged (optionally strip unknown top-level keys).
 
-Optional future: internal service key header if QG adds auth — **not required in v1**.
+Optional future: internal service key header if QG adds auth — **not required in v1** (matches current `generate-questions` proxy).
 
 ---
 
@@ -243,31 +234,21 @@ interface CallNotesExtraction {
 | `boolean` | `boolean` |
 | `select` | `string` (enum value from `options`) |
 | `multiselect` | `string[]` |
-| `benefits` | array of `{ name: string; amount?: number; unit?: string }` |
+| `benefits` | array of `{ name: string; amount?: number; unit?: string }` — **free-text names** from notes; no catalog `options` on whitelist |
 | `combobox` | `string` (free-text name — FE resolves to catalog id) |
 
 ---
 
 ## 6. Error responses
 
-### 6.1 Browser → Python (primary path)
-
-| Status | When |
-|--------|------|
-| `400` | Python validation failed (empty whitelist, unknown key, etc.) |
-| `422` | Pydantic validation failure |
-| `500` / `502` | LLM / internal failure |
-| Network / CORS | Browser fetch error — check QG CORS and public URL |
-
-Pass through Python JSON error bodies when present.
-
-### 6.2 Optional Next.js proxy
+### 6.1 Next.js proxy
 
 | Status | When |
 |--------|------|
 | `400` | Client validation failed (§3.4) |
 | `502` | Python unreachable or non-JSON body |
 | `504` | Upstream timeout (recommend 60s proxy timeout) |
+| `503` | `QUESTIONS_API_URL` not configured |
 
 Error body (minimum):
 
@@ -278,9 +259,9 @@ Error body (minimum):
 }
 ```
 
-Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` when appropriate.
+Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` for browser when appropriate.
 
-### 6.3 Python service
+### 6.2 Python service
 
 | Status | When |
 |--------|------|
@@ -294,12 +275,10 @@ Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` w
 
 | Variable | Where | Purpose |
 |----------|-------|---------|
-| `NEXT_PUBLIC_QUESTIONS_API_URL` | Browser (build-time) | **Required for hosted apps.** QG base URL for Analyze Notes and Generate Questions (e.g. `https://example.com/questions`). Default `http://localhost:8002`. |
-| `QUESTIONS_API_URL` | Next.js server | Optional. Used only by `/api/call-notes/extract` **proxy route** (not shipped UI path). Falls back to `NEXT_PUBLIC_QUESTIONS_API_URL` then `http://localhost:8002`. |
-| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional proxy-only; default `100000` |
-| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional proxy-only; default `60000` |
-
-**Amplify / production:** set `NEXT_PUBLIC_QUESTIONS_API_URL` to the public QG path (same value already used for Generate Questions). `QUESTIONS_API_URL` is **not** required for Analyze Notes unless something calls the optional proxy.
+| `QUESTIONS_API_URL` | Next.js server | Python base URL (same as generate-questions proxy) |
+| `NEXT_PUBLIC_QUESTIONS_API_URL` | Browser | Optional health / dev only |
+| `CALL_NOTES_EXTRACT_MAX_NOTES_LENGTH` | Next.js server | Optional; default e.g. `100000` |
+| `CALL_NOTES_EXTRACT_TIMEOUT_MS` | Next.js server | Optional; default e.g. `60000` |
 
 ---
 
@@ -390,6 +369,74 @@ Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` w
 }
 ```
 
+### 8.3 Benefits (work experience role)
+
+Notes that mention employer benefits for a linked work experience. Whitelist row uses `fieldType: "benefits"` **without** `options` (catalog is resolved on FE Apply, not in extract).
+
+**Request (excerpt)**
+
+```json
+{
+  "rawNotes": "At dpl, the benefits are car fuel and paid leaves",
+  "candidateSnapshot": {
+    "candidateId": "71",
+    "workExperiences": [
+      {
+        "id": "15",
+        "employerName": "DPL-IT (Pvt Ltd.)",
+        "jobTitle": "Full Stack Developer",
+        "projects": [
+          { "id": "proj-0", "projectName": "Rabz Hit List" },
+          {
+            "id": "proj-1",
+            "projectName": "Balochistan Board of Revenue – Land Records Digitization & Agriculture Income Tax Management System"
+          }
+        ]
+      }
+    ]
+  },
+  "allowedEmptyFields": [
+    {
+      "fieldPath": "workExperiences[15].benefits",
+      "apiFieldName": "work_experience_0_benefits",
+      "fieldLabel": "Benefits",
+      "fieldType": "benefits",
+      "context": "DPL-IT (Pvt Ltd.) - Full Stack Developer"
+    }
+  ]
+}
+```
+
+**Response**
+
+```json
+{
+  "extractions": [
+    {
+      "fieldPath": "workExperiences[15].benefits",
+      "apiFieldName": "work_experience_0_benefits",
+      "value": [
+        { "name": "Car Fuel" },
+        { "name": "Paid Leaves" }
+      ],
+      "sourceText": "benefits are car fuel and paid leaves",
+      "confidence": 0.92
+    }
+  ],
+  "meta": {
+    "model": "gpt-4.1",
+    "processingMs": 2400
+  }
+}
+```
+
+**Rules**
+
+- Return **one object per benefit**; split compound phrases (`"car fuel and paid leaves"` → two rows).
+- `amount` and `unit` are optional; include only when explicitly stated in notes.
+- Do **not** require benefit names to match a catalog list at extract time.
+- Match `fieldPath` exactly from the whitelist row; echo `apiFieldName` from the request.
+
 ---
 
 ## 9. Building `allowedEmptyFields` (FE responsibility)
@@ -398,9 +445,10 @@ Pass through Python `4xx`/`5xx` when body is JSON; map upstream `5xx` to `502` w
 2. Filter `getEmptyFields()` (or QG missing-only builder) to **QG allowlist** keys only.  
 3. Drop fields excluded by CNE14 / CNE15 / **CNE16** (top-level `techStacks` only).  
 4. Map each `EmptyField` to `AllowedEmptyField` (`fieldPath`, `apiFieldName`, `fieldLabel`, `fieldType`, `context`, `options`).  
-5. For saved rows, use **stable** `WorkExperience.id` / project `id` in `fieldPath` brackets.  
-6. For empty collections, use synthetic `[0]` paths and `work_experience_0_*` api keys.  
-7. Reject Analyze when resulting list is empty.
+5. **Do not** attach `options` for `fieldType: "benefits"` (dynamic catalog; see §3.3).  
+6. For saved rows, use **stable** `WorkExperience.id` / project `id` in `fieldPath` brackets.  
+7. For empty collections, use synthetic `[0]` paths and `work_experience_0_*` api keys.  
+8. Reject Analyze when resulting list is empty.
 
 ---
 
@@ -413,7 +461,18 @@ Apply Selected is **client-side only**:
 3. Write into react-hook-form / Create prefill state.  
 4. Persist via Update & Verify or POST create — **not** via extract route.
 
----
+### 10.1 Benefits after Apply
+
+Extract returns **spoken benefit names** only (§8.3). On **save** (create/update candidate):
+
+| Step | Rule |
+|------|------|
+| Name on form | From extraction apply — `{ name, amount?, unit? }` rows on the work experience |
+| Catalog match | Case-insensitive match against `GET /api/benefits` by **exact name** (after trim) |
+| No match | **Create** a new benefit via `POST /api/benefits` with that name, then link on the WE |
+| No fuzzy link | Do **not** map `"Car Fuel"` → `"Fuel Allowance"` unless names match (case-insensitive) |
+
+This mirrors manual **+ Add** in the benefits picker: new catalog rows are allowed; extract does not send benefit `options` (§3.3).
 
 ## 11. Versioning
 
@@ -424,19 +483,13 @@ Apply Selected is **client-side only**:
 
 ## 12. Checklist
 
-### Next.js browser client (shipped)
+### Next.js proxy
 
-- [x] `extractCallNotes()` → `{NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract`
-- [x] Zod validation for response
-- [x] Same base URL helper as generate-questions (`getQuestionsApiBaseUrl()`)
-
-### Next.js proxy (optional — not used by shipped UI)
-
-- [x] `POST /api/call-notes/extract` route  
-- [x] Zod validation for request/response  
-- [x] Proxy to `{QUESTIONS_API_URL\|NEXT_PUBLIC_QUESTIONS_API_URL}/api/call-notes/extract`  
-- [x] Timeout + no notes in logs  
-- [x] `400` when whitelist empty  
+- [ ] `POST /api/call-notes/extract` route  
+- [ ] Zod validation for request/response  
+- [ ] Proxy to `{QUESTIONS_API_URL}/api/call-notes/extract`  
+- [ ] Timeout + no notes in logs  
+- [ ] `400` when whitelist empty  
 
 ### Python
 

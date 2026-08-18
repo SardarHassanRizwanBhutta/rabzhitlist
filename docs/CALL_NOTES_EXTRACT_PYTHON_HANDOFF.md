@@ -285,7 +285,25 @@ Use anonymized fixture notes; no PII in committed tests.
 
 ---
 
-## 16. Agent prompt
+## 17. v2 — Employer & project catalog fields (2026-08-11)
+
+**FE scope (this repo):** Apply all QG-allowlisted employer scalars, offices, layoffs, and project catalog fields (except **tech stacks** — follow-up). Hybrid save: Apply → form state → explicit **Save employer/project changes** → PATCH `/api/employers/{id}` and `/api/projects/{id}`.
+
+**Python changes (same delivery):**
+
+| Requirement | Detail |
+|-------------|--------|
+| Whitelist | Full Cold Caller QG allowlist for employer/office/layoff/project catalog keys |
+| Enum values | Return **display labels** for `types`, `status`, `projectType`, `shiftType`, etc. — same as Generate Questions / FE `options` |
+| Offices / layoffs | Use synthetic index `0` in `apiFieldName` when parent has no rows (`work_experience_{i}_office_0_*`, `_layoff_0_*`) |
+| Tech stacks | **Do not** emit `work_experience_{i}_techStacks` or `work_experience_{i}_project_{j}_techStacks` in v2 |
+| Lookup | FE blocks catalog apply until `employerId` / `projectId` linked (Step 4 pattern) |
+
+**New request field (optional on response path):** `requiresLinkedCatalogId: "employer" \| "project"` on `allowedEmptyFields` rows — FE computes this today; Python may ignore.
+
+**Post-processors:** Reuse QG enum normalizers; map DB ints → display labels before returning `value`.
+
+---
 
 ```
 Implement POST /api/call-notes/extract per docs/CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md
