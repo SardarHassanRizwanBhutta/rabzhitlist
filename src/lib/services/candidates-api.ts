@@ -53,6 +53,7 @@ import {
 } from "@/lib/types/employer"
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
 import { API_BASE_URL } from "@/lib/config/api"
+import { createBenefit } from "@/lib/services/benefits-api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
 import { dedupeTechStackIds } from "@/lib/utils/tech-stack-lookup"
 
@@ -980,6 +981,24 @@ export function collectTechStackNamesFromCandidateForm(data: CandidateFormData):
   return out
 }
 
+/** All benefit names on work experiences (case preserved; deduped case-insensitively). */
+export function collectBenefitNamesFromCandidateForm(data: CandidateFormData): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const add = (raw: string) => {
+    const trimmed = raw.trim()
+    if (!trimmed) return
+    const key = trimmed.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(trimmed)
+  }
+  for (const we of data.workExperiences ?? []) {
+    for (const b of we.benefits ?? []) add(b.name)
+  }
+  return out
+}
+
 /**
  * For each name not in `lookups`, POST /api/TechStacks (idempotent when the name
  * already exists). Returns an expanded catalog so name→id mapping on save does not
@@ -1009,16 +1028,51 @@ export async function ensureTechStacksInLookup(
   return result
 }
 
-/** Expand tech-stack lookup before create/update so every form name resolves to an id. */
+/**
+ * For each name not in `lookups`, POST /api/benefits (idempotent when the name
+ * already exists). Returns an expanded catalog so name→id mapping on save does not
+ * drop extract-applied or free-typed benefits.
+ */
+export async function ensureBenefitsInLookup(
+  names: readonly string[],
+  lookups: readonly LookupItem[],
+  create: (name: string) => Promise<LookupItem> = createBenefit
+): Promise<LookupItem[]> {
+  const byLower = new Map<string, LookupItem>()
+  for (const l of lookups) {
+    if (l?.name?.trim()) byLower.set(l.name.trim().toLowerCase(), l)
+  }
+  const result = [...lookups]
+  for (const name of names) {
+    const trimmed = name.trim()
+    if (!trimmed) continue
+    const key = trimmed.toLowerCase()
+    if (byLower.has(key)) continue
+    const created = await create(trimmed)
+    byLower.set(key, created)
+    const idx = result.findIndex((r) => r.id === created.id)
+    if (idx >= 0) result[idx] = created
+    else result.push(created)
+  }
+  return result
+}
+
+/** Expand tech-stack and benefit lookups before create/update so every form name resolves to an id. */
 export async function prepareCandidateCreateLookups(
   data: CandidateFormData,
   lookups?: CandidateCreateLookups
 ): Promise<CandidateCreateLookups> {
-  const techStacks = await ensureTechStacksInLookup(
-    collectTechStackNamesFromCandidateForm(data),
-    lookups?.techStacks ?? []
-  )
-  return { ...lookups, techStacks }
+  const [techStacks, benefits] = await Promise.all([
+    ensureTechStacksInLookup(
+      collectTechStackNamesFromCandidateForm(data),
+      lookups?.techStacks ?? []
+    ),
+    ensureBenefitsInLookup(
+      collectBenefitNamesFromCandidateForm(data),
+      lookups?.benefits ?? []
+    ),
+  ])
+  return { ...lookups, techStacks, benefits }
 }
 
 export interface CandidateCreateLookups {
