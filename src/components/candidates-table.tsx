@@ -199,17 +199,9 @@ const defaultFilters: CandidateFilters = {
   technicalDomains: [],
   technicalAspectTypeIds: [],
   candidateTechStacks: [],
-  techStackMinYears: {
-    techStacks: [],
-    minYears: ""
-  },
   shiftTypes: [],
   workModes: [],
   workExperienceSalaryPolicies: [],
-  workModeMinYears: {
-    workModes: [],
-    minYears: ""
-  },
   timeSupportZones: [],
   jobTitle: "",
   yearsOfExperienceMin: "",

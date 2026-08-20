@@ -106,11 +106,6 @@ export interface CandidateFilters {
   startDateEnd: Date | null
   // Candidate work experience tech stacks
   candidateTechStacks: string[]
-  // Tech stack minimum years of experience
-  techStackMinYears: {
-    techStacks: string[]
-    minYears: string
-  }
   /** `ShiftTypeDb` keys (same as work experience shift type in CandidateCreationDialog). */
   shiftTypes: string[]
   /** `WorkModeDb` keys (same as work experience work mode in CandidateCreationDialog). */
@@ -120,11 +115,6 @@ export interface CandidateFilters {
    * Independent of `employerSalaryPolicies`.
    */
   workExperienceSalaryPolicies: string[]
-  // Work mode minimum years of experience
-  workModeMinYears: {
-    workModes: string[]
-    minYears: string
-  }
   /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
   // Job title filter
@@ -390,21 +380,11 @@ const initialFilters: CandidateFilters = {
   startDateEnd: null,
   // Candidate work experience tech stacks
   candidateTechStacks: [],
-  // Tech stack minimum years of experience
-  techStackMinYears: {
-    techStacks: [],
-    minYears: ""
-  },
   // Candidate work experience shift types
   shiftTypes: [],
   // Candidate work experience work modes
   workModes: [],
   workExperienceSalaryPolicies: [],
-  // Work mode minimum years of experience
-  workModeMinYears: {
-    workModes: [],
-    minYears: ""
-  },
   // Candidate work experience time support zones
   timeSupportZones: [],
   // Job title filter
@@ -961,17 +941,9 @@ export function CandidatesFilterDialog({
           break
         case "experience":
           updated.candidateTechStacks = []
-          updated.techStackMinYears = {
-            techStacks: [],
-            minYears: ""
-          }
           updated.shiftTypes = []
           updated.workModes = []
           updated.workExperienceSalaryPolicies = []
-          updated.workModeMinYears = {
-            workModes: [],
-            minYears: ""
-          }
           updated.timeSupportZones = []
           updated.jobTitle = ""
             updated.yearsOfExperienceMin = ""
@@ -1111,11 +1083,9 @@ export function CandidatesFilterDialog({
       case "experience":
         return (
           tempFilters.candidateTechStacks.length +
-          ((tempFilters.techStackMinYears?.techStacks.length || 0) > 0 && tempFilters.techStackMinYears?.minYears ? 1 : 0) +
           tempFilters.shiftTypes.length +
           tempFilters.workModes.length +
           tempFilters.workExperienceSalaryPolicies.length +
-          ((tempFilters.workModeMinYears?.workModes.length || 0) > 0 && tempFilters.workModeMinYears?.minYears ? 1 : 0) +
           tempFilters.timeSupportZones.length +
           (tempFilters.jobTitle ? 1 : 0) +
           (tempFilters.yearsOfExperienceMin ? 1 : 0) +
@@ -1191,7 +1161,7 @@ export function CandidatesFilterDialog({
     setTempFilters(filters)
   }, [filters])
 
-  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number | { techStacks: string[], minYears: string } | { workModes: string[], minYears: string }) => {
+  const handleFilterChange = (field: keyof CandidateFilters, value: string[] | string | boolean | Date | null | number) => {
     setTempFilters(prev => ({ ...prev, [field]: value }))
   }
 
@@ -1300,11 +1270,9 @@ export function CandidatesFilterDialog({
     tempFilters.techStacks.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
     tempFilters.candidateTechStacks.length > 0 ||
-    (tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears) ||
     tempFilters.shiftTypes.length > 0 ||
     tempFilters.workModes.length > 0 ||
     tempFilters.workExperienceSalaryPolicies.length > 0 ||
-    (tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears) ||
     tempFilters.timeSupportZones.length > 0 ||
     tempFilters.jobTitle ||
     tempFilters.yearsOfExperienceMin ||
@@ -1840,58 +1808,6 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              {/* Tech Stack Minimum Years Filter */}
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Tech Stack Experience (Years)</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Column 1: Tech Stacks MultiSelect */}
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Technologies</Label>
-                    <MultiSelect
-                      items={candidateTechStackFilterOptions}
-                      selected={tempFilters.techStackMinYears?.techStacks || []}
-                      onChange={(values) => {
-                        handleFilterChange("techStackMinYears", {
-                          techStacks: values,
-                          minYears: tempFilters.techStackMinYears?.minYears || ""
-                        })
-                      }}
-                      placeholder="Select technologies..."
-                      searchPlaceholder="Search technologies..."
-                      maxDisplay={3}
-                    />
-                  </div>
-                  
-                  {/* Column 2: Years Input */}
-                  <div className="space-y-1">
-                    <Label htmlFor="techStackMinYears" className="text-xs text-muted-foreground">
-                      Minimum Years
-                    </Label>
-                    <Input
-                      id="techStackMinYears"
-                      type="number"
-                      placeholder="e.g., 2"
-                      value={tempFilters.techStackMinYears?.minYears || ""}
-                      onChange={(e) => {
-                        handleFilterChange("techStackMinYears", {
-                          techStacks: tempFilters.techStackMinYears?.techStacks || [],
-                          minYears: e.target.value
-                        })
-                      }}
-                      min="0"
-                      step="0.5"
-                      disabled={!tempFilters.techStackMinYears?.techStacks || tempFilters.techStackMinYears.techStacks.length === 0}
-                    />
-                  </div>
-                </div>
-                
-                {tempFilters.techStackMinYears && tempFilters.techStackMinYears.techStacks.length > 0 && tempFilters.techStackMinYears.minYears && (
-                  <p className="text-xs text-muted-foreground">
-                    Candidates must have {tempFilters.techStackMinYears.techStacks.length > 1 ? 'all' : ''} selected technology{tempFilters.techStackMinYears.techStacks.length > 1 ? 's' : ''} with at least {tempFilters.techStackMinYears.minYears} years of cumulative experience.
-                  </p>
-                )}
-              </div>
-              
               <MultiSelect
                 items={shiftTypeFilterOptions}
                 selected={tempFilters.shiftTypes}
@@ -1927,58 +1843,6 @@ export function CandidatesFilterDialog({
                 Filters work-experience salary policy only — not employer salary
                 policy.
               </p>
-
-              {/* Work Mode Minimum Years Filter */}
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Work Mode Experience (Years)</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Column 1: Work Modes MultiSelect */}
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Work Modes</Label>
-                    <MultiSelect
-                      items={workModeFilterOptions}
-                      selected={tempFilters.workModeMinYears?.workModes || []}
-                      onChange={(values) => {
-                        handleFilterChange("workModeMinYears", {
-                          workModes: values,
-                          minYears: tempFilters.workModeMinYears?.minYears || ""
-                        })
-                      }}
-                      placeholder="Select work modes..."
-                      searchPlaceholder="Search work modes..."
-                      maxDisplay={3}
-                    />
-                  </div>
-                  
-                  {/* Column 2: Years Input */}
-                  <div className="space-y-1">
-                    <Label htmlFor="workModeMinYears" className="text-xs text-muted-foreground">
-                      Minimum Years
-                    </Label>
-                    <Input
-                      id="workModeMinYears"
-                      type="number"
-                      placeholder="e.g., 3"
-                      value={tempFilters.workModeMinYears?.minYears || ""}
-                      onChange={(e) => {
-                        handleFilterChange("workModeMinYears", {
-                          workModes: tempFilters.workModeMinYears?.workModes || [],
-                          minYears: e.target.value
-                        })
-                      }}
-                      min="0"
-                      step="0.5"
-                      disabled={!tempFilters.workModeMinYears?.workModes || tempFilters.workModeMinYears.workModes.length === 0}
-                    />
-                  </div>
-                </div>
-                
-                {tempFilters.workModeMinYears && tempFilters.workModeMinYears.workModes.length > 0 && tempFilters.workModeMinYears.minYears && (
-                  <p className="text-xs text-muted-foreground">
-                    Candidates must have {tempFilters.workModeMinYears.workModes.length > 1 ? 'all' : ''} selected work mode{tempFilters.workModeMinYears.workModes.length > 1 ? 's' : ''} with at least {tempFilters.workModeMinYears.minYears} years of cumulative experience.
-                  </p>
-                )}
-              </div>
 
               <MultiSelect
                 items={timeSupportZoneFilterOptions}

@@ -73,17 +73,9 @@ const defaultFilters: CandidateFilters = {
   startDateStart: null,
   startDateEnd: null,
   candidateTechStacks: [],
-  techStackMinYears: {
-    techStacks: [],
-    minYears: ""
-  },
   shiftTypes: [],
   workModes: [],
   workExperienceSalaryPolicies: [],
-  workModeMinYears: {
-    workModes: [],
-    minYears: ""
-  },
   timeSupportZones: [],
   jobTitle: "",
   yearsOfExperienceMin: "",
