@@ -192,7 +192,7 @@ export function CandidatesPageClient() {
     return Number.isFinite(n) && n > 0 ? n : null
   }, [searchParams])
 
-  /** Numeric university id from URL (GET /api/candidates?universityId=). Can combine with certificationId (AND). */
+  /** Numeric university id from URL (merged into `universityIds` on GET /api/candidates). Can combine with certificationId (AND). */
   const universityIdFromUrl = useMemo(() => {
     const raw = searchParams.get("universityId")
     if (!raw || !/^\d+$/.test(raw.trim())) return null
@@ -459,9 +459,15 @@ export function CandidatesPageClient() {
             ? filters.certificationNames
             : [...filters.certificationNames, String(certificationIdFromUrl)]
           : filters.certificationNames,
+      universities:
+        universityIdFromUrl != null
+          ? filters.universities.includes(String(universityIdFromUrl))
+            ? filters.universities
+            : [...filters.universities, String(universityIdFromUrl)]
+          : filters.universities,
     }
     return withUrl
-  }, [filters, projectIdFromUrl, employerIdFromUrl, certificationIdFromUrl])
+  }, [filters, projectIdFromUrl, employerIdFromUrl, certificationIdFromUrl, universityIdFromUrl])
 
   const backendListOptions = useMemo(() => {
     const projectTypeToApi: Record<string, number> = {
@@ -492,6 +498,10 @@ export function CandidatesPageClient() {
       combinedFiltersForBackend.certificationNames
         .map((v) => Number.parseInt(v, 10))
         .find((n) => Number.isFinite(n) && n > 0) ?? undefined
+
+    const universityIds = combinedFiltersForBackend.universities
+      .map((v) => Number.parseInt(v, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
 
     const issuingBodyIds = combinedFiltersForBackend.certificationIssuingBodies
       .map((name) => certificationIssuersLookup.find((i) => i.name === name)?.id)
@@ -605,7 +615,7 @@ export function CandidatesPageClient() {
       certificationId,
       issuingBodyIds: issuingBodyIds.length > 0 ? issuingBodyIds : undefined,
       certificationLevels: certificationLevels.length > 0 ? certificationLevels : undefined,
-      universityId: universityIdFromUrl ?? undefined,
+      universityIds: universityIds.length > 0 ? universityIds : undefined,
       degreeIds: degreeIds.length > 0 ? degreeIds : undefined,
       majorIds: majorIds.length > 0 ? majorIds : undefined,
       isTopper: combinedFiltersForBackend.isTopper ?? undefined,

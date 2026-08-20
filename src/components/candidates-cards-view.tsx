@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { User, Target, FolderOpen, Building2, Briefcase, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone, Loader2, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 
@@ -8,6 +9,7 @@ import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/l
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -227,6 +229,7 @@ const getCriterionColor = (type: string): string => {
     'projectStartDate': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
     
     // Work Experience
+    'postingTitle': 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200 border-slate-300 dark:border-slate-700',
     'jobTitle': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border-indigo-300 dark:border-indigo-700',
     'shiftType': 'bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200 border-violet-300 dark:border-violet-700',
     'workMode': 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200 border-sky-300 dark:border-sky-700',
@@ -285,6 +288,113 @@ function normalizeStoreLinkUrl(url: string): string | null {
   if (!trimmed) return null
   if (/^https?:\/\//i.test(trimmed)) return trimmed
   return `https://${trimmed}`
+}
+
+function parsePositiveIntId(raw: unknown): number | null {
+  if (raw == null) return null
+  const n = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.floor(n)
+}
+
+/** Deep-link from Cards View match headings to filtered list pages (mirrors CandidateDetailsModal). */
+function getMatchItemListHref(
+  categoryType: MatchCategory["type"],
+  item: MatchItem,
+): string | null {
+  const name = item.name.trim()
+  if (!name) return null
+
+  if (categoryType === "projects") {
+    const projectId = parsePositiveIntId(item.context.projectId)
+    if (projectId == null) return null
+    const params = new URLSearchParams({
+      projectFilter: name,
+      projectId: String(projectId),
+    })
+    return `/projects?${params.toString()}`
+  }
+
+  if (categoryType === "employers") {
+    const employerId = parsePositiveIntId(item.context.employerId)
+    if (employerId == null) return null
+    const params = new URLSearchParams({
+      employerFilter: name,
+      employerId: String(employerId),
+    })
+    return `/employers?${params.toString()}`
+  }
+
+  if (categoryType === "certifications") {
+    const certificationId = parsePositiveIntId(item.context.certificationId)
+    if (certificationId == null) return null
+    const params = new URLSearchParams({
+      certificationFilter: name,
+      certificationId: String(certificationId),
+    })
+    return `/certifications?${params.toString()}`
+  }
+
+  if (categoryType === "education") {
+    const universityId = parsePositiveIntId(item.context.universityId)
+    if (universityId == null) return null
+    const params = new URLSearchParams({
+      universityFilter: name,
+      universityId: String(universityId),
+    })
+    return `/universities?${params.toString()}`
+  }
+
+  return null
+}
+
+function getMatchItemListDestinationLabel(categoryType: MatchCategory["type"]): string {
+  switch (categoryType) {
+    case "projects":
+      return "Projects"
+    case "employers":
+      return "Employers"
+    case "certifications":
+      return "Certifications"
+    case "education":
+      return "Universities"
+    default:
+      return "list"
+  }
+}
+
+function MatchItemName({
+  categoryType,
+  item,
+  className,
+}: {
+  categoryType: MatchCategory["type"]
+  item: MatchItem
+  className?: string
+}) {
+  const router = useRouter()
+  const href = getMatchItemListHref(categoryType, item)
+
+  if (!href) {
+    return <div className={className}>{item.name}</div>
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        className,
+        "text-left text-primary font-medium underline underline-offset-2 decoration-primary/70 hover:decoration-primary hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm cursor-pointer transition-colors",
+      )}
+      title={`Open ${item.name} in ${getMatchItemListDestinationLabel(categoryType)}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        router.push(href)
+      }}
+    >
+      {item.name}
+    </button>
+  )
 }
 
 function StoreLinkVisitBadge({ url, label = "Visit App" }: { url: string; label?: string }) {
@@ -650,7 +760,18 @@ export function CandidatesCardsView({
                                   allBadges.every(badge => badge.value === item.name)
 
                                 const storeLinkBadges = allBadges.filter((badge) => badge.type === "storeLink")
-                                const otherBadges = allBadges.filter((badge) => badge.type !== "storeLink")
+                                const otherBadges = allBadges.filter((badge) => {
+                                  if (badge.type === "storeLink") return false
+                                  // Education heading is the university name — skip duplicate university badge.
+                                  if (
+                                    category.type === "education" &&
+                                    badge.type === "university" &&
+                                    badge.value === item.name
+                                  ) {
+                                    return false
+                                  }
+                                  return true
+                                })
                                 const showNameHeading =
                                   !isRedundantHeading || storeLinkBadges.length > 0
                                 const showBadgesRow =
@@ -662,12 +783,11 @@ export function CandidatesCardsView({
                                     {showNameHeading &&
                                       (storeLinkBadges.length > 0 ? (
                                         <div className="flex items-center justify-between gap-3 min-w-0">
-                                          <p
+                                          <MatchItemName
+                                            categoryType={category.type}
+                                            item={item}
                                             className="min-w-0 flex-1 truncate text-sm font-medium"
-                                            title={item.name}
-                                          >
-                                            {item.name}
-                                          </p>
+                                          />
                                           <div className="flex shrink-0 items-center gap-1.5">
                                             {storeLinkBadges.map((badge, badgeIndex) => (
                                               <StoreLinkVisitBadge
@@ -679,7 +799,11 @@ export function CandidatesCardsView({
                                           </div>
                                         </div>
                                       ) : (
-                                        <div className="font-medium text-sm">{item.name}</div>
+                                        <MatchItemName
+                                          categoryType={category.type}
+                                          item={item}
+                                          className="font-medium text-sm"
+                                        />
                                       ))}
 
                                     {showBadgesRow && (

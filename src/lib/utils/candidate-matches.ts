@@ -87,6 +87,14 @@ function candidateNameContainsNeedle(candidate: Candidate, nameNeedle: string): 
   return cand.includes(needle)
 }
 
+/** True when candidate.postingTitle contains the filter text (case-insensitive). */
+function candidatePostingTitleContainsNeedle(candidate: Candidate, postingTitleNeedle: string): boolean {
+  const needle = postingTitleNeedle.trim().toLowerCase()
+  if (!needle) return false
+  const title = (candidate.postingTitle ?? "").trim().toLowerCase()
+  return title.includes(needle)
+}
+
 /** Stored profile completion (`dataProgressPercentage`, 0â€“100) within filter bounds. */
 function candidateMatchesDataProgressFilter(candidate: Candidate, filters: CandidateFilters): boolean {
   if (!filters.dataProgressMin.trim() && !filters.dataProgressMax.trim()) return false
@@ -133,7 +141,7 @@ export interface CandidateMatchContext {
 export function hasActiveFilters(filters: CandidateFilters): boolean {
   return !!(
     filters.name.trim() ||
-    filters.postingTitle ||
+    filters.postingTitle.trim() ||
     filters.city.trim() ||
     filters.currentSalaryMin ||
     filters.currentSalaryMax ||
@@ -605,14 +613,6 @@ function resolveMatchedEducationHeading(me: MatchedEducationDto): string {
   return `Education #${me.educationId}`
 }
 
-function resolveMatchedEducationUniversityLabel(me: MatchedEducationDto): string {
-  if (me.universityName?.trim()) return me.universityName.trim()
-  if (me.universityId != null && Number.isFinite(me.universityId)) {
-    return `University #${me.universityId}`
-  }
-  return "University"
-}
-
 /** Active list filters that drive backend `matchedEducations`. */
 function hasBackendMatchedEducationFilterDrivers(filters: CandidateFilters): boolean {
   return (
@@ -648,13 +648,11 @@ function appendBackendMatchedEducationItem(
   educationItems: MatchItem[],
 ): void {
   const matchedCriteria: MatchCriterion[] = []
+  let hasMatch = false
 
   if (filters.universities.length > 0 && me.matchedByUniversityId) {
-    matchedCriteria.push({
-      type: "university",
-      label: "University",
-      values: [resolveMatchedEducationUniversityLabel(me)],
-    })
+    // Heading is already the university name — no separate university badge.
+    hasMatch = true
   }
 
   if (filters.degreeNames.length > 0 && me.degree != null) {
@@ -663,6 +661,7 @@ function appendBackendMatchedEducationItem(
       label: "Degree",
       values: [resolveMatchedDomainLabel(me.degree)],
     })
+    hasMatch = true
   }
 
   if (filters.majorNames.length > 0 && me.major != null) {
@@ -671,6 +670,7 @@ function appendBackendMatchedEducationItem(
       label: "Major",
       values: [resolveMatchedDomainLabel(me.major)],
     })
+    hasMatch = true
   }
 
   if (filters.isTopper === true && me.isTopper === true) {
@@ -679,6 +679,7 @@ function appendBackendMatchedEducationItem(
       label: "Topper",
       values: ["Yes"],
     })
+    hasMatch = true
   }
 
   if (filters.isCheetah === true && me.isMainCheetah === true) {
@@ -687,6 +688,7 @@ function appendBackendMatchedEducationItem(
       label: "Cheetah",
       values: ["Yes"],
     })
+    hasMatch = true
   }
 
   if (
@@ -698,9 +700,10 @@ function appendBackendMatchedEducationItem(
       label: "Graduation",
       values: [formatEducationEndMonthBadge(me.endMonth)],
     })
+    hasMatch = true
   }
 
-  if (matchedCriteria.length === 0) return
+  if (!hasMatch) return
 
   if (me.grades?.trim()) {
     matchedCriteria.push({
@@ -1386,10 +1389,11 @@ export function getCandidateMatchContext(
           name: we.employerName,
           matchedCriteria,
           context: {
+            employerId: we.employerId ?? undefined,
             jobTitle: we.jobTitle,
             startDate: we.startDate,
-            endDate: we.endDate
-          }
+            endDate: we.endDate,
+          },
         })
       }
     })
@@ -1439,11 +1443,7 @@ export function getCandidateMatchContext(
             id.trim() === edu.universityLocationId.trim()
         )
       ) {
-        matchedCriteria.push({
-          type: 'university',
-          label: 'University',
-          values: [edu.universityLocationName]
-        })
+        // Heading is already the university name — no separate university badge.
         hasMatch = true
       }
 
@@ -1541,12 +1541,16 @@ export function getCandidateMatchContext(
           name: edu.universityLocationName,
           matchedCriteria,
           context: {
+            universityId:
+              edu.universityLocationId && /^\d+$/.test(edu.universityLocationId.trim())
+                ? Number.parseInt(edu.universityLocationId.trim(), 10)
+                : undefined,
             degreeName: edu.degreeName,
             majorName: edu.majorName,
             grades: edu.grades,
             isTopper: edu.isTopper === true,
             isCheetah: edu.isCheetah === true,
-          }
+          },
         })
       }
     })
@@ -1605,6 +1609,7 @@ export function getCandidateMatchContext(
   // Basic Information Matches
   const hasBasicFilters = !!(
     filters.name.trim() ||
+    filters.postingTitle.trim() ||
     filters.city.trim() ||
     filters.personalityTypes.length > 0 ||
     filters.source.length > 0 ||
@@ -1626,6 +1631,17 @@ export function getCandidateMatchContext(
         type: 'name',
         label: 'Name',
         values: [candidate.name],
+      })
+    }
+
+    if (
+      filters.postingTitle.trim() &&
+      candidatePostingTitleContainsNeedle(candidate, filters.postingTitle)
+    ) {
+      matchedCriteria.push({
+        type: 'postingTitle',
+        label: 'Posting Title',
+        values: [candidate.postingTitle ?? ""],
       })
     }
 

@@ -1,8 +1,11 @@
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
-import { Globe } from "lucide-react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Globe, GraduationCap, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import { UniversitiesTable } from "@/components/universities-table"
 import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
 import { UniversitiesFilterDialog, UniversityFilters } from "@/components/universities-filter-dialog"
@@ -79,7 +82,17 @@ function mapListItemToUniversity(item: UniversityListItem): University {
     updatedAt: "",
   }
 }
-import { toast } from "sonner"
+
+function parseUniversityFilterFromSearchParams(
+  searchParams: Pick<URLSearchParams, "get">
+): { name: string; id: string } | null {
+  const universityFilterName =
+    searchParams.get("universityFilter")?.trim() ??
+    searchParams.get("universityName")?.trim()
+  const universityId = searchParams.get("universityId")?.trim()
+  if (!universityFilterName || !universityId || !/^\d+$/.test(universityId)) return null
+  return { name: universityFilterName, id: universityId }
+}
 
 const initialFilters: UniversityFilters = {
   name: "",
@@ -93,8 +106,32 @@ const initialFilters: UniversityFilters = {
 
 export function UniversitiesPageClient() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<UniversityFilters>(initialFilters)
+
+  const universityFilterFromUrl = useMemo(
+    () => parseUniversityFilterFromSearchParams(searchParams),
+    [searchParams]
+  )
+
+  const universityIdFromUrl = useMemo(() => {
+    const raw = universityFilterFromUrl?.id ?? searchParams.get("universityId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [universityFilterFromUrl, searchParams])
+
+  const combinedFilters = useMemo((): UniversityFilters => {
+    if (universityFilterFromUrl == null) return filters
+    const nameFromUrl = universityFilterFromUrl.name.trim()
+    if (!nameFromUrl) return filters
+    return { ...filters, name: nameFromUrl }
+  }, [filters, universityFilterFromUrl])
+
+  const listFilterKey = `${universityIdFromUrl ?? ""}|${universityFilterFromUrl?.name ?? ""}`
+  const prevListFilterKeyRef = useRef<string | null>(null)
+
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [universityToEdit, setUniversityToEdit] = useState<University | null>(null)
 
@@ -103,27 +140,37 @@ export function UniversitiesPageClient() {
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
 
+  useEffect(() => {
+    if (prevListFilterKeyRef.current === listFilterKey) return
+    const isFilterChange = prevListFilterKeyRef.current !== null
+    prevListFilterKeyRef.current = listFilterKey
+    if (isFilterChange) {
+      setUniversities([])
+      setUniversitiesLoading(true)
+    }
+  }, [listFilterKey])
+
   const loadUniversities = useCallback(async () => {
     try {
       setUniversitiesLoading(true)
-      const countryIds = filters.countries.length && countries.length
-        ? filters.countries
+      const countryIds = combinedFilters.countries.length && countries.length
+        ? combinedFilters.countries
             .map((name) => countries.find((c) => c.name === name)?.id)
             .filter((id): id is number => id != null)
         : undefined
       const rankingParam =
-        filters.rankings.length > 0 && filters.rankings[0] in LABEL_TO_RANKING
-          ? LABEL_TO_RANKING[filters.rankings[0]]
+        combinedFilters.rankings.length > 0 && combinedFilters.rankings[0] in LABEL_TO_RANKING
+          ? LABEL_TO_RANKING[combinedFilters.rankings[0]]
           : undefined
-      const minDataProgress = filters.dataProgressMin.trim()
-        ? parseFloat(filters.dataProgressMin)
+      const minDataProgress = combinedFilters.dataProgressMin.trim()
+        ? parseFloat(combinedFilters.dataProgressMin)
         : undefined
-      const maxDataProgress = filters.dataProgressMax.trim()
-        ? parseFloat(filters.dataProgressMax)
+      const maxDataProgress = combinedFilters.dataProgressMax.trim()
+        ? parseFloat(combinedFilters.dataProgressMax)
         : undefined
       const res = await fetchUniversitiesFiltered({
-        name: filters.name.trim() || undefined,
-        city: filters.city.trim() || undefined,
+        name: combinedFilters.name.trim() || undefined,
+        city: combinedFilters.city.trim() || undefined,
         countryIds,
         ranking: rankingParam,
         pageNumber: 1,
@@ -145,7 +192,7 @@ export function UniversitiesPageClient() {
     } finally {
       setUniversitiesLoading(false)
     }
-  }, [filters, countries])
+  }, [combinedFilters, countries])
 
   useEffect(() => {
     loadUniversities()
@@ -179,16 +226,14 @@ export function UniversitiesPageClient() {
     }
   }, [])
 
-  // Check for URL filters
-  useEffect(() => {
-    const universityFilterName = searchParams.get('universityFilter')
-    const universityId = searchParams.get('universityId')
-    
-    if (universityFilterName && universityId) {
-      // Apply university filter - add to countries filter if needed
-      // The table will show the filtered university
-    }
-  }, [searchParams])
+  const handleClearUniversityFilter = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("universityFilter")
+    params.delete("universityId")
+    params.delete("universityName")
+    const q = params.toString()
+    router.push(q ? `/universities?${q}` : "/universities")
+  }
 
   const handleUniversitySubmit = async (
     data: UniversityFormData,
@@ -304,61 +349,38 @@ export function UniversitiesPageClient() {
 
   const handleFiltersChange = (newFilters: UniversityFilters) => {
     setFilters(newFilters)
-    // TODO: Apply filters to universities table
-    console.log("University filters applied:", newFilters)
   }
 
   const handleClearFilters = () => {
     setFilters(initialFilters)
-    // TODO: Clear filters from universities table
-    console.log("University filters cleared")
   }
 
-  // Apply global filters to universities
-  const applyGlobalFilters = (universityList: University[]) => {
-    if (!hasGlobalFilters) return universityList
-
-    return universityList.filter(university => {
-      // Global Countries filter
-      if (globalFilters.countries.length > 0) {
-        const countryName = university.country?.name
-        if (!countryName || !globalFilters.countries.includes(countryName)) return false
-      }
-
-      // Global Cities filter
-      if (globalFilters.cities.length > 0) {
-        const hasMatchingCity = university.locations.some(location =>
-          globalFilters.cities.includes(location.city)
-        )
-        if (!hasMatchingCity) return false
-      }
-
-      return true
-    })
-  }
-
-  // Apply global filters and URL filter (dialog filters are applied by the API)
-  const filteredUniversities = useMemo(() => {
+  const visibleUniversities = useMemo(() => {
     let universityList = universities
 
-    // Apply global filters first
-    universityList = applyGlobalFilters(universityList)
+    if (hasGlobalFilters) {
+      universityList = universityList.filter((university) => {
+        if (globalFilters.countries.length > 0) {
+          const countryName = university.country?.name
+          if (!countryName || !globalFilters.countries.includes(countryName)) return false
+        }
+        if (globalFilters.cities.length > 0) {
+          const hasMatchingCity = university.locations.some((location) =>
+            globalFilters.cities.includes(location.city)
+          )
+          if (!hasMatchingCity) return false
+        }
+        return true
+      })
+    }
 
-    // Apply URL filter if present
-    const universityFilterName = searchParams.get('universityFilter')
-    const universityId = searchParams.get('universityId')
-
-    if (universityFilterName && universityId) {
-      const idNum = Number(universityId)
-      universityList = universityList.filter(
-        (uni) =>
-          uni.id === idNum ||
-          uni.name.trim().toLowerCase() === universityFilterName.trim().toLowerCase()
-      )
+    if (universityIdFromUrl != null) {
+      const byId = universityList.filter((uni) => uni.id === universityIdFromUrl)
+      if (byId.length > 0) universityList = byId
     }
 
     return universityList
-  }, [universities, globalFilters, hasGlobalFilters, searchParams])
+  }, [universities, globalFilters, hasGlobalFilters, universityIdFromUrl])
 
   return (
     <div className="space-y-6">
@@ -392,9 +414,27 @@ export function UniversitiesPageClient() {
           </span>
         </div>
       )}
-      
+
+      {universityFilterFromUrl && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <GraduationCap className="h-3 w-3" />
+            University: {universityFilterFromUrl.name}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0 hover:bg-transparent"
+              onClick={handleClearUniversityFilter}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        </div>
+      )}
+
       <UniversitiesTable
-        universities={filteredUniversities}
+        universities={visibleUniversities}
         isLoading={universitiesLoading}
         onEdit={handleEditUniversity}
         onDelete={handleDeleteUniversity}

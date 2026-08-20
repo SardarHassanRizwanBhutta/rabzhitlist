@@ -35,10 +35,13 @@ import { searchEmployers, fetchEmployerById } from "@/lib/services/employers-api
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
 import { useProjectSearch } from "@/hooks/useProjectSearch"
 import { useCertificationSearch } from "@/hooks/useCertificationSearch"
+import { useUniversitySearch } from "@/hooks/useUniversitySearch"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
 import type { ProjectLookupDto } from "@/lib/services/projects-lookup-api"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
 import type { CertificationLookupDto } from "@/lib/services/certifications-lookup-api"
+import { fetchUniversityById } from "@/lib/services/universities-api"
+import type { UniversityLookupDto } from "@/lib/services/universities-api"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import {
   VERTICAL_DOMAINS,
@@ -156,7 +159,7 @@ export interface CandidateFilters {
   employerSizeMin: string
   employerSizeMax: string
   employerRankings: string[]  // Filter candidates by employer ranking
-  /** University id strings from URL chip or future filter UI (`universityId` on GET /api/candidates). */
+  /** University id strings from debounced search or URL chip (`universityIds` on GET /api/candidates). */
   universities: string[]
   // Education detail filters
   degreeNames: string[]
@@ -574,6 +577,19 @@ export function CandidatesFilterDialog({
   const certificationNameByIdRef = useRef<Record<string, string>>({})
   certificationNameByIdRef.current = certificationNameById
 
+  // Universities: same debounced search as UniversityCombobox (`useUniversitySearch` → `/api/universities/search`)
+  const {
+    query: universitySearchQuery,
+    setQuery: setUniversitySearchQuery,
+    results: universitySearchResults,
+    loading: universitySearchLoading,
+    resetSearch: resetUniversitySearch,
+  } = useUniversitySearch()
+  const [universityComboboxOpen, setUniversityComboboxOpen] = useState(false)
+  const [universityNameById, setUniversityNameById] = useState<Record<string, string>>({})
+  const universityNameByIdRef = useRef<Record<string, string>>({})
+  universityNameByIdRef.current = universityNameById
+
   // Employers: debounced server search (same pattern as ProjectsFilterDialog / ProjectCreationDialog)
   const [employerComboboxOpen, setEmployerComboboxOpen] = useState(false)
   const [employerSearchQuery, setEmployerSearchQuery] = useState("")
@@ -794,6 +810,57 @@ export function CandidatesFilterDialog({
       certificationNames: prev.certificationNames.filter((x) => x !== idStr),
     }))
   }
+
+  // Resolve labels for university ids restored from applied filters (e.g. after reopen dialog)
+  useEffect(() => {
+    const missing = tempFilters.universities.filter(
+      (id) => /^\d+$/.test(id.trim()) && !universityNameByIdRef.current[id]
+    )
+    if (missing.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      missing.map((id) => {
+        const n = parseInt(id, 10)
+        if (Number.isNaN(n)) return Promise.resolve(null as { id: string; name: string } | null)
+        return fetchUniversityById(n)
+          .then((dto) => ({ id: String(dto.id), name: dto.name }))
+          .catch(() => null)
+      })
+    ).then((results) => {
+      if (cancelled) return
+      setUniversityNameById((prev) => {
+        const next = { ...prev }
+        for (const r of results) {
+          if (r) next[r.id] = r.name
+        }
+        return next
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tempFilters.universities])
+
+  const toggleUniversityFromSearch = (uni: UniversityLookupDto) => {
+    const idStr = String(uni.id)
+    setUniversityNameById((prev) => ({ ...prev, [idStr]: uni.name }))
+    setTempFilters((prev) => {
+      const has = prev.universities.includes(idStr)
+      return {
+        ...prev,
+        universities: has
+          ? prev.universities.filter((x) => x !== idStr)
+          : [...prev.universities, idStr],
+      }
+    })
+  }
+
+  const removeUniversityId = (idStr: string) => {
+    setTempFilters((prev) => ({
+      ...prev,
+      universities: prev.universities.filter((x) => x !== idStr),
+    }))
+  }
   
   // Define sections for navigation
   const sections = [
@@ -869,6 +936,11 @@ export function CandidatesFilterDialog({
       setCertificationNameComboboxOpen(false)
       resetCertificationNameSearch()
     }
+    if (sectionId === "education") {
+      setUniversityNameById({})
+      setUniversityComboboxOpen(false)
+      resetUniversitySearch()
+    }
     setTempFilters(prev => {
       const updated = { ...prev }
       switch (sectionId) {
@@ -940,6 +1012,7 @@ export function CandidatesFilterDialog({
           updated.employerRankings = []
           break
         case "education":
+          updated.universities = []
           updated.degreeNames = []
           updated.majorNames = []
           updated.isTopper = null
@@ -1084,6 +1157,7 @@ export function CandidatesFilterDialog({
         )
       case "education":
         return (
+          tempFilters.universities.length +
           tempFilters.degreeNames.length +
           tempFilters.majorNames.length +
           (tempFilters.isTopper !== null ? 1 : 0) +
@@ -1258,6 +1332,7 @@ export function CandidatesFilterDialog({
     tempFilters.employerRankings.length > 0 ||
     tempFilters.employerSizeMin ||
     tempFilters.employerSizeMax ||
+    tempFilters.universities.length > 0 ||
     tempFilters.degreeNames.length > 0 ||
     tempFilters.majorNames.length > 0 ||
     tempFilters.isTopper !== null ||
@@ -1688,6 +1763,65 @@ export function CandidatesFilterDialog({
                   </Button>
                 )}
               </div>
+
+              {/* Job Title Filter */}
+              <div className="space-y-3">
+                <Label htmlFor="jobTitle" className="text-sm font-semibold">Job Title</Label>
+                <Input
+                  id="jobTitle"
+                  type="text"
+                  placeholder="e.g., React Developer, Software Engineer..."
+                  value={tempFilters.jobTitle}
+                  onChange={(e) => {
+                    handleFilterChange("jobTitle", e.target.value)
+                  }}
+                />
+                  <p className="text-xs text-muted-foreground">
+                    Search by job title (partial matching supported)
+                  </p>
+              </div>
+
+              {/* Years of Experience Range Filter */}
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Years of Experience</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="yearsOfExperienceMin" className="text-xs text-muted-foreground">
+                      Minimum Years
+                    </Label>
+                    <Input
+                      id="yearsOfExperienceMin"
+                      type="number"
+                      placeholder="e.g., 2"
+                      value={tempFilters.yearsOfExperienceMin}
+                      onChange={(e) => handleFilterChange("yearsOfExperienceMin", e.target.value)}
+                      min="0"
+                      step="0.5"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="yearsOfExperienceMax" className="text-xs text-muted-foreground">
+                      Maximum Years
+                    </Label>
+                    <Input
+                      id="yearsOfExperienceMax"
+                      type="number"
+                      placeholder="e.g., 10"
+                      value={tempFilters.yearsOfExperienceMax}
+                      onChange={(e) => handleFilterChange("yearsOfExperienceMax", e.target.value)}
+                      min="0"
+                      step="0.5"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Filter by total years of experience (calculated on the server from work history)
+                </p>
+                {experienceYearsError && (
+                  <p className="text-xs text-red-500">{experienceYearsError}</p>
+                )}
+              </div>
+
               {/* Candidate Work Experience Tech Stacks */}
               <div className="space-y-2">
                 <MultiSelect
@@ -1785,7 +1919,7 @@ export function CandidatesFilterDialog({
                   handleFilterChange("workExperienceSalaryPolicies", values)
                 }
                 placeholder="Filter by WE salary policy..."
-                label="WE Salary Policy"
+                label="Salary Policy"
                 searchPlaceholder="Search salary policies..."
                 maxDisplay={3}
               />
@@ -1860,64 +1994,6 @@ export function CandidatesFilterDialog({
                   Time zone names load from the same master list as the candidate form once lookups are available.
                 </p>
               )}
-
-              {/* Job Title Filter */}
-              <div className="space-y-3">
-                <Label htmlFor="jobTitle" className="text-sm font-semibold">Job Title</Label>
-                <Input
-                  id="jobTitle"
-                  type="text"
-                  placeholder="e.g., React Developer, Software Engineer..."
-                  value={tempFilters.jobTitle}
-                  onChange={(e) => {
-                    handleFilterChange("jobTitle", e.target.value)
-                  }}
-                />
-                  <p className="text-xs text-muted-foreground">
-                    Search by job title (partial matching supported)
-                  </p>
-              </div>
-
-              {/* Years of Experience Range Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Years of Experience</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="yearsOfExperienceMin" className="text-xs text-muted-foreground">
-                      Minimum Years
-                    </Label>
-                    <Input
-                      id="yearsOfExperienceMin"
-                      type="number"
-                      placeholder="e.g., 2"
-                      value={tempFilters.yearsOfExperienceMin}
-                      onChange={(e) => handleFilterChange("yearsOfExperienceMin", e.target.value)}
-                      min="0"
-                      step="0.5"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="yearsOfExperienceMax" className="text-xs text-muted-foreground">
-                      Maximum Years
-                    </Label>
-                    <Input
-                      id="yearsOfExperienceMax"
-                      type="number"
-                      placeholder="e.g., 10"
-                      value={tempFilters.yearsOfExperienceMax}
-                      onChange={(e) => handleFilterChange("yearsOfExperienceMax", e.target.value)}
-                      min="0"
-                      step="0.5"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter by total years of experience (calculated on the server from work history)
-                </p>
-                {experienceYearsError && (
-                  <p className="text-xs text-red-500">{experienceYearsError}</p>
-                )}
-              </div>
 
               {/* Average Job Tenure Range Filter */}
               <div className="space-y-3">
@@ -2729,6 +2805,135 @@ export function CandidatesFilterDialog({
                     Clear
                   </Button>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Universities</Label>
+                <Popover
+                  open={universityComboboxOpen}
+                  onOpenChange={(nextOpen) => {
+                    setUniversityComboboxOpen(nextOpen)
+                    if (!nextOpen) {
+                      resetUniversitySearch()
+                    }
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={universityComboboxOpen}
+                      className={cn(
+                        "w-full justify-between items-start gap-2 h-auto min-h-[2.5rem] px-3 py-2 font-normal text-left"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
+                        {tempFilters.universities.length === 0 && (
+                          <span className="text-muted-foreground">Search universities to add…</span>
+                        )}
+                        {tempFilters.universities.slice(0, 3).map((id) => (
+                          <Badge
+                            key={id}
+                            variant="secondary"
+                            className="max-w-full shrink gap-0 pr-0.5 font-normal hover:bg-secondary/80 flex items-center"
+                          >
+                            <span className="truncate pl-1.5 py-0.5 max-w-[min(12rem,100%)]">
+                              {universityNameById[id] ??
+                                (/^\d+$/.test(id.trim()) ? `University #${id}` : id)}
+                            </span>
+                            <span
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm outline-none ring-offset-background hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  removeUniversityId(id)
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                removeUniversityId(id)
+                              }}
+                              aria-label={`Remove ${universityNameById[id] ?? id}`}
+                            >
+                              <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                            </span>
+                          </Badge>
+                        ))}
+                        {tempFilters.universities.length > 3 && (
+                          <Badge variant="secondary" className="font-normal">
+                            +{tempFilters.universities.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 mt-1" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search universities..."
+                        value={universitySearchQuery}
+                        onValueChange={setUniversitySearchQuery}
+                        className="h-9"
+                      />
+                      <CommandList>
+                        {universitySearchLoading && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Searching…</div>
+                        )}
+                        {!universitySearchLoading && universitySearchQuery.trim().length < 2 && (
+                          <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+                        )}
+                        {!universitySearchLoading &&
+                          universitySearchQuery.trim().length >= 2 &&
+                          universitySearchResults.length === 0 && (
+                            <CommandGroup>
+                              <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                                No universities found
+                              </div>
+                              <CommandItem
+                                value="__create_new_university__"
+                                onSelect={() => {
+                                  window.open("/universities", "_blank", "noopener,noreferrer")
+                                }}
+                                className="cursor-pointer font-medium text-primary"
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                + Create New University
+                              </CommandItem>
+                            </CommandGroup>
+                          )}
+                        {!universitySearchLoading && universitySearchResults.length > 0 && (
+                          <CommandGroup>
+                            {universitySearchResults.map((uni) => {
+                              const idStr = String(uni.id)
+                              const selected = tempFilters.universities.includes(idStr)
+                              return (
+                                <CommandItem
+                                  key={uni.id}
+                                  value={idStr}
+                                  onSelect={() => toggleUniversityFromSearch(uni)}
+                                  className="cursor-pointer"
+                                >
+                                  {uni.name}
+                                  {selected ? <Check className="ml-auto h-4 w-4 opacity-100" /> : null}
+                                </CommandItem>
+                              )
+                            })}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               
               <div className="space-y-2">

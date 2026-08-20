@@ -1263,7 +1263,8 @@ export async function fetchCandidatesPage(
     certificationId?: number
     issuingBodyIds?: number[]
     certificationLevels?: number[]
-    universityId?: number
+    /** OR match: candidate has any education row at one of these university ids (`?universityIds=1&universityIds=2`). */
+    universityIds?: number[]
     degreeIds?: number[]
     majorIds?: number[]
     isTopper?: boolean
@@ -1352,13 +1353,7 @@ export async function fetchCandidatesPage(
   }
   appendNumberList("issuingBodyIds", options?.issuingBodyIds)
   appendNumberList("certificationLevels", options?.certificationLevels)
-  if (
-    options?.universityId != null &&
-    Number.isFinite(options.universityId) &&
-    options.universityId > 0
-  ) {
-    params.set("universityId", String(Math.floor(options.universityId)))
-  }
+  appendNumberList("universityIds", options?.universityIds)
   appendNumberList("degreeIds", options?.degreeIds)
   appendNumberList("majorIds", options?.majorIds)
   if (options?.isTopper != null) params.set("isTopper", String(options.isTopper))
