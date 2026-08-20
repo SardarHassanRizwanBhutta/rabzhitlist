@@ -160,8 +160,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
     filters.candidateTechStacks.length > 0 ||
-    (filters.techStackMinYears && filters.techStackMinYears.techStacks.length > 0 && filters.techStackMinYears.minYears) ||
-    (filters.workModeMinYears && filters.workModeMinYears.workModes.length > 0 && filters.workModeMinYears.minYears) ||
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
@@ -201,90 +199,6 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.dataProgressMin ||
     filters.dataProgressMax
   )
-}
-
-/**
- * Calculate years of experience with a specific technology
- */
-function calculateTechStackYears(candidate: Candidate, techStack: string): number {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0
-  }
-
-  const today = new Date()
-  const lowerTechStack = techStack.toLowerCase()
-  let totalMonths = 0
-
-  candidate.workExperiences.forEach(we => {
-    // Check if this work experience includes the tech stack
-    const hasTechStack = we.techStacks.some(
-      tech => tech.toLowerCase() === lowerTechStack
-    )
-    
-    if (!hasTechStack || !we.startDate) return
-
-    const startDate = new Date(we.startDate)
-    const endDate = we.endDate ? new Date(we.endDate) : today
-
-    // Calculate months between start and end
-    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
-    const monthsDiff = endDate.getMonth() - startDate.getMonth()
-    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
-
-    // Add days for more precision (approximate)
-    const daysDiff = endDate.getDate() - startDate.getDate()
-    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
-
-    if (approximateMonths > 0) {
-      totalMonths += approximateMonths
-    }
-  })
-
-  // Convert to years (with 1 decimal place precision)
-  const totalYears = totalMonths / 12
-  return Math.round(totalYears * 10) / 10
-}
-
-/**
- * Calculate years of experience in a specific work mode
- */
-function calculateWorkModeYears(candidate: Candidate, workMode: string): number {
-  if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
-    return 0
-  }
-
-  const today = new Date()
-  const lowerWorkMode = workMode.toLowerCase().trim()
-  let totalMonths = 0
-
-  candidate.workExperiences.forEach(we => {
-    // Check if this work experience has the work mode
-    if (!we.workMode || !we.workMode.trim() || we.workMode.trim().toLowerCase() !== lowerWorkMode) {
-      return
-    }
-    
-    if (!we.startDate) return
-
-    const startDate = new Date(we.startDate)
-    const endDate = we.endDate ? new Date(we.endDate) : today
-
-    // Calculate months between start and end
-    const yearsDiff = endDate.getFullYear() - startDate.getFullYear()
-    const monthsDiff = endDate.getMonth() - startDate.getMonth()
-    const totalMonthsForThisJob = yearsDiff * 12 + monthsDiff
-
-    // Add days for more precision (approximate)
-    const daysDiff = endDate.getDate() - startDate.getDate()
-    const approximateMonths = totalMonthsForThisJob + (daysDiff / 30)
-
-    if (approximateMonths > 0) {
-      totalMonths += approximateMonths
-    }
-  })
-
-  // Convert to years (with 1 decimal place precision)
-  const totalYears = totalMonths / 12
-  return Math.round(totalYears * 10) / 10
 }
 
 /**
@@ -2068,94 +1982,6 @@ export function getCandidateMatchContext(
         count: publishedItems.length,
         items: publishedItems
       })
-    }
-  }
-
-  // Tech Stack Minimum Years Match Context
-  if (filters.techStackMinYears && 
-      filters.techStackMinYears.techStacks.length > 0 &&
-      filters.techStackMinYears.minYears) {
-    
-    const minYears = parseFloat(filters.techStackMinYears.minYears)
-    
-    if (!isNaN(minYears) && minYears >= 0) {
-      const techStackYearsItems: MatchItem[] = []
-      
-      filters.techStackMinYears.techStacks.forEach(techStack => {
-        const techStackYears = calculateTechStackYears(candidate, techStack)
-        
-        if (techStackYears >= minYears) {
-          techStackYearsItems.push({
-            name: techStack,
-            matchedCriteria: [{
-              type: 'techStackYears',
-              label: 'Tech Stack Experience',
-              values: [`${techStackYears} years (min: ${minYears})`]
-            }],
-            context: {
-              techStack: techStack,
-              years: techStackYears,
-              minRequired: minYears
-            }
-          })
-        }
-      })
-      
-      // Only show match if ALL selected tech stacks meet the requirement
-      if (techStackYearsItems.length === filters.techStackMinYears.techStacks.length) {
-        categories.push({
-          type: 'employers', // Reuse type
-          label: 'Tech Stack Experience',
-          icon: 'âš¡',
-          color: 'blue',
-          count: techStackYearsItems.length,
-          items: techStackYearsItems
-        })
-      }
-    }
-  }
-
-  // Work Mode Minimum Years Match Context
-  if (filters.workModeMinYears && 
-      filters.workModeMinYears.workModes.length > 0 &&
-      filters.workModeMinYears.minYears) {
-    
-    const minYears = parseFloat(filters.workModeMinYears.minYears)
-    
-    if (!isNaN(minYears) && minYears >= 0) {
-      const workModeYearsItems: MatchItem[] = []
-      
-      filters.workModeMinYears.workModes.forEach(workMode => {
-        const workModeYears = calculateWorkModeYears(candidate, workMode)
-        
-        if (workModeYears >= minYears) {
-          workModeYearsItems.push({
-            name: workMode,
-            matchedCriteria: [{
-              type: 'workModeYears',
-              label: 'Work Mode Experience',
-              values: [`${workModeYears} years (min: ${minYears})`]
-            }],
-            context: {
-              workMode: workMode,
-              years: workModeYears,
-              minRequired: minYears
-            }
-          })
-        }
-      })
-      
-      // Only show match if ALL selected work modes meet the requirement
-      if (workModeYearsItems.length === filters.workModeMinYears.workModes.length) {
-        categories.push({
-          type: 'employers', // Reuse type
-          label: 'Work Mode Experience',
-          icon: 'ðŸ ',
-          color: 'purple',
-          count: workModeYearsItems.length,
-          items: workModeYearsItems
-        })
-      }
     }
   }
 
