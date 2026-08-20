@@ -1406,53 +1406,59 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              {/* Name Filter */}
-              <div className="space-y-3">
-                <Label htmlFor="filter-candidate-name" className="text-sm font-semibold">
-                  Name
-                </Label>
-                <Input
-                  id="filter-candidate-name"
-                  type="text"
-                  placeholder="Filter by name..."
-                  value={tempFilters.name}
-                  onChange={(e) => handleFilterChange("name", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Matches candidates whose name contains this text (case-insensitive).
-                </p>
+              {/* Name + Posting Title */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3 min-w-0">
+                  <Label htmlFor="filter-candidate-name" className="text-sm font-semibold">
+                    Name
+                  </Label>
+                  <Input
+                    id="filter-candidate-name"
+                    type="text"
+                    placeholder="Filter by name..."
+                    value={tempFilters.name}
+                    onChange={(e) => handleFilterChange("name", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-3 min-w-0">
+                  <Label htmlFor="postingTitle" className="text-sm font-semibold">Posting Title</Label>
+                  <Input
+                    id="postingTitle"
+                    type="text"
+                    placeholder="Filter by posting title..."
+                    value={tempFilters.postingTitle}
+                    onChange={(e) => handleFilterChange("postingTitle", e.target.value)}
+                  />
+                </div>
               </div>
 
-              {/* Posting Title Filter */}
-              <div className="space-y-3">
-                <Label htmlFor="postingTitle" className="text-sm font-semibold">Posting Title</Label>
-                <Input
-                  id="postingTitle"
-                  type="text"
-                  placeholder="e.g., Technical Lead .NET, Senior Developer..."
-                  value={tempFilters.postingTitle}
-                  onChange={(e) => handleFilterChange("postingTitle", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filter by the job posting title the candidate applied for
-                </p>
-              </div>
+              {/* Source + City */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3 min-w-0">
+                  <MultiSelect
+                    items={sourceFilterOptions}
+                    selected={tempFilters.source}
+                    onChange={(values) => handleFilterChange("source", values)}
+                    placeholder="Filter by source..."
+                    label="Source"
+                    searchPlaceholder="Search sources..."
+                    maxDisplay={3}
+                  />
+                </div>
 
-              {/* City (free text — same storage model as candidate profile city) */}
-              <div className="space-y-3">
-                <Label htmlFor="filter-candidate-city" className="text-sm font-semibold">
-                  City
-                </Label>
-                <Input
-                  id="filter-candidate-city"
-                  type="text"
-                  placeholder="e.g. Karachi, New York"
-                  value={tempFilters.city}
-                  onChange={(e) => handleFilterChange("city", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Matches candidates whose city contains this text (case-insensitive).
-                </p>
+                <div className="space-y-3 min-w-0">
+                  <Label htmlFor="filter-candidate-city" className="text-sm font-semibold">
+                    City
+                  </Label>
+                  <Input
+                    id="filter-candidate-city"
+                    type="text"
+                    placeholder="Filter by city..."
+                    value={tempFilters.city}
+                    onChange={(e) => handleFilterChange("city", e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Verification Percentage Filter */}
@@ -1500,9 +1506,6 @@ export function CandidatesFilterDialog({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter candidates by their verification percentage (0-100%)
-                </p>
               </div>
 
               {/* Data Progress Filter */}
@@ -1565,9 +1568,6 @@ export function CandidatesFilterDialog({
                 {dataProgressError && (
                   <p className="text-xs text-red-500">{dataProgressError}</p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Filter candidates by stored profile completion (`dataProgressPercentage`, 0–100%)
-                </p>
               </div>
 
               {/* Personality Type Filter */}
@@ -1581,25 +1581,6 @@ export function CandidatesFilterDialog({
                   searchPlaceholder="Search personality types..."
                   maxDisplay={3}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Same sixteen MBTI codes as the create/edit form (four letters each).
-                </p>
-              </div>
-
-              {/* Source Filter */}
-              <div className="space-y-3">
-                <MultiSelect
-                  items={sourceFilterOptions}
-                  selected={tempFilters.source}
-                  onChange={(values) => handleFilterChange("source", values)}
-                  placeholder="Filter by source..."
-                  label="Source"
-                  searchPlaceholder="Search sources..."
-                  maxDisplay={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Uses the same candidate source values as the create/edit form (Headhunt, Zoho, Manual, Referral).
-                </p>
               </div>
 
               {/* Current Salary Filter */}
@@ -1653,9 +1634,6 @@ export function CandidatesFilterDialog({
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Enter salary amounts in USD (e.g., 75000 for $75,000)
-              </p>
             </div>
 
             {/* Expected Salary Filter */}
@@ -1709,9 +1687,6 @@ export function CandidatesFilterDialog({
                   </div>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Enter salary amounts in USD (e.g., 85000 for $85,000)
-              </p>
             </div>
             </section>
 
@@ -1738,15 +1713,12 @@ export function CandidatesFilterDialog({
                 <Input
                   id="jobTitle"
                   type="text"
-                  placeholder="e.g., React Developer, Software Engineer..."
+                  placeholder="Filter by job title..."
                   value={tempFilters.jobTitle}
                   onChange={(e) => {
                     handleFilterChange("jobTitle", e.target.value)
                   }}
                 />
-                  <p className="text-xs text-muted-foreground">
-                    Search by job title (partial matching supported)
-                  </p>
               </div>
 
               {/* Years of Experience Range Filter */}
@@ -1782,9 +1754,6 @@ export function CandidatesFilterDialog({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter by total years of experience (calculated on the server from work history)
-                </p>
                 {experienceYearsError && (
                   <p className="text-xs text-red-500">{experienceYearsError}</p>
                 )}
@@ -1808,56 +1777,59 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              <MultiSelect
-                items={shiftTypeFilterOptions}
-                selected={tempFilters.shiftTypes}
-                onChange={(values) => handleFilterChange("shiftTypes", values)}
-                placeholder="Filter by shift type..."
-                label="Shift Type"
-                searchPlaceholder="Search shift types..."
-                maxDisplay={3}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={shiftTypeFilterOptions}
+                    selected={tempFilters.shiftTypes}
+                    onChange={(values) => handleFilterChange("shiftTypes", values)}
+                    placeholder="Filter by shift type..."
+                    label="Shift Type"
+                    searchPlaceholder="Search shift types..."
+                    maxDisplay={3}
+                  />
+                </div>
 
-              <MultiSelect
-                items={workModeFilterOptions}
-                selected={tempFilters.workModes}
-                onChange={(values) => handleFilterChange("workModes", values)}
-                placeholder="Filter by work mode..."
-                label="Work Mode"
-                searchPlaceholder="Search work modes..."
-                maxDisplay={3}
-              />
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={workModeFilterOptions}
+                    selected={tempFilters.workModes}
+                    onChange={(values) => handleFilterChange("workModes", values)}
+                    placeholder="Filter by work mode..."
+                    label="Work Mode"
+                    searchPlaceholder="Search work modes..."
+                    maxDisplay={3}
+                  />
+                </div>
+              </div>
 
-              <MultiSelect
-                items={workExperienceSalaryPolicyOptions}
-                selected={tempFilters.workExperienceSalaryPolicies}
-                onChange={(values) =>
-                  handleFilterChange("workExperienceSalaryPolicies", values)
-                }
-                placeholder="Filter by WE salary policy..."
-                label="Salary Policy"
-                searchPlaceholder="Search salary policies..."
-                maxDisplay={3}
-              />
-              <p className="text-xs text-muted-foreground -mt-2">
-                Filters work-experience salary policy only — not employer salary
-                policy.
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="min-w-0 space-y-2">
+                  <MultiSelect
+                    items={workExperienceSalaryPolicyOptions}
+                    selected={tempFilters.workExperienceSalaryPolicies}
+                    onChange={(values) =>
+                      handleFilterChange("workExperienceSalaryPolicies", values)
+                    }
+                    placeholder="Filter by salary policy..."
+                    label="Salary Policy"
+                    searchPlaceholder="Search salary policies..."
+                    maxDisplay={3}
+                  />
+                </div>
 
-              <MultiSelect
-                items={timeSupportZoneFilterOptions}
-                selected={tempFilters.timeSupportZones}
-                onChange={(values) => handleFilterChange("timeSupportZones", values)}
-                placeholder="Filter by time support zone..."
-                label="Time Support Zones"
-                searchPlaceholder="Search time zones..."
-                maxDisplay={3}
-              />
-              {timeSupportZoneFilterOptions.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Time zone names load from the same master list as the candidate form once lookups are available.
-                </p>
-              )}
+                <div className="min-w-0 space-y-2">
+                  <MultiSelect
+                    items={timeSupportZoneFilterOptions}
+                    selected={tempFilters.timeSupportZones}
+                    onChange={(values) => handleFilterChange("timeSupportZones", values)}
+                    placeholder="Filter by time support zone..."
+                    label="Time Support Zones"
+                    searchPlaceholder="Search time zones..."
+                    maxDisplay={3}
+                  />
+                </div>
+              </div>
 
               {/* Average Job Tenure Range Filter */}
               <div className="space-y-3">
@@ -1892,9 +1864,6 @@ export function CandidatesFilterDialog({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter by average time spent at each employer. Shows career stability patterns.
-                </p>
               </div>
 
               {/* Joined Project From Start Filter */}
@@ -2038,7 +2007,7 @@ export function CandidatesFilterDialog({
               </div>
               
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Projects</Label>
+                <Label className="text-sm font-medium">Project</Label>
                 <Popover
                   open={projectComboboxOpen}
                   onOpenChange={(nextOpen) => {
@@ -2060,7 +2029,7 @@ export function CandidatesFilterDialog({
                     >
                       <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
                         {tempFilters.projects.length === 0 && (
-                          <span className="text-muted-foreground">Search projects to add…</span>
+                          <span className="text-muted-foreground">Filter by project...</span>
                         )}
                         {tempFilters.projects.slice(0, 3).map((id) => (
                           <Badge
@@ -2109,7 +2078,7 @@ export function CandidatesFilterDialog({
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Search projects..."
+                        placeholder="Filter by project"
                         value={projectSearchQuery}
                         onValueChange={setProjectSearchQuery}
                         className="h-9"
@@ -2170,8 +2139,8 @@ export function CandidatesFilterDialog({
                   items={projectStatusOptions}
                   selected={tempFilters.projectStatus}
                   onChange={(values) => handleFilterChange("projectStatus", values)}
-                  placeholder="Filter by project status..."
-                  label="Project Status"
+                  placeholder="Filter by status..."
+                  label="Status"
                   maxDisplay={3}
                 />
 
@@ -2179,8 +2148,8 @@ export function CandidatesFilterDialog({
                   items={projectTypeOptions}
                   selected={tempFilters.projectTypes}
                   onChange={(values) => handleFilterChange("projectTypes", values)}
-                  placeholder="Filter by project type..."
-                  label="Project Type"
+                  placeholder="Filter by type..."
+                  label="Type"
                   maxDisplay={3}
                 />
               </div>
@@ -2195,10 +2164,6 @@ export function CandidatesFilterDialog({
                 searchPlaceholder="Search technologies..."
                 maxDisplay={4}
               />
-                <p className="text-xs text-muted-foreground">
-                  Matches candidates with linked projects that use any selected stack (OR). Does not filter on
-                  candidate-level or work-experience-only tech stacks.
-                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2259,10 +2224,6 @@ export function CandidatesFilterDialog({
                   <Label className="text-sm font-semibold">
                     Start Date Range
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Filter candidates who have worked on at least one project that started within this date range.
-                    Use case: &quot;Find candidates who have worked on at least one project that started within the last 6 months&quot;
-                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="startDateStart" className="text-xs text-muted-foreground">
@@ -2363,9 +2324,6 @@ export function CandidatesFilterDialog({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter by average team size of projects the candidate worked on
-                </p>
               </div>
 
               {/* Published App */}
@@ -2384,39 +2342,32 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Publish Platforms */}
-              <div className="space-y-2">
-                <MultiSelect
-                  items={publishPlatformFilterOptions}
-                  selected={tempFilters.publishPlatforms}
-                  onChange={(values) => handleFilterChange("publishPlatforms", values)}
-                  placeholder="Select platforms"
-                  label="Publish Platforms"
-                  searchPlaceholder="Search platforms..."
-                />
-                <p className="text-xs text-muted-foreground">
-                  {tempFilters.publishPlatforms.length === 0 
-                    ? "Select platforms to filter by specific app stores (e.g., App Store, Play Store). Leave empty to match any platform."
-                    : "Filtering for apps published on selected platforms. Combine with 'Published App' checkbox and mobile tech stacks for mobile developers."}
-                </p>
-              </div>
+              {/* Publish Platforms + Minimum Download Count */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 min-w-0">
+                  <MultiSelect
+                    items={publishPlatformFilterOptions}
+                    selected={tempFilters.publishPlatforms}
+                    onChange={(values) => handleFilterChange("publishPlatforms", values)}
+                    placeholder="Filter by publish platform..."
+                    label="Publish Platform"
+                    searchPlaceholder="Search platforms..."
+                  />
+                </div>
 
-              {/* Minimum Project Download Count Filter */}
-              <div className="space-y-3">
-                <Label htmlFor="minProjectDownloadCount" className="text-sm font-semibold">
-                  Minimum Project Download Count
-                </Label>
-                <Input
-                  id="minProjectDownloadCount"
-                  type="number"
-                  placeholder="e.g., 100000 (for 100K+)"
-                  min="0"
-                  value={tempFilters.minProjectDownloadCount}
-                  onChange={(e) => handleFilterChange("minProjectDownloadCount", e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filter candidates who have worked on at least one project/app with this many downloads (e.g., 100000 for 100K+)
-                </p>
+                <div className="space-y-3 min-w-0">
+                  <Label htmlFor="minProjectDownloadCount" className="text-sm font-semibold">
+                    Minimum Download Count
+                  </Label>
+                  <Input
+                    id="minProjectDownloadCount"
+                    type="number"
+                    placeholder="Filter by minimum download count..."
+                    min="0"
+                    value={tempFilters.minProjectDownloadCount}
+                    onChange={(e) => handleFilterChange("minProjectDownloadCount", e.target.value)}
+                  />
+                </div>
               </div>
             </section>
 
@@ -2438,7 +2389,7 @@ export function CandidatesFilterDialog({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Employers</Label>
+                  <Label className="text-sm font-medium">Employer</Label>
                   <Popover
                     open={employerComboboxOpen}
                     onOpenChange={(nextOpen) => {
@@ -2461,7 +2412,7 @@ export function CandidatesFilterDialog({
                       >
                         <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
                           {tempFilters.employers.length === 0 && (
-                            <span className="text-muted-foreground">Search employers to add…</span>
+                            <span className="text-muted-foreground">Filter by employer...</span>
                           )}
                           {tempFilters.employers.slice(0, 3).map((id) => (
                             <Badge
@@ -2510,7 +2461,7 @@ export function CandidatesFilterDialog({
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                       <Command shouldFilter={false}>
                         <CommandInput
-                          placeholder="Search employers..."
+                          placeholder="Filter by employer..."
                           value={employerSearchQuery}
                           onValueChange={setEmployerSearchQuery}
                           className="h-9"
@@ -2556,8 +2507,8 @@ export function CandidatesFilterDialog({
                   items={employerStatusOptions}
                   selected={tempFilters.employerStatus}
                   onChange={(values) => handleFilterChange("employerStatus", values)}
-                  placeholder="Filter by employer status..."
-                  label="Employer Status"
+                  placeholder="Filter by status"
+                  label="Status"
                   maxDisplay={3}
                 />
 
@@ -2565,14 +2516,14 @@ export function CandidatesFilterDialog({
                   items={employerRankingOptions}
                   selected={tempFilters.employerRankings}
                   onChange={(values) => handleFilterChange("employerRankings", values)}
-                  placeholder="Filter by company ranking..."
-                  label="Company Ranking"
+                  placeholder="Filter by ranking..."
+                  label="Ranking"
                   maxDisplay={3}
                 />
               </div>
 
               <div className="space-y-3">
-                <Label className="text-sm font-semibold">Employer Size Range</Label>
+                <Label className="text-sm font-semibold">Size Range</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="employerSizeMin" className="text-xs text-muted-foreground">
@@ -2601,9 +2552,6 @@ export function CandidatesFilterDialog({
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Filter by total company size across all locations
-                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2612,46 +2560,49 @@ export function CandidatesFilterDialog({
                   selected={tempFilters.employerCountries}
                   onChange={(values) => handleFilterChange("employerCountries", values)}
                   placeholder="Filter by country..."
-                  label="Employer Countries"
+                  label="Country"
                   searchPlaceholder="Search countries..."
                   maxDisplay={3}
                 />
 
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <Label htmlFor="employerCity" className="text-sm font-semibold">
-                    Employer city
+                    City
                   </Label>
                   <Input
                     id="employerCity"
                     type="text"
-                    placeholder="Substring match on office city (e.g. Karachi)"
+                    placeholder="Filter by city..."
                     value={tempFilters.employerCity}
                     onChange={(e) => handleFilterChange("employerCity", e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Cities are free text on employer locations; this filters by contained text (case-insensitive).
-                  </p>
                 </div>
-                
-                <MultiSelect
-                  items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
-                  selected={tempFilters.employerTypes}
-                  onChange={(values) => handleFilterChange("employerTypes", values)}
-                  placeholder="Filter by employer type..."
-                  label="Employer Type"
-                  searchPlaceholder="Search types..."
-                  maxDisplay={3}
-                />
               </div>
 
-              <MultiSelect
-                items={employerSalaryPolicyOptions}
-                selected={tempFilters.employerSalaryPolicies}
-                onChange={(values) => handleFilterChange("employerSalaryPolicies", values)}
-                placeholder="Filter by salary policy..."
-                label="Salary Policies"
-                maxDisplay={3}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
+                    selected={tempFilters.employerTypes}
+                    onChange={(values) => handleFilterChange("employerTypes", values)}
+                    placeholder="Filter by employer type..."
+                    label="Employer Type"
+                    searchPlaceholder="Search types..."
+                    maxDisplay={3}
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={employerSalaryPolicyOptions}
+                    selected={tempFilters.employerSalaryPolicies}
+                    onChange={(values) => handleFilterChange("employerSalaryPolicies", values)}
+                    placeholder="Filter by salary policy..."
+                    label="Salary Policy"
+                    maxDisplay={3}
+                  />
+                </div>
+              </div>
             </section>
 
             {/* Education Filters Section */}
@@ -2672,7 +2623,7 @@ export function CandidatesFilterDialog({
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Universities</Label>
+                <Label className="text-sm font-medium">University</Label>
                 <Popover
                   open={universityComboboxOpen}
                   onOpenChange={(nextOpen) => {
@@ -2694,7 +2645,7 @@ export function CandidatesFilterDialog({
                     >
                       <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
                         {tempFilters.universities.length === 0 && (
-                          <span className="text-muted-foreground">Search universities to add…</span>
+                          <span className="text-muted-foreground">Filter by university...</span>
                         )}
                         {tempFilters.universities.slice(0, 3).map((id) => (
                           <Badge
@@ -2744,7 +2695,7 @@ export function CandidatesFilterDialog({
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Search universities..."
+                        placeholder="Filter by university..."
                         value={universitySearchQuery}
                         onValueChange={setUniversitySearchQuery}
                         className="h-9"
@@ -2800,38 +2751,29 @@ export function CandidatesFilterDialog({
                 </Popover>
               </div>
               
-              <div className="space-y-2">
-              <MultiSelect
-                  items={degreeNameFilterOptions}
-                selected={tempFilters.degreeNames}
-                onChange={(values) => handleFilterChange("degreeNames", values)}
-                placeholder="Filter by degree..."
-                label="Degree"
-                searchPlaceholder="Search degrees..."
-                maxDisplay={3}
-                />           
-                {degreeNameFilterOptions.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Degree names load from GET /api/degrees (same as the candidate form) once lookups are available.
-                  </p>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                <MultiSelect
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 min-w-0">
+                  <MultiSelect
+                    items={degreeNameFilterOptions}
+                    selected={tempFilters.degreeNames}
+                    onChange={(values) => handleFilterChange("degreeNames", values)}
+                    placeholder="Filter by degree..."
+                    label="Degree"
+                    searchPlaceholder="Search degrees..."
+                    maxDisplay={3}
+                  />
+                </div>
+
+                <div className="space-y-2 min-w-0">
+                  <MultiSelect
                     items={majorNameFilterOptions}
-                  selected={tempFilters.majorNames}
-                  onChange={(values) => handleFilterChange("majorNames", values)}
-                  placeholder="Filter by major..."
-                  label="Major"
-                  searchPlaceholder="Search majors..."
-                  maxDisplay={3}
-                />
-                  {majorNameFilterOptions.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Major names load from GET /api/majors (same as the candidate form) once lookups are available.
-                    </p>
-                  )}
+                    selected={tempFilters.majorNames}
+                    onChange={(values) => handleFilterChange("majorNames", values)}
+                    placeholder="Filter by major..."
+                    label="Major"
+                    searchPlaceholder="Search majors..."
+                    maxDisplay={3}
+                  />
                 </div>
               </div>
 
@@ -2841,10 +2783,6 @@ export function CandidatesFilterDialog({
                   <Label className="text-sm font-semibold">
                     Graduation Date Range
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Filter candidates who graduated (completed education) within this date range. 
-                    Use case: &quot;Find all candidates who graduated in 2025&quot;
-                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="educationEndDateStart" className="text-xs text-muted-foreground">
@@ -2967,7 +2905,7 @@ export function CandidatesFilterDialog({
               </div>
               
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Certification Name</Label>
+                <Label className="text-sm font-medium">Certification</Label>
                 <Popover
                   open={certificationNameComboboxOpen}
                   onOpenChange={(nextOpen) => {
@@ -2989,7 +2927,7 @@ export function CandidatesFilterDialog({
                     >
                       <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
                         {tempFilters.certificationNames.length === 0 && (
-                          <span className="text-muted-foreground">Search certifications to add…</span>
+                          <span className="text-muted-foreground">Filter by certification...</span>
                         )}
                         {tempFilters.certificationNames.slice(0, 3).map((id) => (
                           <Badge
@@ -3042,7 +2980,7 @@ export function CandidatesFilterDialog({
                   >
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Search certifications..."
+                        placeholder="Filter by certification..."
                         value={certificationNameSearchQuery}
                         onValueChange={setCertificationNameSearchQuery}
                         className="h-9"
@@ -3119,11 +3057,6 @@ export function CandidatesFilterDialog({
                   searchPlaceholder="Search issuing bodies..."
                   maxDisplay={3}
                 />
-                  {certificationIssuingBodyFilterOptions.length === 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Issuing bodies load from the certification catalog once the issuers API is available.
-                    </p>
-                  )}
                 </div>
 
                 <MultiSelect
@@ -3131,7 +3064,7 @@ export function CandidatesFilterDialog({
                   selected={tempFilters.certificationLevels}
                   onChange={(values) => handleFilterChange("certificationLevels", values)}
                   placeholder="Filter by level..."
-                  label="Certification Level"
+                  label="Level"
                   maxDisplay={3}
                 />
               </div>
@@ -3154,31 +3087,31 @@ export function CandidatesFilterDialog({
                 )}
               </div>
               
-              <MultiSelect
-                items={achievementTypeOptions}
-                selected={tempFilters.achievementTypes}
-                onChange={(values) => handleFilterChange("achievementTypes", values)}
-                placeholder="Filter by achievement type..."
-                label="Achievement Type"
-                searchPlaceholder="Search types..."
-                maxDisplay={3}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="achievementName" className="text-sm font-semibold">
+                    Name
+                  </Label>
+                  <Input
+                    id="achievementName"
+                    type="text"
+                    placeholder="Filter by name..."
+                    value={tempFilters.achievementName}
+                    onChange={(e) => handleFilterChange("achievementName", e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="achievementName" className="text-sm font-semibold">
-                  Achievement Name
-                </Label>
-                <Input
-                  id="achievementName"
-                  type="text"
-                  placeholder="Substring match on achievement name (e.g. HackerOne)"
-                  value={tempFilters.achievementName}
-                  onChange={(e) => handleFilterChange("achievementName", e.target.value)}
-                />
-              <p className="text-xs text-muted-foreground">
-                  Same field as the Name input when creating or editing a candidate&apos;s achievements; match is
-                  case-insensitive.
-              </p>
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={achievementTypeOptions}
+                    selected={tempFilters.achievementTypes}
+                    onChange={(values) => handleFilterChange("achievementTypes", values)}
+                    placeholder="Filter by type..."
+                    label="Type"
+                    searchPlaceholder="Search types..."
+                    maxDisplay={3}
+                  />
+                </div>
               </div>
             </section>
 
