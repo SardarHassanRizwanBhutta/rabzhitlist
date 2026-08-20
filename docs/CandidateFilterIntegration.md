@@ -86,7 +86,8 @@ Certification driver filters trigger **`matchedCertifications`** on the list res
 
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
-| `universityId` | `long?` | has value | candidate has any education row with this university id |
+| `universityId` | `long?` | has value (legacy) | candidate has any education row with this university id; ignored when `universityIds` is non-empty |
+| `universityIds` | `long[]?` | length > 0 | candidate has any education row whose university id is in the array (**OR** within array) |
 | `degreeIds` | `long[]?` | length > 0 | candidate has any education with non-null `DegreeId` in array |
 | `majorIds` | `long[]?` | length > 0 | candidate has any education with non-null `MajorId` in array |
 | `isTopper` | `bool?` | has value | candidate has any education row with matching `IsTopper` |
@@ -353,7 +354,7 @@ which education rows caused the match (university name heading + matched-value b
 | `educationId` | `number` | Stable id of `candidate_educations`; one entry per matching education row. |
 | `universityId` | `number \| null` | Linked university id when present on the row. |
 | `universityName` | `string \| null` | University display name (Cards heading). |
-| `matchedByUniversityId` | `boolean` | `true` only when `universityId` filter is active and this row's university matched. |
+| `matchedByUniversityId` | `boolean` | `true` only when `universityIds` (or legacy `universityId`) filter is active and this row's university is in the requested set. |
 | `degree` | `{ id: number, label: string } \| null` | Intersection with requested `degreeIds` filter. |
 | `major` | `{ id: number, label: string } \| null` | Intersection with requested `majorIds` filter. |
 | `endMonth` | `string \| null` (ISO `DateOnly`) | Row graduation month when graduate date range filter satisfied on this row. |
@@ -363,7 +364,7 @@ which education rows caused the match (university name heading + matched-value b
 
 **When `matchedEducations` is computed:** any of these filters is active:
 
-- `universityId`, `degreeIds`, `majorIds`, `isTopper`, `isMainCheetah`, `graduateDateStart`, `graduateDateEnd`
+- `universityIds` (or legacy `universityId`), `degreeIds`, `majorIds`, `isTopper`, `isMainCheetah`, `graduateDateStart`, `graduateDateEnd`
 
 Otherwise → `matchedEducations: []` (never `null`).
 
@@ -535,6 +536,7 @@ Use repeated keys for arrays (most reliable):
 
 - `projectTypes=Employer&projectTypes=Freelance`
 - `employerIds=10&employerIds=22`
+- `universityIds=3&universityIds=7`
 - `certificationLevels=Associate&certificationLevels=Professional`
 
 Dates (`DateOnly`) should be ISO:

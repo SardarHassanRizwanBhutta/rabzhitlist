@@ -1558,6 +1558,8 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               creatable={creatable}
               createLabel={createLabel}
               onCreateNew={onCreateNew}
+              pinSelectedToTop
+              remainingGroupHeading="All technologies"
             />
           </div>
           
@@ -5853,6 +5855,14 @@ export function CandidateDetailsModal({
                   {viewCandidate.name}
           </DialogTitle>
                 <p className="text-sm text-muted-foreground mb-2">{getJobTitle(viewCandidate)}</p>
+                {getTotalExperienceYears(viewCandidate) != null && (
+                  <Badge
+                    variant="outline"
+                    className="h-5 px-2 text-xs font-medium border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                  >
+                    {formatYearsOfExperience(viewCandidate)} total experience
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mr-12">
@@ -6209,14 +6219,6 @@ export function CandidateDetailsModal({
                           >
                             Avg {calculateCandidateAverageTenure(viewCandidate).toFixed(1)}y tenure
                           </Badge>
-                          {getTotalExperienceYears(viewCandidate) != null && (
-                            <Badge
-                              variant="outline"
-                              className="ml-1 h-5 px-1.5 text-xs font-medium border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-                            >
-                              {formatYearsOfExperience(viewCandidate)} total
-                            </Badge>
-                          )}
                         </>
                       )}
                       <SectionProgressBadge

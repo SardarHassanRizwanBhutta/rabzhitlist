@@ -220,6 +220,20 @@ const statusOptions = Object.entries(PROJECT_STATUS_LABELS).map(([value, label])
   value: value as ProjectStatus
 }))
 
+/** Sticky right columns: Actions (far right) + Team (beside Actions). */
+const projectsTableStickyActionsHeadClass = cn(
+  "sticky right-0 z-20 w-[70px] min-w-[70px] max-w-[70px] bg-background",
+)
+const projectsTableStickyTeamHeadClass = cn(
+  "sticky right-[70px] z-20 w-[60px] min-w-[60px] max-w-[60px] bg-background border-l border-border shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.35)]",
+)
+const projectsTableStickyActionsCellClass = cn(
+  "sticky right-0 z-10 w-[70px] min-w-[70px] max-w-[70px] bg-background group-hover:bg-muted/50",
+)
+const projectsTableStickyTeamCellClass = cn(
+  "sticky right-[70px] z-10 w-[60px] min-w-[60px] max-w-[60px] bg-background group-hover:bg-muted/50 border-l border-border shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.08)] dark:shadow-[-4px_0_6px_-4px_rgba(0,0,0,0.35)]",
+)
+
 interface ProjectsTableProps {
   projects: Project[]
   isLoading?: boolean
@@ -523,15 +537,20 @@ export function ProjectsTable({
               <TableHead className="hidden lg:table-cell w-[88px]">
                 <SortButton column="dataProgressPercentage">Data Progress</SortButton>
               </TableHead>
-              <TableHead className="w-[60px]" title="View Team Members">Team</TableHead>
-              <TableHead className="w-[70px]">Actions</TableHead>
+              <TableHead
+                className={projectsTableStickyTeamHeadClass}
+                title="View Team Members"
+              >
+                Team
+              </TableHead>
+              <TableHead className={projectsTableStickyActionsHeadClass}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedProjects.map((project) => (
               <TableRow 
                 key={project.id}
-                className="hover:bg-muted/50 cursor-pointer"
+                className="group hover:bg-muted/50 cursor-pointer"
                 onClick={() => setSelectedProject(project)}
               >
                 <TableCell className="font-medium max-w-[240px] w-[240px]">
@@ -587,7 +606,7 @@ export function ProjectsTable({
                 <TableCell className="hidden lg:table-cell">
                   <ProjectDataProgressBadge project={project} />
                 </TableCell>
-                <TableCell>
+                <TableCell className={projectsTableStickyTeamCellClass}>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -601,7 +620,7 @@ export function ProjectsTable({
                     <UsersIcon className="h-4 w-4" />
                   </Button>
                 </TableCell>
-                <TableCell>
+                <TableCell className={projectsTableStickyActionsCellClass}>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"

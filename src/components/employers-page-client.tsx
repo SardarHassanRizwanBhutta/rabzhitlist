@@ -1,8 +1,11 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
-import { Globe } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Building2, Globe, X } from "lucide-react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { EmployersTable } from "@/components/employers-table"
 import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { EmployersFilterDialog, EmployerFilters } from "@/components/employers-filter-dialog"
@@ -123,6 +126,15 @@ function formatDateOnlyLocal(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+function parseEmployerFilterFromSearchParams(
+  searchParams: Pick<URLSearchParams, "get">
+): { name: string; id: string } | null {
+  const employerFilterName = searchParams.get("employerFilter")?.trim()
+  const employerId = searchParams.get("employerId")?.trim()
+  if (!employerFilterName || !employerId || !/^\d+$/.test(employerId)) return null
+  return { name: employerFilterName, id: employerId }
+}
+
 interface EmployersPageClientProps {
   /** Optional initial employers (e.g. from server). If not provided, list is fetched client-side. */
   employers?: Employer[]
@@ -169,8 +181,32 @@ const initialFilters: EmployerFilters = {
 }
 
 export function EmployersPageClient({ employers: initialEmployers = [] }: EmployersPageClientProps) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<EmployerFilters>(initialFilters)
+
+  const employerFilterFromUrl = useMemo(
+    () => parseEmployerFilterFromSearchParams(searchParams),
+    [searchParams]
+  )
+
+  const employerIdFromUrl = useMemo(() => {
+    const raw = employerFilterFromUrl?.id ?? searchParams.get("employerId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [employerFilterFromUrl, searchParams])
+
+  const combinedFilters = useMemo((): EmployerFilters => {
+    if (employerFilterFromUrl == null) return filters
+    const nameFromUrl = employerFilterFromUrl.name.trim()
+    if (!nameFromUrl) return filters
+    return { ...filters, employerName: nameFromUrl }
+  }, [filters, employerFilterFromUrl])
+
+  const listFilterKey = `${employerIdFromUrl ?? ""}|${employerFilterFromUrl?.name ?? ""}`
+  const prevListFilterKeyRef = useRef<string | null>(null)
   const [employers, setEmployers] = useState<Employer[]>(initialEmployers)
   const [loading, setLoading] = useState(initialEmployers.length === 0)
   const [error, setError] = useState<string | null>(null)
@@ -190,81 +226,92 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
 
+  useEffect(() => {
+    if (prevListFilterKeyRef.current === listFilterKey) return
+    const isFilterChange = prevListFilterKeyRef.current !== null
+    prevListFilterKeyRef.current = listFilterKey
+    setPageNumber(1)
+    if (isFilterChange) {
+      setEmployers([])
+      setLoading(true)
+    }
+  }, [listFilterKey])
+
   const employerListParams = useMemo((): FetchEmployersParams => {
-    const foundedYears = foundedYearStringToInts(filters.foundedYear)
-    const countryIds = countryNamesToIds(filters.countries, countries)
-    const timeZoneIds = lookupNamesToIds(filters.timeSupportZones, timeSupportZonesLookup)
-    const awardIds = lookupNamesToIds(filters.awards, awardsLookup)
-    const clientLocIds = lookupNamesToIds(filters.clientLocations, clientLocationsLookup)
-    const technicalInts = labelsToTechnicalDomainInts(filters.technicalDomains)
-    const verticalInts = filters.verticalDomains
+    const foundedYears = foundedYearStringToInts(combinedFilters.foundedYear)
+    const countryIds = countryNamesToIds(combinedFilters.countries, countries)
+    const timeZoneIds = lookupNamesToIds(combinedFilters.timeSupportZones, timeSupportZonesLookup)
+    const awardIds = lookupNamesToIds(combinedFilters.awards, awardsLookup)
+    const clientLocIds = lookupNamesToIds(combinedFilters.clientLocations, clientLocationsLookup)
+    const technicalInts = labelsToTechnicalDomainInts(combinedFilters.technicalDomains)
+    const verticalInts = combinedFilters.verticalDomains
       .map((l) => verticalDomainLabelToInt(l))
       .filter((v): v is number => v != null)
-    const horizontalInts = filters.horizontalDomains
+    const horizontalInts = combinedFilters.horizontalDomains
       .map((l) => horizontalDomainLabelToInt(l))
       .filter((v): v is number => v != null)
 
-    const benefits = filters.benefits.map((t) => t.trim()).filter(Boolean)
+    const benefits = combinedFilters.benefits.map((t) => t.trim()).filter(Boolean)
 
-    const statusInts = filters.status.map((s) => EMPLOYER_STATUS_TO_API[EMPLOYER_STATUS_DISPLAY_TO_DB[s]])
-    const employerTypeInts = filters.employerTypes.map(
+    const statusInts = combinedFilters.status.map((s) => EMPLOYER_STATUS_TO_API[EMPLOYER_STATUS_DISPLAY_TO_DB[s]])
+    const employerTypeInts = combinedFilters.employerTypes.map(
       (t) => EMPLOYER_TYPE_TO_API[EMPLOYER_TYPE_DISPLAY_TO_DB[t]]
     )
-    const salaryInts = filters.salaryPolicies.map(
+    const salaryInts = combinedFilters.salaryPolicies.map(
       (p) => SALARY_POLICY_TO_API[SALARY_POLICY_DISPLAY_TO_DB[p]]
     )
-    const rankingInts = filters.rankings.length ? employerRankingsToApiInts(filters.rankings) : []
+    const rankingInts = combinedFilters.rankings.length ? employerRankingsToApiInts(combinedFilters.rankings) : []
 
-    const shiftInts = filters.shiftTypes
+    const shiftInts = combinedFilters.shiftTypes
       .map((k) => SHIFT_TYPE_TO_API[k as ShiftTypeDb])
       .filter((v): v is number => typeof v === "number")
-    const workModeInts = filters.workModes
+    const workModeInts = combinedFilters.workModes
       .map((k) => WORK_MODE_TO_API[k as WorkModeDb])
       .filter((v): v is number => typeof v === "number")
 
-    const projectStatusInts = filters.projectStatus
+    const projectStatusInts = combinedFilters.projectStatus
       .map((s) => PROJECT_STATUS_UI_TO_NUM[s as ProjectStatus])
       .filter((v): v is number => typeof v === "number")
 
-    const publishInts = filters.publishPlatforms
+    const publishInts = combinedFilters.publishPlatforms
       .map((p) => PUBLISH_PLATFORM_UI_TO_NUM[p as PublishPlatform])
       .filter((v): v is number => typeof v === "number")
 
-    const sizeMin = parseOptionalNonNegativeInt(filters.sizeMin)
-    const sizeMax = parseOptionalNonNegativeInt(filters.sizeMax)
-    const minLocationsCount = parseOptionalNonNegativeInt(filters.minLocationsCount)
-    const minCitiesCount = parseOptionalNonNegativeInt(filters.minCitiesCount)
+    const sizeMin = parseOptionalNonNegativeInt(combinedFilters.sizeMin)
+    const sizeMax = parseOptionalNonNegativeInt(combinedFilters.sizeMax)
+    const minLocationsCount = parseOptionalNonNegativeInt(combinedFilters.minLocationsCount)
+    const minCitiesCount = parseOptionalNonNegativeInt(combinedFilters.minCitiesCount)
     // UI uses averageTeamSize*; employer list API still expects projectTeamSize*.
-    const projectTeamSizeMin = parseOptionalNonNegativeInt(filters.averageTeamSizeMin)
-    const projectTeamSizeMax = parseOptionalNonNegativeInt(filters.averageTeamSizeMax)
-    const minDownloadCount = parseOptionalNonNegativeLong(filters.minDownloadCount)
-    const minLayoffEmployees = parseOptionalNonNegativeInt(filters.minLayoffEmployees)
-    const avgJobTenureMin = parseOptionalDouble(filters.avgJobTenureMin)
-    const avgJobTenureMax = parseOptionalDouble(filters.avgJobTenureMax)
-    const minDataProgress = filters.dataProgressMin.trim()
-      ? parseFloat(filters.dataProgressMin)
+    const projectTeamSizeMin = parseOptionalNonNegativeInt(combinedFilters.averageTeamSizeMin)
+    const projectTeamSizeMax = parseOptionalNonNegativeInt(combinedFilters.averageTeamSizeMax)
+    const minDownloadCount = parseOptionalNonNegativeLong(combinedFilters.minDownloadCount)
+    const minLayoffEmployees = parseOptionalNonNegativeInt(combinedFilters.minLayoffEmployees)
+    const avgJobTenureMin = parseOptionalDouble(combinedFilters.avgJobTenureMin)
+    const avgJobTenureMax = parseOptionalDouble(combinedFilters.avgJobTenureMax)
+    const minDataProgress = combinedFilters.dataProgressMin.trim()
+      ? parseFloat(combinedFilters.dataProgressMin)
       : undefined
-    const maxDataProgress = filters.dataProgressMax.trim()
-      ? parseFloat(filters.dataProgressMax)
+    const maxDataProgress = combinedFilters.dataProgressMax.trim()
+      ? parseFloat(combinedFilters.dataProgressMax)
       : undefined
 
     return {
       pageNumber,
       pageSize,
-      ...(filters.employerName.trim() ? { name: filters.employerName.trim() } : {}),
+      ...(combinedFilters.employerName.trim() ? { name: combinedFilters.employerName.trim() } : {}),
       ...(statusInts.length ? { status: statusInts } : {}),
       ...(foundedYears?.length ? { foundedYears } : {}),
       ...(countryIds.length ? { countries: countryIds } : {}),
-      ...(filters.city.trim() ? { city: filters.city.trim() } : {}),
+      ...(combinedFilters.city.trim() ? { city: combinedFilters.city.trim() } : {}),
       ...(employerTypeInts.length ? { employerTypes: employerTypeInts } : {}),
       ...(salaryInts.length ? { salaryPolicies: salaryInts } : {}),
       ...(rankingInts.length ? { rankings: rankingInts } : {}),
-      ...(filters.isDPLCompetitive !== null ? { isDPLCompetitive: filters.isDPLCompetitive } : {}),
+      ...(combinedFilters.isDPLCompetitive !== null ? { isDPLCompetitive: combinedFilters.isDPLCompetitive } : {}),
       ...(sizeMin != null ? { sizeMin } : {}),
       ...(sizeMax != null ? { sizeMax } : {}),
       ...(minLocationsCount != null ? { minLocationsCount } : {}),
       ...(minCitiesCount != null ? { minCitiesCount } : {}),
-      ...(filters.employeeCity.trim() ? { employeeCity: filters.employeeCity.trim() } : {}),
+      ...(combinedFilters.employeeCity.trim() ? { employeeCity: combinedFilters.employeeCity.trim() } : {}),
       ...(benefits.length ? { benefits } : {}),
       ...(shiftInts.length ? { shiftTypes: shiftInts } : {}),
       ...(workModeInts.length ? { workModes: workModeInts } : {}),
@@ -279,15 +326,17 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       ...(projectStatusInts.length ? { projectStatus: projectStatusInts } : {}),
       ...(projectTeamSizeMin != null ? { projectTeamSizeMin } : {}),
       ...(projectTeamSizeMax != null ? { projectTeamSizeMax } : {}),
-      ...(filters.hasPublishedProject !== null
-        ? { hasPublishedProject: filters.hasPublishedProject }
+      ...(combinedFilters.hasPublishedProject !== null
+        ? { hasPublishedProject: combinedFilters.hasPublishedProject }
         : {}),
       ...(publishInts.length ? { publishPlatforms: publishInts } : {}),
       ...(minDownloadCount != null ? { minDownloadCount } : {}),
-      ...(filters.layoffDateStart
-        ? { layoffDateStart: formatDateOnlyLocal(filters.layoffDateStart) }
+      ...(combinedFilters.layoffDateStart
+        ? { layoffDateStart: formatDateOnlyLocal(combinedFilters.layoffDateStart) }
         : {}),
-      ...(filters.layoffDateEnd ? { layoffDateEnd: formatDateOnlyLocal(filters.layoffDateEnd) } : {}),
+      ...(combinedFilters.layoffDateEnd
+        ? { layoffDateEnd: formatDateOnlyLocal(combinedFilters.layoffDateEnd) }
+        : {}),
       ...(minLayoffEmployees != null ? { minLayoffEmployees } : {}),
       ...(minDataProgress != null && !Number.isNaN(minDataProgress)
         ? { minDataProgressPercentage: minDataProgress }
@@ -296,7 +345,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         ? { maxDataProgressPercentage: maxDataProgress }
         : {}),
     }
-  }, [pageNumber, pageSize, filters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup])
+  }, [pageNumber, pageSize, combinedFilters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup])
 
   const timeSupportZoneFilterOptions = useMemo(
     () => timeSupportZonesLookup.map((z) => ({ value: z.name, label: z.name })),
@@ -497,6 +546,17 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     setPageNumber(1)
   }, [])
 
+  const handleClearEmployerFilter = useCallback(() => {
+    router.push("/employers")
+  }, [router])
+
+  const visibleEmployers = useMemo(() => {
+    if (employerIdFromUrl == null) return employers
+    const idStr = String(employerIdFromUrl)
+    const byId = employers.filter((e) => e.id === idStr)
+    return byId.length > 0 ? byId : employers
+  }, [employers, employerIdFromUrl])
+
   const handleViewEmployer = useCallback((_employer: Employer) => {
     // TODO: Open employer details modal or navigate to detail page
   }, [])
@@ -574,14 +634,32 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
         </div>
       )}
 
+      {employerFilterFromUrl && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Building2 className="h-3 w-3" />
+            Employer: {employerFilterFromUrl.name}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0 hover:bg-transparent"
+              onClick={handleClearEmployerFilter}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
       <EmployersTable
-        employers={employers}
-        filters={filters}
+        employers={visibleEmployers}
+        filters={combinedFilters}
         isLoading={loading}
         totalCount={totalCount}
         pageNumber={pageNumber}

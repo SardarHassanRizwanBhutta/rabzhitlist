@@ -282,21 +282,50 @@ See [Response DTO Shapes](#response-dto-shapes) for the complete response struct
 
 **`GET /api/candidates`**
 
+> **Full filter reference:** See [`CandidateFilterIntegration.md`](./CandidateFilterIntegration.md) for every query parameter, AND/OR semantics, and `matched*` list response fields (`matchedEducations`, `matchedEmployers`, etc.).
+
 ### Query Parameters
+
+#### Pagination
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `pageNumber` | int | `1` | Page number (1-based) |
 | `pageSize` | int | `10` | Items per page (max 100) |
-| `certificationId` | long? | — | Filter: only candidates with this certification |
-| `universityId` | long? | — | Filter: only candidates who attended this university |
 
-Filters are combined with AND when both are present.
+All active filters are combined with **logical AND**. Array filters use **OR within the array** (e.g. any listed id may match).
 
-### Example
+#### Certification filters
+
+| Parameter | Type | Active when | Description |
+|-----------|------|-------------|-------------|
+| `certificationId` | long? | has value | Candidate has any certification row with this `CertificationId` |
+
+#### Education filters
+
+| Parameter | Type | Active when | Description |
+|-----------|------|-------------|-------------|
+| `universityId` | long? | has value (legacy) | Candidate has any education row with this university id; **ignored when `universityIds` is non-empty** |
+| `universityIds` | long[]? | length > 0 | Candidate has any education row whose university id is in the array (**OR** within array) |
+| `degreeIds` | long[]? | length > 0 | Candidate has any education with non-null `DegreeId` in array |
+| `majorIds` | long[]? | length > 0 | Candidate has any education with non-null `MajorId` in array |
+| `isTopper` | bool? | has value | Candidate has any education row with matching `IsTopper` |
+| `isMainCheetah` | bool? | has value | Candidate has any education row with matching `IsMainCheetah` |
+| `graduateDateStart` | DateOnly? | start or end provided | Education `EndMonth` not null and `>= start` |
+| `graduateDateEnd` | DateOnly? | start or end provided | Education `EndMonth` not null and `<= end` |
+
+**University id resolution (`ResolveUniversityIds`):** when both are bound, **`universityIds` wins** if non-empty; otherwise legacy `universityId` is treated as a one-element set; otherwise no university filter is applied.
+
+`graduateDateStart` and `graduateDateEnd` form an inclusive completion window over `candidate_educations.end_month`.
+
+Education driver filters populate **`matchedEducations`** on each list item (see [`CandidateFilterIntegration.md` — matchedEducations](./CandidateFilterIntegration.md#response-matchededucations-education-background-match-summary)).
+
+### Examples
 
 ```
 GET /api/candidates?pageNumber=1&pageSize=20&universityId=3
+GET /api/candidates?universityIds=3&universityIds=7&pageNumber=1&pageSize=20
+GET /api/candidates?certificationId=7&universityIds=3&degreeIds=1&degreeIds=2
 ```
 
 ### Response: `200 OK`
@@ -878,8 +907,11 @@ These operate on a specific work experience identified by `{weId}`.
 ### Filtered Candidate Lists
 
 - From Certifications page: `GET /api/candidates?certificationId={id}`
-- From Universities page: `GET /api/candidates?universityId={id}`
-- Both can be combined: `GET /api/candidates?certificationId=7&universityId=3`
+- From Universities page (legacy deep-link): `GET /api/candidates?universityId={id}`
+- Filter dialog / multi-university: `GET /api/candidates?universityIds={id}&universityIds={id2}` (repeated keys)
+- Combined: `GET /api/candidates?certificationId=7&universityIds=3&universityIds=7`
+
+Use repeated query keys for array params. The SPA sends **`universityIds`** for all in-app university filters (URL chip ids are merged into the same array). External bookmarks may still use singular **`universityId`**.
 
 ---
 
@@ -891,7 +923,7 @@ All foreign key IDs in the create request must reference **existing** catalog re
 |----------|-----|
 | Tech Stacks | `GET /api/tech-stacks` or `GET /api/tech-stacks/search?search=react` |
 | Projects | `GET /api/projects` |
-| Universities | `GET /api/universities` |
+| Universities | `GET /api/universities` or `GET /api/universities/search?search=mit&limit=10` |
 | Degrees | `GET /api/degrees` |
 | Majors | `GET /api/majors` |
 | Certifications | `GET /api/certifications` or `GET /api/certifications/search?search=aws` |

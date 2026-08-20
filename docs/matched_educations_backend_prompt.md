@@ -14,7 +14,7 @@ Education Background filters (or the URL **`universityId`** chip) are active —
 - **Category:** `Education Background` (green, graduation cap).
 - **One item per matching education row** — heading = **university name** (`universityName`).
 - **Badges** (only for active driver filters with non-empty intersection on that row):
-  - `university` — when `universityId` filter active and row matched by university
+  - `university` — when `universityIds` filter active and row matched by university
   - `degree` — when `degreeIds` active and row has matched degree
   - `major` — when `majorIds` active and row has matched major
   - `isTopper` — when `isTopper=true` filter active and row is topper (**only when filter is true**)
@@ -48,7 +48,7 @@ Education Background filters (or the URL **`universityId`** chip) are active —
 | `educationId` | `number` | Stable id of `candidate_educations`; **one entry per matching education row**. |
 | `universityId` | `number` | Linked university id. |
 | `universityName` | `string` | University display name (Cards heading). |
-| `matchedByUniversityId` | `boolean` | `true` when **`universityId`** query filter active and this row's university matched. |
+| `matchedByUniversityId` | `boolean` | `true` when **`universityIds`** (or legacy **`universityId`**) query filter active and this row's university is in the requested set. |
 | `degree` | `{ id, label } \| null` | Intersection with requested **`degreeIds`** filter; `null` when sub-filter not applied or no match on this field. |
 | `major` | `{ id, label } \| null` | Intersection with requested **`majorIds`** filter. |
 | `endMonth` | `string \| null` (ISO DateOnly) | Row graduation month when **graduate date range** filter satisfied on this row; else `null`. |
@@ -62,7 +62,7 @@ Education Background filters (or the URL **`universityId`** chip) are active —
 
 Compute when **any** of these query filters is active:
 
-- `universityId`
+- `universityIds` (or legacy `universityId`)
 - `degreeIds`
 - `majorIds`
 - `isTopper` (has value)

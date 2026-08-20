@@ -3537,6 +3537,8 @@ export function CandidateCreationDialog({
                         creatable={!!onCreateTechStack}
                         createLabel="Add Technology"
                         onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                        pinSelectedToTop
+                        remainingGroupHeading="All technologies"
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
                     </div>
@@ -3817,6 +3819,8 @@ export function CandidateCreationDialog({
                       creatable={!!onCreateTechStack}
                       createLabel="Add Technology"
                       onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                      pinSelectedToTop
+                      remainingGroupHeading="All technologies"
                     />
                     <VerificationCheckbox fieldPath="techStacks" />
                   </div>

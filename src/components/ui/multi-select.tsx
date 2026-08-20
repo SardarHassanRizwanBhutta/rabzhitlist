@@ -12,6 +12,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command"
 import {
   Popover,
@@ -40,6 +41,12 @@ interface MultiSelectProps {
   createLabel?: string  // New prop - e.g., "Add Technology", "Add Domain"
   /** When "+ Add" is clicked: if provided and returns a Promise, we await it and only add to selected on success. */
   onCreateNew?: (value: string) => void | Promise<void>
+  /** Pin selected options to the top of the dropdown list (original order preserved within each group). */
+  pinSelectedToTop?: boolean
+  /** When `pinSelectedToTop`, heading for selected rows. `{count}` is replaced with selected visible count. */
+  selectedGroupHeading?: string
+  /** When `pinSelectedToTop`, heading for the remaining options below the separator. */
+  remainingGroupHeading?: string
 }
 
 export function MultiSelect({
@@ -56,6 +63,9 @@ export function MultiSelect({
   creatable = false,  // Default to false for backward compatibility
   createLabel,  // e.g., "Add Technology", "Add Domain"
   onCreateNew,
+  pinSelectedToTop = false,
+  selectedGroupHeading = "Selected ({count})",
+  remainingGroupHeading = "All options",
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
@@ -101,26 +111,26 @@ export function MultiSelect({
   )
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const input = e.target as HTMLInputElement
-    if (input.value === "" && selected.length > 0) {
-      if (e.key === "Delete" || e.key === "Backspace") {
-        onChange(selected.slice(0, -1))
-      }
-    }
     // Escape closes the combobox
     if (e.key === "Escape") {
       setOpen(false)
       setSearchValue("")
     }
-  // Enter key creates new item if creatable and no results
-  if (creatable && e.key === "Enter" && searchValue.trim() && !items.some(item => 
-    item.value.toLowerCase() === searchValue.trim().toLowerCase() ||
-    item.label.toLowerCase() === searchValue.trim().toLowerCase()
-  )) {
-    e.preventDefault()
-    void handleCreateNew(searchValue)
+    // Enter key creates new item if creatable and no results
+    if (
+      creatable &&
+      e.key === "Enter" &&
+      searchValue.trim() &&
+      !items.some(
+        (item) =>
+          item.value.toLowerCase() === searchValue.trim().toLowerCase() ||
+          item.label.toLowerCase() === searchValue.trim().toLowerCase(),
+      )
+    ) {
+      e.preventDefault()
+      void handleCreateNew(searchValue)
+    }
   }
-}
 
   // Filter items based on search
   const filteredItems = React.useMemo(() => {
@@ -131,6 +141,53 @@ export function MultiSelect({
       item.value.toLowerCase().includes(searchLower)
     )
   }, [items, searchValue])
+
+  const { pinnedListItems, unpinnedListItems } = React.useMemo(() => {
+    if (!pinSelectedToTop || selected.length === 0) {
+      return { pinnedListItems: [] as MultiSelectOption[], unpinnedListItems: filteredItems }
+    }
+
+    const selectedSet = new Set(selected)
+    const selectedOrder = new Map(selected.map((value, index) => [value, index]))
+    const pinned: MultiSelectOption[] = []
+    const unpinned: MultiSelectOption[] = []
+
+    for (const item of filteredItems) {
+      if (selectedSet.has(item.value)) {
+        pinned.push(item)
+      } else {
+        unpinned.push(item)
+      }
+    }
+
+    pinned.sort(
+      (a, b) =>
+        (selectedOrder.get(a.value) ?? Number.MAX_SAFE_INTEGER) -
+        (selectedOrder.get(b.value) ?? Number.MAX_SAFE_INTEGER),
+    )
+
+    return { pinnedListItems: pinned, unpinnedListItems: unpinned }
+  }, [filteredItems, selected, pinSelectedToTop])
+
+  const renderListItem = (item: MultiSelectOption) => {
+    const isSelected = selected.includes(item.value)
+    return (
+      <CommandItem
+        key={item.value}
+        value={item.value}
+        onSelect={() => handleSelect(item.value)}
+        className="cursor-pointer"
+      >
+        <Check
+          className={cn(
+            "mr-2 h-4 w-4",
+            isSelected ? "opacity-100" : "opacity-0",
+          )}
+        />
+        {item.label}
+      </CommandItem>
+    )
+  }
 
   // Check if search value already exists
   const searchValueExists = React.useMemo(() => {
@@ -249,28 +306,27 @@ export function MultiSelect({
                 </>
               ) : filteredItems.length === 0 ? (
                 <CommandEmpty>{emptyMessage}</CommandEmpty>
+              ) : pinSelectedToTop && pinnedListItems.length > 0 ? (
+                <>
+                  <CommandGroup
+                    heading={selectedGroupHeading.replace(
+                      "{count}",
+                      String(pinnedListItems.length),
+                    )}
+                  >
+                    {pinnedListItems.map(renderListItem)}
+                  </CommandGroup>
+                  {unpinnedListItems.length > 0 && (
+                    <>
+                      <CommandSeparator />
+                      <CommandGroup heading={remainingGroupHeading}>
+                        {unpinnedListItems.map(renderListItem)}
+                      </CommandGroup>
+                    </>
+                  )}
+                </>
               ) : (
-                <CommandGroup>
-                  {filteredItems.map((item) => {
-                    const isSelected = selected.includes(item.value)
-                    return (
-                      <CommandItem
-                        key={item.value}
-                        value={item.value}
-                        onSelect={() => handleSelect(item.value)}
-                        className="cursor-pointer"
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            isSelected ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {item.label}
-                      </CommandItem>
-                    )
-                  })}
-                </CommandGroup>
+                <CommandGroup>{filteredItems.map(renderListItem)}</CommandGroup>
               )}
             </CommandList>
           </Command>

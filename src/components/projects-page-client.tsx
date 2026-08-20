@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Building2, Globe, Plus, X } from "lucide-react"
+import { Building2, FolderIcon, Globe, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ProjectsTable } from "@/components/projects-table"
@@ -107,40 +107,73 @@ function technicalAspectEnumsForProjectBody(
   return [...new Set(namesToIds(legacyAspectNames, legacyLookup))]
 }
 
+function parseEmployerFilterFromSearchParams(
+  searchParams: Pick<URLSearchParams, "get">
+): { name: string; id: string } | null {
+  const employerFilterName = searchParams.get("employerFilter")?.trim()
+  const employerId = searchParams.get("employerId")?.trim()
+  if (!employerFilterName || !employerId || !/^\d+$/.test(employerId)) return null
+  return { name: employerFilterName, id: employerId }
+}
+
+function parseProjectFilterFromSearchParams(
+  searchParams: Pick<URLSearchParams, "get">
+): { name: string; id: string } | null {
+  const projectFilterName = searchParams.get("projectFilter")?.trim()
+  const projectId = searchParams.get("projectId")?.trim()
+  if (!projectFilterName || !projectId || !/^\d+$/.test(projectId)) return null
+  return { name: projectFilterName, id: projectId }
+}
+
 export function ProjectsPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<ProjectFilters>(initialFilters)
-  const [employerFilter, setEmployerFilter] = useState<{ name: string; id: string } | null>(null)
+
+  const employerFilterFromUrl = useMemo(
+    () => parseEmployerFilterFromSearchParams(searchParams),
+    [searchParams]
+  )
+
+  const projectFilterFromUrl = useMemo(
+    () => parseProjectFilterFromSearchParams(searchParams),
+    [searchParams]
+  )
 
   const employerIdFromUrl = useMemo(() => {
-    const raw = searchParams.get("employerId")
+    const raw = employerFilterFromUrl?.id ?? searchParams.get("employerId")
     if (!raw || !/^\d+$/.test(raw.trim())) return null
     const n = Number.parseInt(raw.trim(), 10)
     return Number.isFinite(n) && n > 0 ? n : null
-  }, [searchParams])
+  }, [employerFilterFromUrl, searchParams])
 
-  useEffect(() => {
-    const employerFilterName = searchParams.get("employerFilter")
-    const employerId = searchParams.get("employerId")
-    if (employerFilterName && employerId) {
-      setEmployerFilter({ name: employerFilterName, id: employerId })
-    } else {
-      setEmployerFilter(null)
-    }
-  }, [searchParams])
+  const projectIdFromUrl = useMemo(() => {
+    const raw = projectFilterFromUrl?.id ?? searchParams.get("projectId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [projectFilterFromUrl, searchParams])
 
   const combinedFilters = useMemo((): ProjectFilters => {
-    if (employerIdFromUrl == null) return filters
-    const idStr = String(employerIdFromUrl)
-    return {
-      ...filters,
-      employers: filters.employers.includes(idStr)
-        ? filters.employers
-        : [...filters.employers, idStr],
+    let next = filters
+    if (employerIdFromUrl != null) {
+      const idStr = String(employerIdFromUrl)
+      next = {
+        ...next,
+        employers: next.employers.includes(idStr)
+          ? next.employers
+          : [...next.employers, idStr],
+      }
     }
-  }, [filters, employerIdFromUrl])
+    if (projectFilterFromUrl != null) {
+      const nameFromUrl = projectFilterFromUrl.name.trim()
+      if (nameFromUrl) {
+        next = { ...next, projectName: nameFromUrl }
+      }
+    }
+    return next
+  }, [filters, employerIdFromUrl, projectFilterFromUrl])
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -152,12 +185,17 @@ export function ProjectsPageClient() {
   const [hasNext, setHasNext] = useState(false)
   const [hasPrevious, setHasPrevious] = useState(false)
 
-  const listFilterKey = `${employerIdFromUrl ?? ""}`
+  const listFilterKey = `${employerIdFromUrl ?? ""}|${projectIdFromUrl ?? ""}|${projectFilterFromUrl?.name ?? ""}`
   const prevListFilterKeyRef = useRef<string | null>(null)
   useEffect(() => {
     if (prevListFilterKeyRef.current === listFilterKey) return
+    const isFilterChange = prevListFilterKeyRef.current !== null
     prevListFilterKeyRef.current = listFilterKey
     setPageNumber(1)
+    if (isFilterChange) {
+      setProjects([])
+      setLoading(true)
+    }
   }, [listFilterKey])
 
   // Lookup data for dropdowns (prefetched on mount)
@@ -215,14 +253,23 @@ export function ProjectsPageClient() {
   // acceptable trade-off given this is a UI-only refinement.
   const visibleProjects = useMemo(() => {
     const ids = filters.technicalAspectTypeIds
-    if (!ids?.length) return projects
-    const idToLabel = new Map(technicalAspectTypeSelectOptions.map((o) => [o.value, o.label]))
-    const wantedLabels = new Set(
-      ids.map((id) => idToLabel.get(id)).filter((label): label is string => Boolean(label))
-    )
-    if (wantedLabels.size === 0) return projects
-    return projects.filter((p) => p.aspectTypeLabels.some((label) => wantedLabels.has(label)))
-  }, [projects, filters.technicalAspectTypeIds, technicalAspectTypeSelectOptions])
+    let list = projects
+    if (ids?.length) {
+      const idToLabel = new Map(technicalAspectTypeSelectOptions.map((o) => [o.value, o.label]))
+      const wantedLabels = new Set(
+        ids.map((id) => idToLabel.get(id)).filter((label): label is string => Boolean(label))
+      )
+      if (wantedLabels.size > 0) {
+        list = list.filter((p) => p.aspectTypeLabels.some((label) => wantedLabels.has(label)))
+      }
+    }
+    if (projectIdFromUrl != null) {
+      const idStr = String(projectIdFromUrl)
+      const byId = list.filter((p) => p.id === idStr)
+      if (byId.length > 0) list = byId
+    }
+    return list
+  }, [projects, filters.technicalAspectTypeIds, technicalAspectTypeSelectOptions, projectIdFromUrl])
 
   // Fetch lookups once on mount (technical domains from GET /api/TechnicalDomains)
   useEffect(() => {
@@ -482,8 +529,19 @@ export function ProjectsPageClient() {
   }
 
   const handleClearEmployerFilter = () => {
-    setEmployerFilter(null)
-    router.push("/projects")
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("employerFilter")
+    params.delete("employerId")
+    const q = params.toString()
+    router.push(q ? `/projects?${q}` : "/projects")
+  }
+
+  const handleClearProjectFilter = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("projectFilter")
+    params.delete("projectId")
+    const q = params.toString()
+    router.push(q ? `/projects?${q}` : "/projects")
   }
 
   const handleClearFilters = () => {
@@ -592,21 +650,37 @@ export function ProjectsPageClient() {
         </div>
       )}
 
-      {employerFilter && (
+      {(employerFilterFromUrl || projectFilterFromUrl) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Building2 className="h-3 w-3" />
-            Employer: {employerFilter.name}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-4 w-4 p-0 hover:bg-transparent"
-              onClick={handleClearEmployerFilter}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </Badge>
+          {employerFilterFromUrl && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Building2 className="h-3 w-3" />
+              Employer: {employerFilterFromUrl.name}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={handleClearEmployerFilter}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
+          {projectFilterFromUrl && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <FolderIcon className="h-3 w-3" />
+              Project: {projectFilterFromUrl.name}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={handleClearProjectFilter}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
         </div>
       )}
 

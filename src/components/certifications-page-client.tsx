@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
-import { Globe } from "lucide-react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Award, Globe, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { CertificationsTable } from "@/components/certifications-table"
 import { CertificationCreationDialog, CertificationFormData, CertificationVerificationState } from "@/components/certification-creation-dialog"
 import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
@@ -14,15 +16,51 @@ import { toast } from "sonner"
 
 const DEFAULT_PAGE_SIZE = 20
 
+const initialFilters: CertificationFilters = {
+  certificationNameSearch: "",
+  issuerIds: [],
+  dataProgressMin: "",
+  dataProgressMax: "",
+}
+
+function parseCertificationFilterFromSearchParams(
+  searchParams: Pick<URLSearchParams, "get">
+): { name: string; id: string } | null {
+  const certificationFilterName =
+    searchParams.get("certificationFilter")?.trim() ??
+    searchParams.get("certificationName")?.trim()
+  const certificationId = searchParams.get("certificationId")?.trim()
+  if (!certificationFilterName || !certificationId || !/^\d+$/.test(certificationId)) return null
+  return { name: certificationFilterName, id: certificationId }
+}
+
 export function CertificationsPageClient() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
-  const [filters, setFilters] = useState<CertificationFilters>({
-    certificationNameSearch: "",
-    issuerIds: [],
-    dataProgressMin: "",
-    dataProgressMax: "",
-  })
+  const [filters, setFilters] = useState<CertificationFilters>(initialFilters)
+
+  const certificationFilterFromUrl = useMemo(
+    () => parseCertificationFilterFromSearchParams(searchParams),
+    [searchParams]
+  )
+
+  const certificationIdFromUrl = useMemo(() => {
+    const raw = certificationFilterFromUrl?.id ?? searchParams.get("certificationId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [certificationFilterFromUrl, searchParams])
+
+  const combinedFilters = useMemo((): CertificationFilters => {
+    if (certificationFilterFromUrl == null) return filters
+    const nameFromUrl = certificationFilterFromUrl.name.trim()
+    if (!nameFromUrl) return filters
+    return { ...filters, certificationNameSearch: nameFromUrl }
+  }, [filters, certificationFilterFromUrl])
+
+  const listFilterKey = `${certificationIdFromUrl ?? ""}|${certificationFilterFromUrl?.name ?? ""}`
+  const prevListFilterKeyRef = useRef<string | null>(null)
 
   const [items, setItems] = useState<Certification[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -36,18 +74,29 @@ export function CertificationsPageClient() {
   const [issuers, setIssuers] = useState<CertificationIssuer[]>([])
   const [issuersLoading, setIssuersLoading] = useState(true)
 
+  useEffect(() => {
+    if (prevListFilterKeyRef.current === listFilterKey) return
+    const isFilterChange = prevListFilterKeyRef.current !== null
+    prevListFilterKeyRef.current = listFilterKey
+    setPageNumber(1)
+    if (isFilterChange) {
+      setItems([])
+      setCertificationsLoading(true)
+    }
+  }, [listFilterKey])
+
   const loadCertifications = useCallback(async (page: number, size: number) => {
     try {
       setCertificationsLoading(true)
-      const minDataProgress = filters.dataProgressMin.trim()
-        ? parseFloat(filters.dataProgressMin)
+      const minDataProgress = combinedFilters.dataProgressMin.trim()
+        ? parseFloat(combinedFilters.dataProgressMin)
         : undefined
-      const maxDataProgress = filters.dataProgressMax.trim()
-        ? parseFloat(filters.dataProgressMax)
+      const maxDataProgress = combinedFilters.dataProgressMax.trim()
+        ? parseFloat(combinedFilters.dataProgressMax)
         : undefined
       const data = await fetchCertificationsPage({
-        name: filters.certificationNameSearch.trim() || undefined,
-        issuerIds: filters.issuerIds.length > 0 ? filters.issuerIds : undefined,
+        name: combinedFilters.certificationNameSearch.trim() || undefined,
+        issuerIds: combinedFilters.issuerIds.length > 0 ? combinedFilters.issuerIds : undefined,
         pageNumber: page,
         pageSize: size,
         minDataProgressPercentage:
@@ -73,7 +122,12 @@ export function CertificationsPageClient() {
     } finally {
       setCertificationsLoading(false)
     }
-  }, [filters.certificationNameSearch, filters.issuerIds, filters.dataProgressMin, filters.dataProgressMax])
+  }, [
+    combinedFilters.certificationNameSearch,
+    combinedFilters.issuerIds,
+    combinedFilters.dataProgressMin,
+    combinedFilters.dataProgressMax,
+  ])
 
   useEffect(() => {
     loadCertifications(pageNumber, pageSize)
@@ -96,16 +150,11 @@ export function CertificationsPageClient() {
     return () => { cancelled = true }
   }, [])
 
-  useEffect(() => {
-    const certificationFilterName = searchParams.get('certificationFilter')
-    const certificationId = searchParams.get('certificationId')
-    if (certificationFilterName && certificationId) {
-      setFilters(prev => ({
-        ...prev,
-        certificationNameSearch: certificationFilterName,
-      }))
-    }
-  }, [searchParams])
+  const visibleCertifications = useMemo(() => {
+    if (certificationIdFromUrl == null) return items
+    const byId = items.filter((c) => c.id === certificationIdFromUrl)
+    return byId.length > 0 ? byId : items
+  }, [items, certificationIdFromUrl])
 
   const handleFiltersChange = (newFilters: CertificationFilters) => {
     setFilters(newFilters)
@@ -119,6 +168,15 @@ export function CertificationsPageClient() {
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
     setPageNumber(1)
+  }
+
+  const handleClearCertificationFilter = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("certificationFilter")
+    params.delete("certificationId")
+    params.delete("certificationName")
+    const q = params.toString()
+    router.push(q ? `/certifications?${q}` : "/certifications")
   }
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -177,12 +235,7 @@ export function CertificationsPageClient() {
   }
 
   const handleClearFilters = () => {
-    setFilters({
-      certificationNameSearch: "",
-      issuerIds: [],
-      dataProgressMin: "",
-      dataProgressMax: "",
-    })
+    setFilters(initialFilters)
     setPageNumber(1)
   }
 
@@ -216,8 +269,26 @@ export function CertificationsPageClient() {
         </div>
       )}
 
+      {certificationFilterFromUrl && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+          <Badge variant="secondary" className="flex items-center gap-1">
+            <Award className="h-3 w-3" />
+            Certification: {certificationFilterFromUrl.name}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-4 w-4 p-0 hover:bg-transparent"
+              onClick={handleClearCertificationFilter}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </Badge>
+        </div>
+      )}
+
       <CertificationsTable
-        certifications={items}
+        certifications={visibleCertifications}
         isLoading={certificationsLoading}
         totalCount={totalCount}
         pageNumber={pageNumber}
