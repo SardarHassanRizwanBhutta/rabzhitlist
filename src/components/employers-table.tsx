@@ -84,10 +84,12 @@ import {
   EMPLOYER_TYPE_DB_LABELS,
   EMPLOYER_TYPE_DISPLAY_TO_DB,
   SALARY_POLICY_COLORS,
+  SALARY_POLICY_DB_LABELS,
   SALARY_POLICY_LABELS,
   WORK_MODE_DB_LABELS,
   SHIFT_TYPE_DB_LABELS,
   type EmployerTypeDb,
+  type SalaryPolicy,
 } from "@/lib/types/employer"
 import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
 import type { Country } from "@/lib/types/country"
@@ -189,33 +191,35 @@ interface EmployersTableProps {
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
 }
 
-type SortKey = keyof Employer | "size" | "applicants" | "dataProgressPercentage"
+type SortKey = keyof Employer | "size" | "dataProgressPercentage"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
 /** Office sub-rows (no row-level menu): merge Type through Actions. */
-const EMPLOYER_EXPANDED_LOCATION_ROW_MERGE_COL_SPAN = 17
+const EMPLOYER_EXPANDED_LOCATION_ROW_MERGE_COL_SPAN = 15
 
-function getEmployerSalaryPolicy(employer: Employer) {
-  return employer.salaryPolicy ?? employer.locations[0]?.salaryPolicy ?? null
+function getEmployerSalaryPolicies(employer: Employer): SalaryPolicy[] {
+  if (employer.salaryPolicies?.length) {
+    return employer.salaryPolicies.map(
+      (db) => SALARY_POLICY_DB_LABELS[db] as SalaryPolicy,
+    )
+  }
+  const legacy = employer.locations[0]?.salaryPolicy
+  return legacy ? [legacy] : []
 }
+
+// From employer list/detail API: multi-value work arrangements.
+const getEmployerShiftTypes = (employer: Employer): string[] =>
+  employer.shiftTypes?.map((t) => SHIFT_TYPE_DB_LABELS[t]) ?? []
+const getEmployerWorkModes = (employer: Employer): string[] =>
+  employer.workModes?.map((m) => WORK_MODE_DB_LABELS[m]) ?? []
 
 // Use only employer's own benefits (no candidate-derived data).
 const getEmployerBenefits = (employer: Employer): EmployerBenefit[] => {
   if (!employer.benefits?.length) return []
   return employer.benefits.map((b) => normalizeEmployerBenefit(b))
 }
-
-// From employer list/detail API: single work mode and shift type, arrays for time zones.
-const getEmployerShiftTypes = (employer: Employer): string[] =>
-  employer.shiftType && employer.shiftType in SHIFT_TYPE_DB_LABELS
-    ? [SHIFT_TYPE_DB_LABELS[employer.shiftType]]
-    : []
-const getEmployerWorkModes = (employer: Employer): string[] =>
-  employer.workMode && employer.workMode in WORK_MODE_DB_LABELS
-    ? [WORK_MODE_DB_LABELS[employer.workMode]]
-    : []
 const getEmployerTimeSupportZones = (employer: Employer): string[] =>
   employer.timeSupportZones ?? []
 
@@ -334,9 +338,6 @@ export function EmployersTable({
       } else if (sortKey === "dataProgressPercentage") {
         aValue = normalizeProgress(a.dataProgressPercentage)
         bValue = normalizeProgress(b.dataProgressPercentage)
-      } else if (sortKey === 'applicants' || sortKey === 'avgJobTenure') {
-        aValue = 0
-        bValue = 0
       } else {
         aValue = a[sortKey as keyof Employer] as string | number | Date
         bValue = b[sortKey as keyof Employer] as string | number | Date
@@ -493,12 +494,6 @@ export function EmployersTable({
               <TableHead className="w-[100px]">
                 <SortButton column="foundedYear">Founded</SortButton>
               </TableHead>
-              <TableHead className="w-[100px]">
-                <SortButton column="applicants">Applicants</SortButton>
-              </TableHead>
-              <TableHead className="w-[90px]">
-                <SortButton column="avgJobTenure">Avg Tenure</SortButton>
-              </TableHead>
               <TableHead className="w-[100px]">Offices</TableHead>
               <TableHead className="w-[180px]">Salary Policy</TableHead>
               <TableHead className="w-[200px]">Benefits</TableHead>
@@ -587,15 +582,6 @@ export function EmployersTable({
                       {employer.foundedYear ? employer.foundedYear : <span className="text-muted-foreground">N/A</span>}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="flex items-center gap-1 font-medium">
-                        <UsersIcon className="h-3 w-3" />
-                        —
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm font-medium text-muted-foreground">—</span>
-                    </TableCell>
-                    <TableCell>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <MapPinIcon className="h-3 w-3" />
                         {employer.locations.length} office{employer.locations.length !== 1 ? 's' : ''}
@@ -603,14 +589,29 @@ export function EmployersTable({
                     </TableCell>
                     <TableCell>
                       {(() => {
-                        const policy = getEmployerSalaryPolicy(employer)
-                        if (!policy) {
+                        const policies = getEmployerSalaryPolicies(employer)
+                        if (policies.length === 0) {
                           return <span className="text-muted-foreground text-sm">N/A</span>
                         }
+                        const displayPolicies = policies.slice(0, 2)
+                        const remainingCount = policies.length - 2
                         return (
-                          <Badge variant="secondary" className={`text-xs ${SALARY_POLICY_COLORS[policy]}`}>
-                            {SALARY_POLICY_LABELS[policy]}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {displayPolicies.map((policy, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className={`text-xs ${SALARY_POLICY_COLORS[policy]}`}
+                              >
+                                {SALARY_POLICY_LABELS[policy]}
+                              </Badge>
+                            ))}
+                            {remainingCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{remainingCount}
+                              </Badge>
+                            )}
+                          </div>
                         )
                       })()}
                     </TableCell>

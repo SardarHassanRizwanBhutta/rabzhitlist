@@ -81,11 +81,11 @@ export interface EmployerFormData {
   statuses: EmployerStatusDb[]
   foundedYear: string
   employerTypes: EmployerTypeDb[]
-  workMode: WorkModeDb | ""
-  shiftType: ShiftTypeDb | ""
+  workModes: WorkModeDb[]
+  shiftTypes: ShiftTypeDb[]
   ranking: RankingDb | ""
-  /** Company-wide salary policy (DB enum value for API). */
-  salaryPolicy: SalaryPolicyDb | ""
+  /** Company-wide salary policies (DB enum values for API). */
+  salaryPolicies: SalaryPolicyDb[]
   timeSupportZones: string[]
   awards: string[]
   benefits: EmployerBenefit[]
@@ -165,10 +165,10 @@ const initialFormData: EmployerFormData = {
   statuses: [],
   foundedYear: "",
   employerTypes: [],
-  workMode: "",
-  shiftType: "",
+  workModes: [],
+  shiftTypes: [],
   ranking: "",
-  salaryPolicy: "",
+  salaryPolicies: [],
   timeSupportZones: [],
   awards: [],
   benefits: [],
@@ -219,12 +219,9 @@ export const employerToFormData = (employer: Employer): EmployerFormData => {
       ? [EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]]
       : []
   const headcountStr = employer.headcount != null ? String(employer.headcount) : ""
-  const salaryPolicyDb: SalaryPolicyDb | "" =
-    employer.salaryPolicy != null && String(employer.salaryPolicy).trim()
-      ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(employer.salaryPolicy))]
-      : employer.locations[0]?.salaryPolicy != null
-        ? SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(employer.locations[0].salaryPolicy))]
-        : ""
+  const salaryPoliciesDb: SalaryPolicyDb[] = employer.salaryPolicies?.length
+    ? [...employer.salaryPolicies]
+    : []
   return {
     name: employer.name || "",
     websiteUrl: employer.websiteUrl || "",
@@ -232,10 +229,10 @@ export const employerToFormData = (employer: Employer): EmployerFormData => {
     statuses,
     foundedYear: employer.foundedYear?.toString() || "",
     employerTypes,
-    workMode: employer.workMode ?? "",
-    shiftType: employer.shiftType ?? "",
+    workModes: employer.workModes?.length ? [...employer.workModes] : [],
+    shiftTypes: employer.shiftTypes?.length ? [...employer.shiftTypes] : [],
     ranking: employer.ranking ? RANKING_DISPLAY_TO_DB[employer.ranking] : "",
-    salaryPolicy: salaryPolicyDb,
+    salaryPolicies: salaryPoliciesDb,
     timeSupportZones: employer.timeSupportZones ?? [],
     awards: employer.awards ?? [],
     benefits: getEmployerBenefits(employer),
@@ -272,10 +269,10 @@ const EMPLOYER_VERIFICATION_FIELDS = [
 ]
 
 // Work Arrangements section fields
-const WORK_ARRANGEMENTS_FIELDS = ['workMode', 'shiftType', 'timeSupportZones', 'awards']
+const WORK_ARRANGEMENTS_FIELDS = ['workModes', 'shiftTypes', 'timeSupportZones', 'awards']
 
 // Benefits & Salary Policy section fields
-const BENEFITS_SALARY_POLICY_FIELDS = ['benefits', 'salaryPolicy']
+const BENEFITS_SALARY_POLICY_FIELDS = ['benefits', 'salaryPolicies']
 
 // Location fields (dynamic based on number of locations)
 const getLocationFieldNames = (locationIndex: number): string[] => {
@@ -1269,57 +1266,43 @@ export function EmployerCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="workMode">Work Mode</Label>
-                          <Select
-                            value={formData.workMode || undefined}
-                            onValueChange={(value: WorkModeDb) => {
-                              setFormData(prev => ({ ...prev, workMode: value }))
+                          <Label htmlFor="workModes">Work Mode</Label>
+                          <MultiSelect
+                            items={workModeOptions}
+                            selected={formData.workModes}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, workModes: values as WorkModeDb[] }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("workMode"))
-                                setVerifiedFields(prev => new Set(prev).add("workMode"))
+                                setModifiedFields(prev => new Set(prev).add("workModes"))
+                                setVerifiedFields(prev => new Set(prev).add("workModes"))
                               }
                             }}
-                          >
-                            <SelectTrigger className={errors.employer?.workMode ? "border-red-500" : ""}>
-                              <SelectValue placeholder="Select work mode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {workModeOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errors.employer?.workMode && <p className="text-sm text-red-500">{errors.employer.workMode}</p>}
-                          <VerificationCheckbox fieldName="workMode" />
+                            placeholder="Select work modes..."
+                            searchPlaceholder="Search work modes..."
+                            maxDisplay={3}
+                          />
+                          {errors.employer?.workModes && <p className="text-sm text-red-500">{errors.employer.workModes}</p>}
+                          <VerificationCheckbox fieldName="workModes" />
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="shiftType">Shift Type</Label>
-                          <Select
-                            value={formData.shiftType || undefined}
-                            onValueChange={(value: ShiftTypeDb) => {
-                              setFormData(prev => ({ ...prev, shiftType: value }))
+                          <Label htmlFor="shiftTypes">Shift Type</Label>
+                          <MultiSelect
+                            items={shiftTypeOptions}
+                            selected={formData.shiftTypes}
+                            onChange={(values) => {
+                              setFormData(prev => ({ ...prev, shiftTypes: values as ShiftTypeDb[] }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("shiftType"))
-                                setVerifiedFields(prev => new Set(prev).add("shiftType"))
+                                setModifiedFields(prev => new Set(prev).add("shiftTypes"))
+                                setVerifiedFields(prev => new Set(prev).add("shiftTypes"))
                               }
                             }}
-                          >
-                            <SelectTrigger className={errors.employer?.shiftType ? "border-red-500" : ""}>
-                              <SelectValue placeholder="Select shift type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {shiftTypeOptions.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errors.employer?.shiftType && <p className="text-sm text-red-500">{errors.employer.shiftType}</p>}
-                          <VerificationCheckbox fieldName="shiftType" />
+                            placeholder="Select shift types..."
+                            searchPlaceholder="Search shift types..."
+                            maxDisplay={3}
+                          />
+                          {errors.employer?.shiftTypes && <p className="text-sm text-red-500">{errors.employer.shiftTypes}</p>}
+                          <VerificationCheckbox fieldName="shiftTypes" />
                         </div>
 
                         <div className="space-y-2">
@@ -1421,41 +1404,31 @@ export function EmployerCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="salaryPolicy">Salary Policy</Label>
-                          <Select
-                            value={formData.salaryPolicy || undefined}
-                            onValueChange={(value: SalaryPolicyDb) => {
-                              setFormData((prev) => ({ ...prev, salaryPolicy: value }))
+                          <Label htmlFor="salaryPolicies">Salary Policy</Label>
+                          <MultiSelect
+                            items={salaryPolicyOptions}
+                            selected={formData.salaryPolicies}
+                            onChange={(values) => {
+                              setFormData((prev) => ({ ...prev, salaryPolicies: values as SalaryPolicyDb[] }))
                               if (showVerification) {
-                                setModifiedFields((prev) => new Set(prev).add("salaryPolicy"))
-                                setVerifiedFields((prev) => new Set(prev).add("salaryPolicy"))
+                                setModifiedFields((prev) => new Set(prev).add("salaryPolicies"))
+                                setVerifiedFields((prev) => new Set(prev).add("salaryPolicies"))
                               }
                               setErrors((prev) => ({
                                 ...prev,
                                 employer: prev.employer
-                                  ? { ...prev.employer, salaryPolicy: undefined }
+                                  ? { ...prev.employer, salaryPolicies: undefined }
                                   : undefined,
                               }))
                             }}
-                          >
-                            <SelectTrigger
-                              id="salaryPolicy"
-                              className={errors.employer?.salaryPolicy ? "border-red-500" : ""}
-                            >
-                              <SelectValue placeholder="Select salary policy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {salaryPolicyOptions.map((policy) => (
-                                <SelectItem key={policy.value} value={policy.value}>
-                                  {policy.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {errors.employer?.salaryPolicy && (
-                            <p className="text-sm text-red-500">{errors.employer.salaryPolicy}</p>
+                            placeholder="Select salary policies..."
+                            searchPlaceholder="Search salary policies..."
+                            maxDisplay={3}
+                          />
+                          {errors.employer?.salaryPolicies && (
+                            <p className="text-sm text-red-500">{errors.employer.salaryPolicies}</p>
                           )}
-                          <VerificationCheckbox fieldName="salaryPolicy" />
+                          <VerificationCheckbox fieldName="salaryPolicies" />
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <BenefitsSelector

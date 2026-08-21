@@ -80,16 +80,16 @@ export interface Employer {
   statuses?: EmployerStatusDb[]
   foundedYear: number | null
   ranking: EmployerRanking
-  /** DB enum value (employers.work_mode). */
-  workMode?: WorkModeDb
-  /** DB enum value (employers.shift_type). */
-  shiftType?: ShiftTypeDb
+  /** Multiple work modes from employer_work_modes (DB enum values). */
+  workModes?: WorkModeDb[]
+  /** Multiple shift types from employer_shift_types (DB enum values). */
+  shiftTypes?: ShiftTypeDb[]
   employerType: EmployerType
   /** Multiple types from employer_employer_types (DB enum values). */
   employerTypes?: EmployerTypeDb[]
   locations: EmployerLocation[]
-  /** Company-wide salary policy (not per office). */
-  salaryPolicy?: SalaryPolicy | null
+  /** Company-wide salary policies from employer_salary_policies (DB enum values). */
+  salaryPolicies?: SalaryPolicyDb[]
   timeSupportZones?: string[]
   /** Award names (from list or detail). */
   awards?: string[]

@@ -35,8 +35,10 @@ import {
   EMPLOYER_TYPE_DB_LABELS,
   RANKING_DB_LABELS,
   SALARY_POLICY_DB_LABELS,
+  type Employer,
   type EmployerTypeDb,
   type RankingDb,
+  type SalaryPolicy,
   type SalaryPolicyDb,
 } from "@/lib/types/employer"
 import {
@@ -304,6 +306,16 @@ function resolveEmployerTypeLabel(domain: MatchedDomainDto): string {
   if (trimmed) return trimmed
   const db = API_TO_EMPLOYER_TYPE[domain.id] as EmployerTypeDb | undefined
   return db ? EMPLOYER_TYPE_DB_LABELS[db] : String(domain.id)
+}
+
+function getEmployerSalaryPoliciesForMatch(employer: Employer): SalaryPolicy[] {
+  if (employer.salaryPolicies?.length) {
+    return employer.salaryPolicies.map(
+      (db) => SALARY_POLICY_DB_LABELS[db] as SalaryPolicy,
+    )
+  }
+  const legacy = employer.locations[0]?.salaryPolicy
+  return legacy ? [legacy] : []
 }
 
 function resolveSalaryPolicyLabel(domain: MatchedDomainDto): string {
@@ -880,11 +892,11 @@ function appendBackendMatchedEmployerItem(
     })
   }
 
-  if (filters.employerSalaryPolicies.length > 0 && me.salaryPolicy != null) {
+  if (filters.employerSalaryPolicies.length > 0 && me.salaryPolicies.length > 0) {
     matchedCriteria.push({
       type: "salaryPolicy",
       label: "Salary Policy",
-      values: [resolveSalaryPolicyLabel(me.salaryPolicy)],
+      values: me.salaryPolicies.map(resolveSalaryPolicyLabel),
     })
   }
 
@@ -1259,17 +1271,10 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
 
-        // Salary policy match (employer-level; fall back to first office for legacy data)
-        const rawPolicy =
-          employer.salaryPolicy ?? employer.locations[0]?.salaryPolicy ?? null
-        const employerPolicy =
-          rawPolicy != null && String(rawPolicy).trim()
-            ? normalizeSalaryPolicy(String(rawPolicy))
-            : null
-        const matchingPolicies =
-          employerPolicy && filters.employerSalaryPolicies.includes(employerPolicy)
-            ? [employerPolicy]
-            : []
+        const employerPolicies = getEmployerSalaryPoliciesForMatch(employer)
+        const matchingPolicies = employerPolicies.filter((policy) =>
+          filters.employerSalaryPolicies.includes(policy),
+        )
         if (matchingPolicies.length > 0) {
           matchedCriteria.push({
             type: 'salaryPolicy',
