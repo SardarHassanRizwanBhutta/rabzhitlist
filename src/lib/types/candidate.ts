@@ -241,7 +241,8 @@ export interface MatchedEmployerDto {
   countries: MatchedDomainDto[]
   cities: string[]
   employerTypes: MatchedDomainDto[]
-  salaryPolicy: MatchedDomainDto | null
+  /** Intersection with `employerSalaryPolicies` filter (employer-level policies). */
+  salaryPolicies: MatchedDomainDto[]
   ranking: MatchedDomainDto | null
   size: MatchedEmployerSizeDto | null
 }

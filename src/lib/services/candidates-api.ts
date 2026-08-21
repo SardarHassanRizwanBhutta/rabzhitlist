@@ -515,18 +515,20 @@ function mapMatchedDomain(raw: unknown): MatchedDomainDto | null {
   const item = raw as Record<string, unknown>
   const id = Number(item.id)
   if (!Number.isFinite(id)) return null
-  return { id, label: String(item.label ?? "") }
+  if (typeof item.label !== "string") return null
+  return { id, label: item.label }
 }
 
 function mapMatchedDomains(raw: unknown): MatchedDomainDto[] {
   if (!Array.isArray(raw)) return []
   return raw
     .filter((item): item is Record<string, unknown> => item != null && typeof item === "object")
-    .map((item) => ({
-      id: Number(item.id),
-      label: String(item.label ?? ""),
-    }))
-    .filter((item) => Number.isFinite(item.id))
+    .map((item) => {
+      const id = Number(item.id)
+      if (!Number.isFinite(id) || typeof item.label !== "string") return null
+      return { id, label: item.label }
+    })
+    .filter((item): item is MatchedDomainDto => item != null)
 }
 
 function mapMatchedAverageTeamSize(raw: unknown): number | null {
@@ -738,7 +740,7 @@ function mapMatchedEmployers(raw: unknown): MatchedEmployerDto[] {
             .map((c) => c.trim())
         : [],
       employerTypes: mapMatchedDomains(item.employerTypes),
-      salaryPolicy: mapMatchedDomain(item.salaryPolicy),
+      salaryPolicies: mapMatchedDomains(item.salaryPolicies),
       ranking: mapMatchedDomain(item.ranking),
       size: mapMatchedEmployerSize(item.size),
     }))

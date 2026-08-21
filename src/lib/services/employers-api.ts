@@ -18,6 +18,7 @@ import {
   normalizeSalaryPolicy,
   RANKING_DB_LABELS,
   normalizeEmployerRankingFromApi,
+  SALARY_POLICY_DISPLAY_TO_DB,
   type SalaryPolicy,
   type WorkModeDb,
   type ShiftTypeDb,
@@ -81,6 +82,184 @@ export const EMPLOYER_STATUS_TO_API: Record<EmployerStatusDb, number> = {
   open: 0,
   closed: 1,
   flagged: 2,
+}
+
+/** ASP.NET JSON wire enum names (create/update/detail GET). */
+export const WORK_MODE_DB_TO_WIRE: Record<WorkModeDb, string> = {
+  onsite: "Onsite",
+  remote: "Remote",
+  hybrid: "Hybrid",
+}
+export const SHIFT_TYPE_DB_TO_WIRE: Record<ShiftTypeDb, string> = {
+  day: "Day",
+  night: "Night",
+  evening: "Evening",
+  rotational: "Rotational",
+  flexible: "Flexible",
+  on_call: "OnCall",
+}
+export const SALARY_POLICY_DB_TO_WIRE: Record<SalaryPolicyDb, string> = {
+  gross_salary: "GrossSalary",
+  remittance_salary: "RemittanceSalary",
+  net_salary: "NetSalary",
+  fixed_salary_plus_commission_or_monthly_bonus: "FixedSalaryPlusCommissionOrMonthlyBonus",
+}
+
+const WORK_MODE_WIRE_TO_DB: Record<string, WorkModeDb> = {
+  Onsite: "onsite",
+  Remote: "remote",
+  Hybrid: "hybrid",
+}
+const SHIFT_TYPE_WIRE_TO_DB: Record<string, ShiftTypeDb> = {
+  Day: "day",
+  Night: "night",
+  Evening: "evening",
+  Rotational: "rotational",
+  Flexible: "flexible",
+  OnCall: "on_call",
+}
+const SALARY_POLICY_WIRE_TO_DB: Record<string, SalaryPolicyDb> = {
+  GrossSalary: "gross_salary",
+  RemittanceSalary: "remittance_salary",
+  NetSalary: "net_salary",
+  FixedSalaryPlusCommissionOrMonthlyBonus: "fixed_salary_plus_commission_or_monthly_bonus",
+}
+
+function dbKeysToWire<T extends string>(
+  keys: T[] | undefined,
+  map: Record<T, string>,
+): string[] {
+  if (!keys?.length) return []
+  return keys.map((k) => map[k]).filter(Boolean)
+}
+
+function dbKeysToApiInts<T extends string>(
+  keys: T[] | undefined,
+  map: Record<T, number>,
+): number[] {
+  if (!keys?.length) return []
+  return keys
+    .map((k) => map[k])
+    .filter((v): v is number => typeof v === "number")
+}
+
+/** GET `/api/employers` list rows — elements may be ints or display label strings. */
+export function parseWorkModesFromApi(raw: unknown): WorkModeDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: WorkModeDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_WORK_MODE) {
+      out.push(API_TO_WORK_MODE[item])
+      continue
+    }
+    if (typeof item !== "string") continue
+    const fromWire = WORK_MODE_WIRE_TO_DB[item]
+    if (fromWire) {
+      out.push(fromWire)
+      continue
+    }
+    const fromLabel = WORK_MODE_DISPLAY_TO_DB[item]
+    if (fromLabel) out.push(fromLabel)
+  }
+  return out
+}
+
+/** GET `/api/employers/{id}` detail — integer enum arrays only. */
+export function parseWorkModesFromDetailApi(raw: unknown): WorkModeDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: WorkModeDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_WORK_MODE) {
+      out.push(API_TO_WORK_MODE[item])
+    }
+  }
+  return out
+}
+
+/** GET `/api/employers` list rows — elements may be ints or display label strings. */
+export function parseShiftTypesFromApi(raw: unknown): ShiftTypeDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: ShiftTypeDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_SHIFT_TYPE) {
+      out.push(API_TO_SHIFT_TYPE[item])
+      continue
+    }
+    if (typeof item !== "string") continue
+    const fromWire = SHIFT_TYPE_WIRE_TO_DB[item]
+    if (fromWire) {
+      out.push(fromWire)
+      continue
+    }
+    const fromLabel = SHIFT_TYPE_DISPLAY_TO_DB[item]
+    if (fromLabel) out.push(fromLabel)
+  }
+  return out
+}
+
+/** GET `/api/employers/{id}` detail — integer enum arrays only. */
+export function parseShiftTypesFromDetailApi(raw: unknown): ShiftTypeDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: ShiftTypeDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_SHIFT_TYPE) {
+      out.push(API_TO_SHIFT_TYPE[item])
+    }
+  }
+  return out
+}
+
+/** GET `/api/employers` list rows — elements may be ints or display label strings. */
+export function parseSalaryPoliciesFromApi(raw: unknown): SalaryPolicyDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: SalaryPolicyDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_SALARY_POLICY) {
+      out.push(API_TO_SALARY_POLICY[item])
+      continue
+    }
+    if (typeof item !== "string") continue
+    const fromWire = SALARY_POLICY_WIRE_TO_DB[item]
+    if (fromWire) {
+      out.push(fromWire)
+      continue
+    }
+    const display = normalizeSalaryPolicy(item)
+    const fromDisplay = SALARY_POLICY_DISPLAY_TO_DB[display]
+    if (fromDisplay) out.push(fromDisplay)
+  }
+  return out
+}
+
+/** GET `/api/employers/{id}` detail — integer enum arrays only. */
+export function parseSalaryPoliciesFromDetailApi(raw: unknown): SalaryPolicyDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: SalaryPolicyDb[] = []
+  for (const item of raw) {
+    if (typeof item === "number" && item in API_TO_SALARY_POLICY) {
+      out.push(API_TO_SALARY_POLICY[item])
+    }
+  }
+  return out
+}
+
+/** Map filter UI DB keys to wire enum query param values. */
+export function employerWorkModeFilterValuesToWire(keys: WorkModeDb[]): string[] {
+  return dbKeysToWire(keys, WORK_MODE_DB_TO_WIRE)
+}
+
+export function employerShiftTypeFilterValuesToWire(keys: ShiftTypeDb[]): string[] {
+  return dbKeysToWire(keys, SHIFT_TYPE_DB_TO_WIRE)
+}
+
+/** Map filter UI display labels to wire enum query param values. */
+export function employerSalaryPolicyFilterValuesToWire(policies: SalaryPolicy[]): string[] {
+  return policies
+    .map((p) => {
+      const db = SALARY_POLICY_DISPLAY_TO_DB[p]
+      return db ? SALARY_POLICY_DB_TO_WIRE[db] : null
+    })
+    .filter((v): v is string => v != null)
 }
 
 const API_TO_WORK_MODE: Record<number, WorkModeDb> = { 0: "onsite", 1: "remote", 2: "hybrid" }
@@ -176,10 +355,10 @@ export interface EmployerListItemDto {
   /** Display string (e.g. "Tier 1") or numeric enum 0–3 from API. */
   ranking: string | number | null
   employerType: string | null
-  /** Employer-level work mode display: "Onsite", "Remote", "Hybrid". */
-  workMode?: string | null
-  /** Employer-level shift type display: "Day", "Night", "Evening", "Rotational", "Flexible", "On Call". */
-  shiftType?: string | null
+  /** Employer-level work mode display labels (e.g. "Remote", "Hybrid"). */
+  workModes?: string[]
+  /** Employer-level shift type display labels (e.g. "Day", "Night"). */
+  shiftTypes?: string[]
   /** Benefit names (e.g. "Health Insurance"). */
   benefits?: string[]
   /** Time support zone names (e.g. "PST", "EST"). */
@@ -192,8 +371,8 @@ export interface EmployerListItemDto {
   isDPLCompetitive: boolean
   /** Company-wide headcount when API provides it. */
   headcount?: number | null
-  /** Employer-level policy when API provides it. */
-  salaryPolicy?: string | null
+  /** Employer-level policy display labels when API provides them. */
+  salaryPolicies?: string[]
   /** Stored profile completion 0–100 (always present from list API). */
   dataProgressPercentage: number
 }
@@ -214,8 +393,10 @@ export interface EmployerDto {
   websiteUrl: string | null
   linkedInUrl: string | null
   foundedYear: number | null
-  workMode: number | null
-  shiftType: number | null
+  /** Numeric WorkMode enum values (0=Onsite, 1=Remote, 2=Hybrid). */
+  workModes?: number[]
+  /** Numeric ShiftType enum values. */
+  shiftTypes?: number[]
   isDplCompetitor: boolean
   ranking: number | null
   types: number[]
@@ -231,8 +412,8 @@ export interface EmployerDto {
   updatedAt: string
   /** Company-wide headcount when API stores it on the employer. */
   headcount?: number | null
-  /** Employer-level salary policy enum when API stores it on the employer. */
-  salaryPolicy?: number | null
+  /** Numeric SalaryPolicy enum values. */
+  salaryPolicies?: number[]
   /** Present when API includes stored completion on detail GET. */
   dataProgressPercentage?: number
 }
@@ -270,8 +451,8 @@ export interface CreateEmployerDto {
   websiteUrl?: string | null
   linkedInUrl?: string | null
   foundedYear?: number | null
-  workMode?: number | null
-  shiftType?: number | null
+  workModes?: number[]
+  shiftTypes?: number[]
   isDplCompetitor: boolean
   ranking?: number | null
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). Stored in employer_statuses. */
@@ -283,7 +464,7 @@ export interface CreateEmployerDto {
   locations?: CreateEmployerLocationDto[] | null
   layoffs?: CreateEmployerLayoffDto[] | null
   headcount?: number | null
-  salaryPolicy?: number | null
+  salaryPolicies?: number[]
 }
 
 export interface CreateEmployerBenefitDto {
@@ -327,8 +508,8 @@ export interface UpdateEmployerDto {
   websiteUrl?: string | null
   linkedInUrl?: string | null
   foundedYear?: number | null
-  workMode?: number | null
-  shiftType?: number | null
+  workModes?: number[]
+  shiftTypes?: number[]
   isDplCompetitor: boolean
   ranking?: number | null
   /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). */
@@ -338,7 +519,7 @@ export interface UpdateEmployerDto {
   /** Replaces employer award links; always send an array (empty clears). */
   awardIds: number[]
   headcount?: number | null
-  salaryPolicy?: number | null
+  salaryPolicies?: number[]
 }
 
 // --- List params (pagination + optional filters) ---
@@ -360,6 +541,7 @@ export interface FetchEmployersParams {
   countries?: number[]
   city?: string
   employerTypes?: number[]
+  /** Numeric SalaryPolicy enum values (repeated query params). */
   salaryPolicies?: number[]
   rankings?: number[]
   isDPLCompetitive?: boolean
@@ -369,9 +551,9 @@ export interface FetchEmployersParams {
   minCitiesCount?: number
   employeeCity?: string
   benefits?: string[]
-  /** Employer `ShiftType` enum (ints); see `SHIFT_TYPE_TO_API`. */
+  /** Numeric ShiftType enum values (repeated query params). */
   shiftTypes?: number[]
-  /** Employer `WorkMode` enum (ints); see `WORK_MODE_TO_API`. */
+  /** Numeric WorkMode enum values (repeated query params). */
   workModes?: number[]
   /** `time_support_zone_id` values on employer (server `long[]`). */
   timeSupportZones?: number[]
@@ -395,6 +577,14 @@ export interface FetchEmployersParams {
   /** Stored completion filter 0–100 inclusive. */
   minDataProgressPercentage?: number
   maxDataProgressPercentage?: number
+}
+
+function appendStringList(q: URLSearchParams, key: string, values?: string[]) {
+  if (!values?.length) return
+  for (const v of values) {
+    const t = v.trim()
+    if (t) q.append(key, t)
+  }
 }
 
 function appendNumberList(q: URLSearchParams, key: string, values?: number[]) {
@@ -758,14 +948,9 @@ export async function searchEmployers(
 
 // --- Map API list item -> Employer (for table) ---
 export function employerListItemToEmployer(item: EmployerListItemDto): Employer {
-  const workModeDb =
-    item.workMode && item.workMode in WORK_MODE_DISPLAY_TO_DB
-      ? WORK_MODE_DISPLAY_TO_DB[item.workMode]
-      : undefined
-  const shiftTypeDb =
-    item.shiftType && item.shiftType in SHIFT_TYPE_DISPLAY_TO_DB
-      ? SHIFT_TYPE_DISPLAY_TO_DB[item.shiftType]
-      : undefined
+  const workModesDb = parseWorkModesFromApi(item.workModes)
+  const shiftTypesDb = parseShiftTypesFromApi(item.shiftTypes)
+  const salaryPoliciesDb = parseSalaryPoliciesFromApi(item.salaryPolicies)
   const benefitsList: Employer["benefits"] = (item.benefits ?? []).map((name) => ({
     id: "",
     name,
@@ -773,12 +958,10 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     amount: null,
     unit: null,
   }))
-  const employerSalaryPolicy: SalaryPolicy =
-    item.salaryPolicy != null && String(item.salaryPolicy).trim()
-      ? normalizeSalaryPolicy(String(item.salaryPolicy))
-      : item.locations[0]?.salaryPolicy != null
-        ? normalizeSalaryPolicy(item.locations[0].salaryPolicy)
-        : "Gross Salary"
+  const defaultSalaryPolicy: SalaryPolicy =
+    salaryPoliciesDb[0] != null
+      ? (SALARY_POLICY_DB_LABELS[salaryPoliciesDb[0]] as SalaryPolicy)
+      : "Gross Salary"
   return {
     id: String(item.id),
     name: item.name,
@@ -788,9 +971,9 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
     employerType: (item.employerType as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") || "Product Based",
-    workMode: workModeDb,
-    shiftType: shiftTypeDb,
-    salaryPolicy: employerSalaryPolicy,
+    workModes: workModesDb.length ? workModesDb : undefined,
+    shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
+    salaryPolicies: salaryPoliciesDb.length ? salaryPoliciesDb : undefined,
     locations: item.locations.map((loc) => ({
       id: String(loc.id),
       employerId: String(item.id),
@@ -798,7 +981,7 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       city: loc.city,
       address: loc.address ?? null,
       isHeadquarters: loc.isHeadquarters ?? false,
-      salaryPolicy: employerSalaryPolicy,
+      salaryPolicy: defaultSalaryPolicy,
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
@@ -823,9 +1006,10 @@ function salaryPolicyFromApiNumber(policyNum: number | null | undefined): Salary
 
 // --- Map API full DTO -> Employer (for edit/detail) ---
 export function employerDtoToEmployer(dto: EmployerDto): Employer {
-  const employerSalaryPolicy: SalaryPolicy =
-    dto.salaryPolicy != null
-      ? salaryPolicyFromApiNumber(dto.salaryPolicy)
+  const salaryPoliciesDb = parseSalaryPoliciesFromDetailApi(dto.salaryPolicies)
+  const defaultSalaryPolicy: SalaryPolicy =
+    salaryPoliciesDb[0] != null
+      ? (SALARY_POLICY_DB_LABELS[salaryPoliciesDb[0]] as SalaryPolicy)
       : dto.locations[0]
         ? salaryPolicyFromApiNumber(dto.locations[0].salaryPolicy)
         : "Gross Salary"
@@ -837,7 +1021,7 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     city: loc.city ?? null,
     address: loc.address ?? null,
     isHeadquarters: loc.isHeadquarters,
-    salaryPolicy: employerSalaryPolicy,
+    salaryPolicy: salaryPolicyFromApiNumber(loc.salaryPolicy) ?? defaultSalaryPolicy,
     createdAt: new Date(loc.createdAt),
     updatedAt: new Date(loc.createdAt),
   }))
@@ -879,20 +1063,23 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
   const firstTypeDb = employerTypesDb[0]
   const employerTypeDisplay = firstTypeDb ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") : "Product Based"
 
+  const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
+  const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)
+
   return {
     id: String(dto.id),
     name: dto.name,
     websiteUrl: dto.websiteUrl ?? null,
     linkedinUrl: dto.linkedInUrl ?? null,
     foundedYear: dto.foundedYear ?? null,
-    workMode: dto.workMode != null && dto.workMode in API_TO_WORK_MODE ? API_TO_WORK_MODE[dto.workMode] : undefined,
-    shiftType: dto.shiftType != null && dto.shiftType in API_TO_SHIFT_TYPE ? API_TO_SHIFT_TYPE[dto.shiftType] : undefined,
+    workModes: workModesDb.length ? workModesDb : undefined,
+    shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
     isDPLCompetitive: dto.isDplCompetitor ?? false,
     ranking: rankingDisplay,
     employerType: employerTypeDisplay,
     employerTypes: employerTypesDb,
     locations,
-    salaryPolicy: employerSalaryPolicy,
+    salaryPolicies: salaryPoliciesDb.length ? salaryPoliciesDb : undefined,
     headcount: dto.headcount ?? null,
     timeSupportZones: dto.timeSupportZones?.map((z) => z.name) ?? [],
     awards: dto.awards?.map((a) => a.name) ?? [],
@@ -985,8 +1172,8 @@ export function buildCreateEmployerDto(
     websiteUrl: formData.websiteUrl.trim() || null,
     linkedInUrl: formData.linkedinUrl.trim() || null,
     foundedYear: foundedYearParsed,
-    workMode: formData.workMode && formData.workMode in WORK_MODE_TO_API ? WORK_MODE_TO_API[formData.workMode] : null,
-    shiftType: formData.shiftType && formData.shiftType in SHIFT_TYPE_TO_API ? SHIFT_TYPE_TO_API[formData.shiftType] : null,
+    workModes: dbKeysToApiInts(formData.workModes, WORK_MODE_TO_API),
+    shiftTypes: dbKeysToApiInts(formData.shiftTypes, SHIFT_TYPE_TO_API),
     isDplCompetitor: formData.isDPLCompetitive,
     ranking: formData.ranking && formData.ranking in RANKING_TO_API ? RANKING_TO_API[formData.ranking] : null,
     status: formData.statuses?.length
@@ -1002,10 +1189,7 @@ export function buildCreateEmployerDto(
     layoffs: layoffs.length ? layoffs : null,
     headcount:
       headcountParsed != null && !Number.isNaN(headcountParsed) ? headcountParsed : null,
-    salaryPolicy:
-      formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API
-        ? SALARY_POLICY_TO_API[formData.salaryPolicy]
-        : null,
+    salaryPolicies: dbKeysToApiInts(formData.salaryPolicies, SALARY_POLICY_TO_API),
   }
   return dto
 }
@@ -1028,8 +1212,8 @@ export function buildUpdateEmployerDto(
     websiteUrl: formData.websiteUrl.trim() || null,
     linkedInUrl: formData.linkedinUrl.trim() || null,
     foundedYear: formData.foundedYear ? parseInt(formData.foundedYear, 10) : null,
-    workMode: formData.workMode && formData.workMode in WORK_MODE_TO_API ? WORK_MODE_TO_API[formData.workMode] : null,
-    shiftType: formData.shiftType && formData.shiftType in SHIFT_TYPE_TO_API ? SHIFT_TYPE_TO_API[formData.shiftType] : null,
+    workModes: dbKeysToApiInts(formData.workModes, WORK_MODE_TO_API),
+    shiftTypes: dbKeysToApiInts(formData.shiftTypes, SHIFT_TYPE_TO_API),
     isDplCompetitor: formData.isDPLCompetitive,
     ranking: formData.ranking && formData.ranking in RANKING_TO_API ? RANKING_TO_API[formData.ranking] : null,
     status: formData.statuses?.length
@@ -1043,9 +1227,6 @@ export function buildUpdateEmployerDto(
     headcount: formData.headcount.trim()
       ? parseInt(formData.headcount.trim(), 10)
       : null,
-    salaryPolicy:
-      formData.salaryPolicy && formData.salaryPolicy in SALARY_POLICY_TO_API
-        ? SALARY_POLICY_TO_API[formData.salaryPolicy]
-        : null,
+    salaryPolicies: dbKeysToApiInts(formData.salaryPolicies, SALARY_POLICY_TO_API),
   }
 }

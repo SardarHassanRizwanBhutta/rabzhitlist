@@ -52,7 +52,7 @@ import type { Country } from "@/lib/types/country"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { fetchEmployerById, employerDtoToEmployer, updateEmployer, buildUpdateEmployerDto } from "@/lib/services/employers-api"
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
-import { employerToFormData } from "@/components/employer-creation-dialog"
+import { employerToFormData, type EmployerFormData } from "@/components/employer-creation-dialog"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -143,15 +143,16 @@ const salaryPolicyOptions = (Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryP
   ([value, label]) => ({ value, label })
 )
 
-function getEmployerSalaryPolicyDb(employer: Employer): string {
-  const policy =
-    employer.salaryPolicy != null && String(employer.salaryPolicy).trim()
-      ? employer.salaryPolicy
-      : employer.locations[0]?.salaryPolicy != null
-        ? employer.locations[0].salaryPolicy
-        : null
-  if (policy == null || !String(policy).trim()) return ""
-  return SALARY_POLICY_DISPLAY_TO_DB[normalizeSalaryPolicy(String(policy))]
+function getEmployerSalaryPoliciesDb(employer: Employer): SalaryPolicyDb[] {
+  return employer.salaryPolicies?.length ? [...employer.salaryPolicies] : []
+}
+
+function getEmployerWorkModesDb(employer: Employer): WorkModeDb[] {
+  return employer.workModes?.length ? [...employer.workModes] : []
+}
+
+function getEmployerShiftTypesDb(employer: Employer): ShiftTypeDb[] {
+  return employer.shiftTypes?.length ? [...employer.shiftTypes] : []
 }
 
 const workModeOptions = (Object.entries(WORK_MODE_DB_LABELS) as [WorkModeDb, string][]).map(
@@ -1843,49 +1844,52 @@ export function EmployerDetailsModal({
     }
   }
 
-  const handleWorkModeSave = async (fieldName: string, workMode: string, verify: boolean) => {
+  const persistEmployerUpdate = async (
+    patch: Partial<EmployerFormData>,
+    successLabel: string,
+    verify: boolean,
+  ) => {
+    const previous = localEmployer
     try {
-      setLocalEmployer((prev) => ({
-        ...prev,
-        workMode: workMode ? (workMode as WorkModeDb) : undefined,
-      }))
-      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
+      const formData = { ...employerToFormData(localEmployer), ...patch }
+      const dto = buildUpdateEmployerDto(formData, {
+        timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
+        awardsLookup: lookups?.awards ?? [],
+      })
+      await updateEmployer(Number(localEmployer.id), dto)
+      toast.success(`${successLabel} updated${verify ? " and verified" : ""}`)
     } catch (error) {
-      setLocalEmployer(employer)
-      toast.error("Failed to save field")
+      setLocalEmployer(previous)
+      toast.error(error instanceof Error ? error.message : `Failed to save ${successLabel.toLowerCase()}`)
       throw error
     }
   }
 
-  const handleShiftTypeSave = async (fieldName: string, shiftType: string, verify: boolean) => {
-    try {
-      setLocalEmployer((prev) => ({
-        ...prev,
-        shiftType: shiftType ? (shiftType as ShiftTypeDb) : undefined,
-      }))
-      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
-    } catch (error) {
-      setLocalEmployer(employer)
-      toast.error("Failed to save field")
-      throw error
-    }
+  const handleWorkModesSave = async (_fieldName: string, modes: string[], verify: boolean) => {
+    const workModes = modes as WorkModeDb[]
+    const previous = localEmployer
+    setLocalEmployer((prev) => ({ ...prev, workModes }))
+    await persistEmployerUpdate({ workModes }, "Work modes", verify).catch(() => {
+      setLocalEmployer(previous)
+    })
   }
 
-  const handleSalaryPolicySave = async (fieldName: string, policyDb: string, verify: boolean) => {
-    try {
-      const salaryPolicy: SalaryPolicy | null = policyDb
-        ? (SALARY_POLICY_DB_LABELS[policyDb as SalaryPolicyDb] as SalaryPolicy)
-        : null
-      setLocalEmployer((prev) => ({
-        ...prev,
-        salaryPolicy,
-      }))
-      toast.success(`${fieldName} updated${verify ? " and verified" : ""}`)
-    } catch (error) {
-      setLocalEmployer(employer)
-      toast.error("Failed to save field")
-      throw error
-    }
+  const handleShiftTypesSave = async (_fieldName: string, types: string[], verify: boolean) => {
+    const shiftTypes = types as ShiftTypeDb[]
+    const previous = localEmployer
+    setLocalEmployer((prev) => ({ ...prev, shiftTypes }))
+    await persistEmployerUpdate({ shiftTypes }, "Shift types", verify).catch(() => {
+      setLocalEmployer(previous)
+    })
+  }
+
+  const handleSalaryPoliciesSave = async (_fieldName: string, policies: string[], verify: boolean) => {
+    const salaryPolicies = policies as SalaryPolicyDb[]
+    const previous = localEmployer
+    setLocalEmployer((prev) => ({ ...prev, salaryPolicies }))
+    await persistEmployerUpdate({ salaryPolicies }, "Salary policies", verify).catch(() => {
+      setLocalEmployer(previous)
+    })
   }
 
   const handleHeadcountSave = async (
@@ -2236,24 +2240,28 @@ export function EmployerDetailsModal({
                       getFieldVerification={getFieldVerification}
                     />
 
-                    <InlineEditableSelectField
+                    <InlineEditableMultiSelectField
                       label="Work Mode"
-                      value={localEmployer.workMode ?? ""}
-                      fieldName="workMode"
-                      options={workModeOptions}
-                      onSave={handleWorkModeSave}
+                      selected={getEmployerWorkModesDb(localEmployer)}
+                      fieldName="workModes"
+                      items={workModeOptions}
+                      onSave={handleWorkModesSave}
                       getFieldVerification={getFieldVerification}
-                      placeholder="Select work mode"
+                      placeholder="Select work modes..."
+                      searchPlaceholder="Search work modes..."
+                      maxDisplay={3}
                     />
 
-                    <InlineEditableSelectField
+                    <InlineEditableMultiSelectField
                       label="Shift Type"
-                      value={localEmployer.shiftType ?? ""}
-                      fieldName="shiftType"
-                      options={shiftTypeOptions}
-                      onSave={handleShiftTypeSave}
+                      selected={getEmployerShiftTypesDb(localEmployer)}
+                      fieldName="shiftTypes"
+                      items={shiftTypeOptions}
+                      onSave={handleShiftTypesSave}
                       getFieldVerification={getFieldVerification}
-                      placeholder="Select shift type"
+                      placeholder="Select shift types..."
+                      searchPlaceholder="Search shift types..."
+                      maxDisplay={3}
                     />
 
                     <InlineEditableMultiSelectField
@@ -2300,14 +2308,16 @@ export function EmployerDetailsModal({
                       />
                     </div>
 
-                    <InlineEditableSelectField
+                    <InlineEditableMultiSelectField
                       label="Salary Policy"
-                      value={getEmployerSalaryPolicyDb(localEmployer)}
-                      fieldName="salaryPolicy"
-                      options={salaryPolicyOptions}
-                      onSave={handleSalaryPolicySave}
+                      selected={getEmployerSalaryPoliciesDb(localEmployer)}
+                      fieldName="salaryPolicies"
+                      items={salaryPolicyOptions}
+                      onSave={handleSalaryPoliciesSave}
                       getFieldVerification={getFieldVerification}
-                      placeholder="Select salary policy"
+                      placeholder="Select salary policies..."
+                      searchPlaceholder="Search salary policies..."
+                      maxDisplay={3}
                     />
 
                     <InlineEditableSwitch

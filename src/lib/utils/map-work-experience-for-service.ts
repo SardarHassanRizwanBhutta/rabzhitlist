@@ -6,7 +6,12 @@ import type {
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import type { EmployerTypeDb, LayoffReasonDb, RankingDb, SalaryPolicyDb } from "@/lib/types/employer"
 import type { EmployerDto } from "@/lib/services/employers-api"
-import { fetchEmployerById } from "@/lib/services/employers-api"
+import {
+  fetchEmployerById,
+  parseSalaryPoliciesFromDetailApi,
+  parseShiftTypesFromDetailApi,
+  parseWorkModesFromDetailApi,
+} from "@/lib/services/employers-api"
 import type {
   BenefitForService,
   WorkExperienceForService,
@@ -154,10 +159,9 @@ export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromAp
       ? RANKING_FROM_API[dto.ranking]
       : null
 
-  const salaryPolicy =
-    dto.salaryPolicy != null && dto.salaryPolicy in SALARY_POLICY_FROM_API
-      ? SALARY_POLICY_FROM_API[dto.salaryPolicy]
-      : null
+  const salaryPoliciesDb = parseSalaryPoliciesFromDetailApi(dto.salaryPolicies)
+  const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
+  const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)
 
   const locations: WorkExperienceOfficeLocation[] = (dto.locations ?? []).map((loc) => ({
     country: loc.country?.name != null ? String(loc.country.name) : null,
@@ -189,15 +193,9 @@ export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromAp
     websiteUrl: emptyToNull(dto.websiteUrl),
     linkedinUrl: emptyToNull(dto.linkedInUrl),
     isDplCompetitor: typeof dto.isDplCompetitor === "boolean" ? dto.isDplCompetitor : null,
-    salaryPolicy,
-    workMode:
-      dto.workMode != null && dto.workMode in WORK_MODE_FROM_API
-        ? WORK_MODE_FROM_API[dto.workMode]
-        : null,
-    shiftType:
-      dto.shiftType != null && dto.shiftType in SHIFT_TYPE_FROM_API
-        ? SHIFT_TYPE_FROM_API[dto.shiftType]
-        : null,
+    salaryPolicy: salaryPoliciesDb[0] ?? null,
+    workMode: workModesDb[0] ?? null,
+    shiftType: shiftTypesDb[0] ?? null,
     timeSupportZones: (dto.timeSupportZones ?? []).map((z) => z.name),
     benefits: mapBenefitsFromEmployerDto(dto),
     locations,
