@@ -588,12 +588,12 @@ export function ProjectsFilterDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="projectName" className="text-sm font-medium">
-                    Project Name
+                    Name
                   </Label>
                   <Input
                     id="projectName"
                     type="text"
-                    placeholder="e.g., iApartments"
+                    placeholder="Filter by name..."
                     value={tempFilters.projectName}
                     onChange={(e) => handleFilterChange("projectName", e.target.value)}
                   />
@@ -601,12 +601,12 @@ export function ProjectsFilterDialog({
 
                 <div className="space-y-2">
                   <Label htmlFor="projectLink" className="text-sm font-medium">
-                    Project Link
+                    Link
                   </Label>
                   <Input
                     id="projectLink"
                     type="text"
-                    placeholder="e.g., https://example.com"
+                    placeholder="Filter by link..."
                     value={tempFilters.projectLink}
                     onChange={(e) => handleFilterChange("projectLink", e.target.value)}
                   />
@@ -621,7 +621,7 @@ export function ProjectsFilterDialog({
                   selected={tempFilters.status}
                   onChange={(values) => handleFilterChange("status", values)}
                   placeholder="Filter by status..."
-                  label="Project Status"
+                  label="Status"
                   maxDisplay={3}
                 />
 
@@ -629,8 +629,8 @@ export function ProjectsFilterDialog({
                   items={projectTypeOptions}
                   selected={tempFilters.projectTypes}
                   onChange={(values) => handleFilterChange("projectTypes", values)}
-                  placeholder="Filter by project type..."
-                  label="Project Type"
+                  placeholder="Filter by type..."
+                  label="Type"
                   maxDisplay={3}
                 />
               </div>
@@ -659,7 +659,7 @@ export function ProjectsFilterDialog({
                     >
                       <div className="flex flex-wrap gap-1 flex-1 mr-2 items-center min-w-0">
                         {tempFilters.employers.length === 0 && (
-                          <span className="text-muted-foreground">Search employers to add…</span>
+                          <span className="text-muted-foreground">Filter by employer...</span>
                         )}
                         {tempFilters.employers.slice(0, 3).map((id) => (
                           <Badge
@@ -708,7 +708,7 @@ export function ProjectsFilterDialog({
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Search employers..."
+                        placeholder="Filter by employer..."
                         value={employerSearchQuery}
                         onValueChange={setEmployerSearchQuery}
                         className="h-9"
@@ -769,19 +769,15 @@ export function ProjectsFilterDialog({
               {useTechnicalAspectTypesFilter ? (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Technical Aspects</Label>
+                    <Label className="text-sm font-medium">Technical Aspect</Label>
                     <MultiSelect
                       items={technicalAspectTypeFilterOptions}
                       selected={tempFilters.technicalAspectTypeIds}
                       onChange={handleTechnicalAspectTypeIdsChange}
-                      placeholder="Select technical aspect types..."
+                      placeholder="Filter by technical aspect"
                       searchPlaceholder="Search technical aspects..."
                       maxDisplay={3}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Select aspect types to filter projects. Optionally narrow each aspect with
-                      specific technologies in the sections below — stacks are not required.
-                    </p>
                   </div>
 
                   {selectedAspectTypesSorted.length > 0 && (
@@ -837,8 +833,8 @@ export function ProjectsFilterDialog({
                     items={legacyTechnicalAspectOptions}
                     selected={tempFilters.technicalAspects}
                     onChange={(values) => handleFilterChange("technicalAspects", values)}
-                    placeholder="Filter by technical aspect..."
-                    label="Technical Aspects"
+                    placeholder="Filter by technical aspect"
+                    label="Technical Aspect"
                     searchPlaceholder="Search technical aspects..."
                     maxDisplay={3}
                   />
@@ -851,7 +847,7 @@ export function ProjectsFilterDialog({
                   selected={tempFilters.verticalDomains}
                   onChange={(values) => handleFilterChange("verticalDomains", values)}
                   placeholder="Filter by vertical domain..."
-                  label="Vertical Domains"
+                  label="Vertical Domain"
                   searchPlaceholder="Search vertical domains..."
                   maxDisplay={3}
                 />
@@ -861,7 +857,7 @@ export function ProjectsFilterDialog({
                   selected={tempFilters.horizontalDomains}
                   onChange={(values) => handleFilterChange("horizontalDomains", values)}
                   placeholder="Filter by horizontal domain..."
-                  label="Horizontal Domains"
+                  label="Horizontal Domain"
                   searchPlaceholder="Search horizontal domains..."
                   maxDisplay={3}
                 />
@@ -871,7 +867,7 @@ export function ProjectsFilterDialog({
                   selected={tempFilters.technicalDomains}
                   onChange={(values) => handleFilterChange("technicalDomains", values)}
                   placeholder="Filter by technical domain..."
-                  label="Technical Domains"
+                  label="Technical Domain"
                   searchPlaceholder="Search technical domains..."
                   maxDisplay={3}
                 />
@@ -886,10 +882,6 @@ export function ProjectsFilterDialog({
                   <Label className="text-sm font-semibold">
                     Completion Date Range
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Bounds on project end date (completion). Only projects with an end date are included when
-                    you set a bound. Inclusive range on the calendar day (ISO date sent to the API).
-                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="completionDateStart" className="text-xs text-muted-foreground">
@@ -967,11 +959,6 @@ export function ProjectsFilterDialog({
                   <Label className="text-sm font-semibold">
                     Active window (timeline overlap)
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Active window: projects whose timeline overlaps this range (standard interval overlap). Ongoing
-                    projects (no end date) are treated as open-ended for overlap. Projects without a start date never
-                    match this filter.
-                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="startEndDateStart" className="text-xs text-muted-foreground">
@@ -1049,10 +1036,6 @@ export function ProjectsFilterDialog({
                   <Label className="text-sm font-semibold">
                     Start Date Range
                   </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Bounds on project start date only. Only projects with a start date are included when you set a
-                    bound. Inclusive range on the calendar day (ISO date sent to the API).
-                  </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="startDateStart" className="text-xs text-muted-foreground">
@@ -1136,7 +1119,7 @@ export function ProjectsFilterDialog({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="averageTeamSizeMin" className="text-xs text-muted-foreground">
-                      Average team size (min)
+                      Minimum
                     </Label>
                     <Input
                       id="averageTeamSizeMin"
@@ -1151,7 +1134,7 @@ export function ProjectsFilterDialog({
 
                   <div className="space-y-2">
                     <Label htmlFor="averageTeamSizeMax" className="text-xs text-muted-foreground">
-                      Average team size (max)
+                      Maximum
                     </Label>
                     <Input
                       id="averageTeamSizeMax"
@@ -1230,9 +1213,6 @@ export function ProjectsFilterDialog({
               {dataProgressError && (
                 <p className="text-xs text-red-500">{dataProgressError}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Filter projects by stored profile completion (`dataProgressPercentage`, 0–100%)
-              </p>
             </div>
 
             {/* Published App Filter */}
@@ -1257,7 +1237,7 @@ export function ProjectsFilterDialog({
                 items={publishPlatformOptions}
                 selected={tempFilters.publishPlatforms}
                 onChange={(values) => handleFilterChange("publishPlatforms", values)}
-                placeholder="Select platforms"
+                placeholder="Filter by publish platforms..."
                 label="Publish Platforms"
                 searchPlaceholder="Search platforms..."
               />
@@ -1271,7 +1251,7 @@ export function ProjectsFilterDialog({
               <Input
                 id="minDownloadCount"
                 type="number"
-                placeholder="e.g., 100000 (for 100K+)"
+                placeholder="Filter by minimum download count..."
                 min="0"
                 value={tempFilters.minDownloadCount}
                 onChange={(e) => handleFilterChange("minDownloadCount", e.target.value)}

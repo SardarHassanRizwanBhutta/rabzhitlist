@@ -134,6 +134,7 @@ import {
 // import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
 // import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
+import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
 import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
@@ -4280,57 +4281,31 @@ export function CandidateDetailsModal({
     scrollToSection(value)
   }
 
-  // IntersectionObserver to detect active section
+  // Reset tab highlight and scroll when the modal opens or the candidate changes
   useEffect(() => {
-    if (!candidate || !open || !scrollContainerRef.current) return
+    if (!open) {
+      setActiveSection("basic-info")
+      return
+    }
 
-    const container = scrollContainerRef.current
-    const sectionIds = sections.map(s => s.sectionId)
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Don't update if we're manually scrolling
-        if (isScrollingRef.current) return
-        
-        // Find the entry with the highest intersection ratio
-        let maxRatio = 0
-        let activeId = sectionIds[0] || "basic-info"
-        
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
-            maxRatio = entry.intersectionRatio
-            activeId = entry.target.id
-          }
-        })
-        
-        if (maxRatio > 0.2) {
-          setActiveSection(activeId)
-        }
-      },
-      {
-        threshold: [0.2, 0.5, 0.8],
-        root: container,
-        rootMargin: '-80px 0px -60% 0px'
-      }
-    )
+    setActiveSection("basic-info")
+    isScrollingRef.current = false
 
-    // Observe all sections
-    const sectionElements: (Element | null)[] = []
-    sectionIds.forEach((sectionId) => {
-      const element = document.getElementById(sectionId)
-      if (element) {
-        observer.observe(element)
-        sectionElements.push(element)
-      }
+    const frame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "auto" })
     })
 
-    return () => {
-      sectionElements.forEach((element) => {
-        if (element) observer.unobserve(element)
-      })
-      observer.disconnect()
-    }
-  }, [candidate, open])
+    return () => cancelAnimationFrame(frame)
+  }, [open, candidate?.id])
+
+  useScrollSpySection(scrollContainerRef, {
+    enabled: Boolean(candidate && open),
+    sectionIds: sections.map((section) => section.sectionId),
+    scrollOffset: 80,
+    onActiveSectionChange: setActiveSection,
+    isScrollingRef,
+    layoutKey: resolvedCandidate?.id,
+  })
   
   // State for Edit dialog (now includes verification by default)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -5755,6 +5730,11 @@ export function CandidateDetailsModal({
     }).format(date)
   }
 
+  const formatCandidateMetadataDate = (date: Date | undefined | null) => {
+    if (!date || Number.isNaN(date.getTime())) return "N/A"
+    return date.toLocaleDateString()
+  }
+
   const formatMonth = (date: Date | undefined) => {
     if (!date) return "N/A"
     return new Intl.DateTimeFormat('en-US', {
@@ -7104,6 +7084,22 @@ export function CandidateDetailsModal({
             </Card>
           </Collapsible>
           </section>
+
+          {/* Candidate Metadata */}
+          <div className="pt-4 border-t border-border">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
+              <div
+                className={cn(formatCandidateMetadataDate(viewCandidate.createdAt) === "N/A" && "italic")}
+              >
+                Created At: {formatCandidateMetadataDate(viewCandidate.createdAt)}
+              </div>
+              <div
+                className={cn(formatCandidateMetadataDate(viewCandidate.updatedAt) === "N/A" && "italic")}
+              >
+                Updated At: {formatCandidateMetadataDate(viewCandidate.updatedAt)}
+              </div>
+            </div>
+          </div>
 
         </div>
       </DialogContent>

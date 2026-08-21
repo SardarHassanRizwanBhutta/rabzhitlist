@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useState, useRef, useEffect, useMemo } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,7 @@ import type { EmployerLookupDto } from "@/lib/services/employers-api"
 import { useProjectSearch } from "@/hooks/useProjectSearch"
 import { useCertificationSearch } from "@/hooks/useCertificationSearch"
 import { useUniversitySearch } from "@/hooks/useUniversitySearch"
+import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
 import type { ProjectLookupDto } from "@/lib/services/projects-lookup-api"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
@@ -442,6 +443,95 @@ const initialFilters: CandidateFilters = {
   // Data Progress filters
   dataProgressMin: "",
   dataProgressMax: "",
+}
+
+function clearSectionFromFilters(
+  prev: CandidateFilters,
+  sectionId: string,
+): CandidateFilters {
+  const updated = { ...prev }
+  switch (sectionId) {
+    case "basic":
+      updated.name = ""
+      updated.city = ""
+      updated.personalityTypes = []
+      updated.source = []
+      updated.currentSalaryMin = ""
+      updated.currentSalaryMax = ""
+      updated.expectedSalaryMin = ""
+      updated.expectedSalaryMax = ""
+      updated.postingTitle = ""
+      updated.verificationPercentageMin = ""
+      updated.verificationPercentageMax = ""
+      updated.dataProgressMin = ""
+      updated.dataProgressMax = ""
+      break
+    case "experience":
+      updated.candidateTechStacks = []
+      updated.shiftTypes = []
+      updated.workModes = []
+      updated.workExperienceSalaryPolicies = []
+      updated.timeSupportZones = []
+      updated.jobTitle = ""
+      updated.yearsOfExperienceMin = ""
+      updated.yearsOfExperienceMax = ""
+      updated.avgJobTenureMin = ""
+      updated.avgJobTenureMax = ""
+      updated.joinedProjectFromStart = null
+      updated.joinedProjectFromStartToleranceDays = 30
+      updated.hasMutualConnectionWithDPL = null
+      updated.mutualConnectionToleranceMonths = 0
+      updated.mutualConnectionType = null
+      break
+    case "projects":
+      updated.projects = []
+      updated.projectStatus = []
+      updated.projectTypes = []
+      updated.techStacks = []
+      updated.clientLocations = []
+      updated.verticalDomains = []
+      updated.horizontalDomains = []
+      updated.technicalDomains = []
+      updated.technicalAspectTypeIds = []
+      updated.startDateStart = null
+      updated.startDateEnd = null
+      updated.averageTeamSizeMin = ""
+      updated.averageTeamSizeMax = ""
+      updated.hasPublishedProject = null
+      updated.publishPlatforms = []
+      updated.minProjectDownloadCount = ""
+      break
+    case "employers":
+      updated.employers = []
+      updated.employerStatus = []
+      updated.employerCountries = []
+      updated.employerCity = ""
+      updated.employerTypes = []
+      updated.employerSalaryPolicies = []
+      updated.employerSizeMin = ""
+      updated.employerSizeMax = ""
+      updated.employerRankings = []
+      break
+    case "education":
+      updated.universities = []
+      updated.degreeNames = []
+      updated.majorNames = []
+      updated.isTopper = null
+      updated.isCheetah = null
+      updated.educationEndDateStart = null
+      updated.educationEndDateEnd = null
+      break
+    case "certifications":
+      updated.certificationNames = []
+      updated.certificationIssuingBodies = []
+      updated.certificationLevels = []
+      break
+    case "competitions":
+      updated.achievementTypes = []
+      updated.achievementName = ""
+      break
+  }
+  return updated
 }
 
 export function CandidatesFilterDialog({
@@ -898,6 +988,30 @@ export function CandidatesFilterDialog({
     }
   }
 
+  const handleScrollSpySection = useCallback((sectionId: string) => {
+    const section = sections.find((item) => item.sectionId === sectionId)
+    if (section) {
+      setActiveTab(section.id)
+    }
+  }, [])
+
+  // Reset tab highlight and scroll when the dialog opens or closes
+  useEffect(() => {
+    if (!open) {
+      setActiveTab("basic")
+      return
+    }
+
+    setActiveTab("basic")
+    isScrollingRef.current = false
+
+    const frame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "auto" })
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
   // Clear filters for a specific section
   const clearSectionFilters = (sectionId: string) => {
     if (sectionId === "employers") {
@@ -921,145 +1035,19 @@ export function CandidatesFilterDialog({
       setUniversityComboboxOpen(false)
       resetUniversitySearch()
     }
-    setTempFilters(prev => {
-      const updated = { ...prev }
-      switch (sectionId) {
-        case "basic":
-          updated.name = ""
-          updated.city = ""
-          updated.personalityTypes = []
-          updated.source = []
-          updated.currentSalaryMin = ""
-          updated.currentSalaryMax = ""
-          updated.expectedSalaryMin = ""
-          updated.expectedSalaryMax = ""
-          updated.postingTitle = ""
-          updated.verificationPercentageMin = ""
-          updated.verificationPercentageMax = ""
-          updated.dataProgressMin = ""
-          updated.dataProgressMax = ""
-          break
-        case "experience":
-          updated.candidateTechStacks = []
-          updated.shiftTypes = []
-          updated.workModes = []
-          updated.workExperienceSalaryPolicies = []
-          updated.timeSupportZones = []
-          updated.jobTitle = ""
-            updated.yearsOfExperienceMin = ""
-            updated.yearsOfExperienceMax = ""
-            updated.avgJobTenureMin = ""
-            updated.avgJobTenureMax = ""
-            updated.hasMutualConnectionWithDPL = null
-            updated.mutualConnectionToleranceMonths = 0
-            updated.mutualConnectionType = null
-          break
-        case "projects":
-          updated.projects = []
-          updated.projectStatus = []
-          updated.projectTypes = []
-          updated.techStacks = []
-          updated.clientLocations = []
-          updated.verticalDomains = []
-          updated.horizontalDomains = []
-          updated.technicalDomains = []
-          updated.technicalAspectTypeIds = []
-          updated.startDateStart = null
-          updated.startDateEnd = null
-          updated.averageTeamSizeMin = ""
-          updated.averageTeamSizeMax = ""
-          updated.hasPublishedProject = null
-          updated.publishPlatforms = []
-          updated.minProjectDownloadCount = ""
-          break
-        case "employers":
-          updated.employers = []
-          updated.employerStatus = []
-          updated.employerCountries = []
-          updated.employerCity = ""
-          updated.employerTypes = []
-          updated.employerSalaryPolicies = []
-          updated.employerSizeMin = ""
-          updated.employerSizeMax = ""
-          updated.employerRankings = []
-          break
-        case "education":
-          updated.universities = []
-          updated.degreeNames = []
-          updated.majorNames = []
-          updated.isTopper = null
-          updated.isCheetah = null
-          updated.educationEndDateStart = null
-          updated.educationEndDateEnd = null
-          break
-        case "certifications":
-          updated.certificationNames = []
-          updated.certificationIssuingBodies = []
-          updated.certificationLevels = []
-          break
-        case "competitions":
-          updated.achievementTypes = []
-          updated.achievementName = ""
-          break
-      }
-      return updated
-    })
+
+    const updated = clearSectionFromFilters(tempFilters, sectionId)
+    setTempFilters(updated)
+    onFiltersChange(updated)
   }
   
-  // IntersectionObserver to detect active section
-  useEffect(() => {
-    if (!open || !scrollContainerRef.current) return
-
-    const container = scrollContainerRef.current
-    const sectionIds = sections.map(s => s.sectionId)
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Don't update if we're manually scrolling
-        if (isScrollingRef.current) return
-        
-        // Find the entry with the highest intersection ratio
-        let maxRatio = 0
-        let activeId = sectionIds[0] || "filter-basic"
-        
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
-            maxRatio = entry.intersectionRatio
-            activeId = entry.target.id
-          }
-        })
-        
-        if (maxRatio > 0.2) {
-          const section = sections.find(s => s.sectionId === activeId)
-          if (section) {
-            setActiveTab(section.id)
-          }
-        }
-      },
-      {
-        threshold: [0.2, 0.5, 0.8],
-        root: container,
-        rootMargin: '-80px 0px -60% 0px'
-      }
-    )
-
-    // Observe all sections
-    const sectionElements: (Element | null)[] = []
-    sectionIds.forEach((sectionId) => {
-      const element = document.getElementById(sectionId)
-      if (element) {
-        observer.observe(element)
-        sectionElements.push(element)
-      }
-    })
-
-    return () => {
-      sectionElements.forEach((element) => {
-        if (element) observer.unobserve(element)
-      })
-      observer.disconnect()
-    }
-  }, [open])
+  useScrollSpySection(scrollContainerRef, {
+    enabled: open,
+    sectionIds: sections.map((section) => section.sectionId),
+    scrollOffset: 80,
+    onActiveSectionChange: handleScrollSpySection,
+    isScrollingRef,
+  })
 
   // Calculate active filter count for each section
   const getSectionFilterCount = (sectionId: string): number => {

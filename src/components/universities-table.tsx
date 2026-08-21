@@ -88,16 +88,16 @@ interface UniversitiesTableProps {
   onCreateCountry?: (name: string) => Promise<Country | null>
 }
 
-type SortKey = keyof University | "jobSuccessRatio"
+type SortKey = keyof University
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
 /** "Add location" row: merge Country..Graduates; Actions stays an empty cell for alignment. */
-const UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN = 7
+const UNIVERSITY_EXPANDED_ADD_ROW_MERGE_COL_SPAN = 6
 
 /** Campus sub-rows (no row-level menu): merge Country through Actions. */
-const UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN = 9
+const UNIVERSITY_EXPANDED_CAMPUS_ROW_MERGE_COL_SPAN = 8
 
 type UniversityExternalLinkKind = "website" | "linkedin"
 
@@ -225,7 +225,6 @@ export function UniversitiesTable({
   }
 
   const getSortValue = (uni: University, key: SortKey): string | number => {
-    if (key === "jobSuccessRatio") return 0
     if (key === "dataProgressPercentage") {
       return normalizeProgress(uni.dataProgressPercentage)
     }
@@ -240,7 +239,6 @@ export function UniversitiesTable({
   // Sorting
   const sortedUniversities = useMemo(() => {
     return [...universities].sort((a, b) => {
-      if (sortKey === "jobSuccessRatio") return 0
       const aVal = getSortValue(a, sortKey)
       const bVal = getSortValue(b, sortKey)
       if (aVal === bVal) return 0
@@ -369,9 +367,6 @@ export function UniversitiesTable({
               <TableHead className="w-[140px]">
                 <SortButton column="ranking">Ranking</SortButton>
               </TableHead>
-              <TableHead className="w-[160px]">
-                <SortButton column="jobSuccessRatio">Placement Rate</SortButton>
-              </TableHead>
               <TableHead className="w-[80px] text-center">Website</TableHead>
               <TableHead className="w-[80px] text-center">LinkedIn</TableHead>
               <TableHead className="w-[60px]" title="View University Graduates">Graduates</TableHead>
@@ -444,9 +439,6 @@ export function UniversitiesTable({
                       ) : (
                         <UniversityEmptyDataDash />
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <UniversityEmptyDataDash />
                     </TableCell>
                     <TableCell className="px-1 text-center">
                       {university.websiteUrl ? (

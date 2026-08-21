@@ -121,6 +121,11 @@ const getJobTitle = (candidate: Candidate): string => {
   return candidate.latestJobTitle || "—"
 }
 
+const formatCandidateCreatedAt = (date: Date | undefined | null): string => {
+  if (!date || Number.isNaN(date.getTime())) return "N/A"
+  return date.toLocaleDateString()
+}
+
 // Helper function to calculate average job tenure across all employers
 const calculateCandidateAverageTenure = (candidate: Candidate): number => {
   if (!candidate.workExperiences || candidate.workExperiences.length === 0) {
@@ -628,6 +633,11 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
               <TableHead className="hidden lg:table-cell w-[80px]">
                 Data Progress
               </TableHead>
+
+              {/* Created At - Hidden on mobile */}
+              <TableHead className="hidden lg:table-cell whitespace-nowrap">
+                Created At
+              </TableHead>
               
               {/* Match Summary - Only visible when filters are active */}
               {activeFilters && (
@@ -649,7 +659,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
             {sortedCandidates.length === 0 ? (
               <TableRow>
                 <TableCell 
-                  colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} 
+                  colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} 
                   className="h-32 text-center text-muted-foreground"
                 >
                   No candidates found.
@@ -745,6 +755,25 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     <DataProgressBadge candidate={candidate} />
+                  </TableCell>
+
+                  {/* Created At - Hidden on mobile */}
+                  <TableCell
+                    className="hidden lg:table-cell whitespace-nowrap"
+                    onClick={() => setSelectedCandidate(candidate)}
+                  >
+                    {(() => {
+                      const createdAtLabel = formatCandidateCreatedAt(candidate.createdAt)
+                      return (
+                        <span
+                          className={cn(
+                            createdAtLabel === "N/A" && "text-muted-foreground italic"
+                          )}
+                        >
+                          {createdAtLabel}
+                        </span>
+                      )
+                    })()}
                   </TableCell>
                   
                   {/* Match Summary */}
@@ -856,7 +885,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 {/* Expandable Match Details Row */}
                 {activeFilters && isExpanded && matchContext && matchContext.totalMatches > 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 8 : 7) : (hasAvgTenureFilter ? 7 : 6)} className="p-0">
+                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} className="p-0">
                       <div className="bg-gray-50 dark:bg-gray-950/50 border-t border-border">
                         <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                           {matchContext.categories.map((category) => {

@@ -1187,6 +1187,8 @@ export function CandidatesPageClient() {
 
     if (filtersActive && candidates.length > 0 && !listLoading) {
       setViewMode("cards")
+    } else if (!filtersActive) {
+      setViewMode("table")
     }
   }, [
     filters,

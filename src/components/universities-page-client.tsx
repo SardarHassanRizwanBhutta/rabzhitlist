@@ -99,7 +99,6 @@ const initialFilters: UniversityFilters = {
   countries: [],
   rankings: [],
   city: "",
-  minJobSuccessRatio: "",
   dataProgressMin: "",
   dataProgressMax: "",
 }
