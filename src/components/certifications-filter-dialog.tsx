@@ -152,7 +152,7 @@ export function CertificationsFilterDialog({
                 <Input
                   id="certification-name-search"
                   type="text"
-                  placeholder="Filter by certification name"
+                  placeholder="Filter by name..."
                   value={tempFilters.certificationNameSearch}
                   onChange={(e) => handleCertificationNameChange(e.target.value)}
                 />
@@ -230,9 +230,6 @@ export function CertificationsFilterDialog({
               {dataProgressError && (
                 <p className="text-xs text-red-500">{dataProgressError}</p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Filter certifications by stored profile completion (`dataProgressPercentage`, 0–100%)
-              </p>
             </div>
           </div>
         </div>

@@ -54,8 +54,6 @@ import { fetchEmployerById, employerDtoToEmployer, updateEmployer, buildUpdateEm
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
 import { employerToFormData } from "@/components/employer-creation-dialog"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
-import type { Project } from "@/lib/types/project"
-import type { Candidate } from "@/lib/types/candidate"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -94,12 +92,6 @@ import {
 } from "@/components/ui/command"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-
-// Add to existing imports
-import { useRouter } from "next/navigation"
-import { FolderIcon, UsersIcon } from "lucide-react"
-import { Users } from "lucide-react"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { EmployerBenefit, normalizeEmployerBenefit } from "@/lib/types/benefits"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
@@ -112,104 +104,6 @@ import {
 } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
-
-// DomainBadges component for displaying vertical and horizontal domains
-const DomainBadges = ({
-  projectName,
-  verticalDomains,
-  horizontalDomains,
-  teamSize,
-  maxDisplay = 3,
-}: {
-  projectName: string
-  verticalDomains: string[]
-  horizontalDomains: string[]
-  teamSize?: string | null
-  maxDisplay?: number
-}) => {
-  const hasVertical = verticalDomains.length > 0
-  const hasHorizontal = horizontalDomains.length > 0
-  const hasTeamSize = teamSize !== null && teamSize !== undefined
-
-  if (!hasVertical && !hasHorizontal && !hasTeamSize) return null
-
-  const renderGroup = (domains: string[], type: "vertical" | "horizontal") => {
-    const visible = domains.slice(0, maxDisplay)
-    const remaining = domains.slice(maxDisplay)
-    const moreCount = remaining.length
-
-    const baseClass =
-      type === "vertical"
-        ? "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-950/30 dark:text-purple-200 dark:border-purple-800"
-        : "bg-blue-100 text-blue-700 border border-blue-300 dark:bg-blue-950/30 dark:text-blue-200 dark:border-blue-800"
-
-    return (
-      <>
-        {visible.map((d) => (
-          <span
-            key={`${type}-${d}`}
-            className={`text-xs px-2 py-1 rounded-md ${baseClass}`}
-          >
-            {d}
-          </span>
-        ))}
-        {moreCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-600 border border-gray-200 dark:bg-gray-900/40 dark:text-gray-300 dark:border-gray-700"
-                aria-label={`Show ${moreCount} more ${type} domains for ${projectName}`}
-              >
-                +{moreCount} more
-              </button>
-            </TooltipTrigger>
-            <TooltipContent sideOffset={6} className="max-w-xs">
-              <div className="space-y-1">
-                <div className="font-medium">
-                  {type === "vertical" ? "Vertical Domains" : "Horizontal Domains"}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {remaining.map((d) => (
-                    <span key={`${type}-remaining-${d}`} className="px-1.5 py-0.5 rounded bg-background/20">
-                      {d}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </>
-    )
-  }
-
-  return (
-    <div
-      className="flex flex-wrap items-center gap-2 mt-2"
-      aria-label={`Project domains and team size for ${projectName}`}
-    >
-      {hasVertical && renderGroup(verticalDomains, "vertical")}
-      {hasVertical && hasHorizontal && (
-        <span className="mx-2 text-muted-foreground" aria-hidden="true">
-          •
-        </span>
-      )}
-      {hasHorizontal && renderGroup(horizontalDomains, "horizontal")}
-      {(hasVertical || hasHorizontal) && hasTeamSize && (
-        <span className="mx-2 text-muted-foreground" aria-hidden="true">
-          •
-        </span>
-      )}
-      {hasTeamSize && (
-        <span className="text-xs px-2 py-1 rounded-md bg-orange-100 text-orange-700 border border-orange-300 dark:bg-orange-950/30 dark:text-orange-200 dark:border-orange-800 flex items-center gap-1">
-          <Users className="size-3" />
-          {teamSize}
-        </span>
-      )}
-    </div>
-  )
-}
 
 // Validation functions
 const validateURL = (url: string): string | null => {
@@ -1730,11 +1624,10 @@ export function EmployerDetailsModal({
   onCreateAward,
   onCreateBenefit,
 }: EmployerDetailsModalProps) {
-  const router = useRouter()
   const [localEmployer, setLocalEmployer] = useState<Employer>(employer)
   const [detailLoading, setDetailLoading] = useState(false)
 
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "projects", "candidates", "layoffs"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "layoffs"]))
 
   const [layoffs, setLayoffs] = useState<Layoff[]>(employer.layoffs || [])
   const [isLayoffFormOpen, setIsLayoffFormOpen] = useState(false)
@@ -1745,9 +1638,6 @@ export function EmployerDetailsModal({
     locationId: string
     locationName: string
   } | null>(null)
-
-  const employerProjects = React.useMemo((): Project[] => [], [employer.name])
-  const employerCandidates = React.useMemo((): Candidate[] => [], [employer.name])
 
   const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
     () => lookups?.timeSupportZones?.map((z) => ({ value: z.name, label: z.name })) ?? [],
@@ -1808,23 +1698,6 @@ export function EmployerDetailsModal({
       }
       return newSet
     })
-  }
-  // Handle navigation to projects page
-  const handleViewProjects = () => {
-    const params = new URLSearchParams({
-      employerFilter: employer.name,
-      employerId: employer.id
-    })
-    router.push(`/projects?${params.toString()}`)
-  }
-
-  // Handle navigation to candidates page
-  const handleViewCandidates = () => {
-    const params = new URLSearchParams({
-      employerFilter: employer.name,
-      employerId: employer.id
-    })
-    router.push(`/candidates?${params.toString()}`)
   }
 
   // Helper to get verification status for a field (placeholder for now)
@@ -2600,165 +2473,6 @@ export function EmployerDetailsModal({
               </CollapsibleContent>
             </Card>
           </Collapsible>
-         {/* Projects Section */}
-          <Collapsible 
-            open={expandedSections.has("projects")} 
-            onOpenChange={() => toggleSection("projects")}
-          >
-            <Card>
-              <CollapsibleTrigger className="w-full">
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <FolderIcon className="size-5" />
-                      Projects
-                      {employerProjects.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          {employerProjects.length}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    {expandedSections.has("projects") ? (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-3">
-                  {employerProjects.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No projects found for this employer</p>
-                  ) : (
-                    <>
-                      {/* Show first 10 projects with names and domain badges */}
-                      <div className="space-y-2">
-                        {employerProjects.slice(0, 10).map((project) => (
-                          <div 
-                            key={project.id} 
-                            className="flex items-start justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm truncate mb-1">
-                                {project.projectName}
-                              </div>
-                              <DomainBadges
-                                projectName={project.projectName}
-                                verticalDomains={project.verticalDomains || []}
-                                horizontalDomains={project.horizontalDomains || []}
-                                teamSize={project.teamSize}
-                                maxDisplay={3}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {employerProjects.length > 10 && (
-                        <p className="text-xs text-muted-foreground text-center py-1">
-                          +{employerProjects.length - 10} more project{employerProjects.length - 10 !== 1 ? 's' : ''}
-                        </p>
-                      )}
-                      <Separator />
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleViewProjects()
-                        }}
-                      >
-                        <FolderIcon className="mr-2 h-4 w-4" />
-                        View All Projects ({employerProjects.length})
-                      </Button>
-                    </>
-                  )}
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
-          {/* Candidates Section */}
-          <Collapsible 
-            open={expandedSections.has("candidates")} 
-            onOpenChange={() => toggleSection("candidates")}
-          >
-            <Card>
-              <CollapsibleTrigger className="w-full">
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <UsersIcon className="size-5" />
-                      Candidates
-                      {employerCandidates.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">
-                          {employerCandidates.length}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    {expandedSections.has("candidates") ? (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-3">
-                  {employerCandidates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No candidates found for this employer</p>
-                  ) : (
-                    <>
-                      {/* Show first 10 candidates with names and job titles */}
-                      <div className="space-y-2">
-                        {employerCandidates.slice(0, 10).map((candidate) => {
-                          // Get job title from work experience with this employer
-                          const workExp = candidate.workExperiences?.find(we => 
-                            we.employerName?.toLowerCase() === employer.name.toLowerCase()
-                          )
-                          const jobTitle = workExp?.jobTitle || "N/A"
-                          
-                          return (
-                            <div 
-                              key={candidate.id} 
-                              className="flex items-start justify-between p-2 rounded-md hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-sm truncate mb-1">
-                                  {candidate.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {jobTitle}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {employerCandidates.length > 10 && (
-                        <p className="text-xs text-muted-foreground text-center py-1">
-                          +{employerCandidates.length - 10} more candidate{employerCandidates.length - 10 !== 1 ? 's' : ''}
-                        </p>
-                      )}
-                      <Separator />
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleViewCandidates()
-                        }}
-                      >
-                        <UsersIcon className="mr-2 h-4 w-4" />
-                        View All Candidates ({employerCandidates.length})
-                      </Button>
-                    </>
-                  )}
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
 
           {/* Layoffs Section */}
           <Collapsible 
@@ -2879,10 +2593,10 @@ export function EmployerDetailsModal({
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
               <div className={cn(formatEmployerDate(localEmployer.createdAt) === "N/A" && "italic")}>
-                Created: {formatEmployerDate(localEmployer.createdAt)}
+                Created At: {formatEmployerDate(localEmployer.createdAt)}
               </div>
               <div className={cn(formatEmployerDate(localEmployer.updatedAt) === "N/A" && "italic")}>
-                Updated: {formatEmployerDate(localEmployer.updatedAt)}
+                Updated At: {formatEmployerDate(localEmployer.updatedAt)}
               </div>
             </div>
           </div>

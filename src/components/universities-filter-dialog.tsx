@@ -25,7 +25,6 @@ export interface UniversityFilters {
   countries: string[]
   rankings: UniversityRanking[]
   city: string
-  minJobSuccessRatio: string  // Minimum job success ratio (e.g., "80" for 80%)
   /** Min/max stored profile completion 0–100 → API filter params. */
   dataProgressMin: string
   dataProgressMax: string
@@ -51,7 +50,6 @@ const initialFilters: UniversityFilters = {
   countries: [],
   rankings: [],
   city: "",
-  minJobSuccessRatio: "",
   dataProgressMin: "",
   dataProgressMax: "",
 }
@@ -78,7 +76,6 @@ export function UniversitiesFilterDialog({
     filters.countries.length +
     filters.rankings.length +
     (filters.city.trim() ? 1 : 0) +
-    (filters.minJobSuccessRatio ? 1 : 0) +
     (filters.dataProgressMin.trim() ? 1 : 0) +
     (filters.dataProgressMax.trim() ? 1 : 0)
 
@@ -134,7 +131,6 @@ export function UniversitiesFilterDialog({
     tempFilters.countries.length > 0 ||
     tempFilters.rankings.length > 0 ||
     tempFilters.city.trim() !== "" ||
-    tempFilters.minJobSuccessRatio !== "" ||
     tempFilters.dataProgressMin.trim() !== "" ||
     tempFilters.dataProgressMax.trim() !== ""
 
@@ -174,7 +170,7 @@ export function UniversitiesFilterDialog({
                 <Input
                   id="universityName"
                   type="text"
-                  placeholder="Filter by name"
+                  placeholder="Filter by name..."
                   value={tempFilters.name}
                   onChange={(e) => handleFilterChange("name", e.target.value)}
                 />
@@ -204,7 +200,7 @@ export function UniversitiesFilterDialog({
                 selected={tempFilters.rankings}
                 onChange={(values) => handleFilterChange("rankings", values)}
                 placeholder="Filter by ranking..."
-                label="University Ranking"
+                label="Ranking"
                 maxDisplay={3}
               />
 
@@ -213,27 +209,10 @@ export function UniversitiesFilterDialog({
                 <Input
                   id="campusCity"
                   type="text"
-                  placeholder="Filter by campus city"
+                  placeholder="Filter by campus city..."
                   value={tempFilters.city}
                   onChange={(e) => handleFilterChange("city", e.target.value)}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="minJobSuccessRatio">Minimum Job Success Ratio (%)</Label>
-                <Input
-                  id="minJobSuccessRatio"
-                  type="number"
-                  placeholder="e.g., 80"
-                  value={tempFilters.minJobSuccessRatio}
-                  onChange={(e) => handleFilterChange("minJobSuccessRatio", e.target.value)}
-                  min="0"
-                  max="100"
-                  step="0.1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filter universities with at least this job success percentage
-                </p>
               </div>
 
               <div className="space-y-3">
@@ -295,9 +274,6 @@ export function UniversitiesFilterDialog({
                 {dataProgressError && (
                   <p className="text-xs text-red-500">{dataProgressError}</p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Filter universities by stored profile completion (`dataProgressPercentage`, 0–100%)
-                </p>
               </div>
             </div>
           </div>

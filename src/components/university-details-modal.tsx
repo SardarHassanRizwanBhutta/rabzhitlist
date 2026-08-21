@@ -1101,7 +1101,7 @@ export function UniversityDetailsModal({
   const [localUniversity, setLocalUniversity] = useState<University>(university)
   const [detailLoading, setDetailLoading] = useState(false)
   
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations", "statistics"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations"]))
   
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [locationToDelete, setLocationToDelete] = useState<{
@@ -1544,37 +1544,6 @@ export function UniversityDetailsModal({
             </Card>
           </Collapsible>
 
-          {/* Job Success Statistics Section */}
-          <Collapsible 
-            open={expandedSections.has("statistics")} 
-            onOpenChange={() => toggleSection("statistics")}
-          >
-            <Card>
-              <CollapsibleTrigger className="w-full">
-                <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <GraduationCap className="size-5" />
-                      Job Success Statistics
-                    </CardTitle>
-                    {expandedSections.has("statistics") ? (
-                      <ChevronDown className="size-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="size-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-4">
-                  <p className="text-base text-muted-foreground text-center py-6">
-                    Job success stats will be available when backend API is integrated.
-                  </p>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
           {/* University Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
@@ -1583,14 +1552,14 @@ export function UniversityDetailsModal({
                   isInlineFieldValueEmpty(localUniversity.createdAt) && "italic"
                 )}
               >
-                Created: {formatUniversityDate(localUniversity.createdAt)}
+                Created At: {formatUniversityDate(localUniversity.createdAt)}
             </div>
               <div
                 className={cn(
                   isInlineFieldValueEmpty(localUniversity.updatedAt) && "italic"
                 )}
               >
-                Updated: {formatUniversityDate(localUniversity.updatedAt)}
+                Updated At: {formatUniversityDate(localUniversity.updatedAt)}
           </div>
             </div>
           </div>

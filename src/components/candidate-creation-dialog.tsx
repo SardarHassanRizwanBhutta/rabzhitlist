@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useState, useRef, useMemo, useCallback, useEffect } from "react"
+import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 // import { Field, FieldDescription, FieldLabel } from "@/components/ui/form"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 
@@ -1779,63 +1780,31 @@ export function CandidateCreationDialog({
     scrollToSection(value)
   }, [scrollToSection])
 
-  // IntersectionObserver to detect active section while scrolling
+  // Reset tab highlight and scroll when the dialog opens or closes
   useEffect(() => {
-    if (!open || !scrollContainerRef.current) return
+    if (!open) {
+      setActiveTab("basic-info")
+      return
+    }
 
-    const container = scrollContainerRef.current
-    const sectionIds = sections.map(s => s.sectionId)
-    
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Don't update if we're manually scrolling
-        if (isScrollingRef.current) return
-        
-        // Find the entry with the highest intersection ratio
-        let maxRatio = 0
-        let activeId = sectionIds[0] || "basic-info"
-        
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > maxRatio) {
-            maxRatio = entry.intersectionRatio
-            activeId = entry.target.id
-          }
-        })
-        
-        if (maxRatio > 0.2) {
-          setActiveTab(activeId)
-        }
-      },
-      {
-        threshold: [0.2, 0.5, 0.8],
-        root: container,
-        rootMargin: '-80px 0px -60% 0px'
-      }
-    )
+    setActiveTab("basic-info")
+    isScrollingRef.current = false
 
-    // Observe all sections (scoped to container for nested dialog support)
-    const sectionElements: (Element | null)[] = []
-    sectionIds.forEach((sectionId) => {
-      // Find element within container first (for nested dialogs)
-      const elementInContainer = container.querySelector(`#${sectionId}`) as HTMLElement
-      const element = elementInContainer || (() => {
-        const el = document.getElementById(sectionId)
-        return el && container.contains(el) ? el : null
-      })()
-      
-      if (element) {
-        observer.observe(element)
-        sectionElements.push(element)
-      }
+    const frame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: 0, behavior: "auto" })
     })
 
-    return () => {
-      sectionElements.forEach((element) => {
-        if (element) observer.unobserve(element)
-      })
-      observer.disconnect()
-    }
-  }, [open, sections, formData.workExperiences.length, formData.educations.length, formData.certifications.length])
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
+  useScrollSpySection(scrollContainerRef, {
+    enabled: open,
+    sectionIds: sections.map((section) => section.sectionId),
+    scrollOffset: 80,
+    onActiveSectionChange: setActiveTab,
+    isScrollingRef,
+    layoutKey: `${formData.workExperiences.length}-${formData.educations.length}-${formData.certifications.length}`,
+  })
   
   // Toggle field verification
   const toggleFieldVerification = useCallback((fieldPath: string) => {

@@ -3346,8 +3346,8 @@ function ProjectDetailDialog({
           {/* Project Metadata */}
           <div className="pt-4 border-t border-border">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-muted-foreground">
-              <div>Created: {localProject.createdAt?.toLocaleDateString?.() ?? "—"}</div>
-              <div>Updated: {localProject.updatedAt?.toLocaleDateString?.() ?? "—"}</div>
+              <div>Created At: {localProject.createdAt?.toLocaleDateString?.() ?? "—"}</div>
+              <div>Updated At: {localProject.updatedAt?.toLocaleDateString?.() ?? "—"}</div>
             </div>
           </div>
           </>
