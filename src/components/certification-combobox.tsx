@@ -114,13 +114,9 @@ export function CertificationCombobox({
   }
 
   const handleCreateCertificationSubmit = async (data: CertificationFormData) => {
-    if (!data.issuerId) {
-      toast.error("Select or create an issuing body before saving the certification.")
-      return
-    }
     await createCertification({
       name: data.certificationName.trim(),
-      issuerId: data.issuerId,
+      issuerId: data.issuerId ?? null,
     })
     const list = await searchCertifications(data.certificationName.trim(), 10)
     const normalized = data.certificationName.trim().toLowerCase()

@@ -118,6 +118,8 @@ export interface CandidateFilters {
   workExperienceSalaryPolicies: string[]
   /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
+  /** Benefit names from GET /api/benefits → API `workExperienceBenefitIds`. */
+  workExperienceBenefits: string[]
   // Job title filter
   jobTitle: string
   // Years of experience filters
@@ -200,6 +202,8 @@ interface CandidatesFilterDialogProps {
   majors?: LookupItem[]
   /** From GET /api/techstacks — project expertise + candidate tech stack filters. */
   techStacks?: LookupItem[]
+  /** From GET /api/benefits — work experience benefits filter (same catalog as WE create/edit). */
+  benefits?: LookupItem[]
   /** From GET /api/TechnicalAspectTypes — same catalog as Projects filter / creation dialog. */
   technicalAspectTypes?: MultiSelectOption[]
 }
@@ -388,6 +392,7 @@ const initialFilters: CandidateFilters = {
   workExperienceSalaryPolicies: [],
   // Candidate work experience time support zones
   timeSupportZones: [],
+  workExperienceBenefits: [],
   // Job title filter
   jobTitle: "",
   // Years of experience filters
@@ -472,6 +477,7 @@ function clearSectionFromFilters(
       updated.workModes = []
       updated.workExperienceSalaryPolicies = []
       updated.timeSupportZones = []
+      updated.workExperienceBenefits = []
       updated.jobTitle = ""
       updated.yearsOfExperienceMin = ""
       updated.yearsOfExperienceMax = ""
@@ -546,6 +552,7 @@ export function CandidatesFilterDialog({
   degrees = [],
   majors = [],
   techStacks = [],
+  benefits = [],
   technicalAspectTypes = [],
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
@@ -614,6 +621,14 @@ export function CandidatesFilterDialog({
     }
     return buildTechStackMultiSelectOptions([], extractUniqueCandidateTechStacks())
   }, [techStacks])
+
+  /** Work experience benefits — same catalog as CandidateCreationDialog (`GET /api/benefits`). */
+  const workExperienceBenefitFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    return [...benefits]
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((b) => ({ value: b.name, label: b.name }))
+  }, [benefits])
 
   /** Same catalog as ProjectsFilterDialog when TechnicalAspectTypes API is available. */
   const technicalAspectTypeFilterOptions = useMemo<MultiSelectOption[]>(
@@ -1075,6 +1090,7 @@ export function CandidatesFilterDialog({
           tempFilters.workModes.length +
           tempFilters.workExperienceSalaryPolicies.length +
           tempFilters.timeSupportZones.length +
+          tempFilters.workExperienceBenefits.length +
           (tempFilters.jobTitle ? 1 : 0) +
           (tempFilters.yearsOfExperienceMin ? 1 : 0) +
           (tempFilters.yearsOfExperienceMax ? 1 : 0) +
@@ -1262,6 +1278,7 @@ export function CandidatesFilterDialog({
     tempFilters.workModes.length > 0 ||
     tempFilters.workExperienceSalaryPolicies.length > 0 ||
     tempFilters.timeSupportZones.length > 0 ||
+    tempFilters.workExperienceBenefits.length > 0 ||
     tempFilters.jobTitle ||
     tempFilters.yearsOfExperienceMin ||
     tempFilters.yearsOfExperienceMax ||
@@ -1747,22 +1764,30 @@ export function CandidatesFilterDialog({
                 )}
               </div>
 
-              {/* Candidate Work Experience Tech Stacks */}
-              <div className="space-y-2">
-                <MultiSelect
-                  items={candidateTechStackFilterOptions}
-                  selected={tempFilters.candidateTechStacks}
-                  onChange={(values) => handleFilterChange("candidateTechStacks", values)}
-                  placeholder="Filter by technology stack..."
-                  label="Technology Stack"
-                  searchPlaceholder="Search technologies..."
-                  maxDisplay={4}
-                />
-                {tempFilters.candidateTechStacks.length > 0 && (
-                  <p className="text-xs text-muted-foreground pl-1">
-                    Candidate must have at least one selected technology on a work experience.
-                  </p>
-                )}
+              {/* Work experience tech stacks + benefits */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={candidateTechStackFilterOptions}
+                    selected={tempFilters.candidateTechStacks}
+                    onChange={(values) => handleFilterChange("candidateTechStacks", values)}
+                    placeholder="Filter by technology stack..."
+                    label="Technology Stack"
+                    searchPlaceholder="Search technologies..."
+                    maxDisplay={4}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <MultiSelect
+                    items={workExperienceBenefitFilterOptions}
+                    selected={tempFilters.workExperienceBenefits}
+                    onChange={(values) => handleFilterChange("workExperienceBenefits", values)}
+                    placeholder="Filter by benefits..."
+                    label="Benefits"
+                    searchPlaceholder="Search benefits..."
+                    maxDisplay={4}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

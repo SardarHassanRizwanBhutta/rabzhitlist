@@ -624,15 +624,15 @@ export function EmployersTable({
                         const displayBenefits = benefits.slice(0, 2)
                         const remainingCount = benefits.length - 2
                         return (
-                          <div className="flex flex-nowrap items-center gap-1">
+                          <div className="flex min-w-0 flex-nowrap items-center gap-1">
                             {displayBenefits.map((benefit, index) => (
                               <Badge
                                 key={benefit.id || index}
                                 variant="secondary"
-                                className="max-w-[7rem] truncate text-xs bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                className="max-w-[7rem] min-w-0 shrink justify-start text-xs bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                 title={benefit.name}
                               >
-                                {benefit.name}
+                                <span className="truncate">{benefit.name}</span>
                               </Badge>
                             ))}
                             {remainingCount > 0 && (

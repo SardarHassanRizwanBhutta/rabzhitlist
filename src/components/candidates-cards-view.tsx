@@ -77,6 +77,7 @@ const defaultFilters: CandidateFilters = {
   workModes: [],
   workExperienceSalaryPolicies: [],
   timeSupportZones: [],
+  workExperienceBenefits: [],
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
@@ -262,8 +263,9 @@ const getCriterionColor = (type: string): string => {
     'achievementPlatform': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     'achievementName': 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700',
     
-    // Candidate Tech Stacks
+    // Candidate Tech Stacks & Work Experience Benefits
     'candidateTechStack': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700',
+    'workExperienceBenefit': 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200 border-pink-300 dark:border-pink-700',
     
     'sharedProject': 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700',
     

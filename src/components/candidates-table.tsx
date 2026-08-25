@@ -208,6 +208,7 @@ const defaultFilters: CandidateFilters = {
   workModes: [],
   workExperienceSalaryPolicies: [],
   timeSupportZones: [],
+  workExperienceBenefits: [],
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",

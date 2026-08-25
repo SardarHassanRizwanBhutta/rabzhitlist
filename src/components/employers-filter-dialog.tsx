@@ -57,7 +57,6 @@ export interface EmployerFilters {
   sizeMax: string
   minLocationsCount: string  // Minimum total number of offices/locations
   minCitiesCount: string  // Minimum number of unique cities (optionally within selected country)
-  minApplicants: string  // Minimum number of applicants/employees (candidates with work experience at this employer)
   // Employee location filters - filter employers by where their employees/candidates are located
   /** Employee/candidate residence city (free text; trimmed when sent to the API). */
   employeeCity: string
@@ -112,6 +111,8 @@ export interface EmployerFilterLookupOptions {
   clientLocations?: MultiSelectOption[]
   /** Country names from GET countries API (preferred over sample employers). */
   countries?: MultiSelectOption[]
+  /** Benefit names from GET /api/benefits (preferred over sample data). */
+  benefits?: MultiSelectOption[]
 }
 
 interface EmployersFilterDialogProps {
@@ -210,12 +211,6 @@ const rankingOptions: MultiSelectOption[] = Object.entries(EMPLOYER_RANKING_LABE
   label
 }))
 
-// Employer-based filter options
-const benefitOptions: MultiSelectOption[] = extractUniqueBenefits().map(benefit => ({
-  value: benefit,
-  label: benefit
-}))
-
 /** Filter values are DB enum keys; API applies them to employer `work_mode` / `shift_type`. */
 const shiftTypeDbOptions: MultiSelectOption[] = (
   Object.entries(SHIFT_TYPE_DB_LABELS) as [ShiftTypeDb, string][]
@@ -252,7 +247,6 @@ const initialFilters: EmployerFilters = {
   sizeMax: "",
   minLocationsCount: "",
   minCitiesCount: "",
-  minApplicants: "",
   employeeCity: "",
   // Employer-based filters
   benefits: [],
@@ -319,6 +313,14 @@ export function EmployersFilterDialog({
     }))
   }, [lookupOptions?.countries])
 
+  const benefitSelectItems = useMemo(() => {
+    if (lookupOptions?.benefits?.length) return lookupOptions.benefits
+    return extractUniqueBenefits().map((benefit) => ({
+      value: benefit,
+      label: benefit,
+    }))
+  }, [lookupOptions?.benefits])
+
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<EmployerFilters>(filters)
 
@@ -341,7 +343,6 @@ export function EmployersFilterDialog({
     filters.timeSupportZones.length +
     filters.awards.length +
     filters.rankings.length +
-    (filters.minApplicants ? 1 : 0) +
     (filters.isDPLCompetitive !== null ? 1 : 0) +
     (filters.employeeCity.trim() ? 1 : 0) +
     filters.verticalDomains.length +
@@ -430,7 +431,6 @@ export function EmployersFilterDialog({
     tempFilters.timeSupportZones.length > 0 ||
     tempFilters.awards.length > 0 ||
     tempFilters.rankings.length > 0 ||
-    tempFilters.minApplicants ||
     tempFilters.isDPLCompetitive !== null ||
     !!tempFilters.employeeCity.trim() ||
     tempFilters.verticalDomains.length > 0 ||
@@ -579,25 +579,6 @@ export function EmployersFilterDialog({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="minApplicants" className="text-sm font-semibold">
-                  Minimum Applicants
-                </Label>
-                <Input
-                  id="minApplicants"
-                  type="number"
-                  placeholder="e.g., 50"
-                  min="1"
-                  value={tempFilters.minApplicants}
-                  onChange={(e) => handleFilterChange("minApplicants", e.target.value)}
-                />
-                {tempFilters.minApplicants && (
-                  <p className="text-xs text-muted-foreground">
-                    Filters employers with at least {tempFilters.minApplicants} applicants (candidates with work experience at this employer).
-                  </p>
-                )}
-              </div>
-
               {/* Employee Locations Filter */}
               <div className="space-y-3 border-t pt-4">
                 <Label className="text-sm font-semibold">Employee Locations</Label>
@@ -677,7 +658,7 @@ export function EmployersFilterDialog({
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <MultiSelect
-                    items={benefitOptions}
+                    items={benefitSelectItems}
                     selected={tempFilters.benefits}
                     onChange={(values) => handleFilterChange("benefits", values)}
                     placeholder="Filter by benefits..."
