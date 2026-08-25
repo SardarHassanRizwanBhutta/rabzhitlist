@@ -128,6 +128,7 @@ const initialFilters: CandidateFilters = {
   workModes: [],
   workExperienceSalaryPolicies: [],
   timeSupportZones: [],
+  workExperienceBenefits: [],
   jobTitle: "",
   yearsOfExperienceMin: "",
   yearsOfExperienceMax: "",
@@ -589,6 +590,12 @@ export function CandidatesPageClient() {
         return techStacksLookup.find((l) => l.name.trim().toLowerCase() === key)?.id
       })
       .filter((id): id is number => id != null)
+    const workExperienceBenefitIds = combinedFiltersForBackend.workExperienceBenefits
+      .map((name) => {
+        const key = name.trim().toLowerCase()
+        return benefitsLookup.find((b) => b.name.trim().toLowerCase() === key)?.id
+      })
+      .filter((id): id is number => id != null)
 
     return {
       name: combinedFiltersForBackend.name.trim() || undefined,
@@ -659,6 +666,10 @@ export function CandidatesPageClient() {
         workExperienceTechStackIds.length > 0
           ? workExperienceTechStackIds
           : undefined,
+      workExperienceBenefitIds:
+        workExperienceBenefitIds.length > 0
+          ? workExperienceBenefitIds
+          : undefined,
     }
   }, [
     combinedFiltersForBackend,
@@ -670,6 +681,7 @@ export function CandidatesPageClient() {
     clientLocationsLookup,
     techStacksLookup,
     timeSupportZonesLookup,
+    benefitsLookup,
   ])
 
   useEffect(() => {
@@ -1247,6 +1259,7 @@ export function CandidatesPageClient() {
             degrees={degreesLookup}
             majors={majorsLookup}
             techStacks={techStacksLookup}
+            benefits={benefitsLookup}
             technicalAspectTypes={technicalAspectTypeSelectOptions}
           />
           <ResumeParserDialog

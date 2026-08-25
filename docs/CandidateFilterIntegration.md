@@ -17,6 +17,7 @@ All active filters are combined with **logical AND** (a candidate must satisfy e
 |------|-------|
 | Method / path | `GET /api/candidates` |
 | Binding | `[FromQuery] CandidateFilterRequest` (ASP.NET Core query model binding, case-insensitive keys) |
+| Enum query values | **Integers only** for all enum-typed filters (same convention as employer list). Do not send enum name strings. |
 | Soft delete | Only candidates with `DeletedAt == null` are considered |
 | Default sort | `CreatedAt` descending |
 
@@ -110,6 +111,7 @@ Filters on `candidate_work_experiences` rows (any matching stint; OR within arra
 | `workExperienceSalaryPolicies` | `SalaryPolicy[]?` | length > 0 | any work experience with non-null **WE** `salary_policy` in array. **Independent** of `employerSalaryPolicies`. |
 | `timeSupportZoneIds` | `long[]?` | length > 0 | any work experience with at least one linked time support zone id in array (`candidate_work_experience_time_support_zones`) |
 | `workExperienceTechStackIds` | `long[]?` | length > 0 | any work experience with at least one linked tech stack id in array (`candidate_work_experience_tech_stacks`). **Not** the same as project `techStackIds`. |
+| `workExperienceBenefitIds` | `long[]?` | length > 0 | any work experience with at least one linked benefit id in array (`candidate_work_experience_benefits`). **Not** the same as employer list `benefits` filter. |
 
 **ShiftType** enum (same integers as work experience create/update): `0` Day, `1` Night, `2` Evening, `3` Rotational, `4` Flexible, `5` OnCall.
 
@@ -127,6 +129,10 @@ Example: `GET /api/candidates?timeSupportZoneIds=1&timeSupportZoneIds=3` — can
 
 Example: `GET /api/candidates?workExperienceTechStackIds=12&workExperienceTechStackIds=45` — candidates with at least one work experience using tech stack id 12 or 45.
 
+Example: `GET /api/candidates?workExperienceBenefitIds=2&workExperienceBenefitIds=5` — candidates with at least one work experience linked to benefit catalog id 2 or 5.
+
+**Benefits filter UI (FE):** dropdown options from **`GET /api/benefits`**; page client maps selected benefit **names** to repeated **`workExperienceBenefitIds`** query params (catalog ids). Same lookup as work-experience create/edit benefit pickers.
+
 Work experience row driver filters trigger **`matchedWorkExperiences`** on the list response (see below). They do **not** trigger `matchedEmployers` or `matchedProjects`.
 
 ### Employer filters (through candidate work experience)
@@ -136,7 +142,7 @@ These use candidate work experiences linked to employer rows (`CandidateWorkExpe
 | Query param | Type | Active when | Behavior |
 |-------------|------|-------------|----------|
 | `employerIds` | `long[]?` | length > 0 | any work experience with employer id in array and employer not deleted |
-| `employerSalaryPolicies` | `SalaryPolicy[]?` | length > 0 | linked employer salary policy non-null and in array |
+| `employerSalaryPolicies` | `SalaryPolicy[]?` | length > 0 | linked employer has **any** stored salary policy in `employer_salary_policies` matching one of these values (OR within array) |
 | `employerTypes` | `EmployerType[]?` | length > 0 | linked employer has any employer type in array |
 | `employerCountries` | `short[]?` | length > 0 | linked employer has any location with country id in array |
 | `employerCity` | `string?` | non-empty after trim | linked employer has any location city containing substring |
@@ -147,12 +153,9 @@ These use candidate work experiences linked to employer rows (`CandidateWorkExpe
 
 Employer driver filters trigger **`matchedEmployers`** on the list response (see below). Filtering behavior is unchanged.
 
-### Project filters (candidate-linked projects)
+### Project filters (work-experience-linked projects)
 
-Project-related filters match projects linked through either:
-
-- `candidate_projects` (`CandidateProjects`)
-- `candidate_work_experience_projects` (`CandidateWorkExperiences -> Projects`)
+Project-related filters match projects linked through **`candidate_work_experience_projects`** only (`CandidateWorkExperiences -> Projects`). Standalone `candidate_projects` was removed; all production candidate projects are WE-linked.
 
 For project filters, backend enforces `Project.DeletedAt == null`.
 
@@ -194,7 +197,7 @@ Achievement driver filters trigger **`matchedAchievements`** on the list respons
 - **Across different filters:** AND
   - Example: `source=Manual` + `city=Lahore` -> candidate must satisfy both.
 - **Inside array filter:** OR
-  - Example: `projectTypes=Employer&projectTypes=Freelance` -> either type can match.
+  - Example: `projectTypes=0&projectTypes=1` — either type can match (`0` = Employer, `1` = Freelance).
 - **Per-related-table checks:** existential (`Any`)
   - Candidate can satisfy one filter via one related row and another filter via a different related row.
   - Example: `employerStatuses` and `employerCity` do not need to be satisfied by the same employer row.
@@ -268,7 +271,7 @@ Semantics:
 - **Publish:** if only `publishPlatforms` is set, unpublished projects with matching platforms appear (same as list filter).
   `storeLink` from `projects.link` when publish-related matching applies on the item.
 - Values are **distinct by `id`**, ordered **ascending by `id`**; projects ordered by `projectId`.
-- Projects from **both** `candidate_projects` and `candidate_work_experience_projects`, **deduped by `projectId`**.
+- Projects come from **work-experience links only** (`candidate_work_experience_projects`).
 - **Reserved (not populated):** `technicalAspects` (legacy enum), `matchedByName`, `projectIds`.
 
 ---
@@ -276,7 +279,7 @@ Semantics:
 ## Response: `matchedWorkExperiences` (Work Experience row match summary)
 
 Each `CandidateListItemDto` includes a **`matchedWorkExperiences`** array so the Cards View can render, per candidate,
-which work experiences caused the match for shift type, work mode, WE salary policy, time support zones, or work-experience tech stacks
+which work experiences caused the match for shift type, work mode, WE salary policy, time support zones, work-experience tech stacks, or work-experience benefits
 (heading: `{employerName} - {jobTitle}`).
 
 ```jsonc
@@ -292,7 +295,8 @@ which work experiences caused the match for shift type, work mode, WE salary pol
     "workMode": { "id": 1, "label": "Remote" },
     "salaryPolicy": { "id": 0, "label": "Gross Salary" },
     "timeSupportZones": [{ "id": 1, "label": "PST" }],
-    "techStacks": [{ "id": 12, "label": "React" }]
+    "techStacks": [{ "id": 12, "label": "React" }],
+    "benefits": [{ "id": 2, "label": "Health Insurance" }]
   }
 ]
 ```
@@ -310,10 +314,11 @@ which work experiences caused the match for shift type, work mode, WE salary pol
 | `salaryPolicy` | `{ id: number, label: string } \| null` | When `workExperienceSalaryPolicies` filter active and this WE's policy matched (WE column, not employer). |
 | `timeSupportZones` | `{ id: number, label: string }[]` | Intersection with requested `timeSupportZoneIds` filter. |
 | `techStacks` | `{ id: number, label: string }[]` | Intersection with requested `workExperienceTechStackIds` (WE stacks only, not project `techStackIds`). |
+| `benefits` | `{ id: number, label: string }[]` | Intersection with requested `workExperienceBenefitIds` (WE benefits only). |
 
 **When `matchedWorkExperiences` is computed:** any of these filters is active:
 
-- `shiftTypes`, `workModes`, `workExperienceSalaryPolicies`, `timeSupportZoneIds`, `workExperienceTechStackIds`
+- `shiftTypes`, `workModes`, `workExperienceSalaryPolicies`, `timeSupportZoneIds`, `workExperienceTechStackIds`, `workExperienceBenefitIds`
 
 Otherwise → `matchedWorkExperiences: []` (never `null`).
 
@@ -322,6 +327,7 @@ Semantics:
 - **Matched-only:** a work experience appears only if it matched ≥1 **active** driver filter (OR across drivers), with a non-deleted employer.
 - **One entry per work experience** — not deduped by `employerId`.
 - Each field holds only the **intersection** with its filter. When a sub-filter is not applied: `shiftType` / `workMode` / `salaryPolicy` → `null`; arrays → `[]`.
+- Enum `{ id, label }` on scalars uses **server-normalized display text** (e.g. `"Gross Salary"`, not `"GrossSalary"`). Catalog arrays use benefit/time-zone/stack **names**.
 - The same `workExperienceId` may appear in both `matchedEmployers` and `matchedWorkExperiences` when both filter groups are active — payloads are independent.
 - Enum `{ id, label }` uses the **same integer** as the query-param filter; arrays distinct by `id`, ascending; items ordered by `workExperienceId`.
 
@@ -488,7 +494,7 @@ which work experiences / employers caused the match (employer name heading + job
     "countries": [{ "id": 840, "label": "United States" }],
     "cities": ["San Francisco"],
     "employerTypes": [],
-    "salaryPolicy": null,
+    "salaryPolicies": [{ "id": 0, "label": "Gross Salary" }],
     "ranking": null,
     "size": null
   }
@@ -508,7 +514,7 @@ which work experiences / employers caused the match (employer name heading + job
 | `countries` | `{ id: number, label: string }[]` | Intersection with requested `employerCountries` filter (catalog country id + name). |
 | `cities` | `string[]` | Cities from employer locations matching `employerCity` substring filter. |
 | `employerTypes` | `{ id: number, label: string }[]` | Intersection with requested `employerTypes` filter. |
-| `salaryPolicy` | `{ id: number, label: string } \| null` | When `employerSalaryPolicies` filter active and employer policy matched. |
+| `salaryPolicies` | `{ id: number, label: string }[]` | Intersection with requested `employerSalaryPolicies` filter (employer's stored set in `employer_salary_policies`; OR within filter array). |
 | `ranking` | `{ id: number, label: string } \| null` | When `employerRankings` filter active and employer ranking matched. |
 | `size` | `{ headcount?: number } \| null` | Employer's `headcount` when size filter(s) satisfied. |
 
@@ -524,7 +530,7 @@ Semantics:
 - **Matched-only:** a work experience appears only if it matched ≥1 **active** driver filter (OR across drivers).
 - **One entry per work experience** — not deduped by `employerId` (repeated stints at the same company remain distinct).
 - Each field holds only the **intersection** with its filter. When a sub-filter is not applied: arrays → `[]`;
-  scalars (`salaryPolicy`, `ranking`, `size`) → `null`; `matchedByEmployerId` → `false`.
+  scalars (`ranking`, `size`) → `null`; `matchedByEmployerId` → `false`. `salaryPolicies` → `[]` when `employerSalaryPolicies` filter inactive.
 - Enum `{ id, label }` objects use the **same integer** as the query-param filter; `label` is server-normalized display text.
 - Values are **distinct by `id`** within arrays, ordered **ascending by `id`**; cities ordered alphabetically; items ordered by `workExperienceId`.
 
@@ -532,12 +538,14 @@ Semantics:
 
 ## Query-string format recommendations
 
-Use repeated keys for arrays (most reliable):
+Use repeated keys for arrays (most reliable). Send **integer** values for all enum-typed params:
 
-- `projectTypes=Employer&projectTypes=Freelance`
+- `projectTypes=0&projectTypes=1`
 - `employerIds=10&employerIds=22`
 - `universityIds=3&universityIds=7`
-- `certificationLevels=Associate&certificationLevels=Professional`
+- `certificationLevels=1&certificationLevels=2`
+- `shiftTypes=0&workModes=1&workExperienceSalaryPolicies=0`
+- `workExperienceBenefitIds=2&workExperienceBenefitIds=5`
 
 Dates (`DateOnly`) should be ISO:
 
@@ -551,7 +559,7 @@ Dates (`DateOnly`) should be ISO:
 1. Keep filter state typed (arrays for multi-select, nullable scalar for single-value filters).
 2. Send only active filters (omit null/empty values).
 3. Debounce text inputs (`name`, `postingTitle`, `jobTitle`, `city`, `employerCity`, `achievementName`).
-4. Use repeated query keys for arrays.
+4. Use repeated query keys for arrays; enum filters use **integer** values only.
 5. For min/max pairs, validate on UI (`min <= max`) before firing.
 6. If enums are not hardcoded in FE, generate from shared schema/Swagger to avoid drift.
 

@@ -100,7 +100,7 @@ export async function createCertificationIssuer(data: CreateCertificationIssuerR
 
 interface CreateCertificationRequest {
   name: string
-  issuerId: number
+  issuerId: number | null
 }
 
 export async function createCertification(data: CreateCertificationRequest): Promise<void> {

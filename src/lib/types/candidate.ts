@@ -226,6 +226,8 @@ export interface MatchedWorkExperienceDto {
   salaryPolicy: MatchedDomainDto | null
   timeSupportZones: MatchedDomainDto[]
   techStacks: MatchedDomainDto[]
+  /** Intersection with `workExperienceBenefitIds` filter (WE benefits only). */
+  benefits: MatchedDomainDto[]
 }
 
 /** Per work-experience match summary from GET /api/candidates list (`matchedEmployers`). */

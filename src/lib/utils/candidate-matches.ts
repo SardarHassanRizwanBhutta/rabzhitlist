@@ -162,6 +162,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.startDateStart !== null ||
     filters.startDateEnd !== null ||
     filters.candidateTechStacks.length > 0 ||
+    filters.workExperienceBenefits.length > 0 ||
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
@@ -944,7 +945,8 @@ function hasBackendMatchedWorkExperienceFilterDrivers(filters: CandidateFilters)
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
     filters.timeSupportZones.length > 0 ||
-    filters.candidateTechStacks.length > 0
+    filters.candidateTechStacks.length > 0 ||
+    filters.workExperienceBenefits.length > 0
   )
 }
 
@@ -1008,6 +1010,14 @@ function appendBackendMatchedWorkExperienceItem(
       type: "candidateTechStack",
       label: "Tech Stack",
       values: mwe.techStacks.map(resolveMatchedDomainLabel),
+    })
+  }
+
+  if (filters.workExperienceBenefits.length > 0 && mwe.benefits.length > 0) {
+    matchedCriteria.push({
+      type: "workExperienceBenefit",
+      label: "Benefits",
+      values: mwe.benefits.map(resolveMatchedDomainLabel),
     })
   }
 

@@ -700,6 +700,7 @@ function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
       salaryPolicy: mapMatchedDomain(item.salaryPolicy),
       timeSupportZones: mapMatchedDomains(item.timeSupportZones),
       techStacks: mapMatchedDomains(item.techStacks),
+      benefits: mapMatchedDomains(item.benefits),
     }))
     .filter(
       (item) =>
@@ -1317,6 +1318,8 @@ export async function fetchCandidatesPage(
     timeSupportZoneIds?: number[]
     /** Work experience tech stack catalog ids — not project `techStackIds`. */
     workExperienceTechStackIds?: number[]
+    /** Work experience benefit catalog ids (`candidate_work_experience_benefits`). */
+    workExperienceBenefitIds?: number[]
   }
 ): Promise<PagedResult<CandidateListItemDto>> {
   const params = new URLSearchParams()
@@ -1414,6 +1417,7 @@ export async function fetchCandidatesPage(
   appendNumberList("workExperienceSalaryPolicies", options?.workExperienceSalaryPolicies)
   appendNumberList("timeSupportZoneIds", options?.timeSupportZoneIds)
   appendNumberList("workExperienceTechStackIds", options?.workExperienceTechStackIds)
+  appendNumberList("workExperienceBenefitIds", options?.workExperienceBenefitIds)
 
   const path = `/api/candidates?${params.toString()}`
   const res = await fetch(`${API_BASE_URL}${path}`, { signal })

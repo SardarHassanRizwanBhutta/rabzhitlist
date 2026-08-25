@@ -449,10 +449,6 @@ export function CertificationCreationDialog({
       newErrors.certificationName = "Certification name is required"
     }
 
-    if (!formData.issuerId) {
-      newErrors.issuerId = "Issuing body is required"
-    }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -639,7 +635,7 @@ export function CertificationCreationDialog({
 
                       {/* Issuing Body Combobox */}
                       <div className="space-y-2">
-                        <Label>Issuing Body *</Label>
+                        <Label>Issuing Body</Label>
                         <Popover open={issuerPopoverOpen} onOpenChange={handleIssuerPopoverOpenChange}>
                           <PopoverTrigger asChild>
                             <Button

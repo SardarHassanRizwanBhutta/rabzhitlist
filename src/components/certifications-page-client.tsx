@@ -206,7 +206,7 @@ export function CertificationsPageClient() {
     } else {
       await createCertification({
         name: data.certificationName,
-        issuerId: data.issuerId!,
+        issuerId: data.issuerId ?? null,
       })
       toast.success(`Certification "${data.certificationName}" has been created successfully.`)
       loadCertifications(pageNumber, pageSize)

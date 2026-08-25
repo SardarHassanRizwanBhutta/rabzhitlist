@@ -152,7 +152,6 @@ const initialFilters: EmployerFilters = {
   sizeMax: "",
   minLocationsCount: "",
   minCitiesCount: "",
-  minApplicants: "",
   benefits: [],
   shiftTypes: [],
   workModes: [],
@@ -355,6 +354,11 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const awardFilterOptions = useMemo(
     () => awardsLookup.map((a) => ({ value: a.name, label: a.name })),
     [awardsLookup]
+  )
+
+  const benefitFilterOptions = useMemo(
+    () => benefitsLookup.map((b) => ({ value: b.name, label: b.name })),
+    [benefitsLookup]
   )
 
   const clientLocationFilterOptions = useMemo(
@@ -604,6 +608,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
               technicalDomains: technicalDomainSelectOptions,
               timeSupportZones: timeSupportZoneFilterOptions,
               awards: awardFilterOptions,
+              benefits: benefitFilterOptions,
               clientLocations: clientLocationFilterOptions,
               countries: countryFilterOptions,
             }}
