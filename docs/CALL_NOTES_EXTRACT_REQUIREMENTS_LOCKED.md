@@ -1,6 +1,6 @@
 # Call Notes Extract — Locked Product Requirements (v1)
 
-**Status:** Locked (2026-08-04). Updated 2026-08-05 — exclude top-level independent tech stacks (CNE16).  
+**Status:** Locked (2026-08-04). Updated 2026-08-27 — WE `salaryPolicy` is extract-eligible when empty. Updated 2026-08-05 — exclude top-level independent tech stacks (CNE16).  
 **Audience:** Product, frontend, Python QG service.  
 **Supersedes:** Removed deferred extract docs (`call_notes_frontend_api_contract.md`, `cold_caller_call_notes_view_design.md`, `cold_caller_call_notes_frontend_implementation_handoff.md`).  
 **Related (persistence, shipped):** [`CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_PERSISTENCE_REQUIREMENTS_LOCKED.md) (CN16).  
@@ -119,7 +119,7 @@ Same as QG / persistence trim rules:
 
 - Basic: `resume`, `linkedinUrl` (subject to CNE15)  
 - Preferences: `currentSalary`, `expectedSalary`  
-- Work experience role, employer, office, layoff, and nested project fields (including role and project **tech stacks**)  
+- Work experience role, employer, office, layoff, and nested project fields (including role and project **tech stacks**, and WE-owned **`salaryPolicy`**)  
 - Certification and achievement row fields  
 
 **Excluded from extract v1 (never send to extract):**

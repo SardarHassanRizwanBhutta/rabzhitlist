@@ -20,7 +20,7 @@ import {
   buildWorkExperienceEmployerCatalogPlaceholderFields,
   collectMissingWorkExperienceEmployerCatalogFields,
 } from '@/lib/utils/employer-catalog-empty-fields'
-import { RANKING_DISPLAY_TO_DB, type RankingDb } from '@/lib/types/employer'
+import { RANKING_DISPLAY_TO_DB, SALARY_POLICY_DB_LABELS, type RankingDb, type SalaryPolicyDb } from '@/lib/types/employer'
 
 // Shift type options — canonical labels aligned with Candidate form / backend enum.
 export const SHIFT_TYPE_OPTIONS = SHIFT_TYPE_DB.map((key) => ({
@@ -34,6 +34,11 @@ export const WORK_MODE_OPTIONS = [
   { value: 'Onsite', label: 'Onsite' },
   { value: 'Hybrid', label: 'Hybrid' },
 ]
+
+// WE salary policy options — display labels aligned with Candidate form combobox.
+export const SALARY_POLICY_OPTIONS = (
+  Object.entries(SALARY_POLICY_DB_LABELS) as [SalaryPolicyDb, string][]
+).map(([, label]) => ({ value: label, label }))
 
 // Time support zone options
 export const TIME_SUPPORT_ZONE_OPTIONS = [
@@ -292,6 +297,16 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       parentIndex: 0,
     })
     emptyFields.push({
+      fieldPath: 'workExperiences[0].salaryPolicy',
+      apiFieldName: 'work_experience_0_salaryPolicy',
+      fieldLabel: 'Salary Policy',
+      fieldType: 'select',
+      section: 'workExperience',
+      currentValue: null,
+      options: SALARY_POLICY_OPTIONS,
+      parentIndex: 0,
+    })
+    emptyFields.push({
       fieldPath: 'workExperiences[0].timeSupportZones',
       apiFieldName: 'work_experience_0_timeSupportZones',
       fieldLabel: 'Time Support Zones',
@@ -333,6 +348,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         { path: 'endDate', apiName: `work_experience_${index}_endDate`, label: 'End Date', type: 'date' },
         { path: 'shiftType', apiName: `work_experience_${index}_shiftType`, label: 'Shift Type', type: 'select', options: SHIFT_TYPE_OPTIONS },
         { path: 'workMode', apiName: `work_experience_${index}_workMode`, label: 'Work Mode', type: 'select', options: WORK_MODE_OPTIONS },
+        { path: 'salaryPolicy', apiName: `work_experience_${index}_salaryPolicy`, label: 'Salary Policy', type: 'select', options: SALARY_POLICY_OPTIONS },
         { path: 'timeSupportZones', apiName: `work_experience_${index}_timeSupportZones`, label: 'Time Support Zones', type: 'multiselect', options: TIME_SUPPORT_ZONE_OPTIONS },
         { path: 'techStacks', apiName: `work_experience_${index}_techStacks`, label: 'Tech Stacks', type: 'multiselect' },
         { path: 'benefits', apiName: `work_experience_${index}_benefits`, label: 'Benefits', type: 'benefits' },
@@ -898,6 +914,16 @@ export function createEntryFields(
           parentIndex: index,
         },
         {
+          fieldPath: `workExperiences[${index}].salaryPolicy`,
+          apiFieldName: `work_experience_${index}_salaryPolicy`,
+          fieldLabel: 'Salary Policy',
+          fieldType: 'select',
+          section: 'workExperience',
+          currentValue: null,
+          options: SALARY_POLICY_OPTIONS,
+          parentIndex: index,
+        },
+        {
           fieldPath: `workExperiences[${index}].timeSupportZones`,
           apiFieldName: `work_experience_${index}_timeSupportZones`,
           fieldLabel: 'Time Support Zones',
@@ -1176,9 +1202,9 @@ export function calculateCompletionPercentage(
 export function getTotalTrackableFields(candidate: Candidate): number {
   let total = 7 // Basic fields count: postingTitle, cnic, currentSalary, expectedSalary, githubUrl, linkedinUrl, personalityType
   
-  // Work experience fields (7 per experience: startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, benefits)
+  // Work experience fields (8 per experience: startDate, endDate, shiftType, workMode, salaryPolicy, timeSupportZones, techStacks, benefits)
   candidate.workExperiences?.forEach(we => {
-    total += 7 // startDate, endDate, shiftType, workMode, timeSupportZones, techStacks, benefits
+    total += 8 // startDate, endDate, shiftType, workMode, salaryPolicy, timeSupportZones, techStacks, benefits
     total += we.projects?.length || 0 // contribution notes per project
   })
   
