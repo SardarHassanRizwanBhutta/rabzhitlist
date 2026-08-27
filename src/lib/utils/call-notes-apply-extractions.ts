@@ -21,6 +21,7 @@ import {
   shiftTypeToSelectValue,
   workModeToSelectValue,
 } from "@/lib/utils/shift-work-mode-display"
+import { salaryPolicyToSelectValue } from "@/lib/utils/salary-policy-display"
 
 export interface ApplyCallNotesExtractionsResult {
   formData: CandidateFormData
@@ -619,6 +620,19 @@ function writeWeField(
     return true
   }
 
+  if (key === "salaryPolicy") {
+    const raw =
+      typeof value === "string"
+        ? value
+        : coerceScalarForForm(fieldType, value) != null
+          ? String(coerceScalarForForm(fieldType, value))
+          : ""
+    const normalized = salaryPolicyToSelectValue(raw)
+    if (!normalized) return false
+    we.salaryPolicy = normalized
+    return true
+  }
+
   const coerced = coerceScalarForForm(fieldType, value)
   if (coerced == null) return false
   if (typeof coerced === "string" || typeof coerced === "number" || typeof coerced === "boolean") {
@@ -631,8 +645,7 @@ function writeWeField(
         we.employerId = lookupResolution.catalogId
         we.employerName = lookupResolution.catalogName
       }
-    } else if (key === "salaryPolicy") we.salaryPolicy = String(coerced)
-    else return false
+    } else return false
     return true
   }
   return false

@@ -1,6 +1,6 @@
 # Call Notes Extract — API Contract
 
-**Status:** Locked (2026-08-04).  
+**Status:** Locked (2026-08-04). Updated 2026-08-27 — FE must whitelist empty WE `salaryPolicy`.  
 **Audience:** Next.js proxy, frontend client, Python QG service.  
 **QG agent contract:** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md)  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
@@ -448,7 +448,8 @@ Notes that mention employer benefits for a linked work experience. Whitelist row
 5. **Do not** attach `options` for `fieldType: "benefits"` (dynamic catalog; see §3.3).  
 6. For saved rows, use **stable** `WorkExperience.id` / project `id` in `fieldPath` brackets.  
 7. For empty collections, use synthetic `[0]` paths and `work_experience_0_*` api keys.  
-8. Reject Analyze when resulting list is empty.
+8. Reject Analyze when resulting list is empty.  
+9. **WE `salaryPolicy`:** when empty, include `fieldType: "select"` with options from `SALARY_POLICY_DB_LABELS` (e.g. `"Gross Salary"`). `apiFieldName` is `work_experience_{i}_salaryPolicy`. Python only extracts fields present in this list — omitting the row drops salary policy even when notes mention it.
 
 ---
 
