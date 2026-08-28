@@ -122,7 +122,9 @@ const extractGlobalStatuses = (): string[] => {
   
   // From projects
   sampleProjects.forEach(project => {
-    statuses.add(project.status)
+    if (project.status != null) {
+      statuses.add(project.status)
+    }
   })
   
   // From employers

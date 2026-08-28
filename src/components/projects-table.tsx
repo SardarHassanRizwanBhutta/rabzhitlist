@@ -263,13 +263,13 @@ type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [5, 10, 20, 50]
 
-function coerceProjectStatusForDisplay(raw: string): ProjectStatus {
+function coerceProjectStatusForDisplay(raw: string): ProjectStatus | null {
   if (raw in PROJECT_STATUS_LABELS) return raw as ProjectStatus
   const t = raw.trim().toLowerCase()
   if (t === "development") return "Development"
   if (t === "maintenance") return "Maintenance"
   if (t === "closed") return "Closed"
-  return "Development"
+  return null
 }
 
 function ProjectDataProgressBadge({ project }: { project: Project }) {
@@ -357,7 +357,7 @@ export function ProjectsTable({
       (project) =>
         project.projectName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (project.employerName !== null && project.employerName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (project.status !== null && project.status.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.teamSize !== null && project.teamSize.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.description !== null && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.techStacks.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -568,6 +568,9 @@ export function ProjectsTable({
                 <TableCell>
                   {(() => {
                     const status = coerceProjectStatusForDisplay(String(project.status ?? ""))
+                    if (!status) {
+                      return <span className="text-muted-foreground text-sm">N/A</span>
+                    }
                     return (
                       <Badge
                         variant="outline"

@@ -51,11 +51,13 @@ export interface Project {
   averageTeamSize?: number | null
   startDate: Date | null
   endDate: Date | null
-  status: ProjectStatus
+  /** `null` when no status is set. */
+  status: ProjectStatus | null
   description: string | null
   latestUpdate: string | null
   projectLink: string | null
-  projectType: ProjectType
+  /** `null` when no type is set. */
+  projectType: ProjectType | null
   isPublished: boolean  // Is this project/app published on any platform?
   publishPlatforms: PublishPlatform[]  // Where is it published? (App Store, Play Store, Web, Desktop, Cloud, IoT, Embedded)
   downloadCount?: number  // Download count (e.g., 150000 for 150K downloads)
