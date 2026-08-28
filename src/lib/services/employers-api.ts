@@ -23,6 +23,7 @@ import {
   type WorkModeDb,
   type ShiftTypeDb,
   type RankingDb,
+  type EmployerType,
   type EmployerTypeDb,
   type SalaryPolicyDb,
   type LayoffReasonDb,
@@ -59,6 +60,8 @@ export const EMPLOYER_TYPE_TO_API: Record<EmployerTypeDb, number> = {
   startup: 3,
   integrator: 4,
   resource_augmentation: 5,
+  it_consulting: 6,
+  business_process_outsourcing: 7,
 }
 export const SALARY_POLICY_TO_API: Record<SalaryPolicyDb, number> = {
   gross_salary: 0,
@@ -284,6 +287,8 @@ const API_TO_EMPLOYER_TYPE: Record<number, EmployerTypeDb> = {
   3: "startup",
   4: "integrator",
   5: "resource_augmentation",
+  6: "it_consulting",
+  7: "business_process_outsourcing",
 }
 const API_TO_SALARY_POLICY: Record<number, SalaryPolicyDb> = {
   0: "gross_salary",
@@ -970,7 +975,7 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     status: normalizeEmployerStatus(item.status),
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
-    employerType: (item.employerType as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") || "Product Based",
+    employerType: (item.employerType as EmployerType) || "Product Based",
     workModes: workModesDb.length ? workModesDb : undefined,
     shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
     salaryPolicies: salaryPoliciesDb.length ? salaryPoliciesDb : undefined,
@@ -1061,7 +1066,9 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
       : "Tier 1"
   const employerTypesDb = dto.types?.map((t) => (t in API_TO_EMPLOYER_TYPE ? API_TO_EMPLOYER_TYPE[t] : "product_based")).filter(Boolean) as EmployerTypeDb[] ?? []
   const firstTypeDb = employerTypesDb[0]
-  const employerTypeDisplay = firstTypeDb ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as "Services Based" | "Product Based" | "SAAS" | "Startup" | "Integrator" | "Resource Augmentation") : "Product Based"
+  const employerTypeDisplay = firstTypeDb
+    ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as EmployerType)
+    : "Product Based"
 
   const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
   const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)

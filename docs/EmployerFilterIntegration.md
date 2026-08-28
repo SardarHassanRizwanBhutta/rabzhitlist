@@ -81,7 +81,9 @@ The Next.js FE sends **repeated numeric** values for enum array filters (`workMo
 | **SalaryPolicy** | `0` GrossSalary, `1` RemittanceSalary, `2` NetSalary, `3` FixedSalaryPlusCommissionOrMonthlyBonus |
 | **EmployerStatus** | `0` Open, `1` Closed, `2` Flagged |
 
-PascalCase names for reference: **EmployerStatus** `Open`, `Closed`, `Flagged`; **EmployerType** `ServicesBased`, `ProductBased`, `Saas`, `Startup`, `Integrator`, `ResourceAugmentation`; **Ranking** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`; **ProjectStatus** `Development`, `Maintenance`, `Closed`; **PublishedPlatform** `AppStore`, `PlayStore`, `Web`, `Desktop`.
+PascalCase names for reference: **EmployerStatus** `Open`, `Closed`, `Flagged`; **EmployerType** `ServicesBased`, `ProductBased`, `Saas`, `Startup`, `Integrator`, `ResourceAugmentation`, `ItConsulting`, `BusinessProcessOutsourcing`; **Ranking** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`; **ProjectStatus** `Development`, `Maintenance`, `Closed`; **PublishedPlatform** `AppStore`, `PlayStore`, `Web`, `Desktop`.
+
+**EmployerType** 0-based ints (query `employerTypes`, POST `employerTypes`, PUT `types`): `0` Services Based, `1` Product Based, `2` SaaS, `3` Startup, `4` Integrator, `5` Resource Augmentation, `6` IT Consulting, `7` Business Process Outsourcing (BPO).
 
 ---
 
