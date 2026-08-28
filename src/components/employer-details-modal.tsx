@@ -1667,7 +1667,8 @@ export function EmployerDetailsModal({
           const full = employerDtoToEmployer(dto)
           setLocalEmployer({
             ...full,
-            status: employer.status ?? full.status,
+            status: full.status ?? employer.status,
+            statuses: full.statuses?.length ? full.statuses : employer.statuses,
           })
           setLayoffs(full.layoffs || [])
         }
@@ -2134,7 +2135,7 @@ export function EmployerDetailsModal({
                     
                     <InlineEditField
                       label="Status"
-                      value={localEmployer.status}
+                      value={localEmployer.status ?? ""}
                       fieldName="status"
                       fieldType="select"
                       options={statusOptions}

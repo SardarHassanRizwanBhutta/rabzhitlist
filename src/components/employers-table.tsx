@@ -574,12 +574,16 @@ export function EmployersTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={EMPLOYER_STATUS_COLORS[employer.status ?? "Active"]}
-                      >
-                        {EMPLOYER_STATUS_LABELS[employer.status ?? "Active"]}
-                      </Badge>
+                      {employer.status ? (
+                        <Badge
+                          variant="secondary"
+                          className={EMPLOYER_STATUS_COLORS[employer.status]}
+                        >
+                          {EMPLOYER_STATUS_LABELS[employer.status]}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">N/A</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {employer.foundedYear ? employer.foundedYear : <span className="text-muted-foreground">N/A</span>}

@@ -28,7 +28,9 @@ import {
   type SalaryPolicyDb,
   type LayoffReasonDb,
   type EmployerRanking,
+  type EmployerStatus,
   type EmployerStatusDb,
+  EMPLOYER_STATUS_DISPLAY_TO_DB,
 } from "@/lib/types/employer"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { API_BASE_URL } from "@/lib/config/api"
@@ -85,6 +87,16 @@ export const EMPLOYER_STATUS_TO_API: Record<EmployerStatusDb, number> = {
   open: 0,
   closed: 1,
   flagged: 2,
+}
+const API_TO_EMPLOYER_STATUS: Record<number, EmployerStatusDb> = {
+  0: "open",
+  1: "closed",
+  2: "flagged",
+}
+const EMPLOYER_STATUS_DB_TO_DISPLAY: Record<EmployerStatusDb, EmployerStatus> = {
+  open: "Active",
+  closed: "Closed",
+  flagged: "Flagged",
 }
 
 /** ASP.NET JSON wire enum names (create/update/detail GET). */
@@ -323,14 +335,22 @@ const SHIFT_TYPE_DISPLAY_TO_DB: Record<string, ShiftTypeDb> = {
   "On Call": "on_call",
 }
 
-/** List/detail API may return "Open"; UI uses "Active". Map to EmployerStatus for table/detail. */
-function normalizeEmployerStatus(apiStatus: string | null | undefined): "Active" | "Flagged" | "Closed" {
-  if (!apiStatus) return "Active"
+/** List/detail API may return "Open"; UI uses "Active". Unset stays unset. */
+function normalizeEmployerStatus(apiStatus: string | null | undefined): EmployerStatus | null {
+  if (!apiStatus) return null
   const s = apiStatus.trim()
+  if (!s) return null
   if (s === "Open" || s === "Active") return "Active"
   if (s === "Flagged") return "Flagged"
   if (s === "Closed") return "Closed"
-  return "Active"
+  return null
+}
+
+function employerStatusesFromApiInts(values: number[] | null | undefined): EmployerStatusDb[] {
+  if (!values?.length) return []
+  return values
+    .map((n) => (n in API_TO_EMPLOYER_STATUS ? API_TO_EMPLOYER_STATUS[n] : null))
+    .filter((s): s is EmployerStatusDb => s != null)
 }
 
 // --- API DTOs (from reference) ---
@@ -967,12 +987,14 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     salaryPoliciesDb[0] != null
       ? (SALARY_POLICY_DB_LABELS[salaryPoliciesDb[0]] as SalaryPolicy)
       : "Gross Salary"
+  const statusDisplay = normalizeEmployerStatus(item.status)
   return {
     id: String(item.id),
     name: item.name,
     websiteUrl: item.websiteUrl ?? null,
     linkedinUrl: item.linkedInUrl ?? null,
-    status: normalizeEmployerStatus(item.status),
+    status: statusDisplay,
+    statuses: statusDisplay ? [EMPLOYER_STATUS_DISPLAY_TO_DB[statusDisplay]] : undefined,
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
     employerType: (item.employerType as EmployerType) || null,
@@ -1060,10 +1082,10 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     unit: b.hasValue && b.unitType != null && b.unitType in API_TO_BENEFIT_UNIT ? API_TO_BENEFIT_UNIT[b.unitType] : null,
   }))
 
-  const rankingDisplay: EmployerRanking =
+  const rankingDisplay: EmployerRanking | null =
     dto.ranking != null && dto.ranking in API_TO_RANKING
       ? RANKING_DB_LABELS[API_TO_RANKING[dto.ranking]]
-      : "Tier 1"
+      : null
   const employerTypesDb =
     dto.types
       ?.map((t) => (t in API_TO_EMPLOYER_TYPE ? API_TO_EMPLOYER_TYPE[t] : null))
@@ -1075,12 +1097,17 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
 
   const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
   const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)
+  const statusesDb = employerStatusesFromApiInts(dto.status)
+  const firstStatusDb = statusesDb[0]
+  const statusDisplay = firstStatusDb ? EMPLOYER_STATUS_DB_TO_DISPLAY[firstStatusDb] : null
 
   return {
     id: String(dto.id),
     name: dto.name,
     websiteUrl: dto.websiteUrl ?? null,
     linkedinUrl: dto.linkedInUrl ?? null,
+    status: statusDisplay,
+    statuses: statusesDb.length ? statusesDb : undefined,
     foundedYear: dto.foundedYear ?? null,
     workModes: workModesDb.length ? workModesDb : undefined,
     shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
