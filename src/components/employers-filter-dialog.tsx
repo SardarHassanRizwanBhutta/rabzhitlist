@@ -51,7 +51,7 @@ export interface EmployerFilters {
   countries: string[]
   /** Office location city (free text; trimmed when sent to the API). */
   city: string
-  employerTypes: EmployerType[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
+  employerTypes: EmployerType[]  // Filter by employer type (includes IT Consulting, BPO)
   salaryPolicies: SalaryPolicy[]
   sizeMin: string
   sizeMax: string

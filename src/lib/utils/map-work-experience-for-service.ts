@@ -37,6 +37,8 @@ const EMPLOYER_TYPE_FROM_API: Record<number, EmployerTypeDb> = {
   3: "startup",
   4: "integrator",
   5: "resource_augmentation",
+  6: "it_consulting",
+  7: "business_process_outsourcing",
 }
 
 const SALARY_POLICY_FROM_API: Record<number, SalaryPolicyDb> = {

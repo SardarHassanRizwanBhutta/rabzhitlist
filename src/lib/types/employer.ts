@@ -179,6 +179,8 @@ export type EmployerType =
   | "Startup"
   | "Integrator"
   | "Resource Augmentation"
+  | "IT Consulting"
+  | "Business Process Outsourcing (BPO)"
 
 export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
   "Services Based": "Services Based",
@@ -187,6 +189,8 @@ export const EMPLOYER_TYPE_LABELS: Record<EmployerType, string> = {
   "Startup": "Startup",
   "Integrator": "Integrator",
   "Resource Augmentation": "Resource Augmentation",
+  "IT Consulting": "IT Consulting",
+  "Business Process Outsourcing (BPO)": "Business Process Outsourcing (BPO)",
 }
 
 /** DB enum employer_type_enum (employer_employer_types junction). */
@@ -197,6 +201,8 @@ export type EmployerTypeDb =
   | "startup"
   | "integrator"
   | "resource_augmentation"
+  | "it_consulting"
+  | "business_process_outsourcing"
 
 export const EMPLOYER_TYPE_DB_LABELS: Record<EmployerTypeDb, string> = {
   services_based: "Services Based",
@@ -205,6 +211,8 @@ export const EMPLOYER_TYPE_DB_LABELS: Record<EmployerTypeDb, string> = {
   startup: "Startup",
   integrator: "Integrator",
   resource_augmentation: "Resource Augmentation",
+  it_consulting: "IT Consulting",
+  business_process_outsourcing: "Business Process Outsourcing (BPO)",
 }
 
 /** Map display (EmployerType) to DB value for API/edit. */
@@ -215,6 +223,8 @@ export const EMPLOYER_TYPE_DISPLAY_TO_DB: Record<EmployerType, EmployerTypeDb> =
   "Startup": "startup",
   "Integrator": "integrator",
   "Resource Augmentation": "resource_augmentation",
+  "IT Consulting": "it_consulting",
+  "Business Process Outsourcing (BPO)": "business_process_outsourcing",
 }
 
 /** Tailwind classes for type badges (tables, filters). */
@@ -230,6 +240,10 @@ export const EMPLOYER_TYPE_BADGE_COLORS: Record<EmployerTypeDb, string> = {
     "bg-emerald-100 text-emerald-900 border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800",
   resource_augmentation:
     "bg-rose-100 text-rose-900 border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-800",
+  it_consulting:
+    "bg-cyan-100 text-cyan-900 border-cyan-200/80 dark:bg-cyan-950/60 dark:text-cyan-200 dark:border-cyan-800",
+  business_process_outsourcing:
+    "bg-orange-100 text-orange-900 border-orange-200/80 dark:bg-orange-950/60 dark:text-orange-200 dark:border-orange-800",
 }
 
 /** DB-style keys for forms and mapping to API integers (see RANKING_TO_API in employers-api). */

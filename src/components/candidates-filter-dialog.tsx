@@ -147,7 +147,7 @@ export interface CandidateFilters {
   employerCountries: string[]
   /** Substring match on employer office `city` (free text in Employer Locations, not a master list). */
   employerCity: string
-  employerTypes: string[]  // Filter by employer type (Services Based, Product Based, SAAS, Startup, Integrator, Resource Augmentation)
+  employerTypes: string[]  // Filter by employer type (includes IT Consulting, BPO)
   employerSalaryPolicies: string[]
   employerSizeMin: string
   employerSizeMax: string
