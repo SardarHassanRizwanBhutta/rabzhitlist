@@ -521,11 +521,23 @@ function formatTeamSize(averageTeamSize: number | null | undefined): string | nu
   return String(averageTeamSize)
 }
 
+const PROJECT_STATUS_BY_NUM: readonly ProjectStatus[] = ["Development", "Maintenance", "Closed"]
+
+/** API status enum int → UI label. Unset (`null`) stays unset; unknown ints are dropped. */
+function projectStatusFromApiNum(value: number | null | undefined): ProjectStatus | null {
+  if (value == null) return null
+  return PROJECT_STATUS_BY_NUM[value] ?? null
+}
+
+/** API type enum int → UI label. Unset (`null`) stays unset; unknown ints are dropped. */
+function projectTypeFromApiNum(value: number | null | undefined): ProjectType | null {
+  if (value == null) return null
+  return PROJECT_TYPES[value] ?? null
+}
+
 export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
-  const typeNum = dto.type ?? 0
-  const statusNum = dto.status ?? 0
-  const statusStr = (["Development", "Maintenance", "Closed"] as const)[statusNum] ?? "Development"
-  const typeStr = PROJECT_TYPES[typeNum] ?? "Employer"
+  const statusStr = projectStatusFromApiNum(dto.status)
+  const typeStr = projectTypeFromApiNum(dto.type)
   const clientLocations = dto.clientLocations ?? []
   const employerName = dto.employerName ?? dto.employer?.name ?? null
   return {
@@ -560,10 +572,8 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
 }
 
 export function projectDtoToProject(dto: ProjectDto): Project {
-  const statusNum = dto.status ?? 0
-  const typeNum = dto.type ?? 0
-  const statusStr = (["Development", "Maintenance", "Closed"] as const)[statusNum] ?? "Development"
-  const typeStr = PROJECT_TYPES[typeNum] ?? "Employer"
+  const statusStr = projectStatusFromApiNum(dto.status)
+  const typeStr = projectTypeFromApiNum(dto.type)
   const clientLocations = dto.clientLocations ?? []
   return {
     id: String(dto.id),

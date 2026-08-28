@@ -1091,7 +1091,7 @@ export function getCandidateMatchContext(
 
       // Project status, tech stacks, domains, type â€” skip mock path when backend matchedProjects is used
       if (!useBackendMatchedProjects) {
-      if (filters.projectStatus.includes(project.status)) {
+      if (project.status && filters.projectStatus.includes(project.status)) {
         matchedCriteria.push({
           type: 'status',
           label: 'Project Status',
@@ -1148,7 +1148,7 @@ export function getCandidateMatchContext(
         hasMatch = true
       }
 
-        if (filters.projectTypes.includes(project.projectType)) {
+        if (project.projectType && filters.projectTypes.includes(project.projectType)) {
           matchedCriteria.push({
             type: 'type',
             label: 'Project Type',
