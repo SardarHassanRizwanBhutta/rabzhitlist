@@ -84,7 +84,8 @@ export interface Employer {
   workModes?: WorkModeDb[]
   /** Multiple shift types from employer_shift_types (DB enum values). */
   shiftTypes?: ShiftTypeDb[]
-  employerType: EmployerType
+  /** Primary type for legacy single-value displays; `null` when no type is set. */
+  employerType: EmployerType | null
   /** Multiple types from employer_employer_types (DB enum values). */
   employerTypes?: EmployerTypeDb[]
   locations: EmployerLocation[]

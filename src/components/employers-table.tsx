@@ -115,7 +115,10 @@ function getEmployerTypeDbList(employer: Employer): EmployerTypeDb[] {
     }
     return out
   }
-  return [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
+  if (employer.employerType && employer.employerType in EMPLOYER_TYPE_DISPLAY_TO_DB) {
+    return [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
+  }
+  return []
 }
 
 function employerTypesSortKey(employer: Employer): string {
