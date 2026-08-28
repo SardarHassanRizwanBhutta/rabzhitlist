@@ -1272,7 +1272,7 @@ export function getCandidateMatchContext(
         }
 
         // Employer type match
-        if (filters.employerTypes.includes(employer.employerType)) {
+        if (employer.employerType && filters.employerTypes.includes(employer.employerType)) {
           matchedCriteria.push({
             type: 'employerType',
             label: 'Employer Type',

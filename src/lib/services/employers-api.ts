@@ -975,7 +975,7 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     status: normalizeEmployerStatus(item.status),
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
-    employerType: (item.employerType as EmployerType) || "Product Based",
+    employerType: (item.employerType as EmployerType) || null,
     workModes: workModesDb.length ? workModesDb : undefined,
     shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
     salaryPolicies: salaryPoliciesDb.length ? salaryPoliciesDb : undefined,
@@ -1064,11 +1064,14 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     dto.ranking != null && dto.ranking in API_TO_RANKING
       ? RANKING_DB_LABELS[API_TO_RANKING[dto.ranking]]
       : "Tier 1"
-  const employerTypesDb = dto.types?.map((t) => (t in API_TO_EMPLOYER_TYPE ? API_TO_EMPLOYER_TYPE[t] : "product_based")).filter(Boolean) as EmployerTypeDb[] ?? []
+  const employerTypesDb =
+    dto.types
+      ?.map((t) => (t in API_TO_EMPLOYER_TYPE ? API_TO_EMPLOYER_TYPE[t] : null))
+      .filter((t): t is EmployerTypeDb => t != null) ?? []
   const firstTypeDb = employerTypesDb[0]
   const employerTypeDisplay = firstTypeDb
     ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as EmployerType)
-    : "Product Based"
+    : null
 
   const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
   const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)
