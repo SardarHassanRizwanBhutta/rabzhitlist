@@ -74,12 +74,13 @@ export interface Employer {
   name: string
   websiteUrl: string | null
   linkedinUrl: string | null
-  /** @deprecated Use statuses (employer_statuses junction). */
-  status?: EmployerStatus
+  /** Primary status for legacy single-value displays; `null` when no status is set. */
+  status: EmployerStatus | null
   /** Multiple statuses from employer_statuses (DB enum values). */
   statuses?: EmployerStatusDb[]
   foundedYear: number | null
-  ranking: EmployerRanking
+  /** `null` when no ranking is set. */
+  ranking: EmployerRanking | null
   /** Multiple work modes from employer_work_modes (DB enum values). */
   workModes?: WorkModeDb[]
   /** Multiple shift types from employer_shift_types (DB enum values). */
@@ -273,15 +274,20 @@ export const EMPLOYER_RANKING_API_ORDER: readonly EmployerRanking[] = [
   "DPL Favourite",
 ] as const
 
-/** Normalize list/detail strings (including removed Standard/Top) to current {@link EmployerRanking}. */
+/**
+ * Normalize list/detail strings (including removed Standard/Top) to current
+ * {@link EmployerRanking}. Unset and unrecognized values yield `null` rather
+ * than defaulting to a tier.
+ */
 export function normalizeEmployerRankingFromApi(
   raw: string | number | null | undefined
-): EmployerRanking {
-  if (raw === null || raw === undefined) return "Tier 1"
+): EmployerRanking | null {
+  if (raw === null || raw === undefined) return null
   if (typeof raw === "number" && raw >= 0 && raw <= 3) {
-    return EMPLOYER_RANKING_API_ORDER[raw] ?? "Tier 1"
+    return EMPLOYER_RANKING_API_ORDER[raw] ?? null
   }
   const t = String(raw).trim()
+  if (!t) return null
   const pascal: Record<string, EmployerRanking> = {
     Tier1: "Tier 1",
     Tier2: "Tier 2",
@@ -293,8 +299,8 @@ export function normalizeEmployerRankingFromApi(
   if (t === "Standard") return "Tier 1"
   if (t === "Top") return "Tier 2"
   const n = parseInt(t, 10)
-  if (!Number.isNaN(n) && n >= 0 && n <= 3) return EMPLOYER_RANKING_API_ORDER[n] ?? "Tier 1"
-  return "Tier 1"
+  if (!Number.isNaN(n) && n >= 0 && n <= 3) return EMPLOYER_RANKING_API_ORDER[n] ?? null
+  return null
 }
 
 /** DB enum work_mode_enum (employers.work_mode). */
