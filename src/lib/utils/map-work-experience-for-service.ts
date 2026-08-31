@@ -74,7 +74,6 @@ const SHIFT_TYPE_FROM_API: Record<number, string> = {
 const STATUS_FROM_API: Record<number, string> = {
   0: "open",
   1: "closed",
-  2: "flagged",
 }
 
 function emptyToNull(value: string | null | undefined): string | null {
@@ -148,7 +147,7 @@ export interface EmployerCatalogFromApi {
 }
 
 export function employerEntityToCatalog(dto: EmployerDto): EmployerCatalogFromApi {
-  const statusNum = dto.status?.[0]
+  const statusNum = dto.status
   const status =
     statusNum != null && statusNum in STATUS_FROM_API ? STATUS_FROM_API[statusNum] : null
 

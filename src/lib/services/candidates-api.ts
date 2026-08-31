@@ -1279,7 +1279,8 @@ export async function fetchCandidatesPage(
     employerTypes?: number[]
     employerCountries?: number[]
     employerCity?: string
-    employerStatuses?: number[]
+    /** Scalar EmployerStatus enum: 0=Open, 1=Closed. */
+    employerStatus?: number
     employerRankings?: number[]
     employerSizeMin?: number
     employerSizeMax?: number
@@ -1371,7 +1372,9 @@ export async function fetchCandidatesPage(
   appendNumberList("employerTypes", options?.employerTypes)
   appendNumberList("employerCountries", options?.employerCountries)
   if (options?.employerCity?.trim()) params.set("employerCity", options.employerCity.trim())
-  appendNumberList("employerStatuses", options?.employerStatuses)
+  if (options?.employerStatus != null) {
+    params.set("employerStatus", String(options.employerStatus))
+  }
   appendNumberList("employerRankings", options?.employerRankings)
   if (options?.employerSizeMin != null) params.set("employerSizeMin", String(options.employerSizeMin))
   if (options?.employerSizeMax != null) params.set("employerSizeMax", String(options.employerSizeMax))

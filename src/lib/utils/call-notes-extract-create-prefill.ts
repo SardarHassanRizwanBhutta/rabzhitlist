@@ -200,7 +200,7 @@ export function buildEmployerCreatePrefillFromExtractRows(
         case "status": {
           const raw = extractedNameFromValue(row.value)
           const db = raw ? displayToEmployerStatusDb(raw) : null
-          if (db) prefill.statuses = [db]
+          if (db) prefill.status = db
           break
         }
         case "types": {
@@ -419,7 +419,7 @@ export function mergeEmployerFormCreatePrefill(
     ...base,
     ...prefill,
     name: initialName?.trim() || prefill?.name?.trim() || base.name,
-    statuses: prefill?.statuses?.length ? prefill.statuses : base.statuses,
+    status: prefill?.status || base.status,
     employerTypes: prefill?.employerTypes?.length ? prefill.employerTypes : base.employerTypes,
     locations: prefill?.locations?.length ? prefill.locations : base.locations,
     layoffs: prefill?.layoffs?.length ? prefill.layoffs : base.layoffs,
@@ -460,7 +460,7 @@ export function buildEmployerCreatePrefillFromWorkExperience(
 
   if (we.status?.trim()) {
     const db = displayToEmployerStatusDb(we.status)
-    if (db) prefill.statuses = [db]
+    if (db) prefill.status = db
   }
 
   if (we.types?.length) {

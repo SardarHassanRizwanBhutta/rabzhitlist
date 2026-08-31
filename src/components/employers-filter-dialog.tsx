@@ -499,10 +499,10 @@ export function EmployersFilterDialog({
                 <MultiSelect
                   items={statusOptions}
                   selected={tempFilters.status}
-                  onChange={(values) => handleFilterChange("status", values)}
+                  onChange={(values) => handleFilterChange("status", values.slice(-1))}
                   placeholder="Filter by status..."
                   label="Company Status"
-                  maxDisplay={3}
+                  maxDisplay={1}
                 />
 
                 <div className="space-y-2">

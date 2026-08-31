@@ -74,10 +74,8 @@ export interface Employer {
   name: string
   websiteUrl: string | null
   linkedinUrl: string | null
-  /** Primary status for legacy single-value displays; `null` when no status is set. */
+  /** Scalar employer status; `null` when no join row exists. */
   status: EmployerStatus | null
-  /** Multiple statuses from employer_statuses (DB enum values). */
-  statuses?: EmployerStatusDb[]
   foundedYear: number | null
   /** `null` when no ranking is set. */
   ranking: EmployerRanking | null
@@ -114,24 +112,22 @@ export type EmployerSize =
   | "Large (201-500)"
   | "Enterprise (500+)"
 
+/** Display labels; match backend enum values (`Open` / `Closed`). */
 export type EmployerStatus = 
-  | "Active"
-  | "Flagged"
+  | "Open"
   | "Closed"
 
-/** DB enum employer_status_enum (employer_statuses junction). */
-export type EmployerStatusDb = "open" | "closed" | "flagged"
+/** Postgres `employer_status` values. */
+export type EmployerStatusDb = "open" | "closed"
 
 export const EMPLOYER_STATUS_DB_LABELS: Record<EmployerStatusDb, string> = {
   open: "Open",
   closed: "Closed",
-  flagged: "Flagged",
 }
 
 /** Map display (EmployerStatus) to DB value for API/edit. */
 export const EMPLOYER_STATUS_DISPLAY_TO_DB: Record<EmployerStatus, EmployerStatusDb> = {
-  Active: "open",
-  Flagged: "flagged",
+  Open: "open",
   Closed: "closed",
 }
 
@@ -337,8 +333,7 @@ export interface EmployerTableColumn {
 }
 
 export const EMPLOYER_STATUS_COLORS: Record<EmployerStatus, string> = {
-  Active: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  Flagged: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  Open: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   Closed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
 }
 
@@ -351,8 +346,7 @@ export const SALARY_POLICY_COLORS: Record<SalaryPolicy, string> = {
 }
 
 export const EMPLOYER_STATUS_LABELS: Record<EmployerStatus, string> = {
-  Active: "Active",
-  Flagged: "Flagged", 
+  Open: "Open",
   Closed: "Closed"
 }
 

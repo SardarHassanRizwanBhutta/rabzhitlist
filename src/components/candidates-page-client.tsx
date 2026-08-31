@@ -530,10 +530,10 @@ export function CandidatesPageClient() {
     const certificationLevels = combinedFiltersForBackend.certificationLevels
       .map((l) => CERTIFICATION_LEVEL_DB.indexOf(l as (typeof CERTIFICATION_LEVEL_DB)[number]))
       .filter((n) => n >= 0)
-    const employerStatuses = combinedFiltersForBackend.employerStatus
+    const employerStatus = combinedFiltersForBackend.employerStatus
       .map((s) => EMPLOYER_STATUS_DISPLAY_TO_DB[s as keyof typeof EMPLOYER_STATUS_DISPLAY_TO_DB])
       .map((db) => (db != null ? EMPLOYER_STATUS_TO_API[db] : undefined))
-      .filter((n): n is number => n != null)
+      .find((n): n is number => n != null)
     const employerTypes = combinedFiltersForBackend.employerTypes
       .map((t) => EMPLOYER_TYPE_DISPLAY_TO_DB[t as keyof typeof EMPLOYER_TYPE_DISPLAY_TO_DB])
       .map((db) => (db != null ? EMPLOYER_TYPE_TO_API[db] : undefined))
@@ -627,7 +627,7 @@ export function CandidatesPageClient() {
       employerTypes: employerTypes.length > 0 ? employerTypes : undefined,
       employerCountries: employerCountryIds.length > 0 ? employerCountryIds : undefined,
       employerCity: combinedFiltersForBackend.employerCity.trim() || undefined,
-      employerStatuses: employerStatuses.length > 0 ? employerStatuses : undefined,
+      employerStatus,
       employerRankings: employerRankings.length > 0 ? employerRankings : undefined,
       employerSizeMin: toOptionalNumber(combinedFiltersForBackend.employerSizeMin),
       employerSizeMax: toOptionalNumber(combinedFiltersForBackend.employerSizeMax),
