@@ -221,7 +221,7 @@ const employerPrefill = buildEmployerCreatePrefillFromExtractRows(
 assert(employerPrefill.name === "Acme Corp", "employer prefill name")
 assert(employerPrefill.headcount === "1200", "employer prefill headcount")
 assert(employerPrefill.foundedYear === "1998", "employer prefill foundedYear")
-assert(employerPrefill.statuses?.[0] === "open", "employer prefill status db value")
+assert(employerPrefill.status === "open", "employer prefill status db value")
 assert(employerPrefill.locations?.[0]?.city === "Karachi", "employer prefill office city")
 assert(
   employerPrefill.layoffs?.[0]?.numberOfEmployeesLaidOff === "50",

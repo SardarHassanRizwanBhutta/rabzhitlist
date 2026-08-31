@@ -252,7 +252,12 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
 
     const benefits = combinedFilters.benefits.map((t) => t.trim()).filter(Boolean)
 
-    const statusInts = combinedFilters.status.map((s) => EMPLOYER_STATUS_TO_API[EMPLOYER_STATUS_DISPLAY_TO_DB[s]])
+    const statusInt = combinedFilters.status
+      .map((s) => {
+        const db = EMPLOYER_STATUS_DISPLAY_TO_DB[s]
+        return db != null ? EMPLOYER_STATUS_TO_API[db] : undefined
+      })
+      .find((n): n is number => typeof n === "number")
     const employerTypeInts = combinedFilters.employerTypes.map(
       (t) => EMPLOYER_TYPE_TO_API[EMPLOYER_TYPE_DISPLAY_TO_DB[t]]
     )
@@ -298,7 +303,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       pageNumber,
       pageSize,
       ...(combinedFilters.employerName.trim() ? { name: combinedFilters.employerName.trim() } : {}),
-      ...(statusInts.length ? { status: statusInts } : {}),
+      ...(statusInt != null ? { status: statusInt } : {}),
       ...(foundedYears?.length ? { foundedYears } : {}),
       ...(countryIds.length ? { countries: countryIds } : {}),
       ...(combinedFilters.city.trim() ? { city: combinedFilters.city.trim() } : {}),
@@ -493,13 +498,14 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   }, [refetchEmployers])
 
   const handleEmployerSubmit = useCallback(
-    async (data: EmployerFormData, _verificationState?: EmployerVerificationState) => {
+    async (data: EmployerFormData, verificationState?: EmployerVerificationState) => {
       try {
         if (employerToEdit) {
           const id = Number(employerToEdit.id)
           const dto = buildUpdateEmployerDto(data, {
             timeSupportZonesLookup,
             awardsLookup,
+            includeStatus: verificationState?.modifiedFields.has("status") ?? false,
           })
           await updateEmployer(id, dto)
           await syncEmployerLocationsFromEditForm(id, data, employerToEdit, (name) => {

@@ -30,7 +30,6 @@ import {
   type EmployerRanking,
   type EmployerStatus,
   type EmployerStatusDb,
-  EMPLOYER_STATUS_DISPLAY_TO_DB,
 } from "@/lib/types/employer"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { API_BASE_URL } from "@/lib/config/api"
@@ -82,23 +81,19 @@ export const BENEFIT_UNIT_TO_API: Record<BenefitUnit, number> = {
   PKR: 0,
   percent: 1,
 }
-/** EmployerStatus: Open = 0, Closed = 1, Flagged = 2 (employer_statuses). */
+/** EmployerStatus: Open = 0, Closed = 1. */
 export const EMPLOYER_STATUS_TO_API: Record<EmployerStatusDb, number> = {
   open: 0,
   closed: 1,
-  flagged: 2,
 }
 const API_TO_EMPLOYER_STATUS: Record<number, EmployerStatusDb> = {
   0: "open",
   1: "closed",
-  2: "flagged",
 }
 const EMPLOYER_STATUS_DB_TO_DISPLAY: Record<EmployerStatusDb, EmployerStatus> = {
-  open: "Active",
+  open: "Open",
   closed: "Closed",
-  flagged: "Flagged",
 }
-
 /** ASP.NET JSON wire enum names (create/update/detail GET). */
 export const WORK_MODE_DB_TO_WIRE: Record<WorkModeDb, string> = {
   onsite: "Onsite",
@@ -335,22 +330,11 @@ const SHIFT_TYPE_DISPLAY_TO_DB: Record<string, ShiftTypeDb> = {
   "On Call": "on_call",
 }
 
-/** List/detail API may return "Open"; UI uses "Active". Unset stays unset. */
-function normalizeEmployerStatus(apiStatus: string | null | undefined): EmployerStatus | null {
-  if (!apiStatus) return null
-  const s = apiStatus.trim()
-  if (!s) return null
-  if (s === "Open" || s === "Active") return "Active"
-  if (s === "Flagged") return "Flagged"
-  if (s === "Closed") return "Closed"
-  return null
-}
-
-function employerStatusesFromApiInts(values: number[] | null | undefined): EmployerStatusDb[] {
-  if (!values?.length) return []
-  return values
-    .map((n) => (n in API_TO_EMPLOYER_STATUS ? API_TO_EMPLOYER_STATUS[n] : null))
-    .filter((s): s is EmployerStatusDb => s != null)
+/** Normalize list/detail scalar status ints. Unknown values are treated as unset. */
+function normalizeEmployerStatus(apiStatus: number | null | undefined): EmployerStatus | null {
+  if (apiStatus == null) return null
+  const db = API_TO_EMPLOYER_STATUS[apiStatus]
+  return db ? EMPLOYER_STATUS_DB_TO_DISPLAY[db] : null
 }
 
 // --- API DTOs (from reference) ---
@@ -373,7 +357,8 @@ export interface EmployerLookupDto {
 export interface EmployerListItemDto {
   id: number
   name: string
-  status: string | null
+  /** Scalar EmployerStatus enum: 0=Open, 1=Closed. */
+  status: number | null
   websiteUrl?: string | null
   linkedInUrl?: string | null
   foundedYear: number | null
@@ -431,8 +416,8 @@ export interface EmployerDto {
   timeSupportZones: { id: number; name: string }[]
   awards: { id: number; name: string }[]
   techStacks: { id: number; name: string }[]
-  /** First entry maps to question-service `status` (Open=0, Closed=1, Flagged=2). */
-  status?: number[] | null
+  /** Scalar EmployerStatus enum: 0=Open, 1=Closed; null=no row. */
+  status: number | null
   createdAt: string
   updatedAt: string
   /** Company-wide headcount when API stores it on the employer. */
@@ -480,8 +465,8 @@ export interface CreateEmployerDto {
   shiftTypes?: number[]
   isDplCompetitor: boolean
   ranking?: number | null
-  /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). Stored in employer_statuses. */
-  status?: number[] | null
+  /** Scalar EmployerStatus enum (Open=0, Closed=1). */
+  status?: number | null
   employerTypes?: number[] | null
   timeSupportZoneIds?: number[] | null
   awardIds?: number[] | null
@@ -537,8 +522,8 @@ export interface UpdateEmployerDto {
   shiftTypes?: number[]
   isDplCompetitor: boolean
   ranking?: number | null
-  /** Optional. EmployerStatus enum values (Open=0, Closed=1, Flagged=2). */
-  status?: number[] | null
+  /** Omit to preserve; null clears; 0/1 replaces. */
+  status?: number | null
   types?: number[] | null
   timeSupportZoneIds?: number[] | null
   /** Replaces employer award links; always send an array (empty clears). */
@@ -560,7 +545,7 @@ export interface FetchEmployersParams {
   pageSize: number
   /** Substring match on employer name (`name`). */
   name?: string
-  status?: number[]
+  status?: number
   foundedYears?: number[]
   /** Office country ids (`short` on server). */
   countries?: number[]
@@ -639,7 +624,7 @@ function buildQueryString(params: FetchEmployersParams): string {
   const employeeCity = params.employeeCity?.trim()
   if (employeeCity) q.set("employeeCity", employeeCity)
 
-  appendNumberList(q, "status", params.status)
+  if (params.status != null) q.set("status", String(params.status))
   appendNumberList(q, "foundedYears", params.foundedYears)
   appendNumberList(q, "countries", params.countries)
   appendNumberList(q, "employerTypes", params.employerTypes)
@@ -993,8 +978,8 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
     name: item.name,
     websiteUrl: item.websiteUrl ?? null,
     linkedinUrl: item.linkedInUrl ?? null,
+    /** List returns only the first stored status's label, not the full set. */
     status: statusDisplay,
-    statuses: statusDisplay ? [EMPLOYER_STATUS_DISPLAY_TO_DB[statusDisplay]] : undefined,
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
     employerType: (item.employerType as EmployerType) || null,
@@ -1097,9 +1082,7 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
 
   const workModesDb = parseWorkModesFromDetailApi(dto.workModes)
   const shiftTypesDb = parseShiftTypesFromDetailApi(dto.shiftTypes)
-  const statusesDb = employerStatusesFromApiInts(dto.status)
-  const firstStatusDb = statusesDb[0]
-  const statusDisplay = firstStatusDb ? EMPLOYER_STATUS_DB_TO_DISPLAY[firstStatusDb] : null
+  const statusDisplay = normalizeEmployerStatus(dto.status)
 
   return {
     id: String(dto.id),
@@ -1107,7 +1090,6 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     websiteUrl: dto.websiteUrl ?? null,
     linkedinUrl: dto.linkedInUrl ?? null,
     status: statusDisplay,
-    statuses: statusesDb.length ? statusesDb : undefined,
     foundedYear: dto.foundedYear ?? null,
     workModes: workModesDb.length ? workModesDb : undefined,
     shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
@@ -1213,9 +1195,7 @@ export function buildCreateEmployerDto(
     shiftTypes: dbKeysToApiInts(formData.shiftTypes, SHIFT_TYPE_TO_API),
     isDplCompetitor: formData.isDPLCompetitive,
     ranking: formData.ranking && formData.ranking in RANKING_TO_API ? RANKING_TO_API[formData.ranking] : null,
-    status: formData.statuses?.length
-      ? formData.statuses.map((s) => EMPLOYER_STATUS_TO_API[s]).filter((n) => n != null)
-      : null,
+    status: formData.status ? EMPLOYER_STATUS_TO_API[formData.status] : null,
     employerTypes: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,
@@ -1233,7 +1213,7 @@ export function buildCreateEmployerDto(
 
 export function buildUpdateEmployerDto(
   formData: EmployerFormData,
-  options: BuildUpdateEmployerDtoOptions
+  options: BuildUpdateEmployerDtoOptions & { includeStatus?: boolean }
 ): UpdateEmployerDto {
   const { timeSupportZonesLookup, awardsLookup } = options
 
@@ -1253,9 +1233,9 @@ export function buildUpdateEmployerDto(
     shiftTypes: dbKeysToApiInts(formData.shiftTypes, SHIFT_TYPE_TO_API),
     isDplCompetitor: formData.isDPLCompetitive,
     ranking: formData.ranking && formData.ranking in RANKING_TO_API ? RANKING_TO_API[formData.ranking] : null,
-    status: formData.statuses?.length
-      ? formData.statuses.map((s) => EMPLOYER_STATUS_TO_API[s]).filter((n) => n != null)
-      : null,
+    ...(options.includeStatus
+      ? { status: formData.status ? EMPLOYER_STATUS_TO_API[formData.status] : null }
+      : {}),
     types: formData.employerTypes.length
       ? formData.employerTypes.map((t) => EMPLOYER_TYPE_TO_API[t]).filter((n) => n != null)
       : null,

@@ -2519,10 +2519,10 @@ export function CandidatesFilterDialog({
                 <MultiSelect
                   items={employerStatusOptions}
                   selected={tempFilters.employerStatus}
-                  onChange={(values) => handleFilterChange("employerStatus", values)}
+                  onChange={(values) => handleFilterChange("employerStatus", values.slice(-1))}
                   placeholder="Filter by status"
                   label="Status"
-                  maxDisplay={3}
+                  maxDisplay={1}
                 />
 
                 <MultiSelect

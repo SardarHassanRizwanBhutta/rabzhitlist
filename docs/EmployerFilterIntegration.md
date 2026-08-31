@@ -72,16 +72,16 @@ Use **`dataProgressPercentage`** for the table column. Do **not** call the per-e
 
 ASP.NET Core model binding may accept **PascalCase enum names** (e.g. `status=Open`) or **0-based integers** (e.g. `status=0`) depending on configuration.
 
-The Next.js FE sends **repeated numeric** values for enum array filters (`workModes=0&workModes=1`, `salaryPolicies=0`, etc.) via `WORK_MODE_TO_API`, `SHIFT_TYPE_TO_API`, `SALARY_POLICY_TO_API`, `EMPLOYER_STATUS_TO_API`, and related maps in `src/lib/services/employers-api.ts`.
+The Next.js FE sends numeric values for enums. Employer `status` is scalar (`status=0`); multi-value filters use repeated keys (`workModes=0&workModes=1`, `salaryPolicies=0`, etc.).
 
 | Enum | 0-based int mapping (query / JSON) |
 |------|-------------------------------------|
 | **WorkMode** | `0` Onsite, `1` Remote, `2` Hybrid |
 | **ShiftType** | `0` Day, `1` Night, `2` Evening, `3` Rotational, `4` Flexible, `5` OnCall |
 | **SalaryPolicy** | `0` GrossSalary, `1` RemittanceSalary, `2` NetSalary, `3` FixedSalaryPlusCommissionOrMonthlyBonus |
-| **EmployerStatus** | `0` Open, `1` Closed, `2` Flagged |
+| **EmployerStatus** | `0` Open, `1` Closed |
 
-PascalCase names for reference: **EmployerStatus** `Open`, `Closed`, `Flagged`; **EmployerType** `ServicesBased`, `ProductBased`, `Saas`, `Startup`, `Integrator`, `ResourceAugmentation`, `ItConsulting`, `BusinessProcessOutsourcing`; **Ranking** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`; **ProjectStatus** `Development`, `Maintenance`, `Closed`; **PublishedPlatform** `AppStore`, `PlayStore`, `Web`, `Desktop`.
+PascalCase names for reference: **EmployerStatus** `Open`, `Closed`; **EmployerType** `ServicesBased`, `ProductBased`, `Saas`, `Startup`, `Integrator`, `ResourceAugmentation`, `ItConsulting`, `BusinessProcessOutsourcing`; **Ranking** `Tier1`, `Tier2`, `Tier3`, `DplFavourite`; **ProjectStatus** `Development`, `Maintenance`, `Closed`; **PublishedPlatform** `AppStore`, `PlayStore`, `Web`, `Desktop`.
 
 **EmployerType** 0-based ints (query `employerTypes`, POST `employerTypes`, PUT `types`): `0` Services Based, `1` Product Based, `2` SaaS, `3` Startup, `4` Integrator, `5` Resource Augmentation, `6` IT Consulting, `7` Business Process Outsourcing (BPO).
 
@@ -94,7 +94,7 @@ PascalCase names for reference: **EmployerStatus** `Open`, `Closed`, `Flagged`; 
 | Query param | C# type | Active when | Behavior |
 |-------------|---------|-------------|----------|
 | `name` | `string?` | Non-whitespace after trim | Employer `Name` contains substring (case-insensitive). |
-| `status` | `EmployerStatus[]?` | Length > 0 | Employer has **at least one** of the given statuses (join table `employer_employer_statuses`). **OR** within the array. |
+| `status` | `EmployerStatus?` | Has value | Employer has the given scalar status (`0` Open or `1` Closed). |
 | `foundedYears` | `int[]?` | Length > 0 | `FoundedYear` is **not null** and equals **one of** the listed years. Employers with no founded year are **excluded**. |
 | `countries` | `short[]?` | Length > 0 | Has **at least one** location whose `countryId` is in the list. |
 | `city` | `string?` | Non-whitespace after trim | Has **at least one** location whose city contains substring (case-insensitive). |
@@ -184,7 +184,8 @@ Use ISO **date** strings (e.g. `2024-01-15`) for `DateOnly` query parameters.
 
 ASP.NET Core accepts typical styles; confirm in your environment / Swagger:
 
-- **Repeated keys (preferred):** `status=0&status=1`, `workModes=0&workModes=1`, `benefits=Health%20Insurance&benefits=Dental%20and%20vision%20coverage`
+- **Scalar status:** `status=0`
+- **Repeated keys for array filters:** `workModes=0&workModes=1`, `benefits=Health%20Insurance&benefits=Dental%20and%20vision%20coverage`
 - **Comma-separated** may work depending on configuration; repeated keys are the safest portable choice.
 
 For **`int[]`**, **`long[]`**, **`short[]`**, pass numeric strings the same way.

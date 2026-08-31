@@ -78,7 +78,7 @@ export interface EmployerFormData {
   name: string
   websiteUrl: string
   linkedinUrl: string
-  statuses: EmployerStatusDb[]
+  status: EmployerStatusDb | ""
   foundedYear: string
   employerTypes: EmployerTypeDb[]
   workModes: WorkModeDb[]
@@ -162,7 +162,7 @@ const initialFormData: EmployerFormData = {
   name: "",
   websiteUrl: "",
   linkedinUrl: "",
-  statuses: [],
+  status: "",
   foundedYear: "",
   employerTypes: [],
   workModes: [],
@@ -178,8 +178,8 @@ const initialFormData: EmployerFormData = {
   layoffs: [],
 }
 
-// Status options (DB enum values for multi-select)
-const statusOptions: MultiSelectOption[] = (Object.entries(EMPLOYER_STATUS_DB_LABELS) as [EmployerStatusDb, string][]).map(
+// Scalar status options (DB enum values)
+const statusOptions = (Object.entries(EMPLOYER_STATUS_DB_LABELS) as [EmployerStatusDb, string][]).map(
   ([value, label]) => ({ value, label })
 )
 
@@ -213,11 +213,9 @@ export const employerToFormData = (employer: Employer): EmployerFormData => {
     : employer.employerType
       ? [EMPLOYER_TYPE_DISPLAY_TO_DB[employer.employerType]]
       : []
-  const statuses: EmployerStatusDb[] = employer.statuses?.length
-    ? [...employer.statuses]
-    : employer.status
-      ? [EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]]
-      : []
+  const status: EmployerStatusDb | "" = employer.status
+    ? EMPLOYER_STATUS_DISPLAY_TO_DB[employer.status]
+    : ""
   const headcountStr = employer.headcount != null ? String(employer.headcount) : ""
   const salaryPoliciesDb: SalaryPolicyDb[] = employer.salaryPolicies?.length
     ? [...employer.salaryPolicies]
@@ -226,7 +224,7 @@ export const employerToFormData = (employer: Employer): EmployerFormData => {
     name: employer.name || "",
     websiteUrl: employer.websiteUrl || "",
     linkedinUrl: employer.linkedinUrl || "",
-    statuses,
+    status,
     foundedYear: employer.foundedYear?.toString() || "",
     employerTypes,
     workModes: employer.workModes?.length ? [...employer.workModes] : [],
@@ -258,7 +256,7 @@ export const employerToFormData = (employer: Employer): EmployerFormData => {
 // All verifiable fields for employers (Basic Information section only)
 const EMPLOYER_VERIFICATION_FIELDS = [
   'name',
-  'statuses',
+  'status',
   'foundedYear',
   'employerTypes',
   'ranking',
@@ -1080,23 +1078,30 @@ export function EmployerCreationDialog({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="statuses">Status</Label>
-                          <MultiSelect
-                            items={statusOptions}
-                            selected={formData.statuses}
-                            onChange={(values) => {
-                              setFormData(prev => ({ ...prev, statuses: values as EmployerStatusDb[] }))
+                          <Label htmlFor="status">Status</Label>
+                          <Select
+                            value={formData.status || undefined}
+                            onValueChange={(value) => {
+                              setFormData(prev => ({ ...prev, status: value as EmployerStatusDb }))
                               if (showVerification) {
-                                setModifiedFields(prev => new Set(prev).add("statuses"))
-                                setVerifiedFields(prev => new Set(prev).add("statuses"))
+                                setModifiedFields(prev => new Set(prev).add("status"))
+                                setVerifiedFields(prev => new Set(prev).add("status"))
                               }
                             }}
-                            placeholder="Select status"
-                            searchPlaceholder="Search statuses..."
-                            maxDisplay={3}
-                          />
-                          {errors.employer?.statuses && <p className="text-sm text-red-500">{errors.employer.statuses}</p>}
-                          <VerificationCheckbox fieldName="statuses" />
+                          >
+                            <SelectTrigger id="status" className={errors.employer?.status ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {statusOptions.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {errors.employer?.status && <p className="text-sm text-red-500">{errors.employer.status}</p>}
+                          <VerificationCheckbox fieldName="status" />
                         </div>
 
                         <div className="space-y-2">

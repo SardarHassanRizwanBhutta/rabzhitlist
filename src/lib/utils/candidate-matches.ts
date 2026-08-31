@@ -284,9 +284,8 @@ const API_TO_RANKING = invertApiEnumMap(RANKING_TO_API)
 const API_TO_EMPLOYER_STATUS = invertApiEnumMap(EMPLOYER_STATUS_TO_API)
 
 const EMPLOYER_STATUS_DB_TO_UI: Record<string, string> = {
-  open: "Active",
+  open: "Open",
   closed: "Closed",
-  flagged: "Flagged",
 }
 
 function resolveMatchedDomainLabel(domain: MatchedDomainDto): string {

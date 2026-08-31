@@ -146,7 +146,7 @@ These use candidate work experiences linked to employer rows (`CandidateWorkExpe
 | `employerTypes` | `EmployerType[]?` | length > 0 | linked employer has any employer type in array |
 | `employerCountries` | `short[]?` | length > 0 | linked employer has any location with country id in array |
 | `employerCity` | `string?` | non-empty after trim | linked employer has any location city containing substring |
-| `employerStatuses` | `EmployerStatus[]?` | length > 0 | linked employer has any status in array |
+| `employerStatus` | `EmployerStatus?` | has value | linked employer has the scalar status (`0` Open or `1` Closed) |
 | `employerRankings` | `Ranking[]?` | length > 0 | linked employer ranking non-null and in array |
 | `employerSizeMin` | `int?` | has value | Linked employer `Headcount` is **not null** and `Headcount >= min` |
 | `employerSizeMax` | `int?` | has value | Linked employer `Headcount` is **not null** and `Headcount <= max` |
@@ -200,7 +200,7 @@ Achievement driver filters trigger **`matchedAchievements`** on the list respons
   - Example: `projectTypes=0&projectTypes=1` — either type can match (`0` = Employer, `1` = Freelance).
 - **Per-related-table checks:** existential (`Any`)
   - Candidate can satisfy one filter via one related row and another filter via a different related row.
-  - Example: `employerStatuses` and `employerCity` do not need to be satisfied by the same employer row.
+  - Example: `employerStatus` and `employerCity` do not need to be satisfied by the same employer row.
 
 ---
 
@@ -510,7 +510,7 @@ which work experiences / employers caused the match (employer name heading + job
 | `startDate` | `string \| null` (ISO `DateOnly`) | Work experience start date. |
 | `endDate` | `string \| null` (ISO `DateOnly`) | Work experience end date; `null` = current role. |
 | `matchedByEmployerId` | `boolean` | `true` only when `employerIds` filter is active and this WE's employer id is in the set. |
-| `statuses` | `{ id: number, label: string }[]` | Intersection with requested `employerStatuses` filter. |
+| `statuses` | `{ id: number, label: string }[]` | Match for requested `employerStatus` filter (zero or one item). |
 | `countries` | `{ id: number, label: string }[]` | Intersection with requested `employerCountries` filter (catalog country id + name). |
 | `cities` | `string[]` | Cities from employer locations matching `employerCity` substring filter. |
 | `employerTypes` | `{ id: number, label: string }[]` | Intersection with requested `employerTypes` filter. |
@@ -520,7 +520,7 @@ which work experiences / employers caused the match (employer name heading + job
 
 **When `matchedEmployers` is computed:** any of these filters is active:
 
-- `employerIds`, `employerStatuses`, `employerTypes`, `employerCountries`, `employerCity`,
+- `employerIds`, `employerStatus`, `employerTypes`, `employerCountries`, `employerCity`,
   `employerSalaryPolicies`, `employerRankings`, `employerSizeMin`, `employerSizeMax`
 
 Otherwise → `matchedEmployers: []` (never `null`). Work-experience-only filters (e.g. job title, years) do not trigger population.

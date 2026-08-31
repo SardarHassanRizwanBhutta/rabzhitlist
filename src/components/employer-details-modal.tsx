@@ -1665,11 +1665,7 @@ export function EmployerDetailsModal({
       .then((dto) => {
         if (!cancelled) {
           const full = employerDtoToEmployer(dto)
-          setLocalEmployer({
-            ...full,
-            status: full.status ?? employer.status,
-            statuses: full.statuses?.length ? full.statuses : employer.statuses,
-          })
+          setLocalEmployer(full)
           setLayoffs(full.layoffs || [])
         }
       })
