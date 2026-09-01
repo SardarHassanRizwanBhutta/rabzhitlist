@@ -3746,7 +3746,7 @@ export function CandidateCreationDialog({
                                     htmlFor={`isMainContribution-${index}-${projectIndex}`}
                                     className="text-sm font-normal"
                                   >
-                                    Main Contribution
+                                    Main Contributor
                                   </Label>
                                 </div>
                                 <VerificationCheckbox

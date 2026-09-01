@@ -3747,7 +3747,7 @@ interface InlineEditableCheckboxProps {
   description?: string
 }
 
-const INLINE_BOOLEAN_USES_SWITCH = new Set(["Topper", "Cheetah", "Main Contribution"])
+const INLINE_BOOLEAN_USES_SWITCH = new Set(["Topper", "Cheetah", "Main Contributor"])
 
 const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   label,
@@ -5421,8 +5421,8 @@ export function CandidateDetailsModal({
     // }
 
     const message = shouldVerify
-      ? "Main Contribution updated and verified ✓"
-      : "Main Contribution updated"
+      ? "Main Contributor updated and verified ✓"
+      : "Main Contributor updated"
     toast.success(message)
   }
 
@@ -6635,7 +6635,7 @@ export function CandidateDetailsModal({
                                             getFieldVerification={getFieldVerification}
                                           />
                                           <InlineEditableCheckbox
-                                            label="Main Contribution"
+                                            label="Main Contributor"
                                             value={project.isMainContribution === true}
                                             fieldName={`workExperiences[${idx}].projects[${projIdx}].isMainContribution`}
                                             onSave={async (_fieldName, newValue, verify) => {
