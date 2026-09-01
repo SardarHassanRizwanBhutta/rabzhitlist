@@ -1304,6 +1304,8 @@ export async function fetchCandidatesPage(
     projectStartTo?: string
     achievementTypes?: number[]
     achievementName?: string
+    /** Exact `candidates.id`. Only sent when > 0 (API 400s on 0). */
+    candidateId?: number
     /** Stored profile completion 0–100 (`candidates.data_progress_percentage`). */
     minDataProgressPercentage?: number
     maxDataProgressPercentage?: number
@@ -1402,6 +1404,13 @@ export async function fetchCandidatesPage(
 
   appendNumberList("achievementTypes", options?.achievementTypes)
   if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
+  if (
+    options?.candidateId != null &&
+    Number.isFinite(options.candidateId) &&
+    options.candidateId > 0
+  ) {
+    params.set("candidateId", String(Math.floor(options.candidateId)))
+  }
   if (options?.minDataProgressPercentage != null) {
     params.set("minDataProgressPercentage", String(options.minDataProgressPercentage))
   }
