@@ -2377,8 +2377,8 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Published App */}
-              <div className="space-y-3">
+              {/* Published App + Main Contribution */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="hasPublishedProject"
