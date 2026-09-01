@@ -304,6 +304,8 @@ export interface Candidate {
   linkedinUrl?: string | null
   source: string
   status: CandidateStatus
+  /** Call Status enum from API `callStatus` (0 Pending, 1 Done, 2 Follow-up). */
+  callStatus?: import("@/lib/constants/candidate-enums").CallStatusDb | null
   /** @deprecated Legacy field — use `hasResume` and resume metadata instead. */
   resume?: string | null
   hasResume?: boolean

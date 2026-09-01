@@ -115,6 +115,7 @@ const defaultFilters: CandidateFilters = {
   achievementName: "",
   personalityTypes: [],
   source: [],
+  callStatuses: [],
   verificationPercentageMin: "",
   verificationPercentageMax: "",
   dataProgressMin: "",

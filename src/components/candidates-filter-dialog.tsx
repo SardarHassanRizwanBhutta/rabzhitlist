@@ -74,6 +74,11 @@ import {
 } from "@/lib/constants/candidate-enums"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { CertificationIssuer } from "@/lib/types/certification"
+import {
+  CALL_STATUS_UI_ORDER,
+  CALL_STATUS_LABELS,
+  type CallStatusDb,
+} from "@/lib/constants/candidate-enums"
 // Filter interfaces
 export interface CandidateFilters {
   /** Free-text substring on candidate name (case-insensitive when applied). */
@@ -171,6 +176,8 @@ export interface CandidateFilters {
   personalityTypes: string[]
   /** Filter by candidate source — values are `CandidateSourceDb` keys (same as create/edit form). */
   source: string[]
+  /** Call Status filter; values are `CallStatusDb` keys → API `callStatus` ints (OR). */
+  callStatuses: CallStatusDb[]
   // Achievement-related filters (renamed from competition-related)
   achievementTypes: string[]  // Filter by achievement type (e.g., ["Competition", "Open Source", "Award"])
   /** Substring match on achievement `name` (same free-text field as CandidateCreationDialog achievements). */
@@ -362,6 +369,11 @@ const sourceFilterOptions: MultiSelectOption[] = CANDIDATE_SOURCE_DB.map((key: C
   label: CANDIDATE_SOURCE_LABELS[key],
 }))
 
+const callStatusFilterOptions: MultiSelectOption[] = CALL_STATUS_UI_ORDER.map((status) => ({
+  value: status,
+  label: CALL_STATUS_LABELS[status],
+}))
+
 const initialFilters: CandidateFilters = {
   name: "",
   postingTitle: "",
@@ -439,6 +451,7 @@ const initialFilters: CandidateFilters = {
   // Personality type filter
   personalityTypes: [],
   source: [],
+  callStatuses: [],
   // Achievement-related filters
   achievementTypes: [],
   achievementName: "",
@@ -461,6 +474,7 @@ function clearSectionFromFilters(
       updated.city = ""
       updated.personalityTypes = []
       updated.source = []
+      updated.callStatuses = []
       updated.currentSalaryMin = ""
       updated.currentSalaryMax = ""
       updated.expectedSalaryMin = ""
@@ -1073,6 +1087,7 @@ export function CandidatesFilterDialog({
           (tempFilters.city.trim() ? 1 : 0) +
           tempFilters.personalityTypes.length +
           tempFilters.source.length +
+          tempFilters.callStatuses.length +
           (tempFilters.currentSalaryMin ? 1 : 0) +
           (tempFilters.currentSalaryMax ? 1 : 0) +
           (tempFilters.expectedSalaryMin ? 1 : 0) +
@@ -1258,6 +1273,7 @@ export function CandidatesFilterDialog({
     tempFilters.city.trim() ||
     tempFilters.personalityTypes.length > 0 ||
     tempFilters.source.length > 0 ||
+    tempFilters.callStatuses.length > 0 ||
     tempFilters.currentSalaryMin ||
     tempFilters.currentSalaryMax ||
     tempFilters.expectedSalaryMin ||
@@ -1462,6 +1478,22 @@ export function CandidatesFilterDialog({
                     placeholder="Filter by city..."
                     value={tempFilters.city}
                     onChange={(e) => handleFilterChange("city", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3 min-w-0">
+                  <MultiSelect
+                    items={callStatusFilterOptions}
+                    selected={tempFilters.callStatuses}
+                    onChange={(values) =>
+                      handleFilterChange("callStatuses", values)
+                    }
+                    placeholder="Filter by call status..."
+                    label="Call Status"
+                    searchPlaceholder="Search call statuses..."
+                    maxDisplay={3}
                   />
                 </div>
               </div>

@@ -82,10 +82,14 @@ import {
   WORK_MODE_LABELS,
   CANDIDATE_SOURCE_DB,
   CANDIDATE_SOURCE_LABELS,
+  CALL_STATUS_DB,
+  CALL_STATUS_LABELS,
+  CALL_STATUS_UI_ORDER,
   MBTI_TYPES,
   parseCandidateSource,
   type AchievementTypeDb,
   type CandidateSourceDb,
+  type CallStatusDb,
   type CertificationLevelDb,
   type MbtiType,
   type ShiftTypeDb,
@@ -250,6 +254,17 @@ const candidateSourceSelectOptions: ComboboxOption[] = CANDIDATE_SOURCE_DB.map((
   value: key,
   label: CANDIDATE_SOURCE_LABELS[key],
 }))
+
+const callStatusSelectOptions: ComboboxOption[] = CALL_STATUS_UI_ORDER.map((status) => ({
+  value: status,
+  label: CALL_STATUS_LABELS[status],
+}))
+
+function callStatusDisplayLabel(raw: string | null | undefined): string {
+  return raw && CALL_STATUS_DB.includes(raw as CallStatusDb)
+    ? CALL_STATUS_LABELS[raw as CallStatusDb]
+    : "N/A"
+}
 
 /** Labels match DB enum `mbti_type` (four-letter codes only). */
 const personalityTypeSelectOptions: ComboboxOption[] = MBTI_TYPES.map((t) => ({
@@ -2553,8 +2568,9 @@ interface InlineEditableSelectProps {
   onSave: (fieldName: string, newValue: string, shouldVerify: boolean) => Promise<void>
   normalizeValue?: (raw: string | undefined) => string
   formatDisplay?: (value: string | null | undefined) => string
-  verificationIndicator: React.ReactNode
-  getFieldVerification: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  verificationIndicator?: React.ReactNode
+  getFieldVerification?: (fieldName: string) => { status: 'verified' | 'unverified' } | undefined
+  showVerification?: boolean
   className?: string
 }
 
@@ -2568,6 +2584,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
   formatDisplay,
   verificationIndicator,
   getFieldVerification,
+  showVerification = true,
   className = "",
 }) => {
   const resolvedValue = normalizeValue(value ?? undefined)
@@ -2577,7 +2594,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [willVerify, setWillVerify] = useState(false)
 
-  const verification = getFieldVerification(fieldName)
+  const verification = showVerification ? getFieldVerification?.(fieldName) : undefined
   const isCurrentlyVerified = verification?.status === "verified"
 
   useEffect(() => {
@@ -2608,7 +2625,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
 
   const handleSave = async () => {
     const currentValue = normalizeValue(value ?? undefined)
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged = showVerification && willVerify !== isCurrentlyVerified
     if (editValue === currentValue && !verificationChanged) {
       setIsEditing(false)
       return
@@ -2663,7 +2680,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0 shrink-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title={showVerification && willVerify ? "Save & Verify" : "Save"}
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -2682,26 +2699,28 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
                 <X className="w-4 h-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2 pl-1">
-              <Checkbox
-                id={`verify-${fieldName}`}
-                checked={willVerify}
-                onCheckedChange={(checked) => setWillVerify(checked as boolean)}
-                disabled={isSaving}
-                className="h-4 w-4"
-              />
-              <Label
-                htmlFor={`verify-${fieldName}`}
-                className={cn(
-                  "text-xs cursor-pointer",
-                  willVerify
-                    ? "text-green-600 dark:text-green-400 font-medium"
-                    : "text-muted-foreground"
-                )}
-              >
-                {willVerify ? "✓ Verified" : "Mark as verified"}
-              </Label>
-            </div>
+            {showVerification && (
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
+                    willVerify
+                      ? "text-green-600 dark:text-green-400 font-medium"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {willVerify ? "✓ Verified" : "Mark as verified"}
+                </Label>
+              </div>
+            )}
             {error && <p className="text-xs text-red-500">{error}</p>}
           </div>
         ) : (
@@ -2715,7 +2734,7 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              {verificationIndicator}
+              {showVerification && verificationIndicator}
               <Button
                 size="sm"
                 variant="ghost"
@@ -4463,6 +4482,27 @@ export function CandidateDetailsModal({
     if (!candidate) return
     
     try {
+      if (fieldName === "callStatus") {
+        const id = Number(candidate.id)
+        if (!Number.isFinite(id)) throw new Error("Invalid candidate id.")
+        if (
+          typeof newValue !== "string" ||
+          !CALL_STATUS_DB.includes(newValue as CallStatusDb)
+        ) {
+          throw new Error("Select a valid Call Status.")
+        }
+
+        const existing = fullCandidate ?? candidate
+        const formData = candidateToFormData(existing)
+        formData.callStatus = newValue as CallStatusDb
+        await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
+        const refreshed = await fetchCandidateById(id)
+        setFullCandidate(refreshed)
+        onCandidateUpdated?.()
+        toast.success("Call Status updated")
+        return
+      }
+
       // In real app, this would call API to update candidate field AND verification
       // await updateCandidateField(candidate.id, {
       //   fieldName,
@@ -5396,7 +5436,9 @@ export function CandidateDetailsModal({
     setFullCandidateLoading(true)
     fetchCandidateById(id)
       .then((full) => {
-        if (!cancelled) setFullCandidate(full)
+        if (!cancelled) {
+          setFullCandidate(full)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -6120,6 +6162,15 @@ export function CandidateDetailsModal({
                       onSave={handleFieldSave}
                       verificationIndicator={<VerificationIndicator fieldName="source" />}
                       getFieldVerification={getFieldVerification}
+                    />
+                    <InlineEditableSelect
+                      label="Call Status"
+                      value={viewCandidate.callStatus}
+                      fieldName="callStatus"
+                      options={callStatusSelectOptions}
+                      formatDisplay={callStatusDisplayLabel}
+                      onSave={handleFieldSave}
+                      showVerification={false}
                     />
                     <InlineEditableCombobox
                       label="Personality Type"

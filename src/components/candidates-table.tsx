@@ -87,6 +87,7 @@ import {
   syncCandidateSubResources,
   prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
+import { CALL_STATUS_BADGE_CLASSES, CALL_STATUS_LABELS } from "@/lib/constants/candidate-enums"
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
@@ -246,6 +247,7 @@ const defaultFilters: CandidateFilters = {
   achievementTypes: [],
   achievementName: "",
   source: [],
+  callStatuses: [],
   startDateStart: null,
   startDateEnd: null,
   verificationPercentageMin: "",
@@ -630,6 +632,10 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 City
               </SortableHeader>
 
+              <TableHead className="hidden lg:table-cell whitespace-nowrap">
+                Call Status
+              </TableHead>
+
               {/* Data Progress - Hidden on mobile */}
               <TableHead className="hidden lg:table-cell w-[80px]">
                 Data Progress
@@ -660,7 +666,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
             {sortedCandidates.length === 0 ? (
               <TableRow>
                 <TableCell 
-                  colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} 
+                  colSpan={activeFilters ? (hasAvgTenureFilter ? 10 : 9) : (hasAvgTenureFilter ? 9 : 8)}
                   className="h-32 text-center text-muted-foreground"
                 >
                   No candidates found.
@@ -748,6 +754,25 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     {candidate.city}
+                  </TableCell>
+
+                  <TableCell
+                    className="hidden lg:table-cell whitespace-nowrap"
+                    onClick={() => setSelectedCandidate(candidate)}
+                  >
+                    {candidate.callStatus ? (
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "font-medium",
+                          CALL_STATUS_BADGE_CLASSES[candidate.callStatus],
+                        )}
+                      >
+                        {CALL_STATUS_LABELS[candidate.callStatus]}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </TableCell>
 
                   {/* Data Progress - Hidden on mobile */}
@@ -886,7 +911,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 {/* Expandable Match Details Row */}
                 {activeFilters && isExpanded && matchContext && matchContext.totalMatches > 0 && (
                   <TableRow>
-                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 9 : 8) : (hasAvgTenureFilter ? 8 : 7)} className="p-0">
+                    <TableCell colSpan={activeFilters ? (hasAvgTenureFilter ? 10 : 9) : (hasAvgTenureFilter ? 9 : 8)} className="p-0">
                       <div className="bg-gray-50 dark:bg-gray-950/50 border-t border-border">
                         <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto">
                           {matchContext.categories.map((category) => {
