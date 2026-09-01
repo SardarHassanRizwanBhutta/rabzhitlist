@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard } from "lucide-react"
+import { Users, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 
 import {
@@ -54,6 +54,12 @@ const navigationItems = [
     url: "/certifications",
     icon: Award,
     description: "Manage professional certifications and achievements",
+  },
+  {
+    title: "Achievements",
+    url: "/achievements",
+    icon: Trophy,
+    description: "Browse candidate achievement instances",
   },
 ] as const
 

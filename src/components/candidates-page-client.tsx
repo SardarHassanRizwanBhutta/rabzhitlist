@@ -15,6 +15,7 @@ import {
   Loader2,
   GraduationCap,
   Plus,
+  User,
 } from "lucide-react"
 import { CandidatesTable } from "@/components/candidates-table"
 import { CandidatesCardsView } from "@/components/candidates-cards-view"
@@ -204,6 +205,14 @@ export function CandidatesPageClient() {
   /** Numeric employer id from URL (`employerId`) for server-side list filtering. */
   const employerIdFromUrl = useMemo(() => {
     const raw = searchParams.get("employerId")
+    if (!raw || !/^\d+$/.test(raw.trim())) return null
+    const n = Number.parseInt(raw.trim(), 10)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }, [searchParams])
+
+  /** Exact `candidates.id` from URL (`GET /api/candidates?candidateId=`). Not sent when ≤ 0. */
+  const candidateIdFromUrl = useMemo(() => {
+    const raw = searchParams.get("candidateId")
     if (!raw || !/^\d+$/.test(raw.trim())) return null
     const n = Number.parseInt(raw.trim(), 10)
     return Number.isFinite(n) && n > 0 ? n : null
@@ -670,9 +679,11 @@ export function CandidatesPageClient() {
         workExperienceBenefitIds.length > 0
           ? workExperienceBenefitIds
           : undefined,
+      candidateId: candidateIdFromUrl ?? undefined,
     }
   }, [
     combinedFiltersForBackend,
+    candidateIdFromUrl,
     universityIdFromUrl,
     certificationIssuersLookup,
     degreesLookup,
@@ -992,7 +1003,7 @@ export function CandidatesPageClient() {
     }
   }, [searchParams])
 
-  const listFilterKey = `${projectIdFromUrl ?? ""}|${employerIdFromUrl ?? ""}|${certificationIdFromUrl ?? ""}|${universityIdFromUrl ?? ""}`
+  const listFilterKey = `${projectIdFromUrl ?? ""}|${employerIdFromUrl ?? ""}|${certificationIdFromUrl ?? ""}|${universityIdFromUrl ?? ""}|${candidateIdFromUrl ?? ""}`
   const prevListFilterKeyRef = useRef<string | null>(null)
   useEffect(() => {
     if (prevListFilterKeyRef.current === listFilterKey) return
@@ -1166,7 +1177,18 @@ export function CandidatesPageClient() {
     router.push("/candidates")
   }
 
+  const handleClearCandidateIdFilter = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("candidateId")
+    const q = params.toString()
+    router.push(q ? `/candidates?${q}` : "/candidates")
+  }
+
   const getPageTitle = () => {
+    if (candidateIdFromUrl != null) {
+      const loadedName = candidates.length === 1 ? candidates[0]?.name : null
+      return loadedName ? `Candidate: ${loadedName}` : `Candidate #${candidateIdFromUrl}`
+    }
     if (projectFilter) return `Project Team: ${projectFilter.name}`
     if (certificationFilter && universityFilter) {
       return `${certificationFilter.name} · ${universityFilter.name}`
@@ -1178,6 +1200,7 @@ export function CandidatesPageClient() {
   }
 
   const getPageDescription = () => {
+    if (candidateIdFromUrl != null) return "Showing this candidate only"
     if (projectFilter) return `Candidates who have worked on ${projectFilter.name}`
     if (certificationFilter && universityFilter) {
       return `Candidates with certification “${certificationFilter.name}” and education at ${universityFilter.name}`
@@ -1333,10 +1356,27 @@ export function CandidatesPageClient() {
         </div>
       </div>
 
-      {(projectFilter || certificationFilter || universityFilter || employerFilter) && (
+      {(projectFilter || certificationFilter || universityFilter || employerFilter || candidateIdFromUrl != null) && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
 
+          {candidateIdFromUrl != null && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <User className="h-3 w-3" />
+              Candidate:{" "}
+              {candidates.length === 1 && !listLoading
+                ? candidates[0]?.name
+                : `#${candidateIdFromUrl}`}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-4 w-4 p-0 hover:bg-transparent"
+                onClick={handleClearCandidateIdFilter}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </Badge>
+          )}
           {projectFilter && (
             <Badge variant="secondary" className="flex items-center gap-1">
               <Users className="h-3 w-3" />
