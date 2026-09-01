@@ -175,6 +175,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.averageTeamSizeMin ||
     filters.averageTeamSizeMax ||
     filters.hasPublishedProject === true ||
+    filters.hasMainContribution === true ||
     filters.publishPlatforms.length > 0 ||
     filters.minProjectDownloadCount ||
     filters.employerStatus.length > 0 ||
@@ -370,6 +371,7 @@ function hasBackendMatchedProjectFilterDrivers(filters: CandidateFilters): boole
     filters.clientLocations.length > 0 ||
     filters.publishPlatforms.length > 0 ||
     filters.hasPublishedProject === true ||
+    filters.hasMainContribution === true ||
     !!filters.minProjectDownloadCount.trim() ||
     !!filters.averageTeamSizeMin.trim() ||
     !!filters.averageTeamSizeMax.trim() ||
@@ -509,6 +511,14 @@ function appendBackendMatchedProjectItem(
       type: "projectStartDate",
       label: "Start Date",
       values: [formatProjectStartDateBadge(mp.startDate)],
+    })
+  }
+
+  if (filters.hasMainContribution === true && mp.isMainContribution === true) {
+    matchedCriteria.push({
+      type: "isMainContribution",
+      label: "Main Contribution",
+      values: ["Main Contribution"],
     })
   }
 
@@ -1061,6 +1071,7 @@ export function getCandidateMatchContext(
     filters.averageTeamSizeMin ||
     filters.averageTeamSizeMax ||
     filters.hasPublishedProject === true ||
+    filters.hasMainContribution === true ||
     filters.publishPlatforms.length > 0 ||
     filters.minProjectDownloadCount
   )

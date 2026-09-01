@@ -55,6 +55,7 @@ function createEmptyProject(seed: string): ProjectExperience {
     projectId: null,
     projectName: "",
     contributionNotes: null,
+    isMainContribution: false,
   }
 }
 

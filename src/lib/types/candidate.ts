@@ -36,6 +36,8 @@ export interface ProjectExperience extends LinkedProjectFields {
   /** Cached display name (from API or combobox). */
   projectName: string
   contributionNotes: string | null
+  /** Candidate was the main owner of delivery on this WE project. Default false. */
+  isMainContribution: boolean
 }
 
 export interface WorkExperienceOfficeLocation {
@@ -277,6 +279,8 @@ export interface MatchedProjectDto {
   startDate: string | null
   /** Intersection with requested `technicalAspectTypeIds` filter (aspect type catalog). */
   technicalAspectTypes: MatchedDomainDto[]
+  /** `true` when list filter `isMainContribution=true` matched this WE project. */
+  isMainContribution: boolean | null
 }
 
 // Keep Competition interface for backward compatibility during migration

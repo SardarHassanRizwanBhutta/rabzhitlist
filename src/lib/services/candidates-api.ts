@@ -181,6 +181,7 @@ export interface CreateCandidateDto {
 interface CreateCandidateProjectDto {
   projectId: number
   contribution?: string | null
+  isMainContribution?: boolean
 }
 
 interface CreateCandidateEducationDto {
@@ -321,6 +322,7 @@ function mapProjectExperience(raw: Record<string, unknown>, idx: number): Projec
         : raw.contributionNotes != null
           ? String(raw.contributionNotes)
           : "",
+    isMainContribution: raw.isMainContribution === true,
     ...catalog,
     projectType,
   }
@@ -790,6 +792,7 @@ function mapMatchedProjects(raw: unknown): MatchedProjectDto[] {
           ? item.startDate.trim()
           : null,
       technicalAspectTypes: mapMatchedDomains(item.technicalAspectTypes),
+      isMainContribution: item.isMainContribution === true ? true : null,
     }))
     .filter((item) => Number.isFinite(item.projectId) && item.projectName.length > 0)
 }
@@ -1166,6 +1169,7 @@ export function candidateFormDataToCreateDto(
         .map((p) => ({
           projectId: p.projectId!,
           contribution: nullIfEmpty(p.contributionNotes ?? ""),
+          isMainContribution: p.isMainContribution === true,
         }))
 
       const weTechStackIds = dedupeTechStackIds(
@@ -1312,6 +1316,8 @@ export async function fetchCandidatesPage(
     projectTypes?: number[]
     publishPlatforms?: number[]
     isPublished?: boolean
+    /** Candidate has ≥1 WE project with `isMainContribution=true`. Send only `true`. */
+    isMainContribution?: boolean
     minDownloadCount?: number
     averageTeamSizeMin?: number
     averageTeamSizeMax?: number
@@ -1409,6 +1415,7 @@ export async function fetchCandidatesPage(
   appendNumberList("projectTypes", options?.projectTypes)
   appendNumberList("publishPlatforms", options?.publishPlatforms)
   if (options?.isPublished != null) params.set("isPublished", String(options.isPublished))
+  if (options?.isMainContribution === true) params.set("isMainContribution", "true")
   if (options?.minDownloadCount != null) params.set("minDownloadCount", String(options.minDownloadCount))
   if (options?.averageTeamSizeMin != null) {
     params.set("averageTeamSizeMin", String(options.averageTeamSizeMin))
@@ -1655,8 +1662,18 @@ export function upsertWeBenefit(candidateId: number, weId: number, body: CreateC
 export function removeWeBenefit(candidateId: number, weId: number, benefitId: number) {
   return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/benefits/${benefitId}`)
 }
-export function upsertWeProject(candidateId: number, weId: number, projectId: number, contribution: string | null) {
-  return subPut(`/api/candidates/${candidateId}/work-experiences/${weId}/projects/${projectId}`, { projectId, contribution })
+export function upsertWeProject(
+  candidateId: number,
+  weId: number,
+  projectId: number,
+  contribution: string | null,
+  isMainContribution = false,
+) {
+  return subPut(`/api/candidates/${candidateId}/work-experiences/${weId}/projects/${projectId}`, {
+    projectId,
+    contribution,
+    isMainContribution,
+  })
 }
 export function removeWeProject(candidateId: number, weId: number, projectId: number) {
   return subDelete(`/api/candidates/${candidateId}/work-experiences/${weId}/projects/${projectId}`)
@@ -1870,7 +1887,15 @@ async function addWeSubResources(
   }
   for (const p of we.projects ?? []) {
     if (p.projectId != null) {
-      ops.push(upsertWeProject(candidateId, weId, p.projectId, nullIfEmpty(p.contributionNotes ?? "")))
+      ops.push(
+        upsertWeProject(
+          candidateId,
+          weId,
+          p.projectId,
+          nullIfEmpty(p.contributionNotes ?? ""),
+          p.isMainContribution === true,
+        )
+      )
     }
   }
 
@@ -1953,7 +1978,15 @@ async function syncWeSubResources(
   const oldProjIds = new Set((oldWe.projects ?? []).map(p => p.projectId).filter((id): id is number => id != null))
   for (const p of newWe.projects ?? []) {
     if (p.projectId != null) {
-      ops.push(upsertWeProject(candidateId, weId, p.projectId, nullIfEmpty(p.contributionNotes ?? "")))
+      ops.push(
+        upsertWeProject(
+          candidateId,
+          weId,
+          p.projectId,
+          nullIfEmpty(p.contributionNotes ?? ""),
+          p.isMainContribution === true,
+        )
+      )
       oldProjIds.delete(p.projectId)
     }
   }

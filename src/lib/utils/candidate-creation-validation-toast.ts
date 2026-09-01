@@ -87,6 +87,7 @@ const PROJECT_FIELD_LABELS: Record<string, string> = {
   projectId: "Project",
   projectName: "Project",
   contributionNotes: "Contribution",
+  isMainContribution: "Main Contribution",
 }
 
 function sortedNumericKeys(record: Record<number, unknown> | undefined): number[] {

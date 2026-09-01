@@ -178,6 +178,8 @@ export interface ProjectExperience {
   projectId: number | null
   projectName: string
   contributionNotes: string
+  /** Candidate was the main owner of delivery on this WE project. Default false. */
+  isMainContribution: boolean
   /** Linked project catalog fields (persisted via PATCH /api/projects/{id}). */
   projectType?: string
   status?: string
@@ -933,6 +935,7 @@ const createEmptyProject = (): ProjectExperience => ({
   projectId: null,
   projectName: "",
   contributionNotes: "",
+  isMainContribution: false,
   projectType: "",
   status: "",
   description: "",
@@ -1081,6 +1084,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
         projectId: proj.projectId ?? null,
         projectName: proj.projectName || "",
         contributionNotes: proj.contributionNotes ?? "",
+        isMainContribution: proj.isMainContribution === true,
         projectType: proj.projectType ?? "",
         status: proj.status ?? "",
         description: proj.description ?? "",
@@ -1457,9 +1461,10 @@ export function CandidateCreationDialog({
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
       })
       formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
-        total += 2 // projectId, contributionNotes
+        total += 3 // projectId, contributionNotes, isMainContribution
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectId`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.isMainContribution`)) verified++
       })
     })
     
@@ -1569,9 +1574,10 @@ export function CandidateCreationDialog({
       })
       // Projects within work experience
       formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
-        total += 2 // projectId, contributionNotes
+        total += 3 // projectId, contributionNotes, isMainContribution
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectId`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
+        if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.isMainContribution`)) verified++
       })
     })
     
@@ -1853,7 +1859,8 @@ export function CandidateCreationDialog({
           formData.workExperiences[idx]?.projects?.forEach((_, projIdx) => {
             fields.push(
               `workExperiences.${idx}.projects.${projIdx}.projectId`,
-              `workExperiences.${idx}.projects.${projIdx}.contributionNotes`
+              `workExperiences.${idx}.projects.${projIdx}.contributionNotes`,
+              `workExperiences.${idx}.projects.${projIdx}.isMainContribution`
             )
           })
         })
@@ -2204,6 +2211,27 @@ export function CandidateCreationDialog({
         }
       }))
     }
+  }
+
+  const handleProjectMainContributionChange = (
+    expIndex: number,
+    projectIndex: number,
+    checked: boolean,
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      workExperiences: prev.workExperiences.map((exp, i) =>
+        i === expIndex
+          ? {
+              ...exp,
+              projects: exp.projects.map((project, j) =>
+                j === projectIndex ? { ...project, isMainContribution: checked } : project
+              ),
+            }
+          : exp
+      ),
+    }))
+    markFieldModified(`workExperiences.${expIndex}.projects.${projectIndex}.isMainContribution`)
   }
 
   const addProject = (expIndex: number) => {
@@ -3698,6 +3726,32 @@ export function CandidateCreationDialog({
                                   className="min-h-[80px] resize-none"
                                 />
                                 <VerificationCheckbox fieldPath={`workExperiences.${index}.projects.${projectIndex}.contributionNotes`} />
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                  <Switch
+                                    id={`isMainContribution-${index}-${projectIndex}`}
+                                    checked={project.isMainContribution === true}
+                                    onCheckedChange={(checked) =>
+                                      handleProjectMainContributionChange(
+                                        index,
+                                        projectIndex,
+                                        checked === true,
+                                      )
+                                    }
+                                    disabled={isLoading}
+                                  />
+                                  <Label
+                                    htmlFor={`isMainContribution-${index}-${projectIndex}`}
+                                    className="text-sm font-normal"
+                                  >
+                                    Main Contribution
+                                  </Label>
+                                </div>
+                                <VerificationCheckbox
+                                  fieldPath={`workExperiences.${index}.projects.${projectIndex}.isMainContribution`}
+                                />
                               </div>
                             </div>
                           </div>
