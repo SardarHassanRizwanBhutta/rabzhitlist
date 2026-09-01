@@ -35,6 +35,8 @@ import {
   CANDIDATE_SOURCE_DB,
   type CandidateSourceDb,
   parseCandidateSource,
+  parseCallStatus,
+  callStatusToApi,
   SHIFT_TYPE_DB,
   type ShiftTypeDb,
   WORK_MODE_DB,
@@ -124,6 +126,8 @@ export interface CandidateListItemDto {
   personalityType: number | null
   source: string | number | null
   status: string
+  /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. */
+  callStatus?: number | null
   resumeUrl: string | null
   hasResume?: boolean
   resumeFileName?: string | null
@@ -161,6 +165,8 @@ export interface CreateCandidateDto {
   expectedSalary?: number | null
   personalityType?: number | null
   source?: number | null
+  /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. Omit/null → Pending. */
+  callStatus?: number | null
   status?: string
   resumeUrl?: string | null
   /** Optional call notes on create (camelCase). Omit when blank. */
@@ -241,6 +247,8 @@ export interface UpdateCandidateDto {
   expectedSalary: number | null
   personalityType: number | null
   source: number | null
+  /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. */
+  callStatus: number
   status: string
   resumeUrl: string | null
 }
@@ -841,6 +849,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     githubUrl: row.githubUrl,
     source: parseCandidateSource(row.source),
     status: row.status as Candidate["status"],
+    callStatus: parseCallStatus(row.callStatus),
     ...mapResumeFieldsFromDto(row as unknown as Record<string, unknown>),
     totalExperienceYears: row.totalExperienceYears,
     totalExperienceMonths:
@@ -920,6 +929,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     githubUrl: data.githubUrl != null ? String(data.githubUrl) : null,
     source: parseCandidateSource(data.source as string | number | null),
     status: String(data.status ?? "sourced") as Candidate["status"],
+    callStatus: parseCallStatus(data.callStatus),
     ...mapResumeFieldsFromDto(data),
     totalExperienceYears:
       typeof data.totalExperienceYears === "number" ? data.totalExperienceYears : null,
@@ -1213,6 +1223,7 @@ export function candidateFormDataToCreateDto(
     expectedSalary: parseOptionalSalary(data.expectedSalary),
     personalityType: mbtiLabelToIndex(data.personalityType),
     source: sourceFormToApi(data.source),
+    callStatus: callStatusToApi(data.callStatus) ?? 0,
     status: "sourced",
     resumeUrl: null,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
@@ -1225,9 +1236,12 @@ export function candidateFormDataToCreateDto(
 
 export function candidateFormDataToUpdateDto(
   data: CandidateFormData,
-  existing: Pick<Candidate, "status" | "resume" | "totalExperienceYears">
+  existing: Pick<Candidate, "status" | "resume" | "totalExperienceYears" | "callStatus">
 ): UpdateCandidateDto {
   const base = candidateFormDataToCreateDto(data)
+  const callStatus =
+    callStatusToApi(data.callStatus) ??
+    (existing.callStatus != null ? callStatusToApi(existing.callStatus) : null)
   return {
     name: base.name,
     email: base.email ?? null,
@@ -1242,6 +1256,7 @@ export function candidateFormDataToUpdateDto(
     expectedSalary: base.expectedSalary ?? null,
     personalityType: base.personalityType ?? null,
     source: base.source ?? null,
+    callStatus: callStatus ?? 0,
     status: existing.status,
     resumeUrl: existing.resume ?? null,
   }
@@ -1306,6 +1321,8 @@ export async function fetchCandidatesPage(
     achievementName?: string
     /** Exact `candidates.id`. Only sent when > 0 (API 400s on 0). */
     candidateId?: number
+    /** CallStatus enum ints OR (`?callStatus=0&callStatus=2`). */
+    callStatus?: number[]
     /** Stored profile completion 0–100 (`candidates.data_progress_percentage`). */
     minDataProgressPercentage?: number
     maxDataProgressPercentage?: number
@@ -1411,6 +1428,7 @@ export async function fetchCandidatesPage(
   ) {
     params.set("candidateId", String(Math.floor(options.candidateId)))
   }
+  appendNumberList("callStatus", options?.callStatus)
   if (options?.minDataProgressPercentage != null) {
     params.set("minDataProgressPercentage", String(options.minDataProgressPercentage))
   }

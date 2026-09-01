@@ -24,6 +24,7 @@ const EMPTY_FORM: CandidateFormData = {
   linkedinUrl: "",
   githubUrl: "",
   source: "",
+  callStatus: "pending",
   workExperiences: [],
   certifications: [],
   educations: [],

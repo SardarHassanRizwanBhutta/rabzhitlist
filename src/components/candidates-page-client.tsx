@@ -77,6 +77,7 @@ import type { Candidate } from "@/lib/types/candidate"
 import {
   ACHIEVEMENT_TYPE_DB,
   CANDIDATE_SOURCE_DB,
+  CALL_STATUS_DB,
   CERTIFICATION_LEVEL_DB,
 } from "@/lib/constants/candidate-enums"
 import {
@@ -167,6 +168,7 @@ const initialFilters: CandidateFilters = {
   achievementName: "",
   personalityTypes: [],
   source: [],
+  callStatuses: [],
   verificationPercentageMin: "",
   verificationPercentageMax: "",
   dataProgressMin: "",
@@ -578,6 +580,9 @@ export function CandidatesPageClient() {
       .filter((db): db is string => !!db)
       .map((db) => ACHIEVEMENT_TYPE_DB.indexOf(db as (typeof ACHIEVEMENT_TYPE_DB)[number]))
       .filter((n) => n >= 0)
+    const callStatus = combinedFiltersForBackend.callStatuses
+      .map((k) => CALL_STATUS_DB.indexOf(k as (typeof CALL_STATUS_DB)[number]))
+      .filter((n) => n >= 0)
 
     const shiftTypes = combinedFiltersForBackend.shiftTypes
       .map((k) => SHIFT_TYPE_TO_API[k as ShiftTypeDb])
@@ -680,6 +685,7 @@ export function CandidatesPageClient() {
           ? workExperienceBenefitIds
           : undefined,
       candidateId: candidateIdFromUrl ?? undefined,
+      callStatus: callStatus.length > 0 ? callStatus : undefined,
     }
   }, [
     combinedFiltersForBackend,

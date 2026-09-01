@@ -86,6 +86,9 @@ import {
   CANDIDATE_SOURCE_LABELS,
   type CandidateSourceDb,
   parseCandidateSource,
+  CALL_STATUS_UI_ORDER,
+  CALL_STATUS_LABELS,
+  type CallStatusDb,
 } from "@/lib/constants/candidate-enums"
 import { SALARY_POLICY_DB_LABELS, type SalaryPolicyDb } from "@/lib/types/employer"
 import { salaryPolicyToSelectValue } from "@/lib/utils/salary-policy-display"
@@ -287,6 +290,7 @@ export interface CandidateFormData {
   linkedinUrl: string
   githubUrl: string
   source: string
+  callStatus: CallStatusDb | ""
   
   // Work Experience - dynamic array (includes orphan WE rows with nested projects)
   workExperiences: WorkExperience[]
@@ -1042,6 +1046,7 @@ const initialFormData: CandidateFormData = {
   linkedinUrl: "",
   githubUrl: "",
   source: "",
+  callStatus: "pending",
   workExperiences: [],
   certifications: [],
   educations: [],
@@ -1065,6 +1070,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
     linkedinUrl: candidate.linkedinUrl || "",
     githubUrl: candidate.githubUrl || "",
     source: parseCandidateSource(candidate.source),
+    callStatus: candidate.callStatus ?? "",
     workExperiences: candidate.workExperiences?.map(we => ({
       id: we.id,
       employerId: we.employerId ?? null,
@@ -3176,6 +3182,29 @@ export function CandidateCreationDialog({
                 {errors.basic?.source && <p className="text-sm text-red-500">{errors.basic.source}</p>}
                 <VerificationCheckbox fieldPath="source" />
               </div>
+
+              {mode === "edit" && (
+                <div className="space-y-2">
+                  <Label htmlFor="callStatus">Call Status</Label>
+                  <Select
+                    value={formData.callStatus === "" ? undefined : formData.callStatus}
+                    onValueChange={(value: CallStatusDb) => {
+                      handleInputChange("callStatus", value)
+                    }}
+                  >
+                    <SelectTrigger id="callStatus" className="w-full">
+                      <SelectValue placeholder="Select call status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CALL_STATUS_UI_ORDER.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {CALL_STATUS_LABELS[status]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="personalityType">Personality Type</Label>

@@ -103,3 +103,42 @@ export function parseCandidateSource(raw: string | number | null | undefined): C
   const s = raw.trim().toLowerCase()
   return CANDIDATE_SOURCE_DB.includes(s as CandidateSourceDb) ? (s as CandidateSourceDb) : ""
 }
+
+/**
+ * Candidate call status (`callStatus` on GET/POST/PUT /api/candidates).
+ * API ints: 0=Pending, 1=Done, 2=Follow-up. Distinct from pipeline `status`.
+ */
+export const CALL_STATUS_DB = ["pending", "done", "followUp"] as const
+export type CallStatusDb = (typeof CALL_STATUS_DB)[number]
+
+/** Select / filter option order: Done, Pending, Follow-up. */
+export const CALL_STATUS_UI_ORDER = ["done", "pending", "followUp"] as const
+
+export const CALL_STATUS_LABELS: Record<CallStatusDb, string> = {
+  pending: "Pending",
+  done: "Done",
+  followUp: "Follow-up",
+}
+
+export const CALL_STATUS_BADGE_CLASSES: Record<CallStatusDb, string> = {
+  pending: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+  done: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  followUp: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200",
+}
+
+export function parseCallStatus(raw: unknown): CallStatusDb | null {
+  if (raw == null) return null
+  if (typeof raw === "number" && Number.isInteger(raw) && raw >= 0 && raw <= 2) {
+    return CALL_STATUS_DB[raw] ?? null
+  }
+  if (typeof raw === "string" && raw.trim() !== "") {
+    const n = Number(raw)
+    if (Number.isInteger(n) && n >= 0 && n <= 2) return CALL_STATUS_DB[n] ?? null
+  }
+  return null
+}
+
+export function callStatusToApi(value: string): number | null {
+  const i = CALL_STATUS_DB.indexOf(value as CallStatusDb)
+  return i >= 0 ? i : null
+}

@@ -29,6 +29,7 @@ const baseForm: CandidateFormData = {
   linkedinUrl: "",
   githubUrl: "",
   source: "",
+  callStatus: "pending",
   workExperiences: [
     {
       id: "we-1",
