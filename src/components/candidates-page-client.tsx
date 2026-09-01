@@ -144,6 +144,7 @@ const initialFilters: CandidateFilters = {
   averageTeamSizeMin: "",
   averageTeamSizeMax: "",
   hasPublishedProject: null,
+  hasMainContribution: null,
   publishPlatforms: [],
   minProjectDownloadCount: "",
   employerStatus: [],
@@ -657,6 +658,8 @@ export function CandidatesPageClient() {
       projectTypes: projectTypes.length > 0 ? projectTypes : undefined,
       publishPlatforms: publishPlatforms.length > 0 ? publishPlatforms : undefined,
       isPublished: combinedFiltersForBackend.hasPublishedProject ?? undefined,
+      isMainContribution:
+        combinedFiltersForBackend.hasMainContribution === true ? true : undefined,
       minDownloadCount: toOptionalNumber(combinedFiltersForBackend.minProjectDownloadCount),
       averageTeamSizeMin: toOptionalNumber(combinedFiltersForBackend.averageTeamSizeMin),
       averageTeamSizeMax: toOptionalNumber(combinedFiltersForBackend.averageTeamSizeMax),

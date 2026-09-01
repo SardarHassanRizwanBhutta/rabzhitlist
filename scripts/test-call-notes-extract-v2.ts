@@ -42,6 +42,7 @@ const baseForm: CandidateFormData = {
           projectId: null,
           projectName: "",
           contributionNotes: "",
+          isMainContribution: false,
         },
       ],
       startDate: undefined,

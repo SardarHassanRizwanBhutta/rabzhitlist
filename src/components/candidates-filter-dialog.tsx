@@ -145,6 +145,8 @@ export interface CandidateFilters {
   averageTeamSizeMax: string
   // Published project filters
   hasPublishedProject: boolean | null  // null = no filter, true = has published app/project
+  /** null = off, true = has ≥1 WE project with isMainContribution */
+  hasMainContribution: boolean | null
   publishPlatforms: string[]  // ["App Store", "Play Store"] - filter by specific platforms
   minProjectDownloadCount: string  // Minimum download count for projects candidate worked on (e.g., "100000" for 100K+)
   // Employer-related filters
@@ -425,6 +427,7 @@ const initialFilters: CandidateFilters = {
   averageTeamSizeMax: "",
   // Published project filters
   hasPublishedProject: null,
+  hasMainContribution: null,
   publishPlatforms: [],
   minProjectDownloadCount: "",
   // Employer-related filters
@@ -518,6 +521,7 @@ function clearSectionFromFilters(
       updated.averageTeamSizeMin = ""
       updated.averageTeamSizeMax = ""
       updated.hasPublishedProject = null
+      updated.hasMainContribution = null
       updated.publishPlatforms = []
       updated.minProjectDownloadCount = ""
       break
@@ -1129,6 +1133,7 @@ export function CandidatesFilterDialog({
           (tempFilters.averageTeamSizeMin ? 1 : 0) +
           (tempFilters.averageTeamSizeMax ? 1 : 0) +
           (tempFilters.hasPublishedProject ? 1 : 0) +
+          (tempFilters.hasMainContribution ? 1 : 0) +
           tempFilters.publishPlatforms.length +
           (tempFilters.minProjectDownloadCount ? 1 : 0)
         )
@@ -1311,6 +1316,7 @@ export function CandidatesFilterDialog({
     tempFilters.averageTeamSizeMin ||
     tempFilters.averageTeamSizeMax ||
     tempFilters.hasPublishedProject !== null ||
+    tempFilters.hasMainContribution !== null ||
     tempFilters.publishPlatforms.length > 0 ||
     tempFilters.minProjectDownloadCount ||
     tempFilters.employerStatus.length > 0 ||
@@ -2371,8 +2377,8 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Published App */}
-              <div className="space-y-3">
+              {/* Published App + Main Contribution */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="hasPublishedProject"
@@ -2383,6 +2389,18 @@ export function CandidatesFilterDialog({
                   />
                   <Label htmlFor="hasPublishedProject" className="text-sm cursor-pointer">
                     Published App
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="hasMainContribution"
+                    checked={tempFilters.hasMainContribution === true}
+                    onCheckedChange={(checked) => {
+                      handleFilterChange("hasMainContribution", checked ? true : null)
+                    }}
+                  />
+                  <Label htmlFor="hasMainContribution" className="text-sm cursor-pointer">
+                    Main Contribution
                   </Label>
                 </div>
               </div>

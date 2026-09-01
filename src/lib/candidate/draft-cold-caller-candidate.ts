@@ -48,6 +48,7 @@ function mapFormProjects(
     projectId: p.projectId ?? null,
     projectName: p.projectName || "",
     contributionNotes: p.contributionNotes ?? null,
+    isMainContribution: p.isMainContribution === true,
   }))
 }
 

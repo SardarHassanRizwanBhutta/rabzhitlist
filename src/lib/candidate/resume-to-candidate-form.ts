@@ -174,6 +174,7 @@ function newProjectRow(name: string, notes: string): ProjectExperience {
     projectId: null,
     projectName: name,
     contributionNotes: notes,
+    isMainContribution: false,
   }
 }
 

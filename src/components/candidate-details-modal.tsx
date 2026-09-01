@@ -3747,6 +3747,8 @@ interface InlineEditableCheckboxProps {
   description?: string
 }
 
+const INLINE_BOOLEAN_USES_SWITCH = new Set(["Topper", "Cheetah", "Main Contribution"])
+
 const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   label,
   value,
@@ -3756,6 +3758,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   className,
   description
 }) => {
+  const useSwitch = INLINE_BOOLEAN_USES_SWITCH.has(label)
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value)
   const [isSaving, setIsSaving] = useState(false)
@@ -3852,7 +3855,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
             <div className="flex-1 space-y-3">
               {/* Checkbox or Switch */}
               <div className="flex items-center gap-2 pl-1">
-                {label === "Topper" || label === "Cheetah" ? (
+                {useSwitch ? (
                   <>
                     <Switch
                       id={`switch-${fieldName}`}
@@ -3942,7 +3945,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
       ) : (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {label === "Topper" || label === "Cheetah" ? (
+            {useSwitch ? (
               <Switch
                 checked={value}
                 disabled
@@ -3961,7 +3964,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
             )}>
               {value ? 'Yes' : 'No'}
             </span>
-            {value && label !== "Topper" && label !== "Cheetah" && (
+            {value && !useSwitch && (
               <Badge 
                 variant="default" 
                 className="text-xs"
@@ -5315,7 +5318,13 @@ export function CandidateDetailsModal({
       if (oldProjectId != null && oldProjectId !== selection.id) {
         await removeWeProject(candidateId, weId, oldProjectId)
       }
-      await upsertWeProject(candidateId, weId, selection.id, contribution)
+      await upsertWeProject(
+        candidateId,
+        weId,
+        selection.id,
+        contribution,
+        proj.isMainContribution === true,
+      )
 
       setFullCandidate((prev) => {
         const base = prev ?? candidate
@@ -5344,6 +5353,77 @@ export function CandidateDetailsModal({
       toast.error(err instanceof Error ? err.message : "Failed to update project.")
       throw err
     }
+  }
+
+  const handleWorkExperienceProjectMainContributionSave = async (
+    _weIndex: number,
+    _projectIndex: number,
+    _newValue: boolean,
+    shouldVerify: boolean,
+  ) => {
+    // Persist not implemented yet — same stub as other inline details fields (`handleFieldSave`).
+    // if (!candidate) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   throw new Error("Invalid candidate id.")
+    // }
+    // const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    // const proj = we?.projects?.[projectIndex]
+    // if (!we || !proj) {
+    //   toast.error("Project not found.")
+    //   throw new Error("Project not found.")
+    // }
+    //
+    // const weId = Number(we.id)
+    // const projectId = proj.projectId
+    // if (!Number.isFinite(weId) || projectId == null) {
+    //   toast.error("Link a project before setting Main Contribution.")
+    //   throw new Error("Project not linked")
+    // }
+    //
+    // try {
+    //   await upsertWeProject(
+    //     candidateId,
+    //     weId,
+    //     projectId,
+    //     proj.contributionNotes ?? null,
+    //     newValue,
+    //   )
+    //
+    //   setFullCandidate((prev) => {
+    //     const base = prev ?? candidate
+    //     const workExperiences = base.workExperiences
+    //     if (!workExperiences?.[weIndex]?.projects?.[projectIndex]) return prev ?? base
+    //     const nextWorkExperiences = [...workExperiences]
+    //     const nextProjects = [...nextWorkExperiences[weIndex].projects]
+    //     nextProjects[projectIndex] = {
+    //       ...nextProjects[projectIndex],
+    //       isMainContribution: newValue,
+    //     }
+    //     nextWorkExperiences[weIndex] = {
+    //       ...nextWorkExperiences[weIndex],
+    //       projects: nextProjects,
+    //     }
+    //     return { ...base, workExperiences: nextWorkExperiences }
+    //   })
+    //
+    //   toast.success(
+    //     shouldVerify
+    //       ? "Main Contribution updated and verified ✓"
+    //       : "Main Contribution updated"
+    //   )
+    //   await refreshFullCandidate()
+    //   onCandidateUpdated?.()
+    // } catch (err) {
+    //   toast.error(err instanceof Error ? err.message : "Failed to update Main Contribution.")
+    //   throw err
+    // }
+
+    const message = shouldVerify
+      ? "Main Contribution updated and verified ✓"
+      : "Main Contribution updated"
+    toast.success(message)
   }
 
   // Handle certification creation
@@ -5616,6 +5696,7 @@ export function CandidateDetailsModal({
       exp.projects.forEach((proj, projIdx) => {
         fields.push(`workExperiences[${idx}].projects[${projIdx}].projectId`)
         fields.push(`workExperiences[${idx}].projects[${projIdx}].contributionNotes`)
+        fields.push(`workExperiences[${idx}].projects[${projIdx}].isMainContribution`)
       })
     })
     
@@ -6551,6 +6632,20 @@ export function CandidateDetailsModal({
                                             verificationIndicator={
                                               <VerificationIndicator fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`} />
                                             }
+                                            getFieldVerification={getFieldVerification}
+                                          />
+                                          <InlineEditableCheckbox
+                                            label="Main Contribution"
+                                            value={project.isMainContribution === true}
+                                            fieldName={`workExperiences[${idx}].projects[${projIdx}].isMainContribution`}
+                                            onSave={async (_fieldName, newValue, verify) => {
+                                              await handleWorkExperienceProjectMainContributionSave(
+                                                idx,
+                                                projIdx,
+                                                newValue,
+                                                verify,
+                                              )
+                                            }}
                                             getFieldVerification={getFieldVerification}
                                           />
                                       </div>

@@ -223,6 +223,7 @@ const defaultFilters: CandidateFilters = {
   averageTeamSizeMin: "",
   averageTeamSizeMax: "",
   hasPublishedProject: null,
+  hasMainContribution: null,
   publishPlatforms: [],
   minProjectDownloadCount: "",
   employerStatus: [],

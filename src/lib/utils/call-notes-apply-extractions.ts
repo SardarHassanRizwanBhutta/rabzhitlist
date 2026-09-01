@@ -335,6 +335,7 @@ function ensureProject(
     projectId: null,
     projectName: "",
     contributionNotes: "",
+    isMainContribution: false,
   })
   return we.projects.length - 1
 }
