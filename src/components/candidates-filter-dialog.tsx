@@ -2400,7 +2400,7 @@ export function CandidatesFilterDialog({
                     }}
                   />
                   <Label htmlFor="hasMainContribution" className="text-sm cursor-pointer">
-                    Main Contribution
+                    Main Contributor
                   </Label>
                 </div>
               </div>

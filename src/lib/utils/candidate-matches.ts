@@ -517,8 +517,8 @@ function appendBackendMatchedProjectItem(
   if (filters.hasMainContribution === true && mp.isMainContribution === true) {
     matchedCriteria.push({
       type: "isMainContribution",
-      label: "Main Contribution",
-      values: ["Main Contribution"],
+      label: "Main Contributor",
+      values: ["Main Contributor"],
     })
   }
 
