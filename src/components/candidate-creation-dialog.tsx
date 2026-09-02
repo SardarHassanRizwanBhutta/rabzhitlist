@@ -88,6 +88,7 @@ import {
   CANDIDATE_SOURCE_LABELS,
   type CandidateSourceDb,
   parseCandidateSource,
+  CALL_STATUS_DB,
   CALL_STATUS_UI_ORDER,
   CALL_STATUS_LABELS,
   type CallStatusDb,
@@ -1058,7 +1059,7 @@ const initialFormData: CandidateFormData = {
   linkedinUrl: "",
   githubUrl: "",
   source: "",
-  callStatus: "pending",
+  callStatus: "",
   workExperiences: [],
   certifications: [],
   educations: [],
@@ -2530,6 +2531,12 @@ export function CandidateCreationDialog({
     ) {
       basicErrors.source = "Source is required"
     }
+    if (
+      !formData.callStatus ||
+      !CALL_STATUS_DB.includes(formData.callStatus as CallStatusDb)
+    ) {
+      basicErrors.callStatus = "Call Status is required"
+    }
 
     // URL validation
     if (formData.linkedinUrl && !formData.linkedinUrl.startsWith('http')) {
@@ -3227,28 +3234,32 @@ export function CandidateCreationDialog({
                 <VerificationCheckbox fieldPath="source" />
               </div>
 
-              {mode === "edit" && (
-                <div className="space-y-2">
-                  <Label htmlFor="callStatus">Call Status</Label>
-                  <Select
-                    value={formData.callStatus === "" ? undefined : formData.callStatus}
-                    onValueChange={(value: CallStatusDb) => {
-                      handleInputChange("callStatus", value)
-                    }}
+              <div className="space-y-2">
+                <Label htmlFor="callStatus">Call Status *</Label>
+                <Select
+                  value={formData.callStatus === "" ? undefined : formData.callStatus}
+                  onValueChange={(value: CallStatusDb) => {
+                    handleInputChange("callStatus", value)
+                  }}
+                >
+                  <SelectTrigger
+                    id="callStatus"
+                    className={`w-full ${errors.basic?.callStatus ? "border-red-500" : ""}`}
                   >
-                    <SelectTrigger id="callStatus" className="w-full">
-                      <SelectValue placeholder="Select call status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALL_STATUS_UI_ORDER.map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {CALL_STATUS_LABELS[status]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                    <SelectValue placeholder="Select call status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CALL_STATUS_UI_ORDER.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {CALL_STATUS_LABELS[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.basic?.callStatus && (
+                  <p className="text-sm text-red-500">{errors.basic.callStatus}</p>
+                )}
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="personalityType">Personality Type</Label>
