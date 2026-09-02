@@ -57,6 +57,8 @@ export interface WorkExperience {
   id: string
   /** Linked employer (API); submit payloads should use this ID, not the name alone. */
   employerId?: number | null
+  /** Office PK (`employerLocationId` on the WE API). Null = unknown office. */
+  employerLocationId?: number | null
   employerName: string
   jobTitle: string
   projects: ProjectExperience[]
@@ -115,9 +117,11 @@ export interface CandidateEducation {
   id: string
   /** Linked university id (`universityId` on CandidateEducationDto). */
   universityId?: number | null
-  /** Same id as string — legacy field name used across forms. */
+  /** Same id as string — legacy field name used across forms (catalog university id). */
   universityLocationId: string
   universityLocationName: string
+  /** Campus PK (`universityLocationId` on the education API). Null = unknown location. */
+  campusLocationId?: number | null
   degreeName: string
   majorName: string
   startMonth: Date | undefined
@@ -189,6 +193,10 @@ export interface MatchedEducationDto {
   isTopper: boolean | null
   /** `true` only when `isMainCheetah=true` filter active and row matched via cheetah. */
   isMainCheetah: boolean | null
+  universityLocationId: number | null
+  universityLocationCity: string | null
+  universityLocationAddress: string | null
+  matchedByUniversityLocationId: boolean
 }
 
 /** Per achievement row match summary from GET /api/candidates list (`matchedAchievements`). */
@@ -222,6 +230,11 @@ export interface MatchedWorkExperienceDto {
   jobTitle: string | null
   startDate: string | null
   endDate: string | null
+  /** When `employerLocationIds` filter is active. */
+  employerLocationId?: number | null
+  employerLocationCity?: string | null
+  employerLocationAddress?: string | null
+  matchedByEmployerLocationId?: boolean
   shiftType: MatchedDomainDto | null
   workMode: MatchedDomainDto | null
   /** When `workExperienceSalaryPolicies` filter active (WE column, not employer). */

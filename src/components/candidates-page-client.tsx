@@ -156,6 +156,8 @@ const initialFilters: CandidateFilters = {
   employerSizeMax: "",
   employerRankings: [],
   universities: [],
+  universityLocationIds: [],
+  employerLocationIds: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,
@@ -507,6 +509,12 @@ export function CandidatesPageClient() {
     const universityIds = combinedFiltersForBackend.universities
       .map((v) => Number.parseInt(v, 10))
       .filter((n) => Number.isFinite(n) && n > 0)
+    const universityLocationIds = combinedFiltersForBackend.universityLocationIds
+      .map((v) => Number.parseInt(v, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
+    const employerLocationIds = combinedFiltersForBackend.employerLocationIds
+      .map((v) => Number.parseInt(v, 10))
+      .filter((n) => Number.isFinite(n) && n > 0)
 
     const issuingBodyIds = combinedFiltersForBackend.certificationIssuingBodies
       .map((name) => certificationIssuersLookup.find((i) => i.name === name)?.id)
@@ -630,6 +638,8 @@ export function CandidatesPageClient() {
       issuingBodyIds: issuingBodyIds.length > 0 ? issuingBodyIds : undefined,
       certificationLevels: certificationLevels.length > 0 ? certificationLevels : undefined,
       universityIds: universityIds.length > 0 ? universityIds : undefined,
+      universityLocationIds:
+        universityLocationIds.length > 0 ? universityLocationIds : undefined,
       degreeIds: degreeIds.length > 0 ? degreeIds : undefined,
       majorIds: majorIds.length > 0 ? majorIds : undefined,
       isTopper: combinedFiltersForBackend.isTopper ?? undefined,
@@ -637,6 +647,8 @@ export function CandidatesPageClient() {
       graduateDateStart: toDateOnly(combinedFiltersForBackend.educationEndDateStart),
       graduateDateEnd: toDateOnly(combinedFiltersForBackend.educationEndDateEnd),
       employerIds: employerIds.length > 0 ? employerIds : undefined,
+      employerLocationIds:
+        employerLocationIds.length > 0 ? employerLocationIds : undefined,
       employerSalaryPolicies:
         employerSalaryPolicies.length > 0 ? employerSalaryPolicies : undefined,
       employerTypes: employerTypes.length > 0 ? employerTypes : undefined,

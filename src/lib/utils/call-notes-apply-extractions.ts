@@ -299,6 +299,7 @@ function ensureWorkExperience(form: CandidateFormData, id: string): number {
   form.workExperiences.push({
     id: id === "0" ? `session-we-${crypto.randomUUID()}` : id,
     employerId: null,
+    employerLocationId: null,
     employerName: "",
     jobTitle: "",
     projects: [],

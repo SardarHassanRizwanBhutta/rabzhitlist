@@ -47,6 +47,7 @@ import {
   RANKING_TO_API,
   SALARY_POLICY_TO_API,
 } from "@/lib/services/employers-api"
+import { formatUniversityLocationLabel } from "@/lib/utils/university-location-label"
 
 /** Project filter: API id strings (preferred) or legacy project name (case-insensitive vs `project.projectName`). */
 function projectMatchesFilterEntry(project: Project, entry: string): boolean {
@@ -150,6 +151,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.expectedSalaryMin ||
     filters.expectedSalaryMax ||
     filters.employers.length > 0 ||
+    filters.employerLocationIds.length > 0 ||
     filters.projects.length > 0 ||
     filters.projectStatus.length > 0 ||
     filters.projectTypes.length > 0 ||
@@ -187,6 +189,7 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.employerSizeMax ||
     filters.employerRankings.length > 0 ||
     filters.universities.length > 0 ||
+    filters.universityLocationIds.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -553,6 +556,7 @@ function resolveMatchedEducationHeading(me: MatchedEducationDto): string {
 function hasBackendMatchedEducationFilterDrivers(filters: CandidateFilters): boolean {
   return (
     filters.universities.length > 0 ||
+    filters.universityLocationIds.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -588,6 +592,21 @@ function appendBackendMatchedEducationItem(
 
   if (filters.universities.length > 0 && me.matchedByUniversityId) {
     // Heading is already the university name — no separate university badge.
+    hasMatch = true
+  }
+
+  if (filters.universityLocationIds.length > 0 && me.matchedByUniversityLocationId) {
+    const label = formatUniversityLocationLabel(
+      me.universityLocationCity,
+      me.universityLocationAddress,
+    )
+    if (label) {
+      matchedCriteria.push({
+        type: "universityLocation",
+        label: "Campus",
+        values: [label],
+      })
+    }
     hasMatch = true
   }
 
@@ -955,7 +974,8 @@ function hasBackendMatchedWorkExperienceFilterDrivers(filters: CandidateFilters)
     filters.workExperienceSalaryPolicies.length > 0 ||
     filters.timeSupportZones.length > 0 ||
     filters.candidateTechStacks.length > 0 ||
-    filters.workExperienceBenefits.length > 0
+    filters.workExperienceBenefits.length > 0 ||
+    filters.employerLocationIds.length > 0
   )
 }
 
@@ -1028,6 +1048,20 @@ function appendBackendMatchedWorkExperienceItem(
       label: "Benefits",
       values: mwe.benefits.map(resolveMatchedDomainLabel),
     })
+  }
+
+  if (filters.employerLocationIds.length > 0 && mwe.matchedByEmployerLocationId) {
+    const label = formatUniversityLocationLabel(
+      mwe.employerLocationCity,
+      mwe.employerLocationAddress,
+    )
+    if (label) {
+      matchedCriteria.push({
+        type: "employerLocation",
+        label: "Office Location",
+        values: [label],
+      })
+    }
   }
 
   if (matchedCriteria.length === 0) return
@@ -1353,6 +1387,7 @@ export function getCandidateMatchContext(
   // Education Background Matches
   const hasEducationFilters = !!(
     filters.universities.length > 0 ||
+    filters.universityLocationIds.length > 0 ||
     filters.degreeNames.length > 0 ||
     filters.majorNames.length > 0 ||
     filters.isTopper !== null ||
@@ -1383,6 +1418,20 @@ export function getCandidateMatchContext(
         )
       ) {
         // Heading is already the university name — no separate university badge.
+        hasMatch = true
+      }
+
+      if (
+        filters.universityLocationIds.length > 0 &&
+        edu.campusLocationId != null &&
+        filters.universityLocationIds.includes(String(edu.campusLocationId))
+      ) {
+        const loc = edu.locations?.find((row) => row.city?.trim())
+        matchedCriteria.push({
+          type: "universityLocation",
+          label: "Campus",
+          values: [formatUniversityLocationLabel(loc?.city, loc?.address) || "Location"],
+        })
         hasMatch = true
       }
 
@@ -1696,12 +1745,12 @@ export function getCandidateMatchContext(
         if (hasBackendWeRowFilters) {
       if (filters.shiftTypes.length > 0 && we.shiftType) {
         if (filters.shiftTypes.includes(we.shiftType)) {
-          matchedCriteria.push({
+            matchedCriteria.push({
                 type: "shiftType",
                 label: "Shift Type",
                 values: [we.shiftType],
-          })
-          hasMatch = true
+            })
+            hasMatch = true
         }
       }
 
@@ -1730,14 +1779,14 @@ export function getCandidateMatchContext(
                   selected.toLowerCase() === wePolicyLabel.toLowerCase(),
               )
             if (matchesPolicy) {
-              matchedCriteria.push({
+          matchedCriteria.push({
                 type: "salaryPolicy",
                 label: "WE Salary Policy",
                 values: [wePolicyLabel],
-              })
-              hasMatch = true
-            }
-          }
+          })
+          hasMatch = true
+        }
+      }
 
           if (
             filters.timeSupportZones.length > 0 &&
@@ -1772,7 +1821,20 @@ export function getCandidateMatchContext(
           hasMatch = true
             }
         }
-      }
+
+          if (
+            filters.employerLocationIds.length > 0 &&
+            we.employerLocationId != null &&
+            filters.employerLocationIds.includes(String(we.employerLocationId))
+          ) {
+            matchedCriteria.push({
+              type: "employerLocation",
+              label: "Office Location",
+              values: ["Office Location"],
+            })
+            hasMatch = true
+          }
+        }
 
       if (hasMatch) {
         workExperienceItems.push({

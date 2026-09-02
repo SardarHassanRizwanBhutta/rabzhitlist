@@ -34,6 +34,7 @@ const baseForm: CandidateFormData = {
     {
       id: "we-1",
       employerId: null,
+      employerLocationId: null,
       employerName: "",
       jobTitle: "Engineer",
       projects: [

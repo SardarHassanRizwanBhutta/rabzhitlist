@@ -70,6 +70,7 @@ function mapFormWorkExperiences(
   return (rows ?? []).map((we) => ({
     id: we.id,
     employerId: we.employerId ?? null,
+    employerLocationId: we.employerLocationId ?? null,
     employerName: we.employerName || "",
     jobTitle: we.jobTitle || "",
     projects: mapFormProjects(we.projects),
@@ -105,6 +106,7 @@ function mapFormEducations(
     id: e.id,
     universityLocationId: e.universityLocationId || "",
     universityLocationName: e.universityLocationName || "",
+    campusLocationId: e.campusLocationId ?? null,
     degreeName: e.degreeName || "",
     majorName: e.majorName || "",
     startMonth: e.startMonth,

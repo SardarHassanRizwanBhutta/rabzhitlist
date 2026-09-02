@@ -42,6 +42,8 @@ import type { ProjectLookupDto } from "@/lib/services/projects-lookup-api"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
 import type { CertificationLookupDto } from "@/lib/services/certifications-lookup-api"
 import { fetchUniversityById } from "@/lib/services/universities-api"
+import { useUniversityCampusLocationsForIds } from "@/hooks/useUniversityCampusLocations"
+import { useEmployerOfficeLocationsForIds } from "@/hooks/useEmployerOfficeLocations"
 import type { UniversityLookupDto } from "@/lib/services/universities-api"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import {
@@ -93,6 +95,8 @@ export interface CandidateFilters {
   expectedSalaryMax: string
   /** Employer id strings from debounced API search, or legacy employer names (see `workExperienceMatchesEmployerFilter`). */
   employers: string[]
+  /** WE office PKs (`employerLocationIds` on GET /api/candidates). Enabled after employers are selected. */
+  employerLocationIds: string[]
   /** Project id strings from debounced API search (`/api/projects/search`), or legacy project names. */
   projects: string[]
   // Project-related filters
@@ -161,6 +165,8 @@ export interface CandidateFilters {
   employerRankings: string[]  // Filter candidates by employer ranking
   /** University id strings from debounced search or URL chip (`universityIds` on GET /api/candidates). */
   universities: string[]
+  /** Campus location PKs (`universityLocationIds` on GET /api/candidates). Enabled after universities are selected. */
+  universityLocationIds: string[]
   // Education detail filters
   degreeNames: string[]
   majorNames: string[]
@@ -385,6 +391,7 @@ const initialFilters: CandidateFilters = {
   expectedSalaryMin: "",
   expectedSalaryMax: "",
   employers: [],
+  employerLocationIds: [],
   projects: [],
   // Project-related filters
   projectStatus: [],
@@ -440,6 +447,7 @@ const initialFilters: CandidateFilters = {
   employerSizeMax: "",
   employerRankings: [],
   universities: [],
+  universityLocationIds: [],
   // Education detail filters
   degreeNames: [],
   majorNames: [],
@@ -527,6 +535,7 @@ function clearSectionFromFilters(
       break
     case "employers":
       updated.employers = []
+      updated.employerLocationIds = []
       updated.employerStatus = []
       updated.employerCountries = []
       updated.employerCity = ""
@@ -538,6 +547,7 @@ function clearSectionFromFilters(
       break
     case "education":
       updated.universities = []
+      updated.universityLocationIds = []
       updated.degreeNames = []
       updated.majorNames = []
       updated.isTopper = null
@@ -575,6 +585,81 @@ export function CandidatesFilterDialog({
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
+  const selectedUniversityIds = useMemo(
+    () =>
+      tempFilters.universities
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    [tempFilters.universities],
+  )
+  const selectedEmployerIds = useMemo(
+    () =>
+      tempFilters.employers
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n) && n > 0),
+    [tempFilters.employers],
+  )
+  const { locations: officeLocationOptions, loading: officeLocationsLoading } =
+    useEmployerOfficeLocationsForIds(selectedEmployerIds)
+  const officeLocationFilterItems = useMemo<MultiSelectOption[]>(
+    () => officeLocationOptions.map((loc) => ({ value: String(loc.id), label: loc.label })),
+    [officeLocationOptions],
+  )
+  const allowedOfficeLocationIds = useMemo(
+    () => new Set(officeLocationOptions.map((loc) => String(loc.id))),
+    [officeLocationOptions],
+  )
+
+  useEffect(() => {
+    if (tempFilters.employers.length === 0) {
+      if (tempFilters.employerLocationIds.length > 0) {
+        setTempFilters((prev) => ({ ...prev, employerLocationIds: [] }))
+      }
+      return
+    }
+    if (officeLocationsLoading) return
+    setTempFilters((prev) => {
+      const next = prev.employerLocationIds.filter((id) => allowedOfficeLocationIds.has(id))
+      if (next.length === prev.employerLocationIds.length) return prev
+      return { ...prev, employerLocationIds: next }
+    })
+  }, [
+    tempFilters.employers.length,
+    tempFilters.employerLocationIds,
+    officeLocationsLoading,
+    allowedOfficeLocationIds,
+  ])
+
+  const { locations: campusLocationOptions, loading: campusLocationsLoading } =
+    useUniversityCampusLocationsForIds(selectedUniversityIds)
+  const campusLocationFilterItems = useMemo<MultiSelectOption[]>(
+    () => campusLocationOptions.map((loc) => ({ value: String(loc.id), label: loc.label })),
+    [campusLocationOptions],
+  )
+  const allowedCampusLocationIds = useMemo(
+    () => new Set(campusLocationOptions.map((loc) => String(loc.id))),
+    [campusLocationOptions],
+  )
+
+  useEffect(() => {
+    if (tempFilters.universities.length === 0) {
+      if (tempFilters.universityLocationIds.length > 0) {
+        setTempFilters((prev) => ({ ...prev, universityLocationIds: [] }))
+      }
+      return
+    }
+    if (campusLocationsLoading) return
+    setTempFilters((prev) => {
+      const next = prev.universityLocationIds.filter((id) => allowedCampusLocationIds.has(id))
+      if (next.length === prev.universityLocationIds.length) return prev
+      return { ...prev, universityLocationIds: next }
+    })
+  }, [
+    tempFilters.universities.length,
+    tempFilters.universityLocationIds,
+    campusLocationsLoading,
+    allowedCampusLocationIds,
+  ])
 
   const timeSupportZoneFilterOptions = useMemo<MultiSelectOption[]>(
     () => timeSupportZones.map((z) => ({ value: z.name, label: z.name })),
@@ -1140,6 +1225,7 @@ export function CandidatesFilterDialog({
       case "employers":
         return (
           tempFilters.employers.length +
+          tempFilters.employerLocationIds.length +
           tempFilters.employerStatus.length +
           tempFilters.employerCountries.length +
           (tempFilters.employerCity.trim() ? 1 : 0) +
@@ -1152,6 +1238,7 @@ export function CandidatesFilterDialog({
       case "education":
         return (
           tempFilters.universities.length +
+          tempFilters.universityLocationIds.length +
           tempFilters.degreeNames.length +
           tempFilters.majorNames.length +
           (tempFilters.isTopper !== null ? 1 : 0) +
@@ -1289,6 +1376,7 @@ export function CandidatesFilterDialog({
     tempFilters.dataProgressMin ||
     tempFilters.dataProgressMax ||
     tempFilters.employers.length > 0 ||
+    tempFilters.employerLocationIds.length > 0 ||
     tempFilters.projects.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
     tempFilters.projectTypes.length > 0 ||
@@ -1328,6 +1416,7 @@ export function CandidatesFilterDialog({
     tempFilters.employerSizeMin ||
     tempFilters.employerSizeMax ||
     tempFilters.universities.length > 0 ||
+    tempFilters.universityLocationIds.length > 0 ||
     tempFilters.degreeNames.length > 0 ||
     tempFilters.majorNames.length > 0 ||
     tempFilters.isTopper !== null ||
@@ -2566,6 +2655,25 @@ export function CandidatesFilterDialog({
                   </Popover>
                 </div>
 
+                <div className="min-w-0 space-y-2">
+                  <MultiSelect
+                    items={officeLocationFilterItems}
+                    selected={tempFilters.employerLocationIds}
+                    onChange={(values) => handleFilterChange("employerLocationIds", values)}
+                    placeholder={
+                      tempFilters.employers.length === 0
+                        ? "Select an employer first"
+                        : officeLocationsLoading
+                          ? "Loading locations..."
+                          : "Filter by office location..."
+                    }
+                    label="Office Location"
+                    searchPlaceholder="Search locations..."
+                    maxDisplay={3}
+                    disabled={tempFilters.employers.length === 0 || officeLocationsLoading}
+                  />
+                </div>
+
                 <MultiSelect
                   items={employerStatusOptions}
                   selected={tempFilters.employerStatus}
@@ -2812,6 +2920,25 @@ export function CandidatesFilterDialog({
                     </Command>
                   </PopoverContent>
                 </Popover>
+              </div>
+
+              <div className="min-w-0 space-y-2">
+                <MultiSelect
+                  items={campusLocationFilterItems}
+                  selected={tempFilters.universityLocationIds}
+                  onChange={(values) => handleFilterChange("universityLocationIds", values)}
+                  placeholder={
+                    tempFilters.universities.length === 0
+                      ? "Select a university first"
+                      : campusLocationsLoading
+                        ? "Loading locations..."
+                        : "Filter by location..."
+                  }
+                  label="Campus"
+                  searchPlaceholder="Search locations..."
+                  maxDisplay={3}
+                  disabled={tempFilters.universities.length === 0 || campusLocationsLoading}
+                />
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
