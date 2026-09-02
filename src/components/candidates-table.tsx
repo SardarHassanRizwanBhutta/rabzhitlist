@@ -235,6 +235,8 @@ const defaultFilters: CandidateFilters = {
   employerSizeMax: "",
   employerRankings: [],
   universities: [],
+  universityLocationIds: [],
+  employerLocationIds: [],
   degreeNames: [],
   majorNames: [],
   isTopper: null,

@@ -51,6 +51,7 @@ const WORK_EXPERIENCE_FIELD_ORDER = [
 const WORK_EXPERIENCE_FIELD_LABELS: Record<string, string> = {
   employerId: "Employer",
   employerName: "Employer",
+  employerLocationId: "Office Location",
   jobTitle: "Job Title",
   startDate: "Start Date",
   endDate: "End Date",
@@ -64,6 +65,7 @@ const EDUCATION_FIELD_ORDER = [
 
 const EDUCATION_FIELD_LABELS: Record<string, string> = {
   universityLocationId: "University",
+  campusLocationId: "Campus",
   degreeName: "Degree Name",
   majorName: "Major Name",
 }

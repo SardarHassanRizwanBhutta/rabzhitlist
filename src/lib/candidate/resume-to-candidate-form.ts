@@ -213,6 +213,7 @@ function mapWorkExperiences(raw: unknown): WorkExperience[] {
     out.push({
       id: crypto.randomUUID(),
       employerId: null,
+      employerLocationId: null,
       employerName: employer,
       jobTitle,
       projects: projectRows,
@@ -339,6 +340,7 @@ function mapEducation(raw: unknown): CandidateEducation[] {
       id: crypto.randomUUID(),
       universityLocationId: "",
       universityLocationName,
+      campusLocationId: null,
       degreeName,
       majorName,
       startMonth: parseFlexibleDate(pick(o, ["startDate", "start", "start_year", "startYear"])),
@@ -445,6 +447,7 @@ export function resumeJsonToPartialCandidateForm(raw: unknown): Partial<Candidat
     workRows.push({
       id: crypto.randomUUID(),
       employerId: null,
+      employerLocationId: null,
       employerName: "",
       jobTitle: "",
       projects: orphanWeProjects,

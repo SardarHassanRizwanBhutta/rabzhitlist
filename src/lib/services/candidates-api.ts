@@ -186,6 +186,8 @@ interface CreateCandidateProjectDto {
 
 interface CreateCandidateEducationDto {
   universityId: number
+  /** Campus PK; `null` = unknown location. */
+  universityLocationId?: number | null
   degreeId?: number | null
   majorId?: number | null
   startMonth?: string | null
@@ -221,6 +223,8 @@ interface CreateCandidateWorkExperienceBenefitDto {
 
 interface CreateCandidateWorkExperienceDto {
   employerId: number | null
+  /** Office PK (`employer_locations.id`), or null if unknown. Always send. */
+  employerLocationId?: number | null
   jobTitle: string | null
   startDate?: string | null
   endDate?: string | null
@@ -387,6 +391,7 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     id: String(raw.id ?? `we-${idx}`),
     employerId:
       typeof eid === "number" && Number.isFinite(eid) ? eid : eid != null ? Number(eid) || null : null,
+    employerLocationId: parsePositiveInt(raw.employerLocationId),
     employerName: String(raw.employerName ?? ""),
     jobTitle: String(raw.jobTitle ?? ""),
     projects,
@@ -464,16 +469,14 @@ function mapCertification(raw: Record<string, unknown>, idx: number): CandidateC
   }
 }
 
+function parsePositiveInt(raw: unknown): number | null {
+  const n = typeof raw === "number" ? raw : raw != null ? Number(raw) : NaN
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEducation {
-  const universityIdRaw = raw.universityId ?? raw.universityLocationId
-  const universityIdNum =
-    typeof universityIdRaw === "number"
-      ? universityIdRaw
-      : universityIdRaw != null
-        ? Number(universityIdRaw)
-        : NaN
-  const universityId =
-    Number.isFinite(universityIdNum) && universityIdNum > 0 ? universityIdNum : null
+  const universityId = parsePositiveInt(raw.universityId)
+  const campusLocationId = parsePositiveInt(raw.universityLocationId)
 
   const universityName =
     raw.universityName ??
@@ -487,6 +490,7 @@ function mapEducation(raw: Record<string, unknown>, idx: number): CandidateEduca
     universityId,
     universityLocationId: universityId != null ? String(universityId) : "",
     universityLocationName: String(universityName ?? ""),
+    campusLocationId,
     universityName: String(universityName ?? ""),
     degreeName: String(raw.degreeName ?? ""),
     majorName: String(raw.majorName ?? ""),
@@ -600,6 +604,19 @@ function mapMatchedEducations(raw: unknown): MatchedEducationDto[] {
             : typeof item.isCheetah === "boolean"
               ? item.isCheetah
               : null,
+        universityLocationId:
+          item.universityLocationId != null && Number.isFinite(Number(item.universityLocationId))
+            ? Number(item.universityLocationId)
+            : null,
+        universityLocationCity:
+          typeof item.universityLocationCity === "string" && item.universityLocationCity.trim()
+            ? item.universityLocationCity.trim()
+            : null,
+        universityLocationAddress:
+          typeof item.universityLocationAddress === "string" && item.universityLocationAddress.trim()
+            ? item.universityLocationAddress.trim()
+            : null,
+        matchedByUniversityLocationId: item.matchedByUniversityLocationId === true,
       }
     })
     .filter((item) => Number.isFinite(item.educationId) && item.educationId > 0)
@@ -705,6 +722,16 @@ function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
           : typeof item.endDate === "string" && item.endDate.trim()
             ? item.endDate.trim()
             : null,
+      employerLocationId: parsePositiveInt(item.employerLocationId),
+      employerLocationCity:
+        typeof item.employerLocationCity === "string" && item.employerLocationCity.trim()
+          ? item.employerLocationCity.trim()
+          : null,
+      employerLocationAddress:
+        typeof item.employerLocationAddress === "string" && item.employerLocationAddress.trim()
+          ? item.employerLocationAddress.trim()
+          : null,
+      matchedByEmployerLocationId: item.matchedByEmployerLocationId === true,
       shiftType: mapMatchedDomain(item.shiftType),
       workMode: mapMatchedDomain(item.workMode),
       salaryPolicy: mapMatchedDomain(item.salaryPolicy),
@@ -1113,6 +1140,7 @@ export function candidateFormDataToCreateDto(
     .filter((e) => e.universityLocationId)
     .map((e) => ({
       universityId: Number(e.universityLocationId),
+      universityLocationId: e.campusLocationId != null && e.campusLocationId > 0 ? e.campusLocationId : null,
       degreeId: e.degreeName ? lookupIdByName(lookups?.degrees ?? [], e.degreeName) : null,
       majorId: e.majorName ? lookupIdByName(lookups?.majors ?? [], e.majorName) : null,
       startMonth: formatDateForApi(e.startMonth),
@@ -1200,6 +1228,8 @@ export function candidateFormDataToCreateDto(
       const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
       return {
         employerId: we.employerId ?? null,
+        employerLocationId:
+          we.employerLocationId != null && we.employerLocationId > 0 ? we.employerLocationId : null,
         jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
         startDate: formatDateForApi(we.startDate),
         endDate: formatDateForApi(we.endDate),
@@ -1291,9 +1321,13 @@ export async function fetchCandidatesPage(
     majorIds?: number[]
     isTopper?: boolean
     isMainCheetah?: boolean
+    /** Education campus PKs OR (`?universityLocationIds=1&universityLocationIds=2`). */
+    universityLocationIds?: number[]
     graduateDateStart?: string
     graduateDateEnd?: string
     employerIds?: number[]
+    /** WE office PKs OR (`?employerLocationIds=1&employerLocationIds=2`). */
+    employerLocationIds?: number[]
     employerSalaryPolicies?: number[]
     employerTypes?: number[]
     employerCountries?: number[]
@@ -1388,11 +1422,13 @@ export async function fetchCandidatesPage(
   appendNumberList("degreeIds", options?.degreeIds)
   appendNumberList("majorIds", options?.majorIds)
   if (options?.isTopper != null) params.set("isTopper", String(options.isTopper))
+  appendNumberList("universityLocationIds", options?.universityLocationIds)
   if (options?.isMainCheetah != null) params.set("isMainCheetah", String(options.isMainCheetah))
   if (options?.graduateDateStart) params.set("graduateDateStart", options.graduateDateStart)
   if (options?.graduateDateEnd) params.set("graduateDateEnd", options.graduateDateEnd)
 
   appendNumberList("employerIds", options?.employerIds)
+  appendNumberList("employerLocationIds", options?.employerLocationIds)
   appendNumberList("employerSalaryPolicies", options?.employerSalaryPolicies)
   appendNumberList("employerTypes", options?.employerTypes)
   appendNumberList("employerCountries", options?.employerCountries)
@@ -1623,6 +1659,8 @@ export function deleteCandidateAchievement(candidateId: number, achievementId: n
 
 interface CreateWorkExperienceBody {
   employerId: number | null
+  /** Always send; omit/null stores null on the API. */
+  employerLocationId?: number | null
   jobTitle: string | null
   startDate?: string | null
   endDate?: string | null
@@ -1725,6 +1763,7 @@ export async function syncCandidateSubResources(
     if (!edu.universityLocationId && !edu.degreeName && !edu.majorName) continue
     const eduBody: CreateCandidateEducationDto = {
       universityId: edu.universityLocationId ? Number(edu.universityLocationId) : 0,
+      universityLocationId: edu.campusLocationId != null && edu.campusLocationId > 0 ? edu.campusLocationId : null,
       degreeId: edu.degreeName ? lookupIdByName(lookups?.degrees ?? [], edu.degreeName) : null,
       majorId: edu.majorName ? lookupIdByName(lookups?.majors ?? [], edu.majorName) : null,
       startMonth: formatDateForApi(edu.startMonth),
@@ -1815,6 +1854,8 @@ export async function syncCandidateSubResources(
     const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
     const weBasic: CreateWorkExperienceBody = {
       employerId: we.employerId ?? null,
+      employerLocationId:
+        we.employerLocationId != null && we.employerLocationId > 0 ? we.employerLocationId : null,
       jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
       startDate: formatDateForApi(we.startDate),
       endDate: formatDateForApi(we.endDate),

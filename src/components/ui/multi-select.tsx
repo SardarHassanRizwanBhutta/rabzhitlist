@@ -206,7 +206,7 @@ export function MultiSelect({
     filteredItems.length === 0
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       {label && <Label>{label}</Label>}
       <Popover open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen)
@@ -220,12 +220,12 @@ export function MultiSelect({
             role="combobox"
             aria-expanded={open}
             className={cn(
-              "w-full justify-between h-auto min-h-[2.5rem] px-3 py-2",
+              "h-auto min-h-[2.5rem] w-full min-w-0 max-w-full shrink justify-between overflow-hidden px-3 py-2",
               className
             )}
             disabled={disabled}
           >
-            <div className="flex flex-wrap gap-1 flex-1 mr-2">
+            <div className="mr-2 flex min-w-0 flex-1 flex-wrap items-center gap-1">
               {selectedOptions.length === 0 && (
                 <span className="text-muted-foreground">{placeholder}</span>
               )}
@@ -233,9 +233,10 @@ export function MultiSelect({
                 <Badge
                   variant="secondary"
                   key={option.value}
-                  className="mr-1 mb-1 hover:bg-secondary/80 flex items-center"
+                  className="flex max-w-full min-w-0 shrink items-center hover:bg-secondary/80"
+                  title={option.label}
                 >
-                  {option.label}
+                  <span className="min-w-0 truncate">{option.label}</span>
                   <span
                     className="ml-1 ring-offset-background rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
                     role="button"
@@ -258,7 +259,7 @@ export function MultiSelect({
                     }}
                     aria-label={`Remove ${option.label}`}
                   >
-                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                    <X className="h-3 w-3 shrink-0 text-muted-foreground hover:text-foreground" />
                   </span>
                 </Badge>
               ))}

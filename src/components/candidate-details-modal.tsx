@@ -117,37 +117,39 @@ import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState, candidateToFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
 import { CandidateResumeField } from "@/components/candidates/candidate-resume-field"
-import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import { useUniversityCampusLocations } from "@/hooks/useUniversityCampusLocations"
+import { useEmployerOfficeLocations } from "@/hooks/useEmployerOfficeLocations"
+// import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import {
-  updateCandidate,
-  candidateFormDataToUpdateDto,
-  syncCandidateSubResources,
-  prepareCandidateCreateLookups,
+  // updateCandidate,
+  // candidateFormDataToUpdateDto,
+  // syncCandidateSubResources,
+  // prepareCandidateCreateLookups,
   // fetchCandidateDataProgress,
   fetchCandidateById,
-  upsertCandidateCertification,
-  updateCandidateEducation,
-  updateCandidateWorkExperience,
-  addWeTimeSupportZone,
-  removeWeTimeSupportZone,
-  upsertWeBenefit,
-  removeWeBenefit,
-  upsertWeProject,
-  removeWeProject,
+  // upsertCandidateCertification,
+  // updateCandidateEducation,
+  // updateCandidateWorkExperience,
+  // addWeTimeSupportZone,
+  // removeWeTimeSupportZone,
+  // upsertWeBenefit,
+  // removeWeBenefit,
+  // upsertWeProject,
+  // removeWeProject,
 } from "@/lib/services/candidates-api"
 // import { CandidateDataProgressPanel } from "@/components/candidate-data-progress-panel"
 // import type { CandidateDataProgressResponse } from "@/lib/types/candidate-data-progress"
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
 import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
-import { fetchTimeSupportZones, createTimeSupportZone } from "@/lib/services/tags-timesupportzones-api"
-import { fetchAwards, createAward } from "@/lib/services/awards-api"
-import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
+import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
+import { fetchAwards } from "@/lib/services/awards-api"
+import { fetchBenefits } from "@/lib/services/benefits-api"
 import {
   fetchDegrees,
   fetchMajors,
-  createDegree,
-  createMajor,
+  // createDegree,
+  // createMajor,
   type DegreeDto,
   type MajorDto,
 } from "@/lib/services/majors-degrees-api"
@@ -224,7 +226,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { EmployerBenefit, employerBenefitToApiValueFields } from "@/lib/types/benefits"
+import { EmployerBenefit } from "@/lib/types/benefits"
 
 // Option interfaces and data for comboboxes
 interface ComboboxOption {
@@ -876,6 +878,8 @@ interface InlineEditableComboboxProps {
   onCreateDialog?: (searchValue: string) => void
   catalogOptions?: ComboboxOption[]
   optionsLoading?: boolean
+  disabled?: boolean
+  allowDeselect?: boolean
 }
 
 const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
@@ -897,6 +901,8 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   onCreateDialog,
   catalogOptions,
   optionsLoading = false,
+  disabled = false,
+  allowDeselect = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState(value || '')
@@ -1067,7 +1073,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                 role="combobox"
                 aria-expanded={open}
                 className="w-full justify-between"
-                disabled={isSaving || optionsLoading}
+                disabled={isSaving || optionsLoading || disabled}
               >
                 {editValue
                   ? (options.find((option) => option.value === editValue)?.label ?? editValue)
@@ -1123,7 +1129,11 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                         <CommandItem
                           key={option.value}
                           value={option.value}
-                          onSelect={() => handleValueChange(option.value)}
+                          onSelect={() =>
+                            handleValueChange(
+                              allowDeselect && option.value === editValue ? "" : option.value
+                            )
+                          }
                           className="cursor-pointer"
                         >
                           {option.label}
@@ -2753,30 +2763,32 @@ const InlineEditableSelect: React.FC<InlineEditableSelectProps> = ({
   )
 }
 
-function formatCertDateForApi(d: Date | undefined): string | null {
-  if (!d || Number.isNaN(d.getTime())) return null
-  return d.toISOString().slice(0, 10)
-}
+// Used by deferred inline persist. Keep until those saves are wired again.
+// function formatCertDateForApi(d: Date | undefined): string | null {
+//   if (!d || Number.isNaN(d.getTime())) return null
+//   return d.toISOString().slice(0, 10)
+// }
 
-function lookupIdByName<T extends { id: number; name: string }>(
-  items: T[],
-  name: string | undefined
-): number | null {
-  if (!name?.trim()) return null
-  const key = name.trim().toLowerCase()
-  const match = items.find((item) => item.name.trim().toLowerCase() === key)
-  return match?.id ?? null
-}
-
-function resolveWorkExperienceBenefitId(
-  benefit: EmployerBenefit,
-  benefitsLookup: LookupItem[]
-): number | null {
-  const byName = lookupIdByName(benefitsLookup, benefit.name)
-  if (byName != null) return byName
-  const parsed = Number(benefit.id)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-}
+// Used by deferred inline persist (education / WE sub-resources). Keep until those saves are wired again.
+// function lookupIdByName<T extends { id: number; name: string }>(
+//   items: T[],
+//   name: string | undefined
+// ): number | null {
+//   if (!name?.trim()) return null
+//   const key = name.trim().toLowerCase()
+//   const match = items.find((item) => item.name.trim().toLowerCase() === key)
+//   return match?.id ?? null
+// }
+//
+// function resolveWorkExperienceBenefitId(
+//   benefit: EmployerBenefit,
+//   benefitsLookup: LookupItem[]
+// ): number | null {
+//   const byName = lookupIdByName(benefitsLookup, benefit.name)
+//   if (byName != null) return byName
+//   const parsed = Number(benefit.id)
+//   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+// }
 
 function universitySelectionsEqual(
   a: SelectedUniversity,
@@ -2784,6 +2796,12 @@ function universitySelectionsEqual(
 ): boolean {
   if (!a || !b) return !a && !b
   return a.id === b.id && a.name === b.name
+}
+
+function educationUniversityId(education: CandidateEducation): number | null {
+  if (education.universityId != null && education.universityId > 0) return education.universityId
+  const n = Number(education.universityLocationId)
+  return Number.isFinite(n) && n > 0 ? n : null
 }
 
 function educationLinkedUniversity(education: CandidateEducation): SelectedUniversity {
@@ -2794,6 +2812,101 @@ function educationLinkedUniversity(education: CandidateEducation): SelectedUnive
   const idNum = Number(uid)
   if (!Number.isFinite(idNum)) return null
   return { id: idNum, name }
+}
+
+function InlineEducationCampusLocation({
+  education,
+  eduIndex,
+  onSave,
+  getFieldVerification,
+  verificationIndicator,
+}: {
+  education: CandidateEducation
+  eduIndex: number
+  onSave: (eduIndex: number, campusLocationId: number | null, shouldVerify: boolean) => Promise<void>
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  verificationIndicator: React.ReactNode
+}) {
+  const universityId = educationUniversityId(education)
+  const { locations, loading } = useUniversityCampusLocations(universityId)
+  const hasUniversity = universityId != null && universityId > 0
+  const options = locations.map((loc) => ({ value: String(loc.id), label: loc.label }))
+
+  return (
+    <InlineEditableCombobox
+      label="Campus"
+      value={education.campusLocationId != null ? String(education.campusLocationId) : ""}
+      fieldName={`educations[${eduIndex}].campusLocationId`}
+      options={options}
+      optionsLoading={loading}
+      disabled={!hasUniversity}
+      allowDeselect
+      onSave={async (_fieldName, newValue, shouldVerify) => {
+        const n = Number(newValue)
+        await onSave(eduIndex, Number.isFinite(n) && n > 0 ? n : null, shouldVerify)
+      }}
+      placeholder={
+        !hasUniversity
+          ? "Select a university first"
+          : loading
+            ? "Loading locations..."
+            : "Select campus"
+      }
+      searchPlaceholder="Search locations..."
+      emptyMessage={loading ? "Loading locations..." : "No locations"}
+      getFieldVerification={getFieldVerification}
+      verificationIndicator={verificationIndicator}
+      className={loading || !hasUniversity ? "opacity-70" : undefined}
+    />
+  )
+}
+
+function InlineWorkExperienceOfficeLocation({
+  experience,
+  weIndex,
+  onSave,
+  getFieldVerification,
+  verificationIndicator,
+}: {
+  experience: WorkExperience
+  weIndex: number
+  onSave: (weIndex: number, employerLocationId: number | null, shouldVerify: boolean) => Promise<void>
+  getFieldVerification: (fieldName: string) => { status: "verified" | "unverified" } | undefined
+  verificationIndicator: React.ReactNode
+}) {
+  const employerId =
+    experience.employerId != null && experience.employerId > 0 ? experience.employerId : null
+  const { locations, loading } = useEmployerOfficeLocations(employerId)
+  const hasEmployer = employerId != null
+  const options = locations.map((loc) => ({ value: String(loc.id), label: loc.label }))
+
+  return (
+    <InlineEditableCombobox
+      label="Office Location"
+      value={experience.employerLocationId != null ? String(experience.employerLocationId) : ""}
+      fieldName={`workExperiences[${weIndex}].employerLocationId`}
+      options={options}
+      optionsLoading={loading}
+      disabled={!hasEmployer}
+      allowDeselect
+      onSave={async (_fieldName, newValue, shouldVerify) => {
+        const n = Number(newValue)
+        await onSave(weIndex, Number.isFinite(n) && n > 0 ? n : null, shouldVerify)
+      }}
+      placeholder={
+        !hasEmployer
+          ? "Select an employer first"
+          : loading
+            ? "Loading locations..."
+            : "Select office location"
+      }
+      searchPlaceholder="Search locations..."
+      emptyMessage={loading ? "Loading locations..." : "No locations"}
+      getFieldVerification={getFieldVerification}
+      verificationIndicator={verificationIndicator}
+      className={loading || !hasEmployer ? "opacity-70" : undefined}
+    />
+  )
 }
 
 interface InlineEditableUniversityProps {
@@ -3221,13 +3334,14 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
   )
 }
 
-function certificationLevelToApiIndex(
-  level: CandidateCertification["certificationLevel"]
-): number | null {
-  if (!level) return null
-  const idx = CERTIFICATION_LEVEL_DB.indexOf(level as CertificationLevelDb)
-  return idx >= 0 ? idx : null
-}
+// Used by deferred inline persist. Keep until those saves are wired again.
+// function certificationLevelToApiIndex(
+//   level: CandidateCertification["certificationLevel"]
+// ): number | null {
+//   if (!level) return null
+//   const idx = CERTIFICATION_LEVEL_DB.indexOf(level as CertificationLevelDb)
+//   return idx >= 0 ? idx : null
+// }
 
 function certificationSelectionsEqual(
   a: SelectedCertification,
@@ -4163,28 +4277,41 @@ export function CandidateDetailsModal({
         benefits: apiBenefits,
       },
       onCreateTimeSupportZone: async (name: string) => {
-        const created = await createTimeSupportZone(name)
-        setApiTimeSupportZones((prev) => [
-          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
-          created,
-        ])
+        // Persist not implemented yet — catalog create from Details deferred to a later version.
+        // const created = await createTimeSupportZone(name)
+        // setApiTimeSupportZones((prev) => [
+        //   ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        //   created,
+        // ])
+        toast.success(`Time support zone "${name}" created`)
       },
       onCreateAward: async (name: string) => {
-        const created = await createAward(name)
-        setApiAwards((prev) => [
-          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
-          created,
-        ])
+        // Persist not implemented yet — catalog create from Details deferred to a later version.
+        // const created = await createAward(name)
+        // setApiAwards((prev) => [
+        //   ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        //   created,
+        // ])
+        toast.success(`Award "${name}" created`)
       },
       onCreateBenefit: async (name: string) => {
-        const created = await createBenefit(name)
-        setApiBenefits((prev) => [
-          ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
-          created,
-        ])
+        // Persist not implemented yet — catalog create from Details deferred to a later version.
+        // const created = await createBenefit(name)
+        // setApiBenefits((prev) => [
+        //   ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
+        //   created,
+        // ])
+        // return {
+        //   id: String(created.id),
+        //   name: created.name,
+        //   hasValue: false,
+        //   amount: null,
+        //   unit: null,
+        // }
+        toast.success(`Benefit "${name}" created`)
         return {
-          id: String(created.id),
-          name: created.name,
+          id: `local-${name}`,
+          name,
           hasValue: false,
           amount: null,
           unit: null,
@@ -4481,30 +4608,31 @@ export function CandidateDetailsModal({
   }
   
   // Handle inline field save with verification
-  const handleFieldSave = async (fieldName: string, newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
+  const handleFieldSave = async (fieldName: string, _newValue: string | number | Date | undefined | string[] | EmployerBenefit[] | boolean, shouldVerify: boolean) => {
     if (!candidate) return
     
     try {
-      if (fieldName === "callStatus") {
-        const id = Number(candidate.id)
-        if (!Number.isFinite(id)) throw new Error("Invalid candidate id.")
-        if (
-          typeof newValue !== "string" ||
-          !CALL_STATUS_DB.includes(newValue as CallStatusDb)
-        ) {
-          throw new Error("Select a valid Call Status.")
-        }
-
-        const existing = fullCandidate ?? candidate
-        const formData = candidateToFormData(existing)
-        formData.callStatus = newValue as CallStatusDb
-        await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
-        const refreshed = await fetchCandidateById(id)
-        setFullCandidate(refreshed)
-        onCandidateUpdated?.()
-        toast.success("Call Status updated")
-        return
-      }
+      // Persist not implemented yet — inline field save deferred to a later version.
+      // if (fieldName === "callStatus") {
+      //   const id = Number(candidate.id)
+      //   if (!Number.isFinite(id)) throw new Error("Invalid candidate id.")
+      //   if (
+      //     typeof newValue !== "string" ||
+      //     !CALL_STATUS_DB.includes(newValue as CallStatusDb)
+      //   ) {
+      //     throw new Error("Select a valid Call Status.")
+      //   }
+      //
+      //   const existing = fullCandidate ?? candidate
+      //   const formData = candidateToFormData(existing)
+      //   formData.callStatus = newValue as CallStatusDb
+      //   await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
+      //   const refreshed = await fetchCandidateById(id)
+      //   setFullCandidate(refreshed)
+      //   onCandidateUpdated?.()
+      //   toast.success("Call Status updated")
+      //   return
+      // }
 
       // In real app, this would call API to update candidate field AND verification
       // await updateCandidateField(candidate.id, {
@@ -4517,9 +4645,12 @@ export function CandidateDetailsModal({
       // })
       
       // For now, just show success message
-      const message = shouldVerify 
-        ? `${fieldName} updated and verified ✓` 
-        : `${fieldName} updated`
+      const message =
+        fieldName === "callStatus"
+          ? "Call Status updated"
+          : shouldVerify
+            ? `${fieldName} updated and verified ✓`
+            : `${fieldName} updated`
       toast.success(message)
       
       // Note: In real implementation, you'd update local state or refetch candidate data
@@ -4536,23 +4667,33 @@ export function CandidateDetailsModal({
   }
   
   const handleCreateBenefit = React.useCallback(async (name: string): Promise<EmployerBenefit | null> => {
-    try {
-      const created = await createBenefit(name)
-      setApiBenefits((prev) =>
-        [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created].sort(
-          (a, b) => a.name.localeCompare(b.name)
-        )
-      )
-      return {
-        id: String(created.id),
-        name: created.name,
-        hasValue: false,
-        amount: null,
-        unit: null,
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add benefit")
-      return null
+    // Persist not implemented yet — catalog create from Details deferred to a later version.
+    // try {
+    //   const created = await createBenefit(name)
+    //   setApiBenefits((prev) =>
+    //     [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created].sort(
+    //       (a, b) => a.name.localeCompare(b.name)
+    //     )
+    //   )
+    //   return {
+    //     id: String(created.id),
+    //     name: created.name,
+    //     hasValue: false,
+    //     amount: null,
+    //     unit: null,
+    //   }
+    // } catch (e) {
+    //   toast.error(e instanceof Error ? e.message : "Failed to add benefit")
+    //   return null
+    // }
+
+    toast.success(`Benefit "${name}" created`)
+    return {
+      id: `local-${name}`,
+      name,
+      hasValue: false,
+      amount: null,
+      unit: null,
     }
   }, [])
 
@@ -4740,53 +4881,61 @@ export function CandidateDetailsModal({
   }
 
   const persistEducationUniversity = async (
-    eduIndex: number,
+    _eduIndex: number,
     selection: SelectedUniversity,
     shouldVerify: boolean
   ) => {
-    if (!candidate || !selection?.id) return
-    const candidateId = Number(candidate.id)
-    if (!Number.isFinite(candidateId)) {
-      toast.error("Invalid candidate id.")
-      throw new Error("Invalid candidate id")
-    }
-    const edu = (fullCandidate ?? candidate).educations?.[eduIndex]
-    if (!edu) return
-    const educationId = Number(edu.id)
-    if (!Number.isFinite(educationId)) {
-      toast.error("Cannot update education without a valid id.")
-      throw new Error("Invalid education id")
-    }
+    // Persist not implemented yet — inline education-row save deferred to a later version.
+    // if (!candidate || !selection?.id) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   throw new Error("Invalid candidate id")
+    // }
+    // const edu = (fullCandidate ?? candidate).educations?.[eduIndex]
+    // if (!edu) return
+    // const educationId = Number(edu.id)
+    // if (!Number.isFinite(educationId)) {
+    //   toast.error("Cannot update education without a valid id.")
+    //   throw new Error("Invalid education id")
+    // }
+    //
+    // await updateCandidateEducation(candidateId, educationId, {
+    //   universityId: selection.id,
+    //   universityLocationId: null,
+    //   degreeId: lookupIdByName(degreeMajorLookups.degrees, edu.degreeName),
+    //   majorId: lookupIdByName(degreeMajorLookups.majors, edu.majorName),
+    //   startMonth: formatCertDateForApi(edu.startMonth),
+    //   endMonth: formatCertDateForApi(edu.endMonth),
+    //   grades: edu.grades ?? null,
+    //   isTopper: edu.isTopper ?? false,
+    //   isMainCheetah: edu.isCheetah ?? false,
+    // })
+    //
+    // setFullCandidate((prev) => {
+    //   const base = prev ?? candidate
+    //   if (!base.educations?.[eduIndex]) return prev ?? base
+    //   const nextEducations = [...base.educations]
+    //   nextEducations[eduIndex] = {
+    //     ...nextEducations[eduIndex],
+    //     universityLocationId: String(selection.id),
+    //     universityLocationName: selection.name,
+    //     campusLocationId: null,
+    //   }
+    //   return { ...base, educations: nextEducations }
+    // })
+    //
+    // const message = shouldVerify
+    //   ? "University updated and verified ✓"
+    //   : "University updated"
+    // toast.success(message)
+    // await refreshFullCandidate()
+    // onCandidateUpdated?.()
 
-    await updateCandidateEducation(candidateId, educationId, {
-      universityId: selection.id,
-      degreeId: lookupIdByName(degreeMajorLookups.degrees, edu.degreeName),
-      majorId: lookupIdByName(degreeMajorLookups.majors, edu.majorName),
-      startMonth: formatCertDateForApi(edu.startMonth),
-      endMonth: formatCertDateForApi(edu.endMonth),
-      grades: edu.grades ?? null,
-      isTopper: edu.isTopper ?? false,
-      isMainCheetah: edu.isCheetah ?? false,
-    })
-
-    setFullCandidate((prev) => {
-      const base = prev ?? candidate
-      if (!base.educations?.[eduIndex]) return prev ?? base
-      const nextEducations = [...base.educations]
-      nextEducations[eduIndex] = {
-        ...nextEducations[eduIndex],
-        universityLocationId: String(selection.id),
-        universityLocationName: selection.name,
-      }
-      return { ...base, educations: nextEducations }
-    })
-
-    const message = shouldVerify
-      ? "University updated and verified ✓"
-      : "University updated"
-    toast.success(message)
-    await refreshFullCandidate()
-    onCandidateUpdated?.()
+    if (!selection?.id) return
+    toast.success(
+      shouldVerify ? "University updated and verified ✓" : "University updated"
+    )
   }
 
   const handleEducationUniversitySave = async (
@@ -4804,93 +4953,167 @@ export function CandidateDetailsModal({
     }
   }
 
+  const persistEducationCampusLocation = async (
+    _eduIndex: number,
+    _campusLocationId: number | null,
+    shouldVerify: boolean,
+  ) => {
+    // Persist not implemented yet — inline education-row save deferred to a later version.
+    // if (!candidate) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   throw new Error("Invalid candidate id")
+    // }
+    // const edu = (fullCandidate ?? candidate).educations?.[eduIndex]
+    // if (!edu) return
+    // const educationId = Number(edu.id)
+    // const universityId =
+    //   edu.universityId ??
+    //   (edu.universityLocationId && Number.isFinite(Number(edu.universityLocationId))
+    //     ? Number(edu.universityLocationId)
+    //     : null)
+    // if (!Number.isFinite(educationId) || universityId == null) {
+    //   toast.error("Link a university before setting Location.")
+    //   throw new Error("University not linked")
+    // }
+    //
+    // await updateCandidateEducation(candidateId, educationId, {
+    //   universityId,
+    //   universityLocationId: campusLocationId,
+    //   degreeId: lookupIdByName(degreeMajorLookups.degrees, edu.degreeName),
+    //   majorId: lookupIdByName(degreeMajorLookups.majors, edu.majorName),
+    //   startMonth: formatCertDateForApi(edu.startMonth),
+    //   endMonth: formatCertDateForApi(edu.endMonth),
+    //   grades: edu.grades ?? null,
+    //   isTopper: edu.isTopper ?? false,
+    //   isMainCheetah: edu.isCheetah ?? false,
+    // })
+    //
+    // setFullCandidate((prev) => {
+    //   const base = prev ?? candidate
+    //   if (!base.educations?.[eduIndex]) return prev ?? base
+    //   const nextEducations = [...base.educations]
+    //   nextEducations[eduIndex] = {
+    //     ...nextEducations[eduIndex],
+    //     campusLocationId,
+    //   }
+    //   return { ...base, educations: nextEducations }
+    // })
+    //
+    // toast.success(
+    //   shouldVerify ? "Location updated and verified ✓" : "Location updated"
+    // )
+    // await refreshFullCandidate()
+    // onCandidateUpdated?.()
+
+    toast.success(
+      shouldVerify ? "Campus updated and verified ✓" : "Campus updated"
+    )
+  }
+
   const persistWorkExperienceRow = async (
-    weIndex: number,
-    patch: {
+    _weIndex: number,
+    _patch: {
       shiftType?: string
       workMode?: string
       salaryPolicy?: string | null
       employerId?: number
       employerName?: string
+      employerLocationId?: number | null
     },
     shouldVerify: boolean,
     successLabel: string
   ) => {
-    if (!candidate) return
-    const candidateId = Number(candidate.id)
-    if (!Number.isFinite(candidateId)) {
-      toast.error("Invalid candidate id.")
-      throw new Error("Invalid candidate id")
-    }
-    const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
-    if (!we) return
-    const weId = Number(we.id)
-    if (!Number.isFinite(weId)) {
-      toast.error("Cannot update work experience without a valid id.")
-      throw new Error("Invalid work experience id")
-    }
-    const employerId = patch.employerId ?? we.employerId
-    if (employerId == null) {
-      toast.error("Link an employer before updating this field.")
-      throw new Error("Employer not linked")
-    }
+    // Persist not implemented yet — inline work-experience-row save deferred to a later version.
+    // if (!candidate) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   throw new Error("Invalid candidate id")
+    // }
+    // const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    // if (!we) return
+    // const weId = Number(we.id)
+    // if (!Number.isFinite(weId)) {
+    //   toast.error("Cannot update work experience without a valid id.")
+    //   throw new Error("Invalid work experience id")
+    // }
+    // const employerId = patch.employerId ?? we.employerId
+    // if (employerId == null) {
+    //   toast.error("Link an employer before updating this field.")
+    //   throw new Error("Employer not linked")
+    // }
+    //
+    // const nextShiftType =
+    //   patch.shiftType !== undefined
+    //     ? shiftTypeToSelectValue(patch.shiftType)
+    //     : shiftTypeToSelectValue(we.shiftType ?? "")
+    // const nextWorkMode =
+    //   patch.workMode !== undefined
+    //     ? workModeToSelectValue(patch.workMode)
+    //     : workModeToSelectValue(we.workMode ?? "")
+    // const nextSalaryPolicy =
+    //   patch.salaryPolicy !== undefined
+    //     ? salaryPolicyToSelectValue(patch.salaryPolicy)
+    //     : salaryPolicyToSelectValue(we.salaryPolicy)
+    // const nextSalaryPolicyApi =
+    //   nextSalaryPolicy && nextSalaryPolicy in SALARY_POLICY_DISPLAY_TO_DB
+    //     ? SALARY_POLICY_TO_API[
+    //         SALARY_POLICY_DISPLAY_TO_DB[nextSalaryPolicy as SalaryPolicy]
+    //       ]
+    //     : null
+    //
+    // const nextEmployerLocationId =
+    //   patch.employerLocationId !== undefined
+    //     ? patch.employerLocationId
+    //     : patch.employerId !== undefined && patch.employerId !== we.employerId
+    //       ? null
+    //       : we.employerLocationId ?? null
+    //
+    // await updateCandidateWorkExperience(candidateId, weId, {
+    //   employerId,
+    //   employerLocationId: nextEmployerLocationId,
+    //   jobTitle: we.jobTitle,
+    //   startDate: formatCertDateForApi(we.startDate),
+    //   endDate: formatCertDateForApi(we.endDate),
+    //   shiftType: nextShiftType ? enumIndex(SHIFT_TYPE_DB, nextShiftType) : null,
+    //   workMode: nextWorkMode ? enumIndex(WORK_MODE_DB, nextWorkMode) : null,
+    //   salaryPolicy: nextSalaryPolicyApi,
+    // })
+    //
+    // setFullCandidate((prev) => {
+    //   const base = prev ?? candidate
+    //   if (!base.workExperiences?.[weIndex]) return prev ?? base
+    //   const nextWorkExperiences = [...base.workExperiences]
+    //   nextWorkExperiences[weIndex] = {
+    //     ...nextWorkExperiences[weIndex],
+    //     ...(patch.shiftType !== undefined
+    //       ? { shiftType: (nextShiftType || "") as WorkExperience["shiftType"] }
+    //       : {}),
+    //     ...(patch.workMode !== undefined
+    //       ? { workMode: (nextWorkMode || "") as WorkExperience["workMode"] }
+    //       : {}),
+    //     ...(patch.salaryPolicy !== undefined
+    //       ? { salaryPolicy: nextSalaryPolicy || null }
+    //       : {}),
+    //     ...(patch.employerId !== undefined ? { employerId: patch.employerId } : {}),
+    //     ...(patch.employerName !== undefined ? { employerName: patch.employerName } : {}),
+    //     employerLocationId: nextEmployerLocationId,
+    //   }
+    //   return { ...base, workExperiences: nextWorkExperiences }
+    // })
+    //
+    // const message = shouldVerify
+    //   ? `${successLabel} updated and verified ✓`
+    //   : `${successLabel} updated`
+    // toast.success(message)
+    // await refreshFullCandidate()
+    // onCandidateUpdated?.()
 
-    const nextShiftType =
-      patch.shiftType !== undefined
-        ? shiftTypeToSelectValue(patch.shiftType)
-        : shiftTypeToSelectValue(we.shiftType ?? "")
-    const nextWorkMode =
-      patch.workMode !== undefined
-        ? workModeToSelectValue(patch.workMode)
-        : workModeToSelectValue(we.workMode ?? "")
-    const nextSalaryPolicy =
-      patch.salaryPolicy !== undefined
-        ? salaryPolicyToSelectValue(patch.salaryPolicy)
-        : salaryPolicyToSelectValue(we.salaryPolicy)
-    const nextSalaryPolicyApi =
-      nextSalaryPolicy && nextSalaryPolicy in SALARY_POLICY_DISPLAY_TO_DB
-        ? SALARY_POLICY_TO_API[
-            SALARY_POLICY_DISPLAY_TO_DB[nextSalaryPolicy as SalaryPolicy]
-          ]
-        : null
-
-    await updateCandidateWorkExperience(candidateId, weId, {
-      employerId,
-      jobTitle: we.jobTitle,
-      startDate: formatCertDateForApi(we.startDate),
-      endDate: formatCertDateForApi(we.endDate),
-      shiftType: nextShiftType ? enumIndex(SHIFT_TYPE_DB, nextShiftType) : null,
-      workMode: nextWorkMode ? enumIndex(WORK_MODE_DB, nextWorkMode) : null,
-      salaryPolicy: nextSalaryPolicyApi,
-    })
-
-    setFullCandidate((prev) => {
-      const base = prev ?? candidate
-      if (!base.workExperiences?.[weIndex]) return prev ?? base
-      const nextWorkExperiences = [...base.workExperiences]
-      nextWorkExperiences[weIndex] = {
-        ...nextWorkExperiences[weIndex],
-        ...(patch.shiftType !== undefined
-          ? { shiftType: (nextShiftType || "") as WorkExperience["shiftType"] }
-          : {}),
-        ...(patch.workMode !== undefined
-          ? { workMode: (nextWorkMode || "") as WorkExperience["workMode"] }
-          : {}),
-        ...(patch.salaryPolicy !== undefined
-          ? { salaryPolicy: nextSalaryPolicy || null }
-          : {}),
-        ...(patch.employerId !== undefined ? { employerId: patch.employerId } : {}),
-        ...(patch.employerName !== undefined ? { employerName: patch.employerName } : {}),
-      }
-      return { ...base, workExperiences: nextWorkExperiences }
-    })
-
-    const message = shouldVerify
-      ? `${successLabel} updated and verified ✓`
-      : `${successLabel} updated`
-    toast.success(message)
-    await refreshFullCandidate()
-    onCandidateUpdated?.()
+    toast.success(
+      shouldVerify ? `${successLabel} updated and verified ✓` : `${successLabel} updated`
+    )
   }
 
   const handleWorkExperienceEmployerSave = async (
@@ -4915,6 +5138,30 @@ export function CandidateDetailsModal({
         return
       }
       toast.error(err instanceof Error ? err.message : "Failed to update employer.")
+      throw err
+    }
+  }
+
+  const persistWorkExperienceOfficeLocation = async (
+    weIndex: number,
+    employerLocationId: number | null,
+    shouldVerify: boolean,
+  ) => {
+    try {
+      await persistWorkExperienceRow(
+        weIndex,
+        { employerLocationId },
+        shouldVerify,
+        "Office Location",
+      )
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        (err.message === "Invalid work experience id" || err.message === "Employer not linked")
+      ) {
+        return
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update office location.")
       throw err
     }
   }
@@ -5005,174 +5252,186 @@ export function CandidateDetailsModal({
   }
 
   const handleWorkExperienceTimeSupportZonesSave = async (
-    weIndex: number,
-    zoneNames: string[],
+    _weIndex: number,
+    _zoneNames: string[],
     shouldVerify: boolean
   ) => {
-    try {
-      if (!candidate) return
-      const candidateId = Number(candidate.id)
-      if (!Number.isFinite(candidateId)) {
-        toast.error("Invalid candidate id.")
-        throw new Error("Invalid candidate id")
-      }
-      const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
-      if (!we) return
-      const weId = Number(we.id)
-      if (!Number.isFinite(weId)) {
-        toast.error("Cannot update work experience without a valid id.")
-        throw new Error("Invalid work experience id")
-      }
+    // Persist not implemented yet — inline WE sub-resource save deferred to a later version.
+    // try {
+    //   if (!candidate) return
+    //   const candidateId = Number(candidate.id)
+    //   if (!Number.isFinite(candidateId)) {
+    //     toast.error("Invalid candidate id.")
+    //     throw new Error("Invalid candidate id")
+    //   }
+    //   const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    //   if (!we) return
+    //   const weId = Number(we.id)
+    //   if (!Number.isFinite(weId)) {
+    //     toast.error("Cannot update work experience without a valid id.")
+    //     throw new Error("Invalid work experience id")
+    //   }
+    //
+    //   const tszLookup = apiTimeSupportZones
+    //   const oldZones = we.timeSupportZones ?? []
+    //   const oldIds = new Set<number>()
+    //   for (const name of oldZones) {
+    //     const id = lookupIdByName(tszLookup, name)
+    //     if (id != null) oldIds.add(id)
+    //   }
+    //
+    //   const newIds = new Set<number>()
+    //   for (const name of zoneNames) {
+    //     const id = lookupIdByName(tszLookup, name)
+    //     if (id == null) {
+    //       toast.error(`Unknown time support zone: ${name}`)
+    //       throw new Error("Unknown time support zone")
+    //     }
+    //     newIds.add(id)
+    //   }
+    //
+    //   const ops: Promise<unknown>[] = []
+    //   for (const id of newIds) {
+    //     if (!oldIds.has(id)) ops.push(addWeTimeSupportZone(candidateId, weId, id))
+    //   }
+    //   for (const id of oldIds) {
+    //     if (!newIds.has(id)) ops.push(removeWeTimeSupportZone(candidateId, weId, id))
+    //   }
+    //   await Promise.all(ops)
+    //
+    //   setFullCandidate((prev) => {
+    //     const base = prev ?? candidate
+    //     if (!base.workExperiences?.[weIndex]) return prev ?? base
+    //     const nextWorkExperiences = [...base.workExperiences]
+    //     nextWorkExperiences[weIndex] = {
+    //       ...nextWorkExperiences[weIndex],
+    //       timeSupportZones: zoneNames,
+    //     }
+    //     return { ...base, workExperiences: nextWorkExperiences }
+    //   })
+    //
+    //   const message = shouldVerify
+    //     ? "Time support zones updated and verified ✓"
+    //     : "Time support zones updated"
+    //   toast.success(message)
+    //   await refreshFullCandidate()
+    //   onCandidateUpdated?.()
+    // } catch (err) {
+    //   if (
+    //     err instanceof Error &&
+    //     (err.message === "Invalid candidate id" ||
+    //       err.message === "Invalid work experience id" ||
+    //       err.message === "Unknown time support zone")
+    //   ) {
+    //     return
+    //   }
+    //   toast.error(
+    //     err instanceof Error ? err.message : "Failed to update time support zones."
+    //   )
+    //   throw err
+    // }
 
-      const tszLookup = apiTimeSupportZones
-      const oldZones = we.timeSupportZones ?? []
-      const oldIds = new Set<number>()
-      for (const name of oldZones) {
-        const id = lookupIdByName(tszLookup, name)
-        if (id != null) oldIds.add(id)
-      }
-
-      const newIds = new Set<number>()
-      for (const name of zoneNames) {
-        const id = lookupIdByName(tszLookup, name)
-        if (id == null) {
-          toast.error(`Unknown time support zone: ${name}`)
-          throw new Error("Unknown time support zone")
-        }
-        newIds.add(id)
-      }
-
-      const ops: Promise<unknown>[] = []
-      for (const id of newIds) {
-        if (!oldIds.has(id)) ops.push(addWeTimeSupportZone(candidateId, weId, id))
-      }
-      for (const id of oldIds) {
-        if (!newIds.has(id)) ops.push(removeWeTimeSupportZone(candidateId, weId, id))
-      }
-      await Promise.all(ops)
-
-      setFullCandidate((prev) => {
-        const base = prev ?? candidate
-        if (!base.workExperiences?.[weIndex]) return prev ?? base
-        const nextWorkExperiences = [...base.workExperiences]
-        nextWorkExperiences[weIndex] = {
-          ...nextWorkExperiences[weIndex],
-          timeSupportZones: zoneNames,
-        }
-        return { ...base, workExperiences: nextWorkExperiences }
-      })
-
-      const message = shouldVerify
+    toast.success(
+      shouldVerify
         ? "Time support zones updated and verified ✓"
         : "Time support zones updated"
-      toast.success(message)
-      await refreshFullCandidate()
-      onCandidateUpdated?.()
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        (err.message === "Invalid candidate id" ||
-          err.message === "Invalid work experience id" ||
-          err.message === "Unknown time support zone")
-      ) {
-        return
-      }
-      toast.error(
-        err instanceof Error ? err.message : "Failed to update time support zones."
-      )
-      throw err
-    }
+    )
   }
 
   const handleWorkExperienceBenefitsSave = async (
-    weIndex: number,
-    benefits: EmployerBenefit[],
+    _weIndex: number,
+    _benefits: EmployerBenefit[],
     shouldVerify: boolean
   ) => {
-    try {
-      if (!candidate) return
-      const candidateId = Number(candidate.id)
-      if (!Number.isFinite(candidateId)) {
-        toast.error("Invalid candidate id.")
-        throw new Error("Invalid candidate id")
-      }
-      const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
-      if (!we) return
-      const weId = Number(we.id)
-      if (!Number.isFinite(weId)) {
-        toast.error("Cannot update work experience without a valid id.")
-        throw new Error("Invalid work experience id")
-      }
+    // Persist not implemented yet — inline WE sub-resource save deferred to a later version.
+    // try {
+    //   if (!candidate) return
+    //   const candidateId = Number(candidate.id)
+    //   if (!Number.isFinite(candidateId)) {
+    //     toast.error("Invalid candidate id.")
+    //     throw new Error("Invalid candidate id")
+    //   }
+    //   const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    //   if (!we) return
+    //   const weId = Number(we.id)
+    //   if (!Number.isFinite(weId)) {
+    //     toast.error("Cannot update work experience without a valid id.")
+    //     throw new Error("Invalid work experience id")
+    //   }
+    //
+    //   const benefitsLookup = apiBenefits
+    //   const oldBenefits = we.benefits ?? []
+    //
+    //   const oldIds = new Set<number>()
+    //   for (const b of oldBenefits) {
+    //     const id = resolveWorkExperienceBenefitId(b, benefitsLookup)
+    //     if (id != null) oldIds.add(id)
+    //   }
+    //
+    //   const newIds = new Set<number>()
+    //   const upsertOps: Promise<unknown>[] = []
+    //   for (const b of benefits) {
+    //     const benefitId = resolveWorkExperienceBenefitId(b, benefitsLookup)
+    //     if (benefitId == null) {
+    //       toast.error(`Unknown benefit: ${b.name}`)
+    //       throw new Error("Unknown benefit")
+    //     }
+    //     newIds.add(benefitId)
+    //     upsertOps.push(
+    //       upsertWeBenefit(candidateId, weId, {
+    //         benefitId,
+    //         ...employerBenefitToApiValueFields(b),
+    //       })
+    //     )
+    //   }
+    //
+    //   const removeOps: Promise<unknown>[] = []
+    //   for (const id of oldIds) {
+    //     if (!newIds.has(id)) {
+    //       removeOps.push(removeWeBenefit(candidateId, weId, id))
+    //     }
+    //   }
+    //
+    //   await Promise.all([...upsertOps, ...removeOps])
+    //
+    //   setFullCandidate((prev) => {
+    //     const base = prev ?? candidate
+    //     if (!base.workExperiences?.[weIndex]) return prev ?? base
+    //     const nextWorkExperiences = [...base.workExperiences]
+    //     nextWorkExperiences[weIndex] = {
+    //       ...nextWorkExperiences[weIndex],
+    //       benefits,
+    //     }
+    //     return { ...base, workExperiences: nextWorkExperiences }
+    //   })
+    //
+    //   const message = shouldVerify
+    //     ? "Benefits updated and verified ✓"
+    //     : "Benefits updated"
+    //   toast.success(message)
+    //   await refreshFullCandidate()
+    //   onCandidateUpdated?.()
+    // } catch (err) {
+    //   if (
+    //     err instanceof Error &&
+    //     (err.message === "Invalid candidate id" ||
+    //       err.message === "Invalid work experience id" ||
+    //       err.message === "Unknown benefit")
+    //   ) {
+    //     return
+    //   }
+    //   toast.error(err instanceof Error ? err.message : "Failed to update benefits.")
+    //   throw err
+    // }
 
-      const benefitsLookup = apiBenefits
-      const oldBenefits = we.benefits ?? []
-
-      const oldIds = new Set<number>()
-      for (const b of oldBenefits) {
-        const id = resolveWorkExperienceBenefitId(b, benefitsLookup)
-        if (id != null) oldIds.add(id)
-      }
-
-      const newIds = new Set<number>()
-      const upsertOps: Promise<unknown>[] = []
-      for (const b of benefits) {
-        const benefitId = resolveWorkExperienceBenefitId(b, benefitsLookup)
-        if (benefitId == null) {
-          toast.error(`Unknown benefit: ${b.name}`)
-          throw new Error("Unknown benefit")
-        }
-        newIds.add(benefitId)
-        upsertOps.push(
-          upsertWeBenefit(candidateId, weId, {
-            benefitId,
-            ...employerBenefitToApiValueFields(b),
-          })
-        )
-      }
-
-      const removeOps: Promise<unknown>[] = []
-      for (const id of oldIds) {
-        if (!newIds.has(id)) {
-          removeOps.push(removeWeBenefit(candidateId, weId, id))
-        }
-      }
-
-      await Promise.all([...upsertOps, ...removeOps])
-
-      setFullCandidate((prev) => {
-        const base = prev ?? candidate
-        if (!base.workExperiences?.[weIndex]) return prev ?? base
-        const nextWorkExperiences = [...base.workExperiences]
-        nextWorkExperiences[weIndex] = {
-          ...nextWorkExperiences[weIndex],
-          benefits,
-        }
-        return { ...base, workExperiences: nextWorkExperiences }
-      })
-
-      const message = shouldVerify
-        ? "Benefits updated and verified ✓"
-        : "Benefits updated"
-      toast.success(message)
-      await refreshFullCandidate()
-      onCandidateUpdated?.()
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        (err.message === "Invalid candidate id" ||
-          err.message === "Invalid work experience id" ||
-          err.message === "Unknown benefit")
-      ) {
-        return
-      }
-      toast.error(err instanceof Error ? err.message : "Failed to update benefits.")
-      throw err
-    }
+    toast.success(
+      shouldVerify ? "Benefits updated and verified ✓" : "Benefits updated"
+    )
   }
 
   const persistCertificationRow = async (
-    certIndex: number,
-    patch: {
+    _certIndex: number,
+    _patch: {
       certificationId?: number
       certificationLevel?: CandidateCertification["certificationLevel"]
       certificationName?: string
@@ -5181,57 +5440,64 @@ export function CandidateDetailsModal({
     shouldVerify: boolean,
     successLabel: string
   ) => {
-    if (!candidate) return
-    const candidateId = Number(candidate.id)
-    if (!Number.isFinite(candidateId)) {
-      toast.error("Invalid candidate id.")
-      throw new Error("Invalid candidate id")
-    }
-    const cert = (fullCandidate ?? candidate).certifications?.[certIndex]
-    if (!cert) return
+    // Persist not implemented yet — inline field save deferred to a later version.
+    // if (!candidate) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   throw new Error("Invalid candidate id")
+    // }
+    // const cert = (fullCandidate ?? candidate).certifications?.[certIndex]
+    // if (!cert) return
+    //
+    // const certificationId = patch.certificationId ?? cert.certificationId
+    // if (certificationId == null) {
+    //   toast.error("Link a certification before updating this field.")
+    //   throw new Error("Certification not linked")
+    // }
+    //
+    // const nextLevel = patch.certificationLevel ?? cert.certificationLevel
+    //
+    // await upsertCandidateCertification(candidateId, {
+    //   certificationId,
+    //   issueDate: formatCertDateForApi(cert.issueDate),
+    //   expiryDate: formatCertDateForApi(cert.expiryDate),
+    //   url: cert.certificationUrl ?? null,
+    //   level: certificationLevelToApiIndex(nextLevel),
+    // })
+    //
+    // setFullCandidate((prev) => {
+    //   const base = prev ?? candidate
+    //   if (!base.certifications?.[certIndex]) return prev ?? base
+    //   const nextCerts = [...base.certifications]
+    //   nextCerts[certIndex] = {
+    //     ...nextCerts[certIndex],
+    //     ...(patch.certificationId != null ? { certificationId: patch.certificationId } : {}),
+    //     ...(patch.certificationName != null
+    //       ? { certificationName: patch.certificationName }
+    //       : {}),
+    //     ...(patch.certificationIssuerName !== undefined
+    //       ? { certificationIssuerName: patch.certificationIssuerName }
+    //       : {}),
+    //     ...(patch.certificationLevel !== undefined
+    //       ? { certificationLevel: patch.certificationLevel }
+    //       : {}),
+    //   }
+    //   return { ...base, certifications: nextCerts }
+    // })
+    //
+    // const message = shouldVerify
+    //   ? `${successLabel} updated and verified ✓`
+    //   : `${successLabel} updated`
+    // toast.success(message)
+    // await refreshFullCandidate()
+    // onCandidateUpdated?.()
 
-    const certificationId = patch.certificationId ?? cert.certificationId
-    if (certificationId == null) {
-      toast.error("Link a certification before updating this field.")
-      throw new Error("Certification not linked")
-    }
-
-    const nextLevel = patch.certificationLevel ?? cert.certificationLevel
-
-    await upsertCandidateCertification(candidateId, {
-      certificationId,
-      issueDate: formatCertDateForApi(cert.issueDate),
-      expiryDate: formatCertDateForApi(cert.expiryDate),
-      url: cert.certificationUrl ?? null,
-      level: certificationLevelToApiIndex(nextLevel),
-    })
-
-    setFullCandidate((prev) => {
-      const base = prev ?? candidate
-      if (!base.certifications?.[certIndex]) return prev ?? base
-      const nextCerts = [...base.certifications]
-      nextCerts[certIndex] = {
-        ...nextCerts[certIndex],
-        ...(patch.certificationId != null ? { certificationId: patch.certificationId } : {}),
-        ...(patch.certificationName != null
-          ? { certificationName: patch.certificationName }
-          : {}),
-        ...(patch.certificationIssuerName !== undefined
-          ? { certificationIssuerName: patch.certificationIssuerName }
-          : {}),
-        ...(patch.certificationLevel !== undefined
-          ? { certificationLevel: patch.certificationLevel }
-          : {}),
-      }
-      return { ...base, certifications: nextCerts }
-    })
-
-    const message = shouldVerify
-      ? `${successLabel} updated and verified ✓`
-      : `${successLabel} updated`
-    toast.success(message)
-    await refreshFullCandidate()
-    onCandidateUpdated?.()
+    toast.success(
+      shouldVerify
+        ? `${successLabel} updated and verified ✓`
+        : `${successLabel} updated`
+    )
   }
 
   const handleCertificationLinkSave = async (
@@ -5290,69 +5556,75 @@ export function CandidateDetailsModal({
   }
 
   const handleWorkExperienceProjectLinkSave = async (
-    weIndex: number,
-    projectIndex: number,
+    _weIndex: number,
+    _projectIndex: number,
     selection: SelectedProject,
     shouldVerify: boolean
   ) => {
-    if (!selection?.id || !candidate) return
-    const candidateId = Number(candidate.id)
-    if (!Number.isFinite(candidateId)) {
-      toast.error("Invalid candidate id.")
-      return
-    }
-    const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
-    const proj = we?.projects?.[projectIndex]
-    if (!we || !proj) return
+    // Persist not implemented yet — inline WE sub-resource save deferred to a later version.
+    // if (!selection?.id || !candidate) return
+    // const candidateId = Number(candidate.id)
+    // if (!Number.isFinite(candidateId)) {
+    //   toast.error("Invalid candidate id.")
+    //   return
+    // }
+    // const we = (fullCandidate ?? candidate).workExperiences?.[weIndex]
+    // const proj = we?.projects?.[projectIndex]
+    // if (!we || !proj) return
+    //
+    // const weId = Number(we.id)
+    // if (!Number.isFinite(weId)) {
+    //   toast.error("Invalid work experience id.")
+    //   return
+    // }
+    //
+    // try {
+    //   const oldProjectId = proj.projectId
+    //   const contribution = proj.contributionNotes ?? null
+    //
+    //   if (oldProjectId != null && oldProjectId !== selection.id) {
+    //     await removeWeProject(candidateId, weId, oldProjectId)
+    //   }
+    //   await upsertWeProject(
+    //     candidateId,
+    //     weId,
+    //     selection.id,
+    //     contribution,
+    //     proj.isMainContribution === true,
+    //   )
+    //
+    //   setFullCandidate((prev) => {
+    //     const base = prev ?? candidate
+    //     const workExperiences = base.workExperiences
+    //     if (!workExperiences?.[weIndex]?.projects?.[projectIndex]) return prev ?? base
+    //     const nextWorkExperiences = [...workExperiences]
+    //     const nextProjects = [...nextWorkExperiences[weIndex].projects]
+    //     nextProjects[projectIndex] = {
+    //       ...nextProjects[projectIndex],
+    //       projectId: selection.id,
+    //       projectName: selection.name,
+    //     }
+    //     nextWorkExperiences[weIndex] = {
+    //       ...nextWorkExperiences[weIndex],
+    //       projects: nextProjects,
+    //     }
+    //     return { ...base, workExperiences: nextWorkExperiences }
+    //   })
+    //
+    //   toast.success(
+    //     shouldVerify ? "Project updated and verified ✓" : "Project updated"
+    //   )
+    //   await refreshFullCandidate()
+    //   onCandidateUpdated?.()
+    // } catch (err) {
+    //   toast.error(err instanceof Error ? err.message : "Failed to update project.")
+    //   throw err
+    // }
 
-    const weId = Number(we.id)
-    if (!Number.isFinite(weId)) {
-      toast.error("Invalid work experience id.")
-      return
-    }
-
-    try {
-      const oldProjectId = proj.projectId
-      const contribution = proj.contributionNotes ?? null
-
-      if (oldProjectId != null && oldProjectId !== selection.id) {
-        await removeWeProject(candidateId, weId, oldProjectId)
-      }
-      await upsertWeProject(
-        candidateId,
-        weId,
-        selection.id,
-        contribution,
-        proj.isMainContribution === true,
-      )
-
-      setFullCandidate((prev) => {
-        const base = prev ?? candidate
-        const workExperiences = base.workExperiences
-        if (!workExperiences?.[weIndex]?.projects?.[projectIndex]) return prev ?? base
-        const nextWorkExperiences = [...workExperiences]
-        const nextProjects = [...nextWorkExperiences[weIndex].projects]
-        nextProjects[projectIndex] = {
-          ...nextProjects[projectIndex],
-          projectId: selection.id,
-          projectName: selection.name,
-        }
-        nextWorkExperiences[weIndex] = {
-          ...nextWorkExperiences[weIndex],
-          projects: nextProjects,
-        }
-        return { ...base, workExperiences: nextWorkExperiences }
-      })
-
-      toast.success(
-        shouldVerify ? "Project updated and verified ✓" : "Project updated"
-      )
-      await refreshFullCandidate()
-      onCandidateUpdated?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update project.")
-      throw err
-    }
+    if (!selection?.id) return
+    toast.success(
+      shouldVerify ? "Project updated and verified ✓" : "Project updated"
+    )
   }
 
   const handleWorkExperienceProjectMainContributionSave = async (
@@ -5538,59 +5810,69 @@ export function CandidateDetailsModal({
   }, [open, candidate?.id])
   
   const handleEditSubmit = async (
-    formData: CandidateFormData,
+    _formData: CandidateFormData,
     options?: CandidateSubmitOptions,
   ): Promise<CandidateCreateSubmitResult | void> => {
     if (!candidate) return
-    const id = Number(candidate.id)
-    if (!Number.isFinite(id)) {
-      toast.error("Invalid candidate id.")
-      return
-    }
-    const existing = fullCandidate ?? candidate
-    const resumeFile = options?.resumeFile ?? null
+    // Persist not implemented yet — Full Edit submit from Details deferred to a later version.
+    // const id = Number(candidate.id)
+    // if (!Number.isFinite(id)) {
+    //   toast.error("Invalid candidate id.")
+    //   return
+    // }
+    // const existing = fullCandidate ?? candidate
+    // const resumeFile = options?.resumeFile ?? null
+    //
+    // try {
+    //   const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
+    //   await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
+    //   await syncCandidateSubResources(id, formData, existing, preparedLookups)
+    //
+    //   if (resumeFile) {
+    //     try {
+    //       await uploadCandidateResume({
+    //         candidateId: id,
+    //         file: resumeFile,
+    //       })
+    //     } catch (resumeError) {
+    //       await refreshFullCandidate()
+    //       onCandidateUpdated?.()
+    //       return {
+    //         status: "resume-upload-failed",
+    //         candidateId: id,
+    //         candidateName: existing.name,
+    //         file: resumeFile,
+    //         error:
+    //           resumeError instanceof Error
+    //             ? resumeError.message
+    //             : "The new resume could not be uploaded.",
+    //       }
+    //     }
+    //   }
+    //
+    //   const verifiedCount = options?.verificationState?.verifiedFields.size || 0
+    //   const modifiedCount = options?.verificationState?.modifiedFields.size || 0
+    //   toast.success(
+    //     `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
+    //     { duration: 4000 },
+    //   )
+    //   setEditDialogOpen(false)
+    //   await refreshFullCandidate()
+    //   onCandidateUpdated?.()
+    //   return { status: "success" }
+    // } catch (err) {
+    //   toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
+    //   throw err
+    // }
 
-    try {
-      const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
-      await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
-      await syncCandidateSubResources(id, formData, existing, preparedLookups)
-
-      if (resumeFile) {
-        try {
-          await uploadCandidateResume({
-            candidateId: id,
-            file: resumeFile,
-          })
-        } catch (resumeError) {
-          await refreshFullCandidate()
-          onCandidateUpdated?.()
-          return {
-            status: "resume-upload-failed",
-            candidateId: id,
-            candidateName: existing.name,
-            file: resumeFile,
-            error:
-              resumeError instanceof Error
-                ? resumeError.message
-                : "The new resume could not be uploaded.",
-          }
-        }
-      }
-
-      const verifiedCount = options?.verificationState?.verifiedFields.size || 0
-      const modifiedCount = options?.verificationState?.modifiedFields.size || 0
-      toast.success(
-        `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
-        { duration: 4000 },
-      )
-      setEditDialogOpen(false)
-      await refreshFullCandidate()
-      onCandidateUpdated?.()
-      return { status: "success" }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
-      throw err
-    }
+    const verifiedCount = options?.verificationState?.verifiedFields.size || 0
+    const modifiedCount = options?.verificationState?.modifiedFields.size || 0
+    toast.success(
+      `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
+      { duration: 4000 },
+    )
+    setEditDialogOpen(false)
+    return { status: "success" }
   }
 
   // Get verification data for this candidate
@@ -5687,6 +5969,7 @@ export function CandidateDetailsModal({
     const fields: string[] = []
     resolvedCandidate.workExperiences.forEach((exp, idx) => {
       fields.push(`workExperiences[${idx}].employerName`)
+      fields.push(`workExperiences[${idx}].employerLocationId`)
       fields.push(`workExperiences[${idx}].jobTitle`)
       fields.push(`workExperiences[${idx}].dates`)
       fields.push(`workExperiences[${idx}].shiftType`)
@@ -5718,6 +6001,7 @@ export function CandidateDetailsModal({
     const fields: string[] = []
     resolvedCandidate.educations.forEach((edu, idx) => {
       fields.push(`educations[${idx}].universityLocationName`)
+      fields.push(`educations[${idx}].campusLocationId`)
       fields.push(`educations[${idx}].degreeName`)
       fields.push(`educations[${idx}].majorName`)
       fields.push(`educations[${idx}].dates`)
@@ -6379,6 +6663,17 @@ export function CandidateDetailsModal({
                                 </div>
                               </div>
                               <div className="ml-7">
+                                <InlineWorkExperienceOfficeLocation
+                                  experience={experience}
+                                  weIndex={idx}
+                                  onSave={persistWorkExperienceOfficeLocation}
+                                  getFieldVerification={getFieldVerification}
+                                  verificationIndicator={
+                                    <VerificationIndicator
+                                      fieldName={`workExperiences[${idx}].employerLocationId`}
+                                    />
+                                  }
+                                />
                                 <InlineEditableField 
                                   label="Job Title" 
                                   value={experience.jobTitle} 
@@ -6506,25 +6801,35 @@ export function CandidateDetailsModal({
                               creatable={true}
                               createLabel="Add Time Zone"
                               onCreateNew={async (newZone) => {
-                                try {
-                                  const created = await createTimeSupportZone(newZone)
-                                  setApiTimeSupportZones((prev) => [
-                                    ...prev.filter((z) => z.id !== created.id),
-                                    created,
-                                  ])
-                                  const currentValue = experience.timeSupportZones || []
-                                  if (!currentValue.includes(created.name)) {
-                                    await handleWorkExperienceTimeSupportZonesSave(
-                                      idx,
-                                      [...currentValue, created.name],
-                                      false
-                                    )
-                                  }
-                                } catch (err) {
-                                  toast.error(
-                                    err instanceof Error
-                                      ? err.message
-                                      : "Failed to add time support zone."
+                                // Persist not implemented yet — catalog create from Details deferred to a later version.
+                                // try {
+                                //   const created = await createTimeSupportZone(newZone)
+                                //   setApiTimeSupportZones((prev) => [
+                                //     ...prev.filter((z) => z.id !== created.id),
+                                //     created,
+                                //   ])
+                                //   const currentValue = experience.timeSupportZones || []
+                                //   if (!currentValue.includes(created.name)) {
+                                //     await handleWorkExperienceTimeSupportZonesSave(
+                                //       idx,
+                                //       [...currentValue, created.name],
+                                //       false
+                                //     )
+                                //   }
+                                // } catch (err) {
+                                //   toast.error(
+                                //     err instanceof Error
+                                //       ? err.message
+                                //       : "Failed to add time support zone."
+                                //   )
+                                // }
+
+                                const currentValue = experience.timeSupportZones || []
+                                if (!currentValue.includes(newZone)) {
+                                  await handleWorkExperienceTimeSupportZonesSave(
+                                    idx,
+                                    [...currentValue, newZone],
+                                    false
                                   )
                                 }
                               }}
@@ -6811,6 +7116,17 @@ export function CandidateDetailsModal({
                                 }
                                   getFieldVerification={getFieldVerification}
                               />
+                              <InlineEducationCampusLocation
+                                education={education}
+                                eduIndex={idx}
+                                onSave={persistEducationCampusLocation}
+                                getFieldVerification={getFieldVerification}
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`educations[${idx}].campusLocationId`}
+                                  />
+                                }
+                              />
                               {/* Degree, Major, and Grades - Same size and spacing */}
                               <div className="space-y-2">
                                 <InlineEditableCombobox
@@ -6828,25 +7144,32 @@ export function CandidateDetailsModal({
                                   creatable={true}
                                   createLabel="Add New Degree"
                                   onCreateNew={async (newDegree) => {
-                                    try {
-                                      const created = await createDegree(newDegree)
-                                      setDegreeMajorLookups((prev) => ({
-                                        ...prev,
-                                        degrees: [
-                                          ...prev.degrees.filter((d) => d.id !== created.id),
-                                          created,
-                                        ].sort((a, b) => a.name.localeCompare(b.name)),
-                                      }))
-                                      await handleFieldSave(
-                                        `educations[${idx}].degreeName`,
-                                        created.name,
-                                        false
-                                      )
-                                    } catch (err) {
-                                      toast.error(
-                                        err instanceof Error ? err.message : "Failed to add degree."
-                                      )
-                                    }
+                                    // Persist not implemented yet — catalog create from Details deferred to a later version.
+                                    // try {
+                                    //   const created = await createDegree(newDegree)
+                                    //   setDegreeMajorLookups((prev) => ({
+                                    //     ...prev,
+                                    //     degrees: [
+                                    //       ...prev.degrees.filter((d) => d.id !== created.id),
+                                    //       created,
+                                    //     ].sort((a, b) => a.name.localeCompare(b.name)),
+                                    //   }))
+                                    //   await handleFieldSave(
+                                    //     `educations[${idx}].degreeName`,
+                                    //     created.name,
+                                    //     false
+                                    //   )
+                                    // } catch (err) {
+                                    //   toast.error(
+                                    //     err instanceof Error ? err.message : "Failed to add degree."
+                                    //   )
+                                    // }
+
+                                    await handleFieldSave(
+                                      `educations[${idx}].degreeName`,
+                                      newDegree,
+                                      false
+                                    )
                                   }}
                                 />
                                   <InlineEditableCombobox
@@ -6864,25 +7187,32 @@ export function CandidateDetailsModal({
                                     creatable={true}
                                     createLabel="Add New Major"
                                     onCreateNew={async (newMajor) => {
-                                      try {
-                                        const created = await createMajor(newMajor)
-                                        setDegreeMajorLookups((prev) => ({
-                                          ...prev,
-                                          majors: [
-                                            ...prev.majors.filter((m) => m.id !== created.id),
-                                            created,
-                                          ].sort((a, b) => a.name.localeCompare(b.name)),
-                                        }))
-                                        await handleFieldSave(
-                                          `educations[${idx}].majorName`,
-                                          created.name,
-                                          false
-                                        )
-                                      } catch (err) {
-                                        toast.error(
-                                          err instanceof Error ? err.message : "Failed to add major."
-                                        )
-                                      }
+                                      // Persist not implemented yet — catalog create from Details deferred to a later version.
+                                      // try {
+                                      //   const created = await createMajor(newMajor)
+                                      //   setDegreeMajorLookups((prev) => ({
+                                      //     ...prev,
+                                      //     majors: [
+                                      //       ...prev.majors.filter((m) => m.id !== created.id),
+                                      //       created,
+                                      //     ].sort((a, b) => a.name.localeCompare(b.name)),
+                                      //   }))
+                                      //   await handleFieldSave(
+                                      //     `educations[${idx}].majorName`,
+                                      //     created.name,
+                                      //     false
+                                      //   )
+                                      // } catch (err) {
+                                      //   toast.error(
+                                      //     err instanceof Error ? err.message : "Failed to add major."
+                                      //   )
+                                      // }
+
+                                      await handleFieldSave(
+                                        `educations[${idx}].majorName`,
+                                        newMajor,
+                                        false
+                                      )
                                   }}
                                 />
                                   <InlineEditableField 

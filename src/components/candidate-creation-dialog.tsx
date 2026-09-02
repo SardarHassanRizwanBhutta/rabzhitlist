@@ -111,6 +111,8 @@ import {
   type SelectedCertification,
 } from "@/components/certification-combobox"
 import { UniversityCombobox } from "@/components/university-combobox"
+import { EducationCampusLocationSelect } from "@/components/candidates/education-campus-location-select"
+import { WorkExperienceOfficeLocationSelect } from "@/components/candidates/work-experience-office-location-select"
 import {
   collectUnresolvedCatalogRefs,
   hasPrefillContent,
@@ -227,6 +229,8 @@ export interface WorkExperience {
   id: string
   /** Numeric employer ID for API payloads; null if none selected. */
   employerId: number | null
+  /** Office PK (`employerLocationId` on the WE API). Null = unknown office. */
+  employerLocationId: number | null
   employerName: string
   jobTitle: string
   projects: ProjectExperience[]
@@ -270,6 +274,7 @@ export interface CandidateEducation {
   id: string
   universityLocationId: string
   universityLocationName: string
+  campusLocationId: number | null
   degreeName: string
   majorName: string
   startMonth: Date | undefined
@@ -969,6 +974,7 @@ const createEmptyLayoff = (): WorkExperienceLayoffRow => ({
 const createEmptyWorkExperience = (): WorkExperience => ({
   id: crypto.randomUUID(),
   employerId: null,
+  employerLocationId: null,
   employerName: "",
   jobTitle: "",
   projects: [],
@@ -1028,6 +1034,7 @@ const createEmptyEducation = (): CandidateEducation => ({
   id: crypto.randomUUID(),
   universityLocationId: "",
   universityLocationName: "",
+  campusLocationId: null,
   degreeName: "",
   majorName: "",
   startMonth: undefined,
@@ -1077,6 +1084,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
     workExperiences: candidate.workExperiences?.map(we => ({
       id: we.id,
       employerId: we.employerId ?? null,
+      employerLocationId: we.employerLocationId ?? null,
       employerName: we.employerName || "",
       jobTitle: we.jobTitle || "",
       projects: we.projects.map((proj) => ({
@@ -1163,6 +1171,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       id: edu.id,
       universityLocationId: edu.universityLocationId || "",
       universityLocationName: edu.universityLocationName || "",
+      campusLocationId: edu.campusLocationId ?? null,
       degreeName: edu.degreeName || "",
       majorName: edu.majorName || "",
       startMonth: edu.startMonth,
@@ -1455,7 +1464,7 @@ export function CandidateCreationDialog({
     
     // Work experiences (includes nested projects)
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy']
+      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1480,8 +1489,9 @@ export function CandidateCreationDialog({
     
     // Educations
     formData.educations.forEach((_, idx) => {
-      total += 6 // universityLocationName, degreeName, majorName, startMonth, endMonth, grades
+      total += 7 // universityLocationName, campusLocationId, degreeName, majorName, startMonth, endMonth, grades
       if (verifiedFields.has(`educations.${idx}.universityLocationName`)) verified++
+      if (verifiedFields.has(`educations.${idx}.campusLocationId`)) verified++
       if (verifiedFields.has(`educations.${idx}.degreeName`)) verified++
       if (verifiedFields.has(`educations.${idx}.majorName`)) verified++
       if (verifiedFields.has(`educations.${idx}.startMonth`)) verified++
@@ -1567,7 +1577,7 @@ export function CandidateCreationDialog({
     let verified = 0
     
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'timeSupportZones']
+      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'timeSupportZones']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1594,7 +1604,7 @@ export function CandidateCreationDialog({
     let verified = 0
     
     formData.educations.forEach((_, idx) => {
-      const eduFields = ['universityLocationName', 'degreeName', 'majorName', 'startMonth', 'endMonth', 'grades', 'isTopper', 'isCheetah']
+      const eduFields = ['universityLocationName', 'campusLocationId', 'degreeName', 'majorName', 'startMonth', 'endMonth', 'grades', 'isTopper', 'isCheetah']
       eduFields.forEach(f => {
         total++
         if (verifiedFields.has(`educations.${idx}.${f}`)) verified++
@@ -1845,6 +1855,7 @@ export function CandidateCreationDialog({
           fields.push(
             `workExperiences.${idx}.employerId`,
             `workExperiences.${idx}.employerName`,
+            `workExperiences.${idx}.employerLocationId`,
             `workExperiences.${idx}.jobTitle`,
             `workExperiences.${idx}.startDate`,
             `workExperiences.${idx}.endDate`,
@@ -1874,6 +1885,7 @@ export function CandidateCreationDialog({
         formData.educations.forEach((_, idx) => {
           fields.push(
             `educations.${idx}.universityLocationName`,
+            `educations.${idx}.campusLocationId`,
             `educations.${idx}.degreeName`,
             `educations.${idx}.majorName`,
             `educations.${idx}.startMonth`,
@@ -2018,6 +2030,7 @@ export function CandidateCreationDialog({
               ...exp,
               employerId: selected?.id ?? null,
               employerName: selected?.name ?? "",
+              employerLocationId: null,
             }
           : exp
       ),
@@ -2447,6 +2460,7 @@ export function CandidateCreationDialog({
                 ...edu,
                 universityLocationId: selected ? String(selected.id) : "",
                 universityLocationName: selected?.name ?? "",
+                campusLocationId: null,
               }
             : edu
         ),
@@ -3440,6 +3454,25 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.employerId`} />
                     </div>
 
+                    <div className="min-w-0 space-y-2">
+                      <WorkExperienceOfficeLocationSelect
+                        id={`officeLocation-${index}`}
+                        employerId={experience.employerId}
+                        value={experience.employerLocationId}
+                        onChange={(locationId) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            workExperiences: prev.workExperiences.map((exp, i) =>
+                              i === index ? { ...exp, employerLocationId: locationId } : exp
+                            ),
+                          }))
+                          markFieldModified(`workExperiences.${index}.employerLocationId`)
+                        }}
+                        disabled={isLoading}
+                      />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.employerLocationId`} />
+                    </div>
+
                     <div className="space-y-2">
                       <Label htmlFor={`startDate-${index}`}>Start Date</Label>
                       <Popover>
@@ -3993,6 +4026,28 @@ export function CandidateCreationDialog({
                             <p className="text-sm text-red-500">{errors.educations[index].universityLocationId}</p>
                           )}
                           <VerificationCheckbox fieldPath={`educations.${index}.universityLocationName`} />
+                        </div>
+
+                        <div className="min-w-0 space-y-2">
+                          <EducationCampusLocationSelect
+                            id={`campusLocation-${index}`}
+                            universityId={(() => {
+                              const n = Number(education.universityLocationId)
+                              return Number.isFinite(n) && n > 0 ? n : null
+                            })()}
+                            value={education.campusLocationId}
+                            onChange={(locationId) => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                educations: prev.educations.map((edu, i) =>
+                                  i === index ? { ...edu, campusLocationId: locationId } : edu
+                                ),
+                              }))
+                              markFieldModified(`educations.${index}.campusLocationId`)
+                            }}
+                            disabled={isLoading}
+                          />
+                          <VerificationCheckbox fieldPath={`educations.${index}.campusLocationId`} />
                         </div>
 
                         <div className="space-y-2">
