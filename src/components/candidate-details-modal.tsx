@@ -1075,7 +1075,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
-                className="h-auto min-h-9 w-full min-w-0 max-w-full justify-between overflow-hidden font-normal"
+                className="h-auto min-h-9 w-full min-w-0 max-w-full shrink justify-between overflow-hidden font-normal"
                 disabled={isSaving || optionsLoading || disabled}
                 title={selectedEditLabel || undefined}
               >
@@ -1086,7 +1086,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
               </Button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-[--radix-popover-trigger-width] p-0"
+              className="w-[var(--radix-popover-trigger-width)] max-w-[var(--radix-popover-trigger-width)] overflow-hidden p-0"
               onWheel={(e) => e.stopPropagation()}
             >
               <Command shouldFilter={false}>
@@ -1138,12 +1138,15 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                               allowDeselect && option.value === editValue ? "" : option.value
                             )
                           }
-                          className="cursor-pointer"
+                          className="cursor-pointer min-w-0 overflow-hidden"
+                          title={option.label}
                         >
-                          {option.label}
+                          <span className="min-w-0 flex-1 truncate">
+                            {option.label}
+                          </span>
                           <Check
                             className={cn(
-                              "ml-auto h-4 w-4",
+                              "ml-auto h-4 w-4 shrink-0",
                               editValue === option.value ? "opacity-100" : "opacity-0"
                             )}
                           />
@@ -7108,7 +7111,7 @@ export function CandidateDetailsModal({
                         <div className="space-y-3">
                           {/* University Name */}
                           <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
+                            <div className="min-w-0 flex-1">
                               <InlineEditableUniversity
                                 education={education}
                                 eduIndex={idx}
