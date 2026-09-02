@@ -1142,7 +1142,7 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                           title={option.label}
                         >
                           <span className="min-w-0 flex-1 truncate">
-                            {option.label}
+                          {option.label}
                           </span>
                           <Check
                             className={cn(
@@ -4649,8 +4649,8 @@ export function CandidateDetailsModal({
         fieldName === "callStatus"
           ? "Call Status updated"
           : shouldVerify
-            ? `${fieldName} updated and verified ✓`
-            : `${fieldName} updated`
+        ? `${fieldName} updated and verified ✓` 
+        : `${fieldName} updated`
       toast.success(message)
       
       // Note: In real implementation, you'd update local state or refetch candidate data
@@ -5867,11 +5867,11 @@ export function CandidateDetailsModal({
 
     const verifiedCount = options?.verificationState?.verifiedFields.size || 0
     const modifiedCount = options?.verificationState?.modifiedFields.size || 0
-    toast.success(
-      `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
+      toast.success(
+        `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
       { duration: 4000 },
-    )
-    setEditDialogOpen(false)
+      )
+      setEditDialogOpen(false)
     return { status: "success" }
   }
 
@@ -6651,22 +6651,22 @@ export function CandidateDetailsModal({
                                   nestedEmployerCreation={nestedEmployerCreation}
                                   verificationIndicator={
                                     <VerificationIndicator
-                                      fieldName={`workExperiences[${idx}].employerName`}
+                                    fieldName={`workExperiences[${idx}].employerName`}
                                     />
                                   }
                                   getFieldVerification={getFieldVerification}
                                 />
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteWorkExperience(idx)}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
-                              title="Delete work experience"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteWorkExperience(idx)}
+                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                                title="Delete work experience"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -6700,33 +6700,33 @@ export function CandidateDetailsModal({
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <InlineEditableDate
-                              label="Start Date"
-                              value={experience.startDate}
-                              fieldName={`workExperiences[${idx}].startDate`}
-                              onSave={handleFieldSave}
-                              formatDisplay={formatDate}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <InlineEditableDate
+                                  label="Start Date"
+                                  value={experience.startDate}
+                                  fieldName={`workExperiences[${idx}].startDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
                               verificationIndicator={
                                 <VerificationIndicator
                                   fieldName={`workExperiences[${idx}].startDate`}
                                 />
                               }
-                              getFieldVerification={getFieldVerification}
-                            />
-                            <InlineEditableDate
-                              label="End Date"
-                              value={experience.endDate}
-                              fieldName={`workExperiences[${idx}].endDate`}
-                              onSave={handleFieldSave}
-                              formatDisplay={formatDate}
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="End Date"
+                                  value={experience.endDate}
+                                  fieldName={`workExperiences[${idx}].endDate`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatDate}
                               verificationIndicator={
                                 <VerificationIndicator
                                   fieldName={`workExperiences[${idx}].endDate`}
                                 />
                               }
-                              getFieldVerification={getFieldVerification}
-                            />
+                                  getFieldVerification={getFieldVerification}
+                                />
                           </div>
 
                           {/* Work Details Grid */}
@@ -6783,7 +6783,7 @@ export function CandidateDetailsModal({
                               }
                               getFieldVerification={getFieldVerification}
                             />
-                            </div>
+                          </div>
                             <div className="min-w-0">
                             <InlineEditableMultiSelect
                               label="Time Support Zones"
@@ -6875,7 +6875,7 @@ export function CandidateDetailsModal({
                                 }
                               }}
                             />
-                            </div>
+                          </div>
                             <div className="min-w-0">
                             <InlineEditableBenefits
                               label="Benefits"

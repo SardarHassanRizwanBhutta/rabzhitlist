@@ -1257,7 +1257,7 @@ export function candidateFormDataToCreateDto(
     expectedSalary: parseOptionalSalary(data.expectedSalary),
     personalityType: mbtiLabelToIndex(data.personalityType),
     source: sourceFormToApi(data.source),
-    callStatus: callStatusToApi(data.callStatus) ?? 0,
+    callStatus: callStatusToApi(data.callStatus) ?? undefined,
     status: "sourced",
     resumeUrl: null,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
