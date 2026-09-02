@@ -14,7 +14,6 @@ import {
   Briefcase, 
   GraduationCap,
   Award,
-  Building2,
   ChevronDown,
   ChevronRight,
   Code,
@@ -1055,10 +1054,14 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
   }
 
   if (isEditing) {
+    const selectedEditLabel = editValue
+      ? (options.find((option) => option.value === editValue)?.label ?? editValue)
+      : ""
+
     return (
-      <div className={cn("space-y-2", className)}>
+      <div className={cn("min-w-0 space-y-2", className)}>
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Popover open={open} onOpenChange={(isOpen) => {
             setOpen(isOpen)
             if (isOpen && editValue?.trim() && !options.some((o) => o.value === editValue)) {
@@ -1072,12 +1075,13 @@ const InlineEditableCombobox: React.FC<InlineEditableComboboxProps> = ({
                 variant="outline"
                 role="combobox"
                 aria-expanded={open}
-                className="w-full justify-between"
+                className="h-auto min-h-9 w-full min-w-0 max-w-full justify-between overflow-hidden font-normal"
                 disabled={isSaving || optionsLoading || disabled}
+                title={selectedEditLabel || undefined}
               >
-                {editValue
-                  ? (options.find((option) => option.value === editValue)?.label ?? editValue)
-                  : placeholder}
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {selectedEditLabel || placeholder}
+                </span>
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
@@ -1568,11 +1572,9 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
 
   if (isEditing) {
     return (
-      <div className={cn("space-y-3 py-3 px-3 rounded-md bg-muted/30 border", className)}>
-        <div className="flex items-center justify-between mb-2">
-          <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
-        </div>
-        <div className="space-y-3">
+      <div className={cn("min-w-0 space-y-2", className)}>
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        <div className="space-y-2">
           <div className="w-full">
             <MultiSelect
               items={mergedOptions}
@@ -1646,7 +1648,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
 
   // Display mode
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <div className="flex items-center gap-1 shrink-0">
@@ -1825,11 +1827,9 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
 
   if (isEditing) {
     return (
-      <div className={cn("space-y-3 py-3 px-3 rounded-md bg-muted/30 border", className)}>
-        <div className="flex items-center justify-between mb-2">
-          <Label className="text-sm font-semibold text-muted-foreground">{label}</Label>
-        </div>
-        <div className="space-y-3">
+      <div className={cn("min-w-0 space-y-2", className)}>
+        <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
+        <div className="space-y-2">
           <div className="w-full">
             <BenefitsSelector
               benefits={editValue}
@@ -1837,6 +1837,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
               benefitOptions={benefitOptions}
               onCreateBenefit={onCreateBenefit}
               disabled={isSaving || benefitsLoading}
+              hideLabel
             />
           </div>
           
@@ -1897,7 +1898,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
 
   // Display mode
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors", className)}>
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <div className="flex items-center gap-1 shrink-0">
@@ -3072,6 +3073,9 @@ const InlineEditableUniversity: React.FC<InlineEditableUniversityProps> = ({
       )}
     >
       <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-muted-foreground block mb-0.5">
+          University
+        </span>
         {linkedUniversity?.id != null ? (
           <button
             type="button"
@@ -3233,10 +3237,10 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
 
   if (isEditing) {
     return (
-      <div className={cn("space-y-2 w-full min-w-0", className)}>
+      <div className={cn("space-y-2 py-2 px-3 rounded-md w-full min-w-0", className)}>
         <EmployerCombobox
           id={`details-work-experience-employer-${weIndex}`}
-          label=""
+          label="Employer"
           value={editValue}
           onChange={setEditValue}
           disabled={isSaving}
@@ -3299,11 +3303,14 @@ const InlineEditableEmployer: React.FC<InlineEditableEmployerProps> = ({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-2 w-full min-w-0",
+        "flex items-start justify-between gap-2 py-2 px-3 rounded-md hover:bg-muted/50 transition-colors w-full min-w-0",
         className
       )}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-muted-foreground block mb-0.5">
+          Employer
+        </span>
         {linkedEmployer?.id != null ? (
           <button
             type="button"
@@ -3577,11 +3584,6 @@ const InlineEditableCertification: React.FC<InlineEditableCertificationProps> = 
         ) : (
           <span className="font-semibold text-lg block">{displayName}</span>
         )}
-        {displaySelection?.issuerName && (
-          <span className="text-sm text-muted-foreground block mt-0.5">
-            {displaySelection.issuerName}
-          </span>
-        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {verificationIndicator}
@@ -3725,12 +3727,7 @@ const InlineEditableProject: React.FC<InlineEditableProjectProps> = ({
 
   if (isEditing) {
     return (
-      <div
-        className={cn(
-          "space-y-3 py-3 px-3 rounded-md bg-muted/30 border w-full min-w-0",
-          className
-        )}
-      >
+      <div className={cn("min-w-0 space-y-2 w-full", className)}>
         <div className="space-y-2 w-full min-w-0">
           <ProjectCombobox
             id={comboboxId}
@@ -6640,87 +6637,97 @@ export function CandidateDetailsModal({
                       <div key={experience.id}>
                         {idx > 0 && <Separator className="my-6" />}
           <div className="space-y-4">
-                          {/* Employer and Job Title */}
                           <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Building2 className="size-5 text-muted-foreground" />
-                                <div className="flex-1 min-w-0">
-                                  <InlineEditableEmployer
-                                    experience={experience}
-                                    weIndex={idx}
-                                    onSave={handleWorkExperienceEmployerSave}
-                                    onEmployerClick={handleEmployerClick}
-                                    createEmployerLookups={employerCreateLookups}
-                                    nestedEmployerCreation={nestedEmployerCreation}
-                                    verificationIndicator={
-                                      <VerificationIndicator
-                                    fieldName={`workExperiences[${idx}].employerName`}
-                                      />
-                                    }
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                </div>
-                              </div>
-                              <div className="ml-7">
-                                <InlineWorkExperienceOfficeLocation
+                            <div className="min-w-0 flex-1">
+                                <InlineEditableEmployer
                                   experience={experience}
                                   weIndex={idx}
-                                  onSave={persistWorkExperienceOfficeLocation}
-                                  getFieldVerification={getFieldVerification}
+                                  onSave={handleWorkExperienceEmployerSave}
+                                  onEmployerClick={handleEmployerClick}
+                                  createEmployerLookups={employerCreateLookups}
+                                  nestedEmployerCreation={nestedEmployerCreation}
                                   verificationIndicator={
                                     <VerificationIndicator
-                                      fieldName={`workExperiences[${idx}].employerLocationId`}
+                                      fieldName={`workExperiences[${idx}].employerName`}
                                     />
                                   }
-                                />
-                                <InlineEditableField 
-                                  label="Job Title" 
-                                  value={experience.jobTitle} 
-                                  fieldName={`workExperiences[${idx}].jobTitle`}
-                                  fieldType="text"
-                                  onSave={handleFieldSave}
-                                  verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].jobTitle`} />}
                                   getFieldVerification={getFieldVerification}
                                 />
-                              </div>
                             </div>
-                            <div className="flex flex-col items-end gap-3">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteWorkExperience(idx)}
-                                className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
-                                title="Delete work experience"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <InlineEditableDate
-                                  label="Start Date"
-                                  value={experience.startDate}
-                                  fieldName={`workExperiences[${idx}].startDate`}
-                                  onSave={handleFieldSave}
-                                  formatDisplay={formatDate}
-                                  verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].startDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                                <InlineEditableDate
-                                  label="End Date"
-                                  value={experience.endDate}
-                                  fieldName={`workExperiences[${idx}].endDate`}
-                                  onSave={handleFieldSave}
-                                  formatDisplay={formatDate}
-                                  verificationIndicator={<VerificationIndicator fieldName={`workExperiences[${idx}].endDate`} />}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                              </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteWorkExperience(idx)}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer flex-shrink-0"
+                              title="Delete work experience"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="min-w-0">
+                              <InlineEditableField
+                                label="Job Title"
+                                value={experience.jobTitle}
+                                fieldName={`workExperiences[${idx}].jobTitle`}
+                                fieldType="text"
+                                onSave={handleFieldSave}
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`workExperiences[${idx}].jobTitle`}
+                                  />
+                                }
+                                getFieldVerification={getFieldVerification}
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <InlineWorkExperienceOfficeLocation
+                                experience={experience}
+                                weIndex={idx}
+                                onSave={persistWorkExperienceOfficeLocation}
+                                getFieldVerification={getFieldVerification}
+                                verificationIndicator={
+                                  <VerificationIndicator
+                                    fieldName={`workExperiences[${idx}].employerLocationId`}
+                                  />
+                                }
+                              />
                             </div>
                           </div>
 
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <InlineEditableDate
+                              label="Start Date"
+                              value={experience.startDate}
+                              fieldName={`workExperiences[${idx}].startDate`}
+                              onSave={handleFieldSave}
+                              formatDisplay={formatDate}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].startDate`}
+                                />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
+                            <InlineEditableDate
+                              label="End Date"
+                              value={experience.endDate}
+                              fieldName={`workExperiences[${idx}].endDate`}
+                              onSave={handleFieldSave}
+                              formatDisplay={formatDate}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].endDate`}
+                                />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
+                          </div>
+
                           {/* Work Details Grid */}
-                          <div className="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <InlineEditableSelect
                                 label="Shift Type"
                                 value={experience.shiftType}
@@ -6751,6 +6758,7 @@ export function CandidateDetailsModal({
                               }
                                 getFieldVerification={getFieldVerification}
                               />
+                            <div className="min-w-0">
                             <InlineEditableSelect
                               label="Salary Policy"
                               value={experience.salaryPolicy}
@@ -6772,10 +6780,8 @@ export function CandidateDetailsModal({
                               }
                               getFieldVerification={getFieldVerification}
                             />
-                          </div>
-
-                          {/* Time Support Zones */}
-                          <div className="ml-7">
+                            </div>
+                            <div className="min-w-0">
                             <InlineEditableMultiSelect
                               label="Time Support Zones"
                               value={experience.timeSupportZones || []}
@@ -6834,10 +6840,11 @@ export function CandidateDetailsModal({
                                 }
                               }}
                             />
+                            </div>
                           </div>
 
-                          {/* Tech Stacks */}
-                          <div className="ml-7">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="min-w-0">
                             <InlineEditableMultiSelect
                               label="Tech Stacks"
                               value={experience.techStacks || []}
@@ -6865,9 +6872,8 @@ export function CandidateDetailsModal({
                                 }
                               }}
                             />
-                          </div>
-                          {/* Benefits */}
-                          <div className="ml-7">
+                            </div>
+                            <div className="min-w-0">
                             <InlineEditableBenefits
                               label="Benefits"
                               value={experience.benefits || []}
@@ -6882,11 +6888,12 @@ export function CandidateDetailsModal({
                               getFieldVerification={getFieldVerification}
                               maxDisplay={4}
                             />
+                            </div>
                           </div>
 
                           {/* Projects within Work Experience */}
                           {experience.projects.length > 0 && (
-                            <div className="ml-7 space-y-3">
+                            <div className="space-y-3">
                               <div className="flex items-center gap-2 mb-3">
                                 <FolderOpen className="size-4 text-muted-foreground" />
                                 <span className="text-sm font-medium text-muted-foreground">Projects ({experience.projects.length})</span>

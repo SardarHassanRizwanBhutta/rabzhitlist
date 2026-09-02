@@ -12,7 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
 import { useCertificationSearch } from "@/hooks/useCertificationSearch"
 import {
   CertificationCreationDialog,
@@ -86,21 +86,20 @@ export function CertificationCombobox({
     }
   }
 
-  const clearSelection = () => {
-    onChange(null)
-    resetSearch()
-  }
-
   const selectCertification = (c: {
     id: number
     name: string
-    issuerName: string | null
+    issuerName?: string | null
   }) => {
-    onChange({
-      id: c.id,
-      name: c.name,
-      issuerName: c.issuerName ?? null,
-    })
+    if (value?.id === c.id) {
+      onChange(null)
+    } else {
+      onChange({
+        id: c.id,
+        name: c.name,
+        issuerName: c.issuerName ?? null,
+      })
+    }
     handleOpenChange(false)
   }
 
@@ -154,129 +153,128 @@ export function CertificationCombobox({
           {label}
         </Label>
       ) : null}
-      {value ? (
-        <div className="space-y-1">
-          <div
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
             className={cn(
-              "flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9",
-              error ? "border-red-500" : ""
+              "h-9 w-full min-w-0 justify-between overflow-hidden font-normal",
+              error ? "border-red-500" : "",
             )}
+            title={value?.name}
           >
-            <span className="flex-1 truncate">{value.name}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              disabled={disabled}
-              onClick={clearSelection}
-              aria-label="Clear certification"
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                value || query || parsedNameHint?.trim()
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
             >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          {value.issuerName ? (
-            <p className="text-sm text-muted-foreground pl-0.5" aria-live="polite">
-              {value.issuerName}
-            </p>
-          ) : null}
-        </div>
-      ) : (
-        <>
-          <Popover open={open} onOpenChange={handleOpenChange}>
-            <PopoverTrigger asChild>
-              <Button
-                id={id}
-                type="button"
-                variant="outline"
-                role="combobox"
-                disabled={disabled}
-                className={cn(
-                  "w-full justify-between font-normal",
-                  error ? "border-red-500" : ""
-                )}
-              >
-                <span
-                  className={
-                    query || (!value && parsedNameHint?.trim())
-                      ? "text-foreground"
-                      : "text-muted-foreground"
-                  }
-                >
-                  {query || (!value && parsedNameHint?.trim()) || "Search certifications..."}
-                </span>
-                <ChevronsUpDown className="opacity-50 shrink-0" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              className="w-[--radix-popover-trigger-width] min-w-[min(100vw-2rem,24rem)] p-0"
-              align="start"
-            >
-              <Command shouldFilter={false}>
-                <CommandInput
-                  placeholder="Search certifications..."
-                  value={query}
-                  onValueChange={setQuery}
-                  className="h-9"
-                />
-                <CommandList>
-                  {isLoading && (
-                    <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
-                  )}
-                  {!isLoading && query.trim().length < 2 && (
-                    <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
-                  )}
-                  {!isLoading && query.trim().length >= 2 && results.length === 0 && (
-                    <CommandGroup>
-                      <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                        No certifications found
-                      </div>
-                      <CommandItem
-                        value="__create_new_certification__"
-                        onSelect={() => openCreateCertificationDialog(query.trim())}
-                        className="cursor-pointer font-medium text-primary"
-                      >
-                        <Plus className="mr-2 h-4 w-4 shrink-0" />
-                        <span className="flex flex-col items-start leading-tight">
-                          <span>+ Create New</span>
-                          <span>Certification</span>
+              {value?.name ||
+                query ||
+                parsedNameHint?.trim() ||
+                "Search certifications..."}
+            </span>
+            <ChevronsUpDown className="opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[--radix-popover-trigger-width] min-w-[min(100vw-2rem,24rem)] p-0"
+          align="start"
+        >
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search certifications..."
+              value={query}
+              onValueChange={setQuery}
+              className="h-9"
+            />
+            <CommandList>
+              {isLoading && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+              )}
+              {!isLoading && query.trim().length < 2 && !value && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+              )}
+              {!isLoading && query.trim().length < 2 && value && (
+                <CommandGroup>
+                  <CommandItem
+                    value={String(value.id)}
+                    onSelect={() => selectCertification(value)}
+                    className="cursor-pointer items-start py-2"
+                  >
+                    <div className="flex flex-1 flex-col gap-0.5 items-start min-w-0 pr-2">
+                      <span className="font-medium leading-tight">{value.name}</span>
+                      {value.issuerName ? (
+                        <span className="text-xs text-muted-foreground leading-tight">
+                          {value.issuerName}
                         </span>
-                      </CommandItem>
-                    </CommandGroup>
-                  )}
-                  {!isLoading && results.length > 0 && (
-                    <CommandGroup>
-                      {results.map((c) => (
-                        <CommandItem
-                          key={c.id}
-                          value={String(c.id)}
-                          onSelect={() => selectCertification(c)}
-                          className="cursor-pointer items-start py-2"
-                        >
-                          <div className="flex flex-1 flex-col gap-0.5 items-start min-w-0 pr-2">
-                            <span className="font-medium leading-tight">{c.name}</span>
-                            {c.issuerName ? (
-                              <span className="text-xs text-muted-foreground leading-tight">
-                                {c.issuerName}
-                              </span>
-                            ) : null}
-                          </div>
-                          <Check className="h-4 w-4 shrink-0 opacity-100 mt-0.5" />
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          {resumeIssuerHint ? (
-            <p className="text-xs text-muted-foreground pl-0.5">
-              Issuing body (from resume): {resumeIssuerHint}
-            </p>
-          ) : null}
-        </>
-      )}
+                      ) : null}
+                    </div>
+                    <Check className="h-4 w-4 shrink-0 opacity-100 mt-0.5" />
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!isLoading && query.trim().length >= 2 && results.length === 0 && (
+                <CommandGroup>
+                  <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                    No certifications found
+                  </div>
+                  <CommandItem
+                    value="__create_new_certification__"
+                    onSelect={() => openCreateCertificationDialog(query.trim())}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4 shrink-0" />
+                    <span className="flex flex-col items-start leading-tight">
+                      <span>+ Create New</span>
+                      <span>Certification</span>
+                    </span>
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!isLoading && results.length > 0 && (
+                <CommandGroup>
+                  {results.map((c) => (
+                    <CommandItem
+                      key={c.id}
+                      value={String(c.id)}
+                      onSelect={() => selectCertification(c)}
+                      className="cursor-pointer items-start py-2"
+                    >
+                      <div className="flex flex-1 flex-col gap-0.5 items-start min-w-0 pr-2">
+                        <span className="font-medium leading-tight">{c.name}</span>
+                        {c.issuerName ? (
+                          <span className="text-xs text-muted-foreground leading-tight">
+                            {c.issuerName}
+                          </span>
+                        ) : null}
+                      </div>
+                      <Check
+                        className={cn(
+                          "h-4 w-4 shrink-0 mt-0.5",
+                          value?.id === c.id ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {resumeIssuerHint ? (
+        <p className="text-xs text-muted-foreground pl-0.5">
+          Issuing body (from resume): {resumeIssuerHint}
+        </p>
+      ) : null}
 
       <CertificationCreationDialog
         mode="create"

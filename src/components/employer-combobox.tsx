@@ -12,7 +12,8 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useEmployerSearch } from "@/hooks/useEmployerSearch"
 import {
   buildCreateEmployerDto,
@@ -95,13 +96,12 @@ export function EmployerCombobox({
     }
   }
 
-  const clearSelection = () => {
-    onChange(null)
-    resetSearch()
-  }
-
   const selectEmployer = (emp: { id: number; name: string }) => {
-    onChange({ id: emp.id, name: emp.name })
+    if (value?.id === emp.id) {
+      onChange(null)
+    } else {
+      onChange({ id: emp.id, name: emp.name })
+    }
     handleOpenChange(false)
   }
 
@@ -112,100 +112,107 @@ export function EmployerCombobox({
           {label}
         </Label>
       ) : null}
-      {value ? (
-        <div
-          className={`flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9 ${error ? "border-red-500" : ""}`}
-        >
-          <span className="flex-1 truncate">{value.name}</span>
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>
           <Button
+            id={id}
             type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
             disabled={disabled}
-            onClick={clearSelection}
-            aria-label="Clear employer"
+            className={cn(
+              "h-9 w-full min-w-0 justify-between overflow-hidden font-normal",
+              error ? "border-red-500" : "",
+            )}
+            title={value?.name}
           >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <Popover open={open} onOpenChange={handleOpenChange}>
-          <PopoverTrigger asChild>
-            <Button
-              id={id}
-              type="button"
-              variant="outline"
-              role="combobox"
-              disabled={disabled}
-              className={`w-full justify-between font-normal ${error ? "border-red-500" : ""}`}
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                value || query || parsedNameHint?.trim()
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
             >
-              <span
-                className={
-                  query || (!value && parsedNameHint?.trim())
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }
-              >
-                {query || (!value && parsedNameHint?.trim()) || "Search employers..."}
-              </span>
-              <ChevronsUpDown className="opacity-50 shrink-0" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-            <Command shouldFilter={false}>
-              <CommandInput
-                placeholder="Search employers..."
-                value={query}
-                onValueChange={setQuery}
-                className="h-9"
-              />
-              <CommandList>
-                {loading && (
-                  <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
-                )}
-                {!loading && query.trim().length < 2 && (
-                  <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
-                )}
-                {!loading && query.trim().length >= 2 && results.length === 0 && (
-                  <CommandGroup>
-                    <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                      No employers found
-                    </div>
+              {value?.name ||
+                query ||
+                parsedNameHint?.trim() ||
+                "Search employers..."}
+            </span>
+            <ChevronsUpDown className="opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search employers..."
+              value={query}
+              onValueChange={setQuery}
+              className="h-9"
+            />
+            <CommandList>
+              {loading && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+              )}
+              {!loading && query.trim().length < 2 && !value && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+              )}
+              {!loading && query.trim().length < 2 && value && (
+                <CommandGroup>
+                  <CommandItem
+                    value={String(value.id)}
+                    onSelect={() => selectEmployer(value)}
+                    className="cursor-pointer"
+                  >
+                    {value.name}
+                    <Check className="ml-auto opacity-100" />
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!loading && query.trim().length >= 2 && results.length === 0 && (
+                <CommandGroup>
+                  <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                    No employers found
+                  </div>
+                  <CommandItem
+                    value="__add_new_employer__"
+                    onSelect={() => {
+                      setAddEmployerInitialName(query.trim())
+                      handleOpenChange(false)
+                      setAddEmployerOpen(true)
+                    }}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add New Employer
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!loading && results.length > 0 && (
+                <CommandGroup>
+                  {results.map((emp) => (
                     <CommandItem
-                      value="__add_new_employer__"
-                      onSelect={() => {
-                        setAddEmployerInitialName(query.trim())
-                        handleOpenChange(false)
-                        setAddEmployerOpen(true)
-                      }}
-                      className="cursor-pointer font-medium text-primary"
+                      key={emp.id}
+                      value={String(emp.id)}
+                      onSelect={() => selectEmployer(emp)}
+                      className="cursor-pointer"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add New Employer
+                      {emp.name}
+                      <Check
+                        className={cn(
+                          "ml-auto",
+                          value?.id === emp.id ? "opacity-100" : "opacity-0",
+                        )}
+                      />
                     </CommandItem>
-                  </CommandGroup>
-                )}
-                {!loading && results.length > 0 && (
-                  <CommandGroup>
-                    {results.map((emp) => (
-                      <CommandItem
-                        key={emp.id}
-                        value={String(emp.id)}
-                        onSelect={() => selectEmployer(emp)}
-                        className="cursor-pointer"
-                      >
-                        {emp.name}
-                        <Check className="ml-auto opacity-100" />
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       <EmployerCreationDialog
         mode="create"

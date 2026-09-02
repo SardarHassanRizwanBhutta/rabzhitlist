@@ -1827,14 +1827,14 @@ export function getCandidateMatchContext(
             we.employerLocationId != null &&
             filters.employerLocationIds.includes(String(we.employerLocationId))
           ) {
-            matchedCriteria.push({
+          matchedCriteria.push({
               type: "employerLocation",
               label: "Office Location",
               values: ["Office Location"],
-            })
-            hasMatch = true
-          }
+          })
+          hasMatch = true
         }
+      }
 
       if (hasMatch) {
         workExperienceItems.push({

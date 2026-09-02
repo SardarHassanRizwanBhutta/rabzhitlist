@@ -55,6 +55,8 @@ interface BenefitsSelectorProps {
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
   disabled?: boolean
   className?: string
+  /** When true, omit the built-in "Benefits" label (parent already renders one). */
+  hideLabel?: boolean
 }
 
 export function BenefitsSelector({
@@ -64,6 +66,7 @@ export function BenefitsSelector({
   onCreateBenefit,
   disabled = false,
   className,
+  hideLabel = false,
 }: BenefitsSelectorProps) {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState("")
@@ -241,7 +244,7 @@ export function BenefitsSelector({
 
   return (
     <div className={cn("space-y-0.5", className)}>
-      <Label className="text-sm font-medium">Benefits</Label>
+      {!hideLabel && <Label className="text-sm font-medium">Benefits</Label>}
       
       {/* Benefit Selector Dropdown */}
       <div className="flex gap-2">
