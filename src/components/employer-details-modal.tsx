@@ -1046,6 +1046,7 @@ const InlineEditableBenefits: React.FC<InlineEditableBenefitsProps> = ({
                   : undefined
               }
               onChange={(benefits) => setEditValue(benefits)}
+              hideLabel
             />
           </div>
           

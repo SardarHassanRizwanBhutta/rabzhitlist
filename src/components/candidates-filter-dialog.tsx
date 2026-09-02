@@ -478,94 +478,94 @@ function clearSectionFromFilters(
   prev: CandidateFilters,
   sectionId: string,
 ): CandidateFilters {
-  const updated = { ...prev }
-  switch (sectionId) {
-    case "basic":
+      const updated = { ...prev }
+      switch (sectionId) {
+        case "basic":
       updated.name = ""
       updated.city = ""
-      updated.personalityTypes = []
-      updated.source = []
+          updated.personalityTypes = []
+          updated.source = []
       updated.callStatuses = []
-      updated.currentSalaryMin = ""
-      updated.currentSalaryMax = ""
-      updated.expectedSalaryMin = ""
-      updated.expectedSalaryMax = ""
-      updated.postingTitle = ""
-      updated.verificationPercentageMin = ""
-      updated.verificationPercentageMax = ""
-      updated.dataProgressMin = ""
-      updated.dataProgressMax = ""
-      break
-    case "experience":
-      updated.candidateTechStacks = []
-      updated.shiftTypes = []
-      updated.workModes = []
+          updated.currentSalaryMin = ""
+          updated.currentSalaryMax = ""
+          updated.expectedSalaryMin = ""
+          updated.expectedSalaryMax = ""
+          updated.postingTitle = ""
+          updated.verificationPercentageMin = ""
+          updated.verificationPercentageMax = ""
+          updated.dataProgressMin = ""
+          updated.dataProgressMax = ""
+          break
+        case "experience":
+          updated.candidateTechStacks = []
+          updated.shiftTypes = []
+          updated.workModes = []
       updated.workExperienceSalaryPolicies = []
-      updated.timeSupportZones = []
+          updated.timeSupportZones = []
       updated.workExperienceBenefits = []
-      updated.jobTitle = ""
-      updated.yearsOfExperienceMin = ""
-      updated.yearsOfExperienceMax = ""
-      updated.avgJobTenureMin = ""
-      updated.avgJobTenureMax = ""
+          updated.jobTitle = ""
+            updated.yearsOfExperienceMin = ""
+            updated.yearsOfExperienceMax = ""
+            updated.avgJobTenureMin = ""
+            updated.avgJobTenureMax = ""
       updated.joinedProjectFromStart = null
       updated.joinedProjectFromStartToleranceDays = 30
-      updated.hasMutualConnectionWithDPL = null
-      updated.mutualConnectionToleranceMonths = 0
-      updated.mutualConnectionType = null
-      break
-    case "projects":
-      updated.projects = []
-      updated.projectStatus = []
-      updated.projectTypes = []
-      updated.techStacks = []
-      updated.clientLocations = []
-      updated.verticalDomains = []
-      updated.horizontalDomains = []
+            updated.hasMutualConnectionWithDPL = null
+            updated.mutualConnectionToleranceMonths = 0
+            updated.mutualConnectionType = null
+          break
+        case "projects":
+          updated.projects = []
+          updated.projectStatus = []
+          updated.projectTypes = []
+          updated.techStacks = []
+          updated.clientLocations = []
+          updated.verticalDomains = []
+          updated.horizontalDomains = []
       updated.technicalDomains = []
       updated.technicalAspectTypeIds = []
-      updated.startDateStart = null
-      updated.startDateEnd = null
+          updated.startDateStart = null
+          updated.startDateEnd = null
       updated.averageTeamSizeMin = ""
       updated.averageTeamSizeMax = ""
-      updated.hasPublishedProject = null
+          updated.hasPublishedProject = null
       updated.hasMainContribution = null
-      updated.publishPlatforms = []
-      updated.minProjectDownloadCount = ""
-      break
-    case "employers":
-      updated.employers = []
+          updated.publishPlatforms = []
+          updated.minProjectDownloadCount = ""
+          break
+        case "employers":
+          updated.employers = []
       updated.employerLocationIds = []
-      updated.employerStatus = []
-      updated.employerCountries = []
+          updated.employerStatus = []
+          updated.employerCountries = []
       updated.employerCity = ""
-      updated.employerTypes = []
-      updated.employerSalaryPolicies = []
-      updated.employerSizeMin = ""
-      updated.employerSizeMax = ""
-      updated.employerRankings = []
-      break
-    case "education":
+          updated.employerTypes = []
+          updated.employerSalaryPolicies = []
+          updated.employerSizeMin = ""
+          updated.employerSizeMax = ""
+          updated.employerRankings = []
+          break
+        case "education":
       updated.universities = []
       updated.universityLocationIds = []
-      updated.degreeNames = []
-      updated.majorNames = []
-      updated.isTopper = null
-      updated.isCheetah = null
-      updated.educationEndDateStart = null
-      updated.educationEndDateEnd = null
-      break
-    case "certifications":
-      updated.certificationNames = []
-      updated.certificationIssuingBodies = []
-      updated.certificationLevels = []
-      break
-    case "competitions":
-      updated.achievementTypes = []
+          updated.degreeNames = []
+          updated.majorNames = []
+          updated.isTopper = null
+          updated.isCheetah = null
+          updated.educationEndDateStart = null
+          updated.educationEndDateEnd = null
+          break
+        case "certifications":
+          updated.certificationNames = []
+          updated.certificationIssuingBodies = []
+          updated.certificationLevels = []
+          break
+        case "competitions":
+          updated.achievementTypes = []
       updated.achievementName = ""
-      break
-  }
-  return updated
+          break
+      }
+      return updated
 }
 
 export function CandidatesFilterDialog({
@@ -1528,39 +1528,39 @@ export function CandidatesFilterDialog({
                   <Label htmlFor="filter-candidate-name" className="text-sm font-semibold">
                     Name
                   </Label>
-                  <Input
+                <Input
                     id="filter-candidate-name"
-                    type="text"
+                  type="text"
                     placeholder="Filter by name..."
                     value={tempFilters.name}
                     onChange={(e) => handleFilterChange("name", e.target.value)}
                   />
-                </div>
+              </div>
 
                 <div className="space-y-3 min-w-0">
-                  <Label htmlFor="postingTitle" className="text-sm font-semibold">Posting Title</Label>
-                  <Input
-                    id="postingTitle"
-                    type="text"
+                <Label htmlFor="postingTitle" className="text-sm font-semibold">Posting Title</Label>
+                <Input
+                  id="postingTitle"
+                  type="text"
                     placeholder="Filter by posting title..."
-                    value={tempFilters.postingTitle}
-                    onChange={(e) => handleFilterChange("postingTitle", e.target.value)}
-                  />
+                  value={tempFilters.postingTitle}
+                  onChange={(e) => handleFilterChange("postingTitle", e.target.value)}
+                />
                 </div>
               </div>
 
               {/* Source + City */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3 min-w-0">
-                  <MultiSelect
+                <MultiSelect
                     items={sourceFilterOptions}
                     selected={tempFilters.source}
                     onChange={(values) => handleFilterChange("source", values)}
                     placeholder="Filter by source..."
                     label="Source"
                     searchPlaceholder="Search sources..."
-                    maxDisplay={3}
-                  />
+                  maxDisplay={3}
+                />
                 </div>
 
                 <div className="space-y-3 min-w-0">
@@ -1579,7 +1579,7 @@ export function CandidatesFilterDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-3 min-w-0">
-                  <MultiSelect
+                <MultiSelect
                     items={callStatusFilterOptions}
                     selected={tempFilters.callStatuses}
                     onChange={(values) =>
@@ -1588,8 +1588,8 @@ export function CandidatesFilterDialog({
                     placeholder="Filter by call status..."
                     label="Call Status"
                     searchPlaceholder="Search call statuses..."
-                    maxDisplay={3}
-                  />
+                  maxDisplay={3}
+                />
                 </div>
               </div>
 
@@ -1850,9 +1850,9 @@ export function CandidatesFilterDialog({
                   onChange={(e) => {
                     handleFilterChange("jobTitle", e.target.value)
                   }}
-                />
-              </div>
-
+                    />
+                  </div>
+                  
               {/* Years of Experience Range Filter */}
               <div className="space-y-3">
                 <Label className="text-sm font-semibold">Years of Experience</Label>
@@ -1884,17 +1884,17 @@ export function CandidatesFilterDialog({
                       min="0"
                       step="0.5"
                     />
-                  </div>
+                </div>
                 </div>
                 {experienceYearsError && (
                   <p className="text-xs text-red-500">{experienceYearsError}</p>
                 )}
               </div>
-
+              
               {/* Work experience tech stacks + benefits */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="min-w-0">
-                  <MultiSelect
+              <MultiSelect
                     items={candidateTechStackFilterOptions}
                     selected={tempFilters.candidateTechStacks}
                     onChange={(values) => handleFilterChange("candidateTechStacks", values)}
@@ -1921,31 +1921,31 @@ export function CandidatesFilterDialog({
                 <div className="min-w-0">
                   <MultiSelect
                     items={shiftTypeFilterOptions}
-                    selected={tempFilters.shiftTypes}
-                    onChange={(values) => handleFilterChange("shiftTypes", values)}
-                    placeholder="Filter by shift type..."
-                    label="Shift Type"
-                    searchPlaceholder="Search shift types..."
-                    maxDisplay={3}
-                  />
+                selected={tempFilters.shiftTypes}
+                onChange={(values) => handleFilterChange("shiftTypes", values)}
+                placeholder="Filter by shift type..."
+                label="Shift Type"
+                searchPlaceholder="Search shift types..."
+                maxDisplay={3}
+              />
                 </div>
 
                 <div className="min-w-0">
-                  <MultiSelect
+              <MultiSelect
                     items={workModeFilterOptions}
-                    selected={tempFilters.workModes}
-                    onChange={(values) => handleFilterChange("workModes", values)}
-                    placeholder="Filter by work mode..."
-                    label="Work Mode"
-                    searchPlaceholder="Search work modes..."
-                    maxDisplay={3}
-                  />
+                selected={tempFilters.workModes}
+                onChange={(values) => handleFilterChange("workModes", values)}
+                placeholder="Filter by work mode..."
+                label="Work Mode"
+                searchPlaceholder="Search work modes..."
+                maxDisplay={3}
+              />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="min-w-0 space-y-2">
-                  <MultiSelect
+                    <MultiSelect
                     items={workExperienceSalaryPolicyOptions}
                     selected={tempFilters.workExperienceSalaryPolicies}
                     onChange={(values) =>
@@ -1954,20 +1954,20 @@ export function CandidatesFilterDialog({
                     placeholder="Filter by salary policy..."
                     label="Salary Policy"
                     searchPlaceholder="Search salary policies..."
-                    maxDisplay={3}
-                  />
-                </div>
-
+                      maxDisplay={3}
+                    />
+                  </div>
+                  
                 <div className="min-w-0 space-y-2">
-                  <MultiSelect
+              <MultiSelect
                     items={timeSupportZoneFilterOptions}
-                    selected={tempFilters.timeSupportZones}
-                    onChange={(values) => handleFilterChange("timeSupportZones", values)}
-                    placeholder="Filter by time support zone..."
-                    label="Time Support Zones"
-                    searchPlaceholder="Search time zones..."
-                    maxDisplay={3}
-                  />
+                selected={tempFilters.timeSupportZones}
+                onChange={(values) => handleFilterChange("timeSupportZones", values)}
+                placeholder="Filter by time support zone..."
+                label="Time Support Zones"
+                searchPlaceholder="Search time zones..."
+                maxDisplay={3}
+              />
                 </div>
               </div>
 
@@ -2497,28 +2497,28 @@ export function CandidatesFilterDialog({
               {/* Publish Platforms + Minimum Download Count */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2 min-w-0">
-                  <MultiSelect
+                <MultiSelect
                     items={publishPlatformFilterOptions}
-                    selected={tempFilters.publishPlatforms}
-                    onChange={(values) => handleFilterChange("publishPlatforms", values)}
+                  selected={tempFilters.publishPlatforms}
+                  onChange={(values) => handleFilterChange("publishPlatforms", values)}
                     placeholder="Filter by publish platform..."
                     label="Publish Platform"
-                    searchPlaceholder="Search platforms..."
-                  />
-                </div>
+                  searchPlaceholder="Search platforms..."
+                />
+              </div>
 
                 <div className="space-y-3 min-w-0">
-                  <Label htmlFor="minProjectDownloadCount" className="text-sm font-semibold">
+                <Label htmlFor="minProjectDownloadCount" className="text-sm font-semibold">
                     Minimum Download Count
-                  </Label>
-                  <Input
-                    id="minProjectDownloadCount"
-                    type="number"
+                </Label>
+                <Input
+                  id="minProjectDownloadCount"
+                  type="number"
                     placeholder="Filter by minimum download count..."
-                    min="0"
-                    value={tempFilters.minProjectDownloadCount}
-                    onChange={(e) => handleFilterChange("minProjectDownloadCount", e.target.value)}
-                  />
+                  min="0"
+                  value={tempFilters.minProjectDownloadCount}
+                  onChange={(e) => handleFilterChange("minProjectDownloadCount", e.target.value)}
+                />
                 </div>
               </div>
             </section>
@@ -2613,7 +2613,7 @@ export function CandidatesFilterDialog({
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                       <Command shouldFilter={false}>
                         <CommandInput
-                          placeholder="Filter by employer..."
+                  placeholder="Filter by employer..."
                           value={employerSearchQuery}
                           onValueChange={setEmployerSearchQuery}
                           className="h-9"
@@ -2669,9 +2669,9 @@ export function CandidatesFilterDialog({
                     }
                     label="Office Location"
                     searchPlaceholder="Search locations..."
-                    maxDisplay={3}
+                  maxDisplay={3}
                     disabled={tempFilters.employers.length === 0 || officeLocationsLoading}
-                  />
+                />
                 </div>
 
                 <MultiSelect
@@ -2743,35 +2743,35 @@ export function CandidatesFilterDialog({
                   <Input
                     id="employerCity"
                     type="text"
-                    placeholder="Filter by city..."
+                  placeholder="Filter by city..."
                     value={tempFilters.employerCity}
                     onChange={(e) => handleFilterChange("employerCity", e.target.value)}
-                  />
+                />
                 </div>
               </div>
-
+                
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="min-w-0">
-                  <MultiSelect
-                    items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
-                    selected={tempFilters.employerTypes}
-                    onChange={(values) => handleFilterChange("employerTypes", values)}
-                    placeholder="Filter by employer type..."
-                    label="Employer Type"
-                    searchPlaceholder="Search types..."
-                    maxDisplay={3}
-                  />
-                </div>
+                <MultiSelect
+                  items={Object.values(EMPLOYER_TYPE_LABELS).map(type => ({ value: type, label: type }))}
+                  selected={tempFilters.employerTypes}
+                  onChange={(values) => handleFilterChange("employerTypes", values)}
+                  placeholder="Filter by employer type..."
+                  label="Employer Type"
+                  searchPlaceholder="Search types..."
+                  maxDisplay={3}
+                />
+              </div>
 
                 <div className="min-w-0">
-                  <MultiSelect
-                    items={employerSalaryPolicyOptions}
-                    selected={tempFilters.employerSalaryPolicies}
-                    onChange={(values) => handleFilterChange("employerSalaryPolicies", values)}
-                    placeholder="Filter by salary policy..."
+              <MultiSelect
+                items={employerSalaryPolicyOptions}
+                selected={tempFilters.employerSalaryPolicies}
+                onChange={(values) => handleFilterChange("employerSalaryPolicies", values)}
+                placeholder="Filter by salary policy..."
                     label="Salary Policy"
-                    maxDisplay={3}
-                  />
+                maxDisplay={3}
+              />
                 </div>
               </div>
             </section>
@@ -2792,7 +2792,7 @@ export function CandidatesFilterDialog({
                   </Button>
                 )}
               </div>
-
+              
               <div className="space-y-2">
                 <Label className="text-sm font-medium">University</Label>
                 <Popover
@@ -2923,7 +2923,7 @@ export function CandidatesFilterDialog({
               </div>
 
               <div className="min-w-0 space-y-2">
-                <MultiSelect
+              <MultiSelect
                   items={campusLocationFilterItems}
                   selected={tempFilters.universityLocationIds}
                   onChange={(values) => handleFilterChange("universityLocationIds", values)}
@@ -2945,25 +2945,25 @@ export function CandidatesFilterDialog({
                 <div className="space-y-2 min-w-0">
                   <MultiSelect
                     items={degreeNameFilterOptions}
-                    selected={tempFilters.degreeNames}
-                    onChange={(values) => handleFilterChange("degreeNames", values)}
-                    placeholder="Filter by degree..."
-                    label="Degree"
-                    searchPlaceholder="Search degrees..."
-                    maxDisplay={3}
-                  />
+                selected={tempFilters.degreeNames}
+                onChange={(values) => handleFilterChange("degreeNames", values)}
+                placeholder="Filter by degree..."
+                label="Degree"
+                searchPlaceholder="Search degrees..."
+                maxDisplay={3}
+                />           
                 </div>
 
                 <div className="space-y-2 min-w-0">
-                  <MultiSelect
+                <MultiSelect
                     items={majorNameFilterOptions}
-                    selected={tempFilters.majorNames}
-                    onChange={(values) => handleFilterChange("majorNames", values)}
-                    placeholder="Filter by major..."
-                    label="Major"
-                    searchPlaceholder="Search majors..."
-                    maxDisplay={3}
-                  />
+                  selected={tempFilters.majorNames}
+                  onChange={(values) => handleFilterChange("majorNames", values)}
+                  placeholder="Filter by major..."
+                  label="Major"
+                  searchPlaceholder="Search majors..."
+                  maxDisplay={3}
+                />
                 </div>
               </div>
 
@@ -3170,7 +3170,7 @@ export function CandidatesFilterDialog({
                   >
                     <Command shouldFilter={false}>
                       <CommandInput
-                        placeholder="Filter by certification..."
+                placeholder="Filter by certification..."
                         value={certificationNameSearchQuery}
                         onValueChange={setCertificationNameSearchQuery}
                         className="h-9"
@@ -3292,16 +3292,16 @@ export function CandidatesFilterDialog({
                 </div>
 
                 <div className="min-w-0">
-                  <MultiSelect
-                    items={achievementTypeOptions}
-                    selected={tempFilters.achievementTypes}
-                    onChange={(values) => handleFilterChange("achievementTypes", values)}
+              <MultiSelect
+                items={achievementTypeOptions}
+                selected={tempFilters.achievementTypes}
+                onChange={(values) => handleFilterChange("achievementTypes", values)}
                     placeholder="Filter by type..."
                     label="Type"
-                    searchPlaceholder="Search types..."
-                    maxDisplay={3}
-                  />
-                </div>
+                searchPlaceholder="Search types..."
+                maxDisplay={3}
+              />
+              </div>
               </div>
             </section>
 

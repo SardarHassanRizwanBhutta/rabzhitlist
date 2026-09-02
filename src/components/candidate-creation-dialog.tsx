@@ -54,6 +54,8 @@ import {
   ChevronDown,
   Award,
   GraduationCap,
+  Trophy,
+  FolderOpen,
   Check,
   ChevronsUpDown,
   X,
@@ -3269,6 +3271,7 @@ export function CandidateCreationDialog({
                 )}
                 <VerificationCheckbox fieldPath="personalityType" />
               </div>
+              <div className="min-w-0 space-y-2">
               {mode === "edit" && candidateData?.hasResume && !resumeFile && (
                 <div className="rounded-md border bg-muted/40 p-3 space-y-2">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -3324,6 +3327,7 @@ export function CandidateCreationDialog({
                 label={mode === "edit" && candidateData?.hasResume ? "Replace resume" : "Resume"}
               />
               <VerificationCheckbox fieldPath="resume" />
+              </div>
               </div>
             </CardContent>
           </Card>
@@ -3419,7 +3423,7 @@ export function CandidateCreationDialog({
                 <CardContent className="pt-0 space-y-6">
                   {/* Experience Basic Info */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label htmlFor={`jobTitle-${index}`}>Job Title *</Label>
                       <Input
                         id={`jobTitle-${index}`}
@@ -3436,7 +3440,7 @@ export function CandidateCreationDialog({
                     </div>
 
                     <div
-                      className="space-y-2 scroll-mt-28"
+                      className="min-w-0 space-y-2 scroll-mt-28"
                       id={`prefill-anchor-we-${index}-employer`}
                     >
                       <WorkExperienceEmployerCombobox
@@ -3583,25 +3587,6 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.endDate`} />
                     </div>
 
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor={`techStacks-${index}`}>Tech Stacks</Label>
-                      <MultiSelect
-                        items={techStackOptions}
-                        selected={experience.techStacks}
-                        onChange={(values) => handleWorkExperienceChange(index, "techStacks", values)}
-                        placeholder="Select technologies..."
-                        searchPlaceholder="Search technologies..."
-                        maxDisplay={4}
-                        disabled={techStacksLoading}
-                        creatable={!!onCreateTechStack}
-                        createLabel="Add Technology"
-                        onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
-                        pinSelectedToTop
-                        remainingGroupHeading="All technologies"
-                      />
-                      <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
-                    </div>
-
                       <div className="space-y-2">
                         <Label htmlFor={`shiftType-${index}`}>Shift Type</Label>
                         <ReusableCombobox
@@ -3626,7 +3611,7 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.workMode`} />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy</Label>
                       <ReusableCombobox
                         options={salaryPolicyOptions}
@@ -3639,10 +3624,8 @@ export function CandidateCreationDialog({
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.salaryPolicy`} />
                     </div>
-                  </div>
 
-                  {/* Time Support Zones */}
-                  <div className="space-y-2 md:col-span-2">
+                    <div className="min-w-0 space-y-2">
                     <Label htmlFor={`timeSupportZones-${index}`}>Time Support Zones</Label>
                     <MultiSelect
                       items={timeSupportZoneOptions}
@@ -3659,10 +3642,28 @@ export function CandidateCreationDialog({
                       }
                     />
                     <VerificationCheckbox fieldPath={`workExperiences.${index}.timeSupportZones`} />
-                  </div>
+                    </div>
 
-                  {/* Benefits Section */}
-                  <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor={`techStacks-${index}`}>Tech Stacks</Label>
+                      <MultiSelect
+                        items={techStackOptions}
+                        selected={experience.techStacks}
+                        onChange={(values) => handleWorkExperienceChange(index, "techStacks", values)}
+                        placeholder="Select technologies..."
+                        searchPlaceholder="Search technologies..."
+                        maxDisplay={4}
+                        disabled={techStacksLoading}
+                        creatable={!!onCreateTechStack}
+                        createLabel="Add Technology"
+                        onCreateNew={onCreateTechStack ? (name) => onCreateTechStack(name) : undefined}
+                        pinSelectedToTop
+                        remainingGroupHeading="All technologies"
+                      />
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
+                    </div>
+
+                    <div className="min-w-0 space-y-2">
                     <BenefitsSelector
                       benefits={experience.benefits as EmployerBenefit[]}
                       benefitOptions={lookups?.benefits ?? []}
@@ -3677,6 +3678,7 @@ export function CandidateCreationDialog({
                       }
                     />
                     <VerificationCheckbox fieldPath={`workExperiences.${index}.benefits`} />
+                    </div>
                   </div>
 
                   {/* Projects Section */}
@@ -3793,9 +3795,8 @@ export function CandidateCreationDialog({
                     ) : (
                       <div className="rounded-lg border border-dashed p-4 text-center bg-muted/20">
                         <div className="mx-auto h-8 w-8 rounded-full bg-muted flex items-center justify-center mb-2">
-                          <Plus className="h-4 w-4 text-muted-foreground" />
+                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        <p className="text-sm text-muted-foreground mb-2">No projects added yet</p>
                         <Button
                           type="button"
                           variant="outline"
@@ -3816,7 +3817,6 @@ export function CandidateCreationDialog({
               {formData.workExperiences.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center">
                   <Briefcase className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No work experience added yet</p>
                   <Button
                     type="button"
                     variant="outline"
@@ -4224,7 +4224,6 @@ export function CandidateCreationDialog({
               {formData.educations.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center">
                   <GraduationCap className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No education added yet</p>
                   <Button
                     type="button"
                     variant="outline"
@@ -4401,7 +4400,7 @@ export function CandidateCreationDialog({
                         <VerificationCheckbox fieldPath={`certifications.${index}.expiryDate`} />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="min-w-0 space-y-2">
                         <Label htmlFor={`certificationUrl-${index}`}>Certification URL</Label>
                         <Input
                           id={`certificationUrl-${index}`}
@@ -4417,7 +4416,7 @@ export function CandidateCreationDialog({
                         <VerificationCheckbox fieldPath={`certifications.${index}.certificationUrl`} />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="min-w-0 space-y-2">
                         <Label htmlFor={`certificationLevel-${index}`}>Certification Level</Label>
                         <Select
                           value={certification.certificationLevel}
@@ -4446,7 +4445,6 @@ export function CandidateCreationDialog({
               {formData.certifications.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center">
                   <Award className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No certifications added yet</p>
                   <Button
                     type="button"
                     variant="outline"
@@ -4474,7 +4472,7 @@ export function CandidateCreationDialog({
                   className="w-full justify-between cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <Award className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <Trophy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                     <span className="text-lg font-medium">Achievements</span>
                     {formData.achievements.length > 0 && (
                       <Badge variant="secondary" className="ml-2">
@@ -4608,7 +4606,19 @@ export function CandidateCreationDialog({
                         <VerificationCheckbox fieldPath={`achievements.${index}.year`} />
                       </div>
 
-                      <div className="space-y-2 md:col-span-2">
+                      <div className="min-w-0 space-y-2">
+                        <Label htmlFor={`description-${index}`}>Description</Label>
+                        <Textarea
+                          id={`description-${index}`}
+                          placeholder="Additional context or details about this achievement..."
+                          value={achievement.description || ""}
+                          onChange={(e) => handleAchievementChange(index, "description", e.target.value)}
+                          rows={3}
+                        />
+                        <VerificationCheckbox fieldPath={`achievements.${index}.description`} />
+                      </div>
+
+                      <div className="min-w-0 space-y-2">
                         <Label htmlFor={`url-${index}`}>URL</Label>
                         <Input
                           id={`url-${index}`}
@@ -4623,18 +4633,6 @@ export function CandidateCreationDialog({
                         )}
                         <VerificationCheckbox fieldPath={`achievements.${index}.url`} />
                       </div>
-
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor={`description-${index}`}>Description</Label>
-                        <Textarea
-                          id={`description-${index}`}
-                          placeholder="Additional context or details about this achievement..."
-                          value={achievement.description || ""}
-                          onChange={(e) => handleAchievementChange(index, "description", e.target.value)}
-                          rows={3}
-                        />
-                        <VerificationCheckbox fieldPath={`achievements.${index}.description`} />
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -4642,8 +4640,7 @@ export function CandidateCreationDialog({
 
               {formData.achievements.length === 0 && (
                 <div className="rounded-lg border border-dashed p-6 text-center">
-                  <Award className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground mb-2">No achievements added yet</p>
+                  <Trophy className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                   <Button
                     type="button"
                     variant="outline"

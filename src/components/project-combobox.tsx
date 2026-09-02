@@ -12,7 +12,8 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Plus, X } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { useProjectSearch } from "@/hooks/useProjectSearch"
 import {
   ProjectCreationDialog,
@@ -114,13 +115,12 @@ export function ProjectCombobox({
     }
   }
 
-  const clearSelection = () => {
-    onChange(null)
-    resetSearch()
-  }
-
   const selectProject = (proj: { id: number; name: string }) => {
-    onChange({ id: proj.id, name: proj.name })
+    if (value?.id === proj.id) {
+      onChange(null)
+    } else {
+      onChange({ id: proj.id, name: proj.name })
+    }
     handleOpenChange(false)
   }
 
@@ -174,96 +174,103 @@ export function ProjectCombobox({
           {label}
         </Label>
       ) : null}
-      {value ? (
-        <div
-          className={`flex items-center gap-1 border rounded-md bg-background px-3 py-2 min-h-9 w-full ${error ? "border-red-500" : ""}`}
-        >
-          <span className="flex-1 truncate">{value.name}</span>
+      <Popover open={open} onOpenChange={handleOpenChange}>
+        <PopoverTrigger asChild>
           <Button
+            id={id}
             type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
             disabled={disabled}
-            onClick={clearSelection}
-            aria-label="Clear project"
+            className={cn(
+              "h-9 w-full min-w-0 justify-between overflow-hidden font-normal",
+              error ? "border-red-500" : "",
+            )}
+            title={value?.name}
           >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      ) : (
-        <Popover open={open} onOpenChange={handleOpenChange}>
-          <PopoverTrigger asChild>
-            <Button
-              id={id}
-              type="button"
-              variant="outline"
-              role="combobox"
-              disabled={disabled}
-              className={`w-full justify-between font-normal ${error ? "border-red-500" : ""}`}
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-left",
+                value || query || parsedNameHint?.trim()
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
             >
-              <span
-                className={
-                  query || (!value && parsedNameHint?.trim())
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }
-              >
-                {query || (!value && parsedNameHint?.trim()) || "Search projects..."}
-              </span>
-              <ChevronsUpDown className="opacity-50 shrink-0" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-            <Command shouldFilter={false}>
-              <CommandInput
-                placeholder="Search projects..."
-                value={query}
-                onValueChange={setQuery}
-                className="h-9"
-              />
-              <CommandList>
-                {isLoading && (
-                  <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
-                )}
-                {!isLoading && query.trim().length < 2 && (
-                  <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
-                )}
-                {!isLoading && query.trim().length >= 2 && results.length === 0 && (
-                  <CommandGroup>
-                    <div className="py-2 px-2 text-center text-sm text-muted-foreground">
-                      No projects found
-                    </div>
+              {value?.name ||
+                query ||
+                parsedNameHint?.trim() ||
+                "Search projects..."}
+            </span>
+            <ChevronsUpDown className="opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search projects..."
+              value={query}
+              onValueChange={setQuery}
+              className="h-9"
+            />
+            <CommandList>
+              {isLoading && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+              )}
+              {!isLoading && query.trim().length < 2 && !value && (
+                <div className="py-6 text-center text-sm text-muted-foreground">Type to search</div>
+              )}
+              {!isLoading && query.trim().length < 2 && value && (
+                <CommandGroup>
+                  <CommandItem
+                    value={String(value.id)}
+                    onSelect={() => selectProject(value)}
+                    className="cursor-pointer"
+                  >
+                    {value.name}
+                    <Check className="ml-auto opacity-100" />
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!isLoading && query.trim().length >= 2 && results.length === 0 && (
+                <CommandGroup>
+                  <div className="py-2 px-2 text-center text-sm text-muted-foreground">
+                    No projects found
+                  </div>
+                  <CommandItem
+                    value="__create_new_project__"
+                    onSelect={openCreateProjectDialog}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create New Project
+                  </CommandItem>
+                </CommandGroup>
+              )}
+              {!isLoading && results.length > 0 && (
+                <CommandGroup>
+                  {results.map((proj) => (
                     <CommandItem
-                      value="__create_new_project__"
-                      onSelect={openCreateProjectDialog}
-                      className="cursor-pointer font-medium text-primary"
+                      key={proj.id}
+                      value={String(proj.id)}
+                      onSelect={() => selectProject(proj)}
+                      className="cursor-pointer"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create New Project
+                      {proj.name}
+                      <Check
+                        className={cn(
+                          "ml-auto",
+                          value?.id === proj.id ? "opacity-100" : "opacity-0",
+                        )}
+                      />
                     </CommandItem>
-                  </CommandGroup>
-                )}
-                {!isLoading && results.length > 0 && (
-                  <CommandGroup>
-                    {results.map((proj) => (
-                      <CommandItem
-                        key={proj.id}
-                        value={String(proj.id)}
-                        onSelect={() => selectProject(proj)}
-                        className="cursor-pointer"
-                      >
-                        {proj.name}
-                        <Check className="ml-auto opacity-100" />
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
+                  ))}
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       <ProjectCreationDialog
         mode="create"
