@@ -143,9 +143,6 @@ export function CertificationCombobox({
     setAddCertInitialIssuerWebsite("")
   }
 
-  const resumeIssuerHint =
-    !value && parsedIssuerHint?.trim() ? parsedIssuerHint.trim() : null
-
   return (
     <div className={className ? `space-y-2 ${className}` : "space-y-2"}>
       {label ? (
@@ -270,11 +267,6 @@ export function CertificationCombobox({
           </Command>
         </PopoverContent>
       </Popover>
-      {resumeIssuerHint ? (
-        <p className="text-xs text-muted-foreground pl-0.5">
-          Issuing body (from resume): {resumeIssuerHint}
-        </p>
-      ) : null}
 
       <CertificationCreationDialog
         mode="create"

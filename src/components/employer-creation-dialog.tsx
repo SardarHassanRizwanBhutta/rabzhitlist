@@ -70,7 +70,7 @@ export interface LayoffFormData {
   id: string
   layoffDate: Date | undefined
   numberOfEmployeesLaidOff: string
-  reason: LayoffReasonDb
+  reason: LayoffReasonDb | ""
   reasonOther: string
 }
 
@@ -154,7 +154,7 @@ const createEmptyLayoff = (): LayoffFormData => ({
   id: crypto.randomUUID(),
   layoffDate: undefined,
   numberOfEmployeesLaidOff: "",
-  reason: "cost_reduction",
+  reason: "",
   reasonOther: "",
 })
 
@@ -596,13 +596,30 @@ export function EmployerCreationDialog({
       }
     })
 
+    formData.layoffs.forEach((layoff, index) => {
+      const layErrors: Partial<Record<keyof LayoffFormData, string>> = {}
+      if (!layoff.layoffDate) layErrors.layoffDate = "Layoff date is required"
+      const affected = parseInt(layoff.numberOfEmployeesLaidOff, 10)
+      if (!layoff.numberOfEmployeesLaidOff.trim() || Number.isNaN(affected) || affected < 0) {
+        layErrors.numberOfEmployeesLaidOff = "Enter a valid number of affected employees"
+      }
+      if (!layoff.reason) layErrors.reason = "Reason is required"
+      if (layoff.reason === "other" && !layoff.reasonOther.trim()) {
+        layErrors.reasonOther = "Please specify the reason"
+      }
+      if (Object.keys(layErrors).length > 0) {
+        layoffErrors[index] = layErrors
+      }
+    })
+
     const newErrors = {
       employer: Object.keys(employerErrors).length > 0 ? employerErrors : undefined,
       locations: Object.keys(locationErrors).length > 0 ? locationErrors : undefined,
+      layoffs: Object.keys(layoffErrors).length > 0 ? layoffErrors : undefined,
     }
 
     setErrors(newErrors)
-    return !newErrors.employer && !newErrors.locations
+    return !newErrors.employer && !newErrors.locations && !newErrors.layoffs
   }
 
   // Toggle verification checkbox
@@ -1896,7 +1913,7 @@ export function EmployerCreationDialog({
                             <div className="space-y-2">
                               <Label htmlFor={`reason-${index}`}>Reason *</Label>
                               <Select 
-                                value={layoff.reason} 
+                                value={layoff.reason || undefined} 
                                 onValueChange={(value) => handleLayoffChange(index, "reason", value as LayoffReasonDb)}
                               >
                                 <SelectTrigger className={errors.layoffs?.[index]?.reason ? "border-red-500" : ""}>

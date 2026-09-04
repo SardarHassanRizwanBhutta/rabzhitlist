@@ -143,7 +143,7 @@ function ensureLayoffRow(): LayoffFormData {
     id: crypto.randomUUID(),
     layoffDate: undefined,
     numberOfEmployeesLaidOff: "",
-    reason: "cost_reduction",
+    reason: "",
     reasonOther: "",
   }
 }
@@ -515,7 +515,7 @@ export function buildEmployerCreatePrefillFromWorkExperience(
         id: layoff.id || crypto.randomUUID(),
         layoffDate: layoff.layoffDate,
         numberOfEmployeesLaidOff: layoff.affectedEmployees ?? "",
-        reason: reasonDb ?? "cost_reduction",
+        reason: reasonDb ?? "",
         reasonOther: reasonDb ? "" : (layoff.reason ?? ""),
       }
       prefill.layoffs = [layoffRow]

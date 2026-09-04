@@ -926,15 +926,17 @@ export async function syncEmployerLocationsFromEditForm(
   }
 }
 
-/** Build body for POST /api/employers/{id}/layoffs from a form row. Returns null if date or count invalid. */
+/** Build body for POST /api/employers/{id}/layoffs from a form row. Returns null if date, count, or reason invalid. */
 export function buildAddEmployerLayoffDto(lay: LayoffFormData): AddEmployerLayoffDto | null {
   if (!lay.layoffDate) return null
   const n = parseInt(String(lay.numberOfEmployeesLaidOff), 10)
   if (Number.isNaN(n) || n < 0) return null
+  const reason = lay.reason
+  if (!reason) return null
   return {
     layoffDate: lay.layoffDate.toISOString().slice(0, 10),
     affectedEmployees: n,
-    reason: lay.reason in LAYOFF_REASON_TO_API ? LAYOFF_REASON_TO_API[lay.reason] : 0,
+    reason: LAYOFF_REASON_TO_API[reason],
   }
 }
 
@@ -1177,13 +1179,14 @@ export function buildCreateEmployerDto(
   const layoffs: CreateEmployerLayoffDto[] = formData.layoffs
     .filter((lay) => {
       if (!lay.layoffDate) return false
+      if (!(lay.reason in LAYOFF_REASON_TO_API)) return false
       const n = parseInt(String(lay.numberOfEmployeesLaidOff), 10)
       return !Number.isNaN(n) && n >= 0
     })
     .map((lay) => ({
       layoffDate: lay.layoffDate!.toISOString().slice(0, 10),
       affectedEmployees: parseInt(String(lay.numberOfEmployeesLaidOff), 10),
-      reason: lay.reason in LAYOFF_REASON_TO_API ? LAYOFF_REASON_TO_API[lay.reason] : 0,
+      reason: LAYOFF_REASON_TO_API[lay.reason as LayoffReasonDb],
     }))
 
   const dto: CreateEmployerDto = {
