@@ -11,8 +11,10 @@ import {
   type EmployerTypeDb,
 } from "@/lib/types/employer"
 import {
+  COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP,
   LAYOFF_FIELD_ORDER,
   OFFICE_FIELD_ORDER,
+  paddedEmployerOfficeRows,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
 } from "@/lib/utils/qg-field-weights"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
@@ -93,18 +95,20 @@ export function buildWorkExperienceEmployerCatalogPlaceholderFields(
     })
   }
 
-  for (const def of OFFICE_DEFS) {
-    fields.push({
-      fieldPath: `workExperiences[${index}].locations[0].${def.key}`,
-      apiFieldName: `work_experience_${index}_office_0_${def.key}`,
-      fieldLabel: def.label,
-      fieldType: def.type,
-      section: "workExperience",
-      currentValue: null,
-      parentIndex: index,
-      context,
-      options: def.options,
-    })
+  for (let officeIndex = 0; officeIndex < COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP; officeIndex++) {
+    for (const def of OFFICE_DEFS) {
+      fields.push({
+        fieldPath: `workExperiences[${index}].locations[${officeIndex}].${def.key}`,
+        apiFieldName: `work_experience_${index}_office_${officeIndex}_${def.key}`,
+        fieldLabel: def.label,
+        fieldType: def.type,
+        section: "workExperience",
+        currentValue: null,
+        parentIndex: index,
+        context,
+        options: def.options,
+      })
+    }
   }
 
   for (const def of LAYOFF_DEFS) {
@@ -147,8 +151,7 @@ export function collectMissingWorkExperienceEmployerCatalogFields(
     })
   }
 
-  const locationRows =
-    we.locations && we.locations.length > 0 ? we.locations : [undefined]
+  const locationRows = paddedEmployerOfficeRows(we.locations)
   locationRows.forEach((office, officeIndex) => {
     for (const def of OFFICE_DEFS) {
       const value = office?.[def.key as keyof typeof office]

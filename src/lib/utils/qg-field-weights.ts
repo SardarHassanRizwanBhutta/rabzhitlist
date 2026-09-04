@@ -105,6 +105,28 @@ export const OFFICE_FIELD_ORDER = [
   "isHeadquarters",
 ] as const
 
+/**
+ * Max employer-catalog office rows for QG generate-questions and Call Notes extract.
+ * Existing offices beyond this cap are kept; fewer rows are padded with empty slots.
+ */
+export const COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP = 5
+
+export function paddedEmployerOfficeSlotCount(existingCount: number): number {
+  const n =
+    typeof existingCount === "number" && Number.isFinite(existingCount) && existingCount > 0
+      ? Math.floor(existingCount)
+      : 0
+  return Math.max(n, COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP)
+}
+
+export function paddedEmployerOfficeRows<T>(
+  rows: readonly T[] | undefined,
+): Array<T | undefined> {
+  const source = rows ?? []
+  const count = paddedEmployerOfficeSlotCount(source.length)
+  return Array.from({ length: count }, (_, i) => source[i])
+}
+
 export const LAYOFF_FIELD_ORDER = [
   "layoffDate",
   "affectedEmployees",
