@@ -17,6 +17,7 @@ import {
   CERTIFICATION_FIELD_ORDER,
   LAYOFF_FIELD_ORDER,
   OFFICE_FIELD_ORDER,
+  paddedEmployerOfficeRows,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
   WORK_EXPERIENCE_ROLE_FIELD_ORDER,
 } from "@/lib/utils/qg-field-weights"
@@ -174,8 +175,7 @@ function workExperienceSparse(
   }
 
   const locationsSource = source.locations ?? []
-  const locationRows =
-    locationsSource.length > 0 ? locationsSource : [undefined]
+  const locationRows = paddedEmployerOfficeRows(locationsSource)
   sparse.locations = locationRows.map((office, officeIndex) =>
     officeSparse(office, workExperienceIndex, officeIndex, fieldsToGenerate),
   )
@@ -263,7 +263,8 @@ function achievementSparse(
 /**
  * Builds a sparse QG payload and the authoritative `fields_to_generate` list for
  * every missing allowlisted key. Populated values are omitted. Empty collections
- * and empty nested projects/locations/layoffs use synthetic index 0.
+ * and empty nested projects/layoffs use synthetic index 0. Employer catalog
+ * offices are padded to five slots when fewer exist.
  */
 export function buildMissingOnlyQuestionRequest(
   candidateData: CandidateDataForQuestionService,

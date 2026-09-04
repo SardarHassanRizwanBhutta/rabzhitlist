@@ -3,6 +3,8 @@
 **Status:** Locked (2026-08-04). Updated 2026-08-05 — see detailed agent contract.  
 **Audience:** Python / FastAPI agent maintaining the Question Generation service (`:8002`).  
 **Primary agent contract (detailed):** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md)  
+**Multi-office extract prompt lock (2026-09-03):** [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)  
+**Nested project extract prompt lock (2026-09-03):** [`CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md)  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **API contract:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
 **Shared field vocabulary:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -295,7 +297,7 @@ Use anonymized fixture notes; no PII in committed tests.
 |-------------|--------|
 | Whitelist | Full Cold Caller QG allowlist for employer/office/layoff/project catalog keys |
 | Enum values | Return **display labels** for `types`, `status`, `projectType`, `shiftType`, etc. — same as Generate Questions / FE `options` |
-| Offices / layoffs | Use synthetic index `0` in `apiFieldName` when parent has no rows (`work_experience_{i}_office_0_*`, `_layoff_0_*`) |
+| Offices / layoffs | **Offices:** FE may send `office_0` … `office_4` empty slots. Extract must map each distinct site in notes to a different `j` (see [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)). **Layoffs:** still synthetic `layoff_0` when parent has no rows. |
 | Tech stacks | **Do not** emit `work_experience_{i}_techStacks` or `work_experience_{i}_project_{j}_techStacks` in v2 |
 | Lookup | FE blocks catalog apply until `employerId` / `projectId` linked (Step 4 pattern) |
 

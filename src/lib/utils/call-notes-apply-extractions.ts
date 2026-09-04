@@ -112,8 +112,8 @@ function ensureOfficeRow(
 ): number {
   if (!we.locations) we.locations = []
   const idx = Number.parseInt(officeIndex, 10)
-  if (!Number.isNaN(idx) && idx >= 0 && idx < we.locations.length) return idx
-  if (officeIndex === "0" && we.locations.length === 0) {
+  if (Number.isNaN(idx) || idx < 0) return 0
+  while (we.locations.length <= idx) {
     we.locations.push({
       id: crypto.randomUUID(),
       country: "",
@@ -121,19 +121,8 @@ function ensureOfficeRow(
       address: "",
       isHeadquarters: false,
     })
-    return 0
   }
-  if (we.locations.length === 0) {
-    we.locations.push({
-      id: crypto.randomUUID(),
-      country: "",
-      city: "",
-      address: "",
-      isHeadquarters: false,
-    })
-    return 0
-  }
-  return 0
+  return idx
 }
 
 function ensureLayoffRow(
@@ -390,6 +379,16 @@ function isEmptyFormValue(value: unknown): boolean {
   return isQgValueMissing(value)
 }
 
+/**
+ * New office rows default `isHeadquarters` to `false`. `isQgValueMissing(false)` is false,
+ * so empty-only apply would skip extract `true` (Headquarters switch stays off).
+ * Treat anything other than `true` as unset; do not overwrite an already-on HQ flag.
+ */
+function isEmptyOfficeFieldValue(key: string, value: unknown): boolean {
+  if (key === "isHeadquarters") return value !== true
+  return isEmptyFormValue(value)
+}
+
 function writeRootField(
   form: CandidateFormData,
   key: string,
@@ -482,7 +481,7 @@ function writeOfficeField(
   const rowIdx = ensureOfficeRow(we, officeIndex)
   const office = we.locations![rowIdx]
   const current = office[key as keyof typeof office]
-  if (!isEmptyFormValue(current)) return false
+  if (!isEmptyOfficeFieldValue(key, current)) return false
 
   if (key === "isHeadquarters") {
     const coerced = coerceScalarForForm("boolean", value)

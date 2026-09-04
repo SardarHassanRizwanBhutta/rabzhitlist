@@ -4,6 +4,8 @@
 **Audience:** AI agent implementing **`POST /api/call-notes/extract`** in the **Python Question Generation (QG) service** (`llm-questions` / FastAPI on port **`8002`**).  
 **This document is the primary implementation contract for the QG agent.**  
 **Related (shorter summary):** [`CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md`](./CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md)  
+**Multi-office extract prompt (2026-09-03):** [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)  
+**Nested project extract prompt (2026-09-03):** [`CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md)  
 **Cross-repo API mirror:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
 **Product locks:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **Shared field vocabulary:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -531,7 +533,9 @@ Fail fast with `400`/`422` before LLM call.
 - Use `candidateSnapshot` + `context` to disambiguate rows.  
 - If uncertain, omit the field (do not guess).  
 - For enums, output exact `options[].value` strings.  
-- Include verbatim `sourceText` substring supporting each value.
+- Include verbatim `sourceText` substring supporting each value.  
+- **Offices:** `work_experience_{i}_office_{j}_*` — each whitelist `j` is a separate site. Multiple offices in notes → different `j`; never merge into `office_0`. Omit unused `j`. Full lock: `CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`.  
+- **Projects:** `work_experience_{i}_project_{j}_*` — if those keys are on the whitelist, extract `projectName` and `description` from notes when evidenced. `contributionNotes` is a **separate** field: fill only from contribution evidence; never copy the project description paragraph into it. Do not skip the project block because snapshot `projects` is empty. `combobox` + empty `options` is not an enum drop. Full lock: `CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`.
 
 **User message content:**
 
@@ -621,6 +625,12 @@ Use **anonymized** fixture notes only.
 | T10 | No evidence for whitelisted field | Row omitted; `200` `[]` or partial ok |
 | T11 | Two employers ambiguous | At most one WE row filled, or none |
 | T12 | `work_experience_0_techStacks` in whitelist | `200` allowed (not CNE16) |
+| T-MO1 | Three offices in notes; whitelist `office_0`–`office_4` | Distinct `j` per city; see multi-office prompt lock |
+| T-MO2 | Three offices; whitelist only `office_0` | Only `j=0`; no invented `office_1` |
+| T-MO3 | One office; whitelist `office_0`–`office_4` | Only one `j` filled |
+| T-PN1 | Jazz project + description in notes; whitelist name + description + contributionNotes | Name + description returned; contributionNotes omitted; see project prompt lock |
+| T-PN2 | `projectName` combobox `options: []` | Row not dropped |
+| T-PN3 | No `project_*` on whitelist | No `project_*` extractions |
 
 ---
 

@@ -155,8 +155,19 @@ export function buildEmployerCreatePrefillFromExtractRows(
   metaByPath: ReadonlyMap<string, AllowedEmptyField>,
 ): Partial<EmployerFormData> {
   const prefill: Partial<EmployerFormData> = {}
-  let officeRow: EmployerLocationFormData | null = null
+  const officeRows = new Map<number, EmployerLocationFormData>()
   let layoffRow: LayoffFormData | null = null
+
+  const officeAt = (indexRaw: string | undefined): EmployerLocationFormData => {
+    const parsed = Number.parseInt(indexRaw ?? "0", 10)
+    const index = Number.isNaN(parsed) || parsed < 0 ? 0 : parsed
+    let row = officeRows.get(index)
+    if (!row) {
+      row = ensureOfficeRow()
+      officeRows.set(index, row)
+    }
+    return row
+  }
 
   for (const row of rows) {
     if (!selectedPaths.has(row.fieldPath)) continue
@@ -218,7 +229,7 @@ export function buildEmployerCreatePrefillFromExtractRows(
     }
 
     if (parsed.kind === "office") {
-      officeRow ??= ensureOfficeRow()
+      const officeRow = officeAt(parsed.officeIndex)
       switch (parsed.property) {
         case "country":
           officeRow.country = extractedNameFromValue(row.value)
@@ -275,8 +286,12 @@ export function buildEmployerCreatePrefillFromExtractRows(
     }
   }
 
-  if (officeRow && (officeRow.country || officeRow.city || officeRow.address)) {
-    prefill.locations = [officeRow]
+  const filledOffices = [...officeRows.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, row]) => row)
+    .filter((row) => row.country.trim() || row.city.trim() || row.address.trim())
+  if (filledOffices.length) {
+    prefill.locations = filledOffices
   }
   if (
     layoffRow &&
