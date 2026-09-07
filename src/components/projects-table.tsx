@@ -110,8 +110,6 @@ import {
   type ProjectStatus,
 } from "@/lib/types/project"
 import {
-  VERTICAL_DOMAINS,
-  HORIZONTAL_DOMAINS,
   fetchProjectById,
   projectDtoToProject,
 } from "@/lib/services/projects-api"
@@ -124,6 +122,7 @@ import {
 import type { EmployerLookupDto } from "@/lib/services/employers-api"
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import type { LookupItem } from "@/lib/services/lookups-api"
+import { catalogLabelForValue, catalogLabelsForValues, catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 import type { ProjectLookups, SelectedEmployer } from "@/components/project-creation-dialog"
 import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
@@ -202,16 +201,6 @@ const publishPlatformOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTI
 const projectTypeOptions = PROJECT_TYPES.map((type) => ({
   label: type,
   value: type,
-}))
-
-const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
 }))
 
 // Status options
@@ -314,7 +303,6 @@ export function ProjectsTable({
   technicalDomainOptions = [],
   lookups,
   onCreateTechStack,
-  onCreateTechnicalAspect,
   onCreateClientLocation,
 }: ProjectsTableProps) {
   const router = useRouter()
@@ -324,6 +312,16 @@ export function ProjectsTable({
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
+
+  const verticalDomainOptions = lookups?.verticalDomains ?? []
+  const horizontalDomainOptions = lookups?.horizontalDomains ?? []
+  const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
+    ? catalogToSelectOptions(lookups.technicalAspects)
+    : []
+  const q = searchQuery.toLowerCase()
+  const matchesCatalog = (values: string[], options: MultiSelectOption[]) =>
+    catalogLabelsForValues(values, options).some((label) => label.toLowerCase().includes(q)) ||
+    values.some((value) => value.toLowerCase().includes(q))
 
   const handleDeleteClick = (project: Project) => {
     setProjectToDelete(project)
@@ -361,14 +359,15 @@ export function ProjectsTable({
         (project.teamSize !== null && project.teamSize.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.description !== null && project.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
         project.techStacks.some(tech => tech.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.verticalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.horizontalDomains.some(domain => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        project.technicalDomains.some((domain) => domain.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        matchesCatalog(project.verticalDomains, verticalDomainOptions) ||
+        matchesCatalog(project.horizontalDomains, horizontalDomainOptions) ||
+        matchesCatalog(project.technicalDomains, technicalDomainOptions) ||
+        matchesCatalog(project.technicalAspects, technicalAspectCatalogOptions) ||
         project.aspectTypeLabels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.isPublished && "published".includes(searchQuery.toLowerCase())) ||
         (project.publishPlatforms && project.publishPlatforms.some(platform => platform.toLowerCase().includes(searchQuery.toLowerCase())))
     )
-  }, [projects, searchQuery])
+  }, [projects, searchQuery, verticalDomainOptions, horizontalDomainOptions, technicalDomainOptions, technicalAspectCatalogOptions])
 
   // Sorting
   const sortedProjects = useMemo(() => {
@@ -530,7 +529,7 @@ export function ProjectsTable({
               <TableHead className="w-[160px]">Horizontal Domains</TableHead>
               <TableHead className="w-[160px]">Vertical Domains</TableHead>
               <TableHead className="w-[160px]">Technical Domains</TableHead>
-              <TableHead className="w-[180px]">Technical Aspects</TableHead>
+              <TableHead className="w-[180px]">Technical Aspect Types</TableHead>
               <TableHead className="w-[100px]">
                 <SortButton column="teamSize">Team Size</SortButton>
               </TableHead>
@@ -585,14 +584,14 @@ export function ProjectsTable({
                   {renderTags(project.techStacks, 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}
                 </TableCell>
                 <TableCell>
-                  {renderTags(project.horizontalDomains, 2, "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200")}
+                  {renderTags(catalogLabelsForValues(project.horizontalDomains, horizontalDomainOptions), 2, "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200")}
                 </TableCell>
                 <TableCell>
-                  {renderTags(project.verticalDomains, 2, "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200")}
+                  {renderTags(catalogLabelsForValues(project.verticalDomains, verticalDomainOptions), 2, "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200")}
                 </TableCell>
                 <TableCell>
                   {renderTags(
-                    project.technicalDomains,
+                    catalogLabelsForValues(project.technicalDomains, technicalDomainOptions),
                     2,
                     "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
                   )}
@@ -770,7 +769,6 @@ export function ProjectsTable({
           technicalDomainOptions={technicalDomainOptions}
           lookups={lookups}
           onCreateTechStack={onCreateTechStack}
-          onCreateTechnicalAspect={onCreateTechnicalAspect}
           onCreateClientLocation={onCreateClientLocation}
         />
       )}
@@ -1547,7 +1545,7 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
               variant="secondary"
               className={cn(badgeColorClass, "text-xs")}
             >
-              {item}
+              {catalogLabelForValue(item, options)}
             </Badge>
           ))}
           {remainingCount > 0 && !isExpanded && (
@@ -2880,6 +2878,12 @@ function ProjectDetailDialog({
     [lookups?.clientLocations]
   )
 
+  const verticalDomainOptions = lookups?.verticalDomains ?? []
+  const horizontalDomainOptions = lookups?.horizontalDomains ?? []
+  const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
+    ? catalogToSelectOptions(lookups.technicalAspects)
+    : []
+
   const technicalDomainOptionsResolved = useMemo(
     () => lookups?.technicalDomains ?? technicalDomainOptionsForDetail,
     [lookups?.technicalDomains, technicalDomainOptionsForDetail]
@@ -3289,15 +3293,27 @@ function ProjectDetailDialog({
                 maxDisplay={4}
               />
 
+              <InlineEditableMultiSelect
+                label="Technical Aspects"
+                value={localProject.technicalAspects || []}
+                fieldName="technicalAspects"
+                options={technicalAspectCatalogOptions}
+                onSave={handleMultiSelectFieldSave}
+                getFieldVerification={getFieldVerification}
+                placeholder="Select technical aspects..."
+                searchPlaceholder="Search technical aspects..."
+                badgeColorClass="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                maxDisplay={4}
+              />
+
               {/*
-                Technical Aspects is a server-derived, read-only summary of the
+                Technical Aspect Types is a server-derived, read-only summary of the
                 `TechnicalAspectType` rows whose tech stacks the project uses
-                (server projects `aspectTypeLabels`). It is not directly
-                editable: change the tech stacks above to change this list.
+                (server projects `aspectTypeLabels`). Change tech stacks to change this list.
               */}
               <div className="py-2 px-3 rounded-md">
                 <div className="mb-3">
-                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspects</Label>
+                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspect Types</Label>
                 </div>
                 {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
                   <div className="flex flex-wrap gap-2 min-h-[2rem]">

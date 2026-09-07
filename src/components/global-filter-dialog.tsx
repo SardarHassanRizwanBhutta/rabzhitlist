@@ -18,9 +18,10 @@ import { GlobalFilters, getGlobalFilterCount } from "@/lib/types/global-filters"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
-import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
+import { ensureDomainCatalogsLoaded } from "@/lib/services/lookups-api"
+import { catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 
 interface GlobalFilterDialogProps {
   children?: React.ReactNode
@@ -80,30 +81,6 @@ const extractGlobalTechStacks = (): string[] => {
   return Array.from(techStacks).sort()
 }
 
-const extractGlobalVerticalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractGlobalHorizontalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractGlobalTechnicalAspects = (): string[] => {
-  const aspects = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.technicalAspects.forEach(aspect => aspects.add(aspect))
-  })
-  return Array.from(aspects).sort()
-}
-
 const extractGlobalEmployers = (): string[] => {
   const employers = new Set<string>()
   sampleEmployers.forEach(employer => {
@@ -153,21 +130,6 @@ const techStackOptions: MultiSelectOption[] = buildTechStackMultiSelectOptions(
   extractGlobalTechStacks(),
 )
 
-const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const technicalAspectOptions: MultiSelectOption[] = extractGlobalTechnicalAspects().map(aspect => ({
-  value: aspect,
-  label: aspect
-}))
-
 const employerOptions: MultiSelectOption[] = extractGlobalEmployers().map(employer => ({
   value: employer,
   label: employer
@@ -182,6 +144,29 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
   const { filters, setFilters, clearFilters } = useGlobalFilters()
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<GlobalFilters>(filters)
+  const [verticalDomainOptions, setVerticalDomainOptions] = useState<MultiSelectOption[]>([])
+  const [horizontalDomainOptions, setHorizontalDomainOptions] = useState<MultiSelectOption[]>([])
+  const [technicalAspectOptions, setTechnicalAspectOptions] = useState<MultiSelectOption[]>([])
+
+  React.useEffect(() => {
+    let cancelled = false
+    ensureDomainCatalogsLoaded()
+      .then((catalogs) => {
+        if (cancelled) return
+        setVerticalDomainOptions(catalogToSelectOptions(catalogs.verticalDomains))
+        setHorizontalDomainOptions(catalogToSelectOptions(catalogs.horizontalDomains))
+        setTechnicalAspectOptions(catalogToSelectOptions(catalogs.technicalAspects))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setVerticalDomainOptions([])
+        setHorizontalDomainOptions([])
+        setTechnicalAspectOptions([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const activeFilterCount = getGlobalFilterCount(filters)
 

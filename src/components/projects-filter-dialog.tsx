@@ -35,8 +35,6 @@ import {
 } from "@/lib/types/project"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import {
-  VERTICAL_DOMAINS,
-  HORIZONTAL_DOMAINS,
   type ProjectsListFilterInput,
 } from "@/lib/services/projects-api"
 import { cn } from "@/lib/utils"
@@ -80,30 +78,6 @@ const extractUniqueTechStacks = (): string[] => {
     project.techStacks.forEach(tech => techStacks.add(tech))
   })
   return Array.from(techStacks).sort()
-}
-
-const extractUniqueVerticalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractUniqueHorizontalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractUniqueTechnicalAspects = (): string[] => {
-  const aspects = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.technicalAspects.forEach(aspect => aspects.add(aspect))
-  })
-  return Array.from(aspects).sort()
 }
 
 // Extract unique client locations from projects
@@ -294,14 +268,11 @@ export function ProjectsFilterDialog({
         : buildTechStackMultiSelectOptions([], extractUniqueTechStacks()),
     [lookupOptions?.techStacks],
   )
-  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
-  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label }))
+  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? []
+  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? []
   const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
   const technicalAspectTypeFilterOptions: MultiSelectOption[] = lookupOptions?.technicalAspectTypes ?? []
-  const legacyTechnicalAspectOptions: MultiSelectOption[] =
-    lookupOptions?.technicalAspects?.length
-      ? lookupOptions.technicalAspects
-      : extractUniqueTechnicalAspects().map((a) => ({ value: a, label: a }))
+  const technicalAspectOptions: MultiSelectOption[] = lookupOptions?.technicalAspects ?? []
   const useTechnicalAspectTypesFilter = technicalAspectTypeFilterOptions.length > 0
   const clientLocationOptions: MultiSelectOption[] = lookupOptions?.clientLocations ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc }))
 
@@ -769,13 +740,13 @@ export function ProjectsFilterDialog({
               {useTechnicalAspectTypesFilter ? (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Technical Aspect</Label>
+                    <Label className="text-sm font-medium">Technical Aspect Types</Label>
                     <MultiSelect
                       items={technicalAspectTypeFilterOptions}
                       selected={tempFilters.technicalAspectTypeIds}
                       onChange={handleTechnicalAspectTypeIdsChange}
-                      placeholder="Filter by technical aspect"
-                      searchPlaceholder="Search technical aspects..."
+                      placeholder="Filter by technical aspect type"
+                      searchPlaceholder="Search technical aspect types..."
                       maxDisplay={3}
                     />
                   </div>
@@ -829,17 +800,18 @@ export function ProjectsFilterDialog({
                     searchPlaceholder="Search technologies..."
                     maxDisplay={4}
                   />
-                  <MultiSelect
-                    items={legacyTechnicalAspectOptions}
-                    selected={tempFilters.technicalAspects}
-                    onChange={(values) => handleFilterChange("technicalAspects", values)}
-                    placeholder="Filter by technical aspect"
-                    label="Technical Aspect"
-                    searchPlaceholder="Search technical aspects..."
-                    maxDisplay={3}
-                  />
                 </>
               )}
+
+              <MultiSelect
+                items={technicalAspectOptions}
+                selected={tempFilters.technicalAspects}
+                onChange={(values) => handleFilterChange("technicalAspects", values)}
+                placeholder="Filter by technical aspect..."
+                label="Technical Aspects"
+                searchPlaceholder="Search technical aspects..."
+                maxDisplay={3}
+              />
 
               <div className="space-y-4">
                 <MultiSelect

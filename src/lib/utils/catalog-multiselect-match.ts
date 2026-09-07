@@ -1,22 +1,7 @@
-import {
-  HORIZONTAL_DOMAINS,
-  TECHNICAL_DOMAIN_HUMAN_LABELS,
-  VERTICAL_DOMAINS,
-} from "@/lib/services/projects-api"
+import { catalogToSelectOptions, type CatalogSelectOption } from "@/lib/utils/domain-catalog"
+import { getCachedDomainCatalogs } from "@/lib/services/lookups-api"
 
-export type CatalogSelectOption = { value: string; label: string }
-
-export const VERTICAL_DOMAIN_CATALOG_OPTIONS: CatalogSelectOption[] = VERTICAL_DOMAINS.map(
-  (domain) => ({ value: domain.label, label: domain.label }),
-)
-
-export const HORIZONTAL_DOMAIN_CATALOG_OPTIONS: CatalogSelectOption[] = HORIZONTAL_DOMAINS.map(
-  (domain) => ({ value: domain.label, label: domain.label }),
-)
-
-export const TECHNICAL_DOMAIN_CATALOG_OPTIONS: CatalogSelectOption[] = TECHNICAL_DOMAIN_HUMAN_LABELS.map(
-  (label) => ({ value: label, label }),
-)
+export type { CatalogSelectOption }
 
 function tokenizeSpokenMultiselect(value: unknown): string[] {
   const parts = Array.isArray(value)
@@ -84,11 +69,37 @@ export function mapSpokenValuesToCatalogOptions(
   return mapped
 }
 
+/** Same as `mapSpokenValuesToCatalogOptions`, then resolve each match to the option label. */
+export function mapSpokenValuesToCatalogLabels(
+  value: unknown,
+  options: CatalogSelectOption[],
+): string[] {
+  const byValue = new Map(options.map((option) => [option.value, option.label]))
+  return mapSpokenValuesToCatalogOptions(value, options).map(
+    (matched) => byValue.get(matched) ?? matched,
+  )
+}
+
 export function catalogOptionsForProjectDomainKey(
   payloadKey: string,
 ): CatalogSelectOption[] | undefined {
-  if (payloadKey === "verticalDomains") return VERTICAL_DOMAIN_CATALOG_OPTIONS
-  if (payloadKey === "horizontalDomains") return HORIZONTAL_DOMAIN_CATALOG_OPTIONS
-  if (payloadKey === "technicalDomains") return TECHNICAL_DOMAIN_CATALOG_OPTIONS
+  const catalogs = getCachedDomainCatalogs()
+  if (payloadKey === "verticalDomains") return catalogToSelectOptions(catalogs.verticalDomains)
+  if (payloadKey === "horizontalDomains") return catalogToSelectOptions(catalogs.horizontalDomains)
+  if (payloadKey === "technicalDomains") return catalogToSelectOptions(catalogs.technicalDomains)
+  if (payloadKey === "technicalAspects") return catalogToSelectOptions(catalogs.technicalAspects)
   return undefined
 }
+
+export function getVerticalDomainCatalogOptions(): CatalogSelectOption[] {
+  return catalogToSelectOptions(getCachedDomainCatalogs().verticalDomains)
+}
+
+export function getHorizontalDomainCatalogOptions(): CatalogSelectOption[] {
+  return catalogToSelectOptions(getCachedDomainCatalogs().horizontalDomains)
+}
+
+export function getTechnicalDomainCatalogOptions(): CatalogSelectOption[] {
+  return catalogToSelectOptions(getCachedDomainCatalogs().technicalDomains)
+}
+

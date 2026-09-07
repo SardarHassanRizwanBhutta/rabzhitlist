@@ -5,6 +5,7 @@
  */
 
 import { API_BASE_URL } from "@/lib/config/api"
+import { parseIdNameList } from "@/lib/utils/domain-catalog"
 import {
   normalizeTechStackLookupList,
   sortTechStackLookupItems,
@@ -18,8 +19,26 @@ export interface LookupItem {
   name: string
 }
 
-/** Same shape as TechnicalDomains catalog — GET /api/TechnicalAspectTypes (not legacy /api/TechnicalAspects). */
-export type TechnicalAspectTypeCatalogItem = { value: number; label: string }
+/** GET /api/TechnicalAspectTypes — `{ id, name }` (same integer previously sent as `value`). */
+export type TechnicalAspectTypeCatalogItem = LookupItem
+
+export interface DomainCatalogSnapshot {
+  verticalDomains: LookupItem[]
+  horizontalDomains: LookupItem[]
+  technicalDomains: LookupItem[]
+  technicalAspects: LookupItem[]
+}
+
+const EMPTY_DOMAIN_CATALOGS: DomainCatalogSnapshot = {
+  verticalDomains: [],
+  horizontalDomains: [],
+  technicalDomains: [],
+  technicalAspects: [],
+}
+
+let cachedDomainCatalogs: DomainCatalogSnapshot = EMPTY_DOMAIN_CATALOGS
+let domainCatalogsLoaded = false
+let domainCatalogsInflight: Promise<DomainCatalogSnapshot> | null = null
 
 const TECH_STACKS_PATH = "/api/TechStacks"
 
@@ -45,9 +64,48 @@ async function createItem(path: string, name: string): Promise<LookupItem> {
   return response.json()
 }
 
-// --- Technical aspect types (fixed taxonomy; scoped tech stack pickers) ---
+async function fetchIdNameCatalog(path: string): Promise<LookupItem[]> {
+  const data = await getList<unknown>(path)
+  return parseIdNameList(data)
+}
 
-/** GET /api/TechnicalAspectTypes — distinct from legacy GET /api/TechnicalAspects (project technicalAspectIds). */
+export function getCachedDomainCatalogs(): DomainCatalogSnapshot {
+  return cachedDomainCatalogs
+}
+
+/**
+ * Session cache for the four GET-only domain/aspect catalogs.
+ * No POST/PUT/DELETE for these lists.
+ */
+export async function ensureDomainCatalogsLoaded(): Promise<DomainCatalogSnapshot> {
+  if (domainCatalogsLoaded) return cachedDomainCatalogs
+  if (!domainCatalogsInflight) {
+    domainCatalogsInflight = Promise.all([
+      fetchVerticalDomains(),
+      fetchHorizontalDomains(),
+      fetchTechnicalDomains(),
+      fetchTechnicalAspects(),
+    ])
+      .then(([verticalDomains, horizontalDomains, technicalDomains, technicalAspects]) => {
+        cachedDomainCatalogs = {
+          verticalDomains,
+          horizontalDomains,
+          technicalDomains,
+          technicalAspects,
+        }
+        domainCatalogsLoaded = true
+        return cachedDomainCatalogs
+      })
+      .finally(() => {
+        domainCatalogsInflight = null
+      })
+  }
+  return domainCatalogsInflight
+}
+
+// --- Technical aspect types (tech-stack grouping; not GET /api/TechnicalAspects) ---
+
+/** GET /api/TechnicalAspectTypes — `{ id, name }`. Distinct from GET /api/TechnicalAspects. */
 export async function fetchTechnicalAspectTypes(): Promise<TechnicalAspectTypeCatalogItem[]> {
   const res = await fetch(`${API_BASE_URL}/api/TechnicalAspectTypes`)
   if (!res.ok) {
@@ -55,15 +113,7 @@ export async function fetchTechnicalAspectTypes(): Promise<TechnicalAspectTypeCa
     throw new Error(`TechnicalAspectTypes: ${res.status} — ${text}`)
   }
   const data = (await res.json()) as unknown
-  if (!Array.isArray(data)) return []
-  return data
-    .filter(
-      (row): row is TechnicalAspectTypeCatalogItem =>
-        row != null &&
-        typeof (row as TechnicalAspectTypeCatalogItem).value === "number" &&
-        typeof (row as TechnicalAspectTypeCatalogItem).label === "string"
-    )
-    .map((row) => ({ value: row.value, label: row.label }))
+  return parseIdNameList(data)
 }
 
 // --- Tech Stacks ---
@@ -100,41 +150,23 @@ export async function createTechStack(name: string, technicalAspectTypeIds?: num
   return response.json()
 }
 
-// --- Vertical Domains & Horizontal Domains ---
-// These are now fixed enums on the backend (no CRUD).
-// Use VERTICAL_DOMAINS / HORIZONTAL_DOMAINS from projects-api.ts for dropdowns.
+// --- Domain catalogs (GET-only; `{ id, name }`) ---
 
-// --- Technical Aspects (canonical TechnicalAspect enum from backend) ---
-//
-// The endpoint is the source of truth for the `TechnicalAspect` enum. It
-// historically returned `{ id, name }` (`LookupItem`) and now returns
-// `{ value, label }` (matching the C# enum ordinals 0..N). We accept both
-// shapes and normalize to `LookupItem` so that downstream callers can keep
-// using `name` for display while `id` is the canonical enum int sent on
-// project create/update payloads.
-
-export async function fetchTechnicalAspects(): Promise<LookupItem[]> {
-  const response = await fetch(`${API_BASE_URL}/api/technicalaspects`)
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch /api/technicalaspects: ${response.status} — ${text}`)
-  }
-  const data = (await response.json()) as unknown
-  if (!Array.isArray(data)) return []
-  return data
-    .map((row): LookupItem | null => {
-      if (!row || typeof row !== "object") return null
-      const r = row as Record<string, unknown>
-      const idCandidate = r.id ?? r.value
-      const nameCandidate = r.name ?? r.label
-      if (typeof idCandidate !== "number" || typeof nameCandidate !== "string") return null
-      return { id: idCandidate, name: nameCandidate }
-    })
-    .filter((row): row is LookupItem => row !== null)
+export async function fetchVerticalDomains(): Promise<LookupItem[]> {
+  return fetchIdNameCatalog("/api/VerticalDomains")
 }
 
-export async function createTechnicalAspect(name: string): Promise<LookupItem> {
-  return createItem("/api/technicalaspects", name)
+export async function fetchHorizontalDomains(): Promise<LookupItem[]> {
+  return fetchIdNameCatalog("/api/HorizontalDomains")
+}
+
+export async function fetchTechnicalDomains(): Promise<LookupItem[]> {
+  return fetchIdNameCatalog("/api/TechnicalDomains")
+}
+
+/** GET /api/TechnicalAspects — project Technical Aspects catalog (not aspect types). */
+export async function fetchTechnicalAspects(): Promise<LookupItem[]> {
+  return fetchIdNameCatalog("/api/TechnicalAspects")
 }
 
 // --- Client Locations ---

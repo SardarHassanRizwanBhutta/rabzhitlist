@@ -210,6 +210,7 @@ const defaultFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   technicalAspectTypeIds: [],
   candidateTechStacks: [],
   shiftTypes: [],

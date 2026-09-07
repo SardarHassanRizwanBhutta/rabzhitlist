@@ -24,12 +24,10 @@ import {
 import {
   buildCreateProjectDto,
   createProject,
-  horizontalDomainLabelToInt,
-  technicalDomainLabelToInt,
-  verticalDomainLabelToInt,
   type CreateProjectOptions,
 } from "@/lib/services/projects-api"
 import { createClientLocation, type LookupItem } from "@/lib/services/lookups-api"
+import { catalogIdStringsToInts } from "@/lib/utils/domain-catalog"
 import { resolveLookupIdsByName } from "@/lib/utils/lookup-ids-by-name"
 import { toast } from "sonner"
 
@@ -39,10 +37,6 @@ function namesToIds(names: string[], lookup: LookupItem[]): number[] {
   return names
     .map((n) => lookup.find((l) => l.name === n)?.id)
     .filter((id): id is number => id != null)
-}
-
-function labelsToInts(labels: string[], toInt: (label: string) => number | undefined): number[] {
-  return labels.map(toInt).filter((v): v is number => v != null)
 }
 
 export interface ProjectComboboxProps {
@@ -127,7 +121,6 @@ export function ProjectCombobox({
 
   const handleCreateProjectSubmit = async (data: ProjectFormData) => {
     const techStacks = projectLookups?.techStacks ?? []
-    const technicalAspects = projectLookups?.technicalAspects ?? []
     const clientLocations = projectLookups?.clientLocations ?? []
     const createMissingClientLocation = async (name: string): Promise<LookupItem> => {
       if (onCreateClientLocation) {
@@ -145,10 +138,10 @@ export function ProjectCombobox({
     const options: CreateProjectOptions = {
       employerId: data.selectedEmployer?.id ?? null,
       techStackIds: namesToIds(data.techStacks, techStacks),
-      verticalDomains: labelsToInts(data.verticalDomains, verticalDomainLabelToInt),
-      horizontalDomains: labelsToInts(data.horizontalDomains, horizontalDomainLabelToInt),
-      technicalDomains: labelsToInts(data.technicalDomains, technicalDomainLabelToInt),
-      technicalAspects: namesToIds(data.technicalAspects, technicalAspects),
+      verticalDomains: catalogIdStringsToInts(data.verticalDomains),
+      horizontalDomains: catalogIdStringsToInts(data.horizontalDomains),
+      technicalDomains: catalogIdStringsToInts(data.technicalDomains),
+      technicalAspects: catalogIdStringsToInts(data.technicalAspects),
       clientLocationIds,
     }
     const body = buildCreateProjectDto(data, options)

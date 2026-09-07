@@ -37,12 +37,11 @@ export interface Project {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalDomains: string[]
-  /** Legacy `TechnicalAspect` enum labels from the API; not user-editable in the new flow and usually empty for new projects. */
+  /** Catalog id strings from GET /api/TechnicalAspects. */
   technicalAspects: string[]
   /**
    * Server-derived labels of `TechnicalAspectType` rows whose tech stacks the
    * project uses (`p.TechStacks.SelectMany(s => s.TechnicalAspectTypes).Distinct()`).
-   * This is the value rendered in the Technical Aspects column.
    */
   aspectTypeLabels: string[]
   /** Display string derived from `averageTeamSize` when set. */

@@ -505,18 +505,6 @@ function collectWorkExperienceTimeSupportZoneNames(
   return Array.from(names)
 }
 
-// Extract unique horizontal domains from sample projects
-const extractUniqueHorizontalDomains = (): MultiSelectOption[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort().map(domain => ({
-    label: domain,
-    value: domain
-  }))
-}
-
 // Base tech stack options
 const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
 

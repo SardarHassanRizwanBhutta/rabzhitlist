@@ -17,7 +17,7 @@ import {
   WE_OFFICE_KEYS,
 } from "@/lib/utils/call-notes-extract-catalog"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
-import { catalogOptionsForProjectDomainKey, mapSpokenValuesToCatalogOptions } from "@/lib/utils/catalog-multiselect-match"
+import { catalogOptionsForProjectDomainKey, mapSpokenValuesToCatalogLabels } from "@/lib/utils/catalog-multiselect-match"
 import {
   shiftTypeToSelectValue,
   workModeToSelectValue,
@@ -757,14 +757,15 @@ function writeProjectField(
   if (
     key === "verticalDomains" ||
     key === "horizontalDomains" ||
-    key === "technicalDomains"
+    key === "technicalDomains" ||
+    key === "technicalAspects"
   ) {
     const catalogOptions =
       meta.options && meta.options.length > 0
         ? meta.options
         : catalogOptionsForProjectDomainKey(key)
     const resolved = catalogOptions
-      ? mapSpokenValuesToCatalogOptions(value, catalogOptions)
+      ? mapSpokenValuesToCatalogLabels(value, catalogOptions)
       : resolveMultiselectOptionValues(value, meta.options)
     if (!resolved || resolved.length === 0) return false
     project[key] = resolved
@@ -772,7 +773,7 @@ function writeProjectField(
     return true
   }
 
-  if (key === "technicalAspects" || key === "clientLocations") {
+  if (key === "clientLocations") {
     const resolved = resolveMultiselectOptionValues(value, meta.options)
     if (!resolved) return false
     project[key] = resolved
