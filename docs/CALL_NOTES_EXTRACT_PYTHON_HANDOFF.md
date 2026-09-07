@@ -1,10 +1,14 @@
 # Call Notes Extract — Python QG Service Handoff
 
-**Status:** Locked (2026-08-04). Updated 2026-08-05 — see detailed agent contract.  
+**Status:** Locked (2026-08-04). Updated 2026-09-05 — select SL1 and employer status Active→Open shipped in QG extract. Updated 2026-08-05 — see detailed agent contract.  
 **Audience:** Python / FastAPI agent maintaining the Question Generation service (`:8002`).  
 **Primary agent contract (detailed):** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md)  
 **Multi-office extract prompt lock (2026-09-03):** [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)  
 **Nested project extract prompt lock (2026-09-03):** [`CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md)  
+**Main Contributor extract prompt lock (2026-09-04):** [`CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md)  
+**Employer status extract prompt lock (2026-09-04):** [`CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md) — **Shipped** in QG extract (Active → Open).  
+**Project catalog extras extract prompt lock (2026-09-04):** [`CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md)  
+**Select label → value post-process (2026-09-05):** [`CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md) — **Shipped** in QG extract.  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **API contract:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
 **Shared field vocabulary:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -175,6 +179,7 @@ Align with QG payload semantics and [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md
 | `*_startDate`, `*_endDate`, cert/achievement dates | ISO dates |
 | `*_headcount`, `*_averageTeamSize`, `*_year` | Integers |
 | `*_contributionNotes`, `*_description` | Free text |
+| `*_isMainContribution` | Boolean (`true` when notes evidence main contributor). Extract-only; not generate-questions |
 | `resume` | v1: generally omit — FE rarely whitelists; if present, string hint only (not file upload) |
 
 ### 8.1 Disambiguation
@@ -191,17 +196,30 @@ Maintain a single source of truth (recommended):
 COLD_CALLER_EXTRACT_ALLOWLIST: frozenset[str]  # apiFieldName suffixes or full keys
 ```
 
-Must match QG contract §3–§5 **minus CNE16**. Reject at HTTP layer any request containing keys outside the extract set.
+Must match QG contract §3–§5 **minus CNE16**, **plus** extract-only CNE17 `isMainContribution`. Reject at HTTP layer any request containing keys outside the extract set.
 
 **Extract-specific exclusion (CNE16):**
 
 - Top-level `techStacks` apiFieldName (QG `independent_tech_stacks` section) — **reject** if present in `allowedEmptyFields`
 
+**Extract-specific addition (CNE17):**
+
+- `work_experience_{i}_project_{j}_isMainContribution` — **accept** on extract; **do not** accept on generate-questions
+- `averageTeamSize` and `clientLocations` — already QG keys; **must** be extractable when whitelisted (CNE18)
+- `verticalDomains` / `horizontalDomains` / `technicalDomains` — already QG keys; extract `value` stays **spoken tokens** (CNE19 / PX5). Do **not** rewrite to catalog labels. Do **not** drop unmatched items when `options` is non-empty.
+- `select` — **Shipped** (2026-09-05): rewrite matching `options[].label` to `options[].value` before the enum drop (SL1). Example: `achievementType` `"Medal"` → `"medal"`. See [`CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md).
+- `work_experience_{i}_status` — **Shipped** (2026-09-05): spoken Active → `Open` before the select drop (ES1–ES3). See [`CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md).
+
+**Extract-specific rejection (CNE18 lock-out, same as QG §5):**
+
+- `work_experience_{i}_project_{j}_projectLink`, `_isPublished`, `_publishPlatforms`, `_downloadCount` — **reject** on extract (do not accept on the whitelist; do not return mappings)
+
 **Forbidden** (same as QG §5):
 
 - `education_*`, collection openers, enrichment keys  
 - `cnic`, `personalityType`  
-- project `downloadCount`, `publishPlatforms`, `projectLink`, single `teamSize`  
+- project single `teamSize`  
+- `projectLink`, `isPublished`, `publishPlatforms`, `downloadCount` (CNE18 lock-out)  
 - legacy removed keys
 
 ---
@@ -296,7 +314,7 @@ Use anonymized fixture notes; no PII in committed tests.
 | Requirement | Detail |
 |-------------|--------|
 | Whitelist | Full Cold Caller QG allowlist for employer/office/layoff/project catalog keys |
-| Enum values | Return **display labels** for `types`, `status`, `projectType`, `shiftType`, etc. — same as Generate Questions / FE `options` |
+| Enum values | Return **display labels** for `types`, `status`, `projectType`, `shiftType`, etc. — same as Generate Questions / FE `options`. **Exception (CNE19):** nested project `verticalDomains` / `horizontalDomains` / `technicalDomains` stay spoken tokens. |
 | Offices / layoffs | **Offices:** FE may send `office_0` … `office_4` empty slots. Extract must map each distinct site in notes to a different `j` (see [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)). **Layoffs:** still synthetic `layoff_0` when parent has no rows. |
 | Tech stacks | **Do not** emit `work_experience_{i}_techStacks` or `work_experience_{i}_project_{j}_techStacks` in v2 |
 | Lookup | FE blocks catalog apply until `employerId` / `projectId` linked (Step 4 pattern) |

@@ -78,6 +78,13 @@ import { formatSalaryDisplayValue } from "@/lib/utils/qg-value"
 import { calculateDataCompletion } from "@/lib/utils/data-completion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { TruncateToSample } from "@/components/candidates/truncate-to-sample"
+import {
+  CANDIDATE_LIST_CITY_MAX_SAMPLE,
+  CANDIDATE_LIST_CITY_TRUNCATE_CLASS,
+  CANDIDATE_LIST_NAME_MAX_SAMPLE,
+  CANDIDATE_LIST_NAME_TRUNCATE_CLASS,
+} from "@/lib/utils/candidate-list-truncate"
 import type { EmployerBenefit } from "@/lib/types/benefits"
 import {
   deleteCandidate,
@@ -680,6 +687,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 const matchContext = activeFilters ? getCandidateMatchContext(candidate, filters) : null
                 const isExpanded = expandedRows.has(candidate.id)
                 const expandedCats = expandedCategories.get(candidate.id) || new Set<string>()
+                const jobTitle = getJobTitle(candidate)
 
                 return (
                   <React.Fragment key={candidate.id}>
@@ -695,10 +703,17 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                       <div className="size-8 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
                         <User className="size-4 text-primary" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{candidate.name}</div>
-                        <div className="text-sm text-muted-foreground truncate sm:hidden">
-                          {getJobTitle(candidate)}
+                      <div>
+                        <TruncateToSample
+                          sample={CANDIDATE_LIST_NAME_MAX_SAMPLE}
+                          text={candidate.name}
+                          className={cn("font-medium", CANDIDATE_LIST_NAME_TRUNCATE_CLASS)}
+                        />
+                        <div
+                          className="w-full truncate text-sm text-muted-foreground sm:hidden"
+                          title={jobTitle}
+                        >
+                          {jobTitle}
                         </div>
                       </div>
                     </div>
@@ -707,10 +722,11 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                   {/* Job Title - Hidden on mobile */}
                   <TableCell 
                     className="hidden sm:table-cell"
+                    title={jobTitle}
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     <div className="max-w-[200px]">
-                      <div className="truncate">{getJobTitle(candidate)}</div>
+                      <div className="truncate">{jobTitle}</div>
                     </div>
                   </TableCell>
                   
@@ -756,7 +772,11 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     className="hidden md:table-cell"
                     onClick={() => setSelectedCandidate(candidate)}
                   >
-                    {candidate.city}
+                    <TruncateToSample
+                      sample={CANDIDATE_LIST_CITY_MAX_SAMPLE}
+                      text={candidate.city ?? ""}
+                      className={CANDIDATE_LIST_CITY_TRUNCATE_CLASS}
+                    />
                   </TableCell>
 
                   <TableCell

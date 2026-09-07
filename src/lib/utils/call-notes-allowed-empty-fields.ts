@@ -3,7 +3,7 @@
  * @see docs/CALL_NOTES_EXTRACT_FRONTEND_HANDOFF.md §6
  */
 
-import type { Candidate } from "@/lib/types/candidate"
+import type { Candidate, ProjectExperience } from "@/lib/types/candidate"
 import type { EmptyField } from "@/types/cold-caller"
 import type { AllowedEmptyField } from "@/types/call-notes-extraction"
 import { getEmptyFields } from "@/lib/utils/empty-field-detection"
@@ -80,13 +80,16 @@ function emptyFieldToAllowedEmptyField(
   field: EmptyField,
   candidate: Candidate,
 ): AllowedEmptyField {
+  const isSpokenProjectDomain = /_project_\d+_(verticalDomains|horizontalDomains|technicalDomains)$/.test(
+    field.apiFieldName,
+  )
   return {
     fieldPath: toStableExtractFieldPath(field.fieldPath, candidate),
     apiFieldName: field.apiFieldName,
     fieldLabel: field.fieldLabel,
     fieldType: field.fieldType,
     context: field.context,
-    options: field.options,
+    options: isSpokenProjectDomain ? undefined : field.options,
     requiresLookupResolution: field.onCreateEntity != null,
   }
 }
@@ -108,6 +111,108 @@ function isExtractEligibleEmptyField(
     return false
   }
   return true
+}
+
+const EXTRACT_BOOLEAN_OPTIONS = [
+  { value: "true", label: "Yes" },
+  { value: "false", label: "No" },
+]
+
+function workExperienceExtractContext(we: {
+  employerName?: string | null
+  jobTitle?: string | null
+}): string | undefined {
+  const employer = we.employerName?.trim()
+  const title = we.jobTitle?.trim()
+  if (employer && title) return `${employer} - ${title}`
+  return employer || title || undefined
+}
+
+type ProjectExtractSlot = {
+  prefix: string
+  apiPrefix: string
+  context?: string
+  project?: ProjectExperience
+}
+
+function collectProjectExtractSlots(
+  candidate: Candidate,
+  rows: AllowedEmptyField[],
+): ProjectExtractSlot[] {
+  const slots = new Map<string, ProjectExtractSlot>()
+
+  ;(candidate.workExperiences ?? []).forEach((we, weIndex) => {
+    const weId = stableCollectionId(we.id, weIndex)
+    const context = workExperienceExtractContext(we)
+    const projects = we.projects?.length ? we.projects : [undefined]
+    projects.forEach((project, projectIndex) => {
+      const projectId = stableCollectionId(project?.id, projectIndex)
+      const prefix = `workExperiences[${weId}].projects[${projectId}]`
+      slots.set(prefix, {
+        prefix,
+        apiPrefix: `work_experience_${weIndex}_project_${projectIndex}`,
+        context,
+        project,
+      })
+    })
+  })
+
+  for (const row of rows) {
+    const pathMatch =
+      /^(workExperiences\[([^\]]+)\]\.projects\[([^\]]+)\])/.exec(row.fieldPath)
+    const apiMatch = /^(work_experience_\d+_project_\d+)_/.exec(row.apiFieldName)
+    if (!pathMatch || !apiMatch) continue
+    const prefix = pathMatch[1]
+    if (slots.has(prefix)) continue
+    const weId = pathMatch[2]
+    const projectId = pathMatch[3]
+    const we = (candidate.workExperiences ?? []).find(
+      (rowWe, index) => stableCollectionId(rowWe.id, index) === weId,
+    )
+    const project = we?.projects?.find(
+      (rowProject, index) => stableCollectionId(rowProject.id, index) === projectId,
+    )
+    slots.set(prefix, {
+      prefix,
+      apiPrefix: apiMatch[1],
+      context: row.context,
+      project,
+    })
+  }
+
+  return [...slots.values()]
+}
+
+/**
+ * Main Contributor defaults to false, so QG empty checks never emit it.
+ * Inject extract-only when the switch is not already true.
+ */
+function appendExtractOnlyProjectFields(
+  candidate: Candidate,
+  rows: AllowedEmptyField[],
+): AllowedEmptyField[] {
+  const seen = new Set(rows.map((row) => row.fieldPath))
+  const extra: AllowedEmptyField[] = []
+
+  for (const slot of collectProjectExtractSlots(candidate, rows)) {
+    if (slot.project?.isMainContribution === true) continue
+    const fieldPath = `${slot.prefix}.isMainContribution`
+    if (seen.has(fieldPath)) continue
+    seen.add(fieldPath)
+    extra.push(
+      enrichAllowedEmptyFieldWithCatalogGating({
+        fieldPath,
+        apiFieldName: `${slot.apiPrefix}_isMainContribution`,
+        fieldLabel: "Main Contributor",
+        fieldType: "boolean",
+        context: slot.context,
+        options: [...EXTRACT_BOOLEAN_OPTIONS],
+        requiresLookupResolution: false,
+      }),
+    )
+  }
+
+  return extra.length === 0 ? rows : [...rows, ...extra]
 }
 
 export function buildCallNotesAllowedEmptyFields(
@@ -137,7 +242,7 @@ export function buildCallNotesAllowedEmptyFields(
     result.push(allowed)
   }
 
-  return result
+  return appendExtractOnlyProjectFields(candidate, result)
 }
 
 export function getCallNotesExtractAnalyzeDisabledReason(

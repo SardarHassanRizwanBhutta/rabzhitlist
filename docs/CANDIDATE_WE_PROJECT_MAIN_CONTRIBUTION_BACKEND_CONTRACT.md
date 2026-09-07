@@ -4,7 +4,7 @@ Handoff for a boolean **Main Contribution** flag on each **candidate work-experi
 
 This is **not** a project-catalog field. Do **not** put it on `projects`. JSON name is **`isMainContribution`**.
 
-**Frontend (after this API ships):** checkbox on Create/Edit Candidate and Candidate Details (with field verification); Candidates list filter (has at least one flagged project) plus match-expand badge when that filter is on. Cold Caller uses the **same create form checkbox**. No QG question, no call-notes extract, no QG / completeness weight.
+**Frontend (after this API ships):** checkbox on Create/Edit Candidate and Candidate Details (with field verification); Candidates list filter (has at least one flagged project) plus match-expand badge when that filter is on. Cold Caller uses the **same create form checkbox**. No QG question and no QG / completeness weight. Call-notes extract may set the switch when notes evidence a main contributor (CNE17).
 
 ---
 
@@ -19,7 +19,7 @@ This is **not** a project-catalog field. Do **not** put it on `projects`. JSON n
 | **L5** | Required | Optional. **Default `false`**. |
 | **L6** | Existing rows | Migration sets **`false`** on all current WE-project rows (including soft-deleted). |
 | **L7** | New rows | **`false`** when omitted/`null` on create or upsert. |
-| **L8** | Cold Caller / QG | **Do not** add to question generation, call-notes extract, or QG / data-progress weights. |
+| **L8** | Cold Caller / QG | **Do not** add to question generation or QG / data-progress weights. **Do** include in call-notes extract when the switch is not already `true` (default `false` is unset). JSON name remains `isMainContribution`. |
 | **L9** | List filter | Candidates who have **at least one** WE project with `isMainContribution = true`. v1 does **not** filter “only false”. |
 | **L10** | List badge | **Match-expand only** (like Topper), when the filter in L9 is on. No standing table column. |
 

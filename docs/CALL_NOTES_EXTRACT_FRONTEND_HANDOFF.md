@@ -1,6 +1,6 @@
 # Call Notes Extract — Frontend Implementation Handoff
 
-**Status:** Locked (2026-08-04). Updated 2026-08-27 — WE `salaryPolicy` in `getEmptyFields()`. Updated 2026-08-13 — defer-catalog review modal (no inline lookups). Updated 2026-08-06 — browser calls QG directly (Amplify fix).  
+**Status:** Locked (2026-08-04). Updated 2026-09-05 — QG select SL1 and employer status Active→Open shipped. Updated 2026-09-04 — CNE19 spoken domain extract values. Updated 2026-08-27 — WE `salaryPolicy` in `getEmptyFields()`. Updated 2026-08-13 — defer-catalog review modal (no inline lookups). Updated 2026-08-06 — browser calls QG directly (Amplify fix).  
 **Audience:** Next.js / TypeScript AI agent.  
 **Product spec:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **API contract:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
@@ -173,7 +173,10 @@ Create `buildCallNotesAllowedEmptyFields(candidate, options)`:
 5. **Drop** top-level independent tech stacks (CNE16): `section === 'techStacks'` or `apiFieldName === 'techStacks'` exactly — **keep** `work_experience_{i}_techStacks` and `work_experience_{i}_project_{j}_techStacks`.  
 6. **Drop** project `employerName` / `projectType` when parent WE has employer (`isWorkExperienceEmployerPresent`).  
 7. **Include** `contributionNotes` only when empty (CNE13 — not QG always-ask).  
-8. **Include** empty WE `salaryPolicy` as a **role-level** `select` (`work_experience_{i}_salaryPolicy`, `fieldPath` `workExperiences[{id}].salaryPolicy`). Emit from `getEmptyFields()` / `createEntryFields()` with `SALARY_POLICY_OPTIONS` (display labels from `SALARY_POLICY_DB_LABELS`, same as the candidate form). Do **not** emit it from `employer-catalog-empty-fields.ts` — that module skips `salaryPolicy` because it is WE-owned. If this row is omitted, Python will not extract salary policy.
+8. **Include** empty WE `salaryPolicy` as a **role-level** `select` (`work_experience_{i}_salaryPolicy`, `fieldPath` `workExperiences[{id}].salaryPolicy`). Emit from `getEmptyFields()` / `createEntryFields()` with `SALARY_POLICY_OPTIONS` (display labels from `SALARY_POLICY_DB_LABELS`, same as the candidate form). Do **not** emit it from `employer-catalog-empty-fields.ts` — that module skips `salaryPolicy` because it is WE-owned. If this row is omitted, Python will not extract salary policy.  
+9. **Inject** `work_experience_{i}_project_{j}_isMainContribution` (`boolean`, Yes/No) when the project switch is not already `true`. Default `false` is unset. Not in `fieldsToGenerate` / generate-questions (CNE17).  
+10. **Include** empty QG project keys `averageTeamSize` and `clientLocations` from `getEmptyFields` (Cold Caller nested-project defs, not legacy `teamSize`) (CNE18). **Do not** include or inject `projectLink` / Link, `publishPlatforms` / Platforms, `isPublished` / Published, or `downloadCount` / Download Count.  
+11. **Domain extract values stay spoken (CNE19):** include empty `verticalDomains` / `horizontalDomains` / `technicalDomains`. **Do not** attach catalog `options` on the extract whitelist for those three keys (current QG membership drop would omit `ERP` / `AI`). Review displays `extractions[].value` as returned (`formatQgDisplayValue`). **Apply** and **+ Create New Project** map spoken tokens to catalog labels via `mapSpokenValuesToCatalogOptions`.
 
 ### 6.2 Stable `fieldPath`
 
@@ -207,7 +210,7 @@ Replace array **index** paths from `getEmptyFields` with **stable id** paths whe
 `applyCallNotesExtractions` responsibilities:
 
 1. **Empty-only guard:** for each extraction, read current value at `fieldPath`; skip if `!isQgValueMissing(current)`.  
-2. **Type coercion:** dates → `Date`; numbers → number; enums → validate against `options`. WE `shiftType` / `workMode` / `salaryPolicy` use the same display helpers as the candidate form (`shiftTypeToSelectValue`, `workModeToSelectValue`, `salaryPolicyToSelectValue`) so informal extract text (e.g. `"Gross salary policy"`) maps to `"Gross Salary"`.  
+2. **Type coercion:** dates → `Date`; numbers → number; enums → validate against `options`. WE `shiftType` / `workMode` / `salaryPolicy` use the same display helpers as the candidate form (`shiftTypeToSelectValue`, `workModeToSelectValue`, `salaryPolicyToSelectValue`) so informal extract text (e.g. `"Gross salary policy"`) maps to `"Gross Salary"`. Achievement `achievementType` maps extract label `"Medal"` → `"medal"`. Nested project `verticalDomains` / `horizontalDomains` / `technicalDomains` map spoken tokens → catalog labels (`mapSpokenValuesToCatalogOptions`); review still showed the spoken extract `value`. QG select post-process **shipped** (2026-09-05): emit `options[].value` (SL1; `"Medal"` → `"medal"`). FE apply mapping remains a safety net.  
 3. **Defer-catalog apply:** employer/project/cert **names** and catalog scalars on form state; IDs resolved in Create/Edit via comboboxes (not in review modal).  
 4. **Benefits / multiselect:** merge policy for v1 = **set** (field was empty).  
 5. **Form integration:**  
@@ -299,6 +302,8 @@ Signed off **2026-08-13** (staging/prod FE + QG).
 - [x] Synthetic `[0]` draft WE row  
 - [x] Top-level `techStacks` not in whitelist (CNE16); WE/project tech stacks still work  
 - [x] Empty WE `salaryPolicy` is in `allowedEmptyFields`; notes `"Gross salary policy"` → extract `"Gross Salary"` → Apply fills Create/Edit (2026-08-27)  
+- [x] QG extract `select` SL1: `"Medal"` → `"medal"` (`options[].value`); FE apply still maps labels (2026-09-05)  
+- [x] QG extract employer status ES1: `"Company is Active"` → `"Open"` (2026-09-05)  
 
 ---
 

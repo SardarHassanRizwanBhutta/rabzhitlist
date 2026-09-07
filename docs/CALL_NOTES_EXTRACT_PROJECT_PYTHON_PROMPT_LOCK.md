@@ -45,11 +45,13 @@ Do not: persist data, rewrite rawNotes, change HTTP models, resolve catalog IDs.
 | **PN1** | If `work_experience_{i}_project_{j}_projectName` is on the whitelist and notes name a project (e.g. `Working on Jazz Project`, `Jazz project`), **return** that name as a **string** (`"Jazz Project"` or `"Jazz"`). Do not omit the row because snapshot `projects` is `[]` or `projectName` is null. |
 | **PN2** | `fieldType: combobox` + `options: []` (or missing options) is **not** a select enum. **Do not drop** the row in post-process for “value not in options”. Return the spoken name. |
 | **PN3** | `requiresLookupResolution: true` is a **hint only**. Still return the free-text name. Do **not** omit lookup/combobox fields. FE resolves catalog id after apply. |
-| **PN4** | If `work_experience_{i}_project_{j}_contributionNotes` is on the whitelist: extract **only** candidate contribution (what they did on the project). **Do not** copy `Project Description` / `Project Discription` into `contributionNotes`. If notes have no contribution evidence, **omit** the row. |
+| **PN4** | If `work_experience_{i}_project_{j}_contributionNotes` is on the whitelist: extract **only** candidate contribution (what they did on the project). **Do not** copy `Project Description` / `Project Discription` into `contributionNotes`. **Do not** copy “Was Main Contributor in the project” / main-contributor language into `contributionNotes` (that is `isMainContribution`). If notes have no contribution evidence, **omit** the row. |
 | **PN5** | If `work_experience_{i}_project_{j}_description` is on the whitelist: extract the `Project Description` / `Project Discription` paragraph **only** into `description`. That paragraph must not also be returned as `contributionNotes`. |
 | **PN6** | Nested `project_{j}` keys belong to the **same** WE `i` as other `work_experience_{i}_*` rows (employer offices, benefits). A named project in notes is **not** a new work-experience row. |
 | **PN7** | `j` comes from the whitelist (`project_0` in `work_experience_0_project_0_projectName`). Echo `fieldPath` exactly (often `workExperiences[{weId}].projects[0].projectName` when the slot is synthetic). |
 | **PN8** | Post-process **select/enum** “value must be in `options[]`” applies to `select` / enum `multiselect` only — **never** to `combobox` or `textarea`. |
+| **PN9** | Main Contributor boolean is a **separate** extract key. See [`CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md). |
+| **PN10** | Team size, client location, and spoken domain tokens: see [`CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md). **Do not** extract project URL / Link, Published, Platforms, or Download Count. **Do not** rewrite `verticalDomains` / `horizontalDomains` / `technicalDomains` to catalog labels (CNE19). |
 
 CNE1, confidence ≥ 0.85, and `sourceText` rules from the agent contract still apply.
 
@@ -65,7 +67,8 @@ Nested projects (work_experience_{i}_project_{j}_*):
 - When notes name a project (Working on X Project / project X), fill projectName if that key is whitelisted.
 - combobox projectName: return the name string. Empty options is normal. requiresLookupResolution does not mean skip.
 - description: fill from Project Description / Project Discription when that key is whitelisted. That paragraph is description only.
-- contributionNotes: fill only from contribution evidence (what the candidate did). Never copy the description/discription paragraph into contributionNotes. Omit if no contribution evidence.
+- contributionNotes: fill only from contribution evidence (what the candidate did). Never copy the description/discription paragraph into contributionNotes. Never copy “Was Main Contributor …” / main-contributor language into contributionNotes. Omit if no contribution evidence.
+- isMainContribution: if that boolean key is on the whitelist and notes say the candidate was the main contributor / main owner of delivery, return true. Do not use that sentence as contributionNotes.
 - Do not skip the whole project block because you already filled employer offices or foundedYear.
 ```
 

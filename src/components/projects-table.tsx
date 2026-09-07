@@ -255,7 +255,7 @@ interface ProjectsTableProps {
   lookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }
 
 type SortKey = keyof Project
@@ -1334,7 +1334,7 @@ interface InlineEditableMultiSelectProps {
   maxDisplay?: number
   creatable?: boolean
   createLabel?: string
-  onCreateNew?: (name: string) => Promise<void>
+  onCreateNew?: (name: string) => Promise<unknown>
 }
 
 const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
@@ -2820,7 +2820,7 @@ interface ProjectDetailDialogProps {
   lookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }
 
 function ProjectDetailDialog({

@@ -64,6 +64,7 @@ export const WORK_EXPERIENCE_FIELD_LABELS = ROLE_FIELD_LABELS
 const NESTED_PROJECT_FIELD_LABELS: Record<string, string> = {
   projectName: "Name",
   contributionNotes: "Contribution",
+  isMainContribution: "Main Contributor",
   employerName: "Project employer",
   projectType: "Project type",
   status: "Status",

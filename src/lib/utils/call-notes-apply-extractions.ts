@@ -17,11 +17,16 @@ import {
   WE_OFFICE_KEYS,
 } from "@/lib/utils/call-notes-extract-catalog"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
+import { catalogOptionsForProjectDomainKey, mapSpokenValuesToCatalogOptions } from "@/lib/utils/catalog-multiselect-match"
 import {
   shiftTypeToSelectValue,
   workModeToSelectValue,
 } from "@/lib/utils/shift-work-mode-display"
 import { salaryPolicyToSelectValue } from "@/lib/utils/salary-policy-display"
+import {
+  ACHIEVEMENT_TYPE_DB,
+  ACHIEVEMENT_TYPE_LABELS,
+} from "@/lib/constants/candidate-enums"
 
 export interface ApplyCallNotesExtractionsResult {
   formData: CandidateFormData
@@ -53,6 +58,7 @@ const WE_KEYS = new Set([
 const PROJECT_KEYS = new Set([
   "projectName",
   "contributionNotes",
+  "isMainContribution",
   ...PROJECT_CATALOG_EXTRACT_KEYS,
 ])
 
@@ -235,6 +241,14 @@ function coerceBenefits(value: unknown): EmployerBenefit[] | undefined {
   return rows.length > 0 ? rows : undefined
 }
 
+/** Extract may return true, "true", or "yes" for boolean project flags. */
+function coerceExtractBooleanValue(value: unknown): boolean | undefined {
+  const fromBoolean = coerceScalarForForm("boolean", value)
+  if (typeof fromBoolean === "boolean") return fromBoolean
+  if (typeof value === "string" && value.trim().toLowerCase() === "yes") return true
+  return undefined
+}
+
 function coerceStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     if (typeof value === "string" && value.trim()) return [value.trim()]
@@ -273,6 +287,28 @@ function resolveMultiselectOptionValues(
     .map((item) => resolveOptionValue(item, options))
     .filter((v): v is string => Boolean(v))
   return resolved.length > 0 ? resolved : undefined
+}
+
+/** Map extract label/value to form achievementType; unmatched tokens are omitted. */
+function resolveAchievementTypeOption(
+  raw: string,
+  options?: FieldOption[],
+): string | undefined {
+  const token = raw.trim()
+  if (!token) return undefined
+  const catalog: FieldOption[] =
+    options && options.length > 0
+      ? options
+      : ACHIEVEMENT_TYPE_DB.map((value) => ({
+          value,
+          label: ACHIEVEMENT_TYPE_LABELS[value],
+        }))
+  const lower = token.toLowerCase()
+  const match = catalog.find(
+    (option) =>
+      option.value.toLowerCase() === lower || option.label.toLowerCase() === lower,
+  )
+  return match?.value
 }
 
 function findWorkExperienceIndex(form: CandidateFormData, id: string): number {
@@ -366,7 +402,7 @@ function ensureAchievement(form: CandidateFormData, id: string): number {
   form.achievements.push({
     id: id === "0" ? `session-ach-${crypto.randomUUID()}` : id,
     name: "",
-    achievementType: "competition",
+    achievementType: "" as CandidateFormData["achievements"][number]["achievementType"],
     ranking: "",
     year: undefined,
     url: "",
@@ -387,6 +423,16 @@ function isEmptyFormValue(value: unknown): boolean {
 function isEmptyOfficeFieldValue(key: string, value: unknown): boolean {
   if (key === "isHeadquarters") return value !== true
   return isEmptyFormValue(value)
+}
+
+/**
+ * New achievement rows used to default achievementType to "competition".
+ * isQgValueMissing("competition") is false, so empty-only apply skipped extract Medal.
+ * Treat blank and that placeholder as unset; do not overwrite a non-default type.
+ */
+function isEmptyAchievementTypeValue(value: unknown): boolean {
+  if (isEmptyFormValue(value)) return true
+  return typeof value === "string" && value.trim().toLowerCase() === "competition"
 }
 
 function writeRootField(
@@ -671,7 +717,10 @@ function writeProjectField(
   const project = we.projects[projIdx]
 
   const isCatalogField =
-    key !== "projectName" && key !== "contributionNotes" && (PROJECT_CATALOG_EXTRACT_KEYS as Set<string>).has(key)
+    key !== "projectName" &&
+    key !== "contributionNotes" &&
+    key !== "isMainContribution" &&
+    (PROJECT_CATALOG_EXTRACT_KEYS as Set<string>).has(key)
 
   if (isCatalogField && !options?.deferCatalogLinking) {
     applyProjectIdFromResolutionIfNeeded(form, weId, projectId, lookupResolutions)
@@ -688,6 +737,15 @@ function writeProjectField(
   }
 
   const current = (project as unknown as Record<string, unknown>)[key === "link" ? "link" : key]
+  // New project rows default isMainContribution to false. isQgValueMissing(false) is false,
+  // so empty-only apply would skip extract true (Main Contributor switch stays off).
+  if (key === "isMainContribution") {
+    if (current === true) return false
+    const coerced = coerceExtractBooleanValue(value)
+    if (coerced == null) return false
+    project.isMainContribution = coerced
+    return true
+  }
   if (!isEmptyFormValue(current)) return false
 
   if (key === "techStacks") {
@@ -699,11 +757,22 @@ function writeProjectField(
   if (
     key === "verticalDomains" ||
     key === "horizontalDomains" ||
-    key === "technicalDomains" ||
-    key === "technicalAspects" ||
-    key === "clientLocations" ||
-    key === "publishPlatforms"
+    key === "technicalDomains"
   ) {
+    const catalogOptions =
+      meta.options && meta.options.length > 0
+        ? meta.options
+        : catalogOptionsForProjectDomainKey(key)
+    const resolved = catalogOptions
+      ? mapSpokenValuesToCatalogOptions(value, catalogOptions)
+      : resolveMultiselectOptionValues(value, meta.options)
+    if (!resolved || resolved.length === 0) return false
+    project[key] = resolved
+    markProjectCatalogDirty(project)
+    return true
+  }
+
+  if (key === "technicalAspects" || key === "clientLocations") {
     const resolved = resolveMultiselectOptionValues(value, meta.options)
     if (!resolved) return false
     project[key] = resolved
@@ -719,11 +788,10 @@ function writeProjectField(
     return true
   }
 
-  if (key === "averageTeamSize" || key === "downloadCount") {
+  if (key === "averageTeamSize") {
     const coerced = coerceScalarForForm("number", value)
     if (coerced == null) return false
-    if (key === "averageTeamSize") project.averageTeamSize = String(coerced)
-    else project.downloadCount = String(coerced)
+    project.averageTeamSize = String(coerced)
     markProjectCatalogDirty(project)
     return true
   }
@@ -762,7 +830,6 @@ function writeProjectField(
     else if (key === "status") project.status = coerced
     else if (key === "description") project.description = coerced
     else if (key === "latestUpdate") project.latestUpdate = coerced
-    else if (key === "link") project.link = coerced
     else return false
     markProjectCatalogDirty(project)
     return true
@@ -826,12 +893,17 @@ function writeAchievementField(
   key: string,
   fieldType: AllowedEmptyField["fieldType"],
   value: unknown,
+  options?: FieldOption[],
 ): boolean {
   if (!ACH_KEYS.has(key)) return false
   const achIdx = ensureAchievement(form, achId)
   const ach = form.achievements[achIdx]
   const current = ach[key as keyof typeof ach]
-  if (!isEmptyFormValue(current)) return false
+  const currentIsEmpty =
+    key === "achievementType"
+      ? isEmptyAchievementTypeValue(current)
+      : isEmptyFormValue(current)
+  if (!currentIsEmpty) return false
 
   if (key === "year") {
     const n = coerceScalarForForm("number", value)
@@ -840,12 +912,21 @@ function writeAchievementField(
     return true
   }
 
-  const coerced = coerceScalarForForm(fieldType, value)
-  if (coerced == null) return false
   if (key === "achievementType") {
-    ach.achievementType = String(coerced) as typeof ach.achievementType
+    const raw =
+      typeof value === "string"
+        ? value
+        : coerceScalarForForm(fieldType, value) != null
+          ? String(coerceScalarForForm(fieldType, value))
+          : ""
+    const resolved = resolveAchievementTypeOption(raw, options)
+    if (!resolved) return false
+    ach.achievementType = resolved as typeof ach.achievementType
     return true
   }
+
+  const coerced = coerceScalarForForm(fieldType, value)
+  if (coerced == null) return false
   if (typeof coerced === "string") {
     ach[key as "name" | "description" | "ranking" | "url"] = coerced
     return true
@@ -1060,7 +1141,14 @@ function applyExtractionToForm(
 
   const achMatch = /^achievements\[([^\]]+)\]\.([a-zA-Z]+)$/.exec(path)
   if (achMatch) {
-    const ok = writeAchievementField(form, achMatch[1], achMatch[2], meta.fieldType, extraction.value)
+    const ok = writeAchievementField(
+      form,
+      achMatch[1],
+      achMatch[2],
+      meta.fieldType,
+      extraction.value,
+      meta.options,
+    )
     return ok
       ? { ok: true }
       : {

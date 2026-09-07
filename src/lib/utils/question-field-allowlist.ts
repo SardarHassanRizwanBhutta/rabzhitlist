@@ -41,6 +41,9 @@ const PROJECT_SUFFIXES = new Set([
   "endDate",
 ])
 
+/** Extract-only WE-project keys. Not valid on generate-questions. */
+const CALL_NOTES_EXTRACT_ONLY_PROJECT_SUFFIXES = new Set(["isMainContribution"])
+
 const OFFICE_SUFFIXES = new Set([
   "country",
   "city",
@@ -118,12 +121,22 @@ export function isQuestionFieldAllowed(
 }
 
 /**
- * Call Notes Extract v1 — QG allowlist keys eligible for Analyze Notes.
- * Excludes top-level independent `techStacks` (CNE16).
+ * Call Notes Extract v1 — keys eligible for Analyze Notes.
+ * QG allowlist minus top-level independent `techStacks` (CNE16), plus
+ * extract-only `isMainContribution` (CNE17).
  */
 export function isCallNotesExtractApiFieldAllowed(apiFieldName: string): boolean {
   if (apiFieldName === "techStacks") return false
   if (BASIC_FIELDS.has(apiFieldName) || PREFERENCES_FIELDS.has(apiFieldName)) {
+    return true
+  }
+  const extractOnlyProject = /^work_experience_\d+_project_\d+_(.+)$/.exec(
+    apiFieldName,
+  )
+  if (
+    extractOnlyProject &&
+    CALL_NOTES_EXTRACT_ONLY_PROJECT_SUFFIXES.has(extractOnlyProject[1])
+  ) {
     return true
   }
   if (isWorkExperienceFieldAllowed(apiFieldName)) return true

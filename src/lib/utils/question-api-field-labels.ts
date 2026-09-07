@@ -64,6 +64,7 @@ const INDEXED_API_FIELD_LABELS: Array<{ pattern: RegExp; label: string; section?
   { pattern: /^work_experience_\d+_layoff_\d+_affectedEmployees$/, label: "No. of Affected Employees", section: "workExperience" },
   { pattern: /^work_experience_\d+_layoff_\d+_reason$/, label: "Reason", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_projectName$/, label: "Name", section: "workExperience" },
+  { pattern: /^work_experience_\d+_project_\d+_isMainContribution$/, label: "Main Contributor", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_averageTeamSize$/, label: "Average Team Size", section: "workExperience" },
   { pattern: /^work_experience_\d+_project_\d+_clientLocations$/, label: "Client Location", section: "workExperience" },
   { pattern: /^certification_\d+_name$/, label: "Name", section: "certifications" },

@@ -29,7 +29,8 @@ import {
   verticalDomainLabelToInt,
   type CreateProjectOptions,
 } from "@/lib/services/projects-api"
-import type { LookupItem } from "@/lib/services/lookups-api"
+import { createClientLocation, type LookupItem } from "@/lib/services/lookups-api"
+import { resolveLookupIdsByName } from "@/lib/utils/lookup-ids-by-name"
 import { toast } from "sonner"
 
 export type SelectedProject = { id: number; name: string } | null
@@ -68,7 +69,7 @@ export interface ProjectComboboxProps {
   projectLookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
   /** Prefill catalog fields when opening "+ Add New Project" (e.g. Call Notes extract review). */
   createProjectPrefill?: Partial<ProjectFormData>
   /** Extra employer name hint for project create (from extract project employer row). */
@@ -128,6 +129,19 @@ export function ProjectCombobox({
     const techStacks = projectLookups?.techStacks ?? []
     const technicalAspects = projectLookups?.technicalAspects ?? []
     const clientLocations = projectLookups?.clientLocations ?? []
+    const createMissingClientLocation = async (name: string): Promise<LookupItem> => {
+      if (onCreateClientLocation) {
+        const created = await onCreateClientLocation(name)
+        if (created && typeof created.id === "number") return created
+        throw new Error(`Failed to create client location "${name}".`)
+      }
+      return createClientLocation(name)
+    }
+    const clientLocationIds = await resolveLookupIdsByName(
+      data.clientLocations,
+      clientLocations,
+      createMissingClientLocation,
+    )
     const options: CreateProjectOptions = {
       employerId: data.selectedEmployer?.id ?? null,
       techStackIds: namesToIds(data.techStacks, techStacks),
@@ -135,7 +149,7 @@ export function ProjectCombobox({
       horizontalDomains: labelsToInts(data.horizontalDomains, horizontalDomainLabelToInt),
       technicalDomains: labelsToInts(data.technicalDomains, technicalDomainLabelToInt),
       technicalAspects: namesToIds(data.technicalAspects, technicalAspects),
-      clientLocationIds: namesToIds(data.clientLocations, clientLocations),
+      clientLocationIds,
     }
     const body = buildCreateProjectDto(data, options)
     const created = await createProject(body)

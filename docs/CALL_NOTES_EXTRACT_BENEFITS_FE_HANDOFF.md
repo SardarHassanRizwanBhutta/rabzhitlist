@@ -1,6 +1,6 @@
 # Call Notes Extract — Benefits FE Handoff
 
-**Status:** Locked (2026-08-18). §10.1 save shipped and smoke-tested (Update & Verify, 2026-08-18).  
+**Status:** Locked (2026-08-18). Updated 2026-09-07 — Apply keeps each extract benefit name (do not recombine). §10.1 save shipped and smoke-tested (Update & Verify, 2026-08-18).  
 **Audience:** Next.js Cold Caller frontend (`rabzhitlist`) — Analyze Notes, review modal, Apply to form.  
 **Python scope:** Shipped in QG service (`POST /api/call-notes/extract`, port `8002`).  
 **Related docs:**
@@ -211,6 +211,7 @@ Extract does **not** write to the candidate API. Apply is client-side only (API 
 1. Re-verify `workExperiences[{id}].benefits` is still empty (or merge policy if product allows partial fill).
 2. Write `value[]` into react-hook-form state for that work experience’s benefits array.
 3. Each item is `{ name, amount?, unit? }` — **names from extract, not catalog IDs**.
+4. **Do not recombine** extract names. If `value[]` has two objects (e.g. `National Holidays` and `Shift Allowance`) after the model/normalizer split a notes phrase that had no comma, Apply writes **two** benefits. Do not merge them into one name. Python is **not** required to add space-only split rules beyond the existing `,` / `;` / ` and ` normalizer; leave that split to the model/normalizer as shipped.
 
 ### 6.2 On save (create / update candidate) — API §10.1
 

@@ -16,6 +16,7 @@ import {
   buildLinkedProjectEmptyFields,
   collectMissingLinkedProjectFields,
 } from '@/lib/utils/project-catalog-fields'
+import { isWorkExperienceEmployerPresent } from '@/lib/utils/work-experience-questions'
 import {
   buildWorkExperienceEmployerCatalogPlaceholderFields,
   collectMissingWorkExperienceEmployerCatalogFields,
@@ -375,6 +376,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
         ...collectMissingWorkExperienceEmployerCatalogFields(we, index, context),
       )
 
+      const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(we)
       if (!we.projects || we.projects.length === 0) {
         emptyFields.push(...buildLinkedProjectEmptyFields({
           section: 'workExperience',
@@ -382,6 +384,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
           apiPrefix: `work_experience_${index}_project_0`,
           parentIndex: index,
           context,
+          includeProjectEmployerFields,
         }))
       } else {
         we.projects.forEach((proj, projIndex) => {
@@ -391,6 +394,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
             apiPrefix: `work_experience_${index}_project_${projIndex}`,
             parentIndex: index,
             context: `${context} → ${proj.projectName || 'Unnamed Project'}`,
+            includeProjectEmployerFields,
           }))
         })
       }
