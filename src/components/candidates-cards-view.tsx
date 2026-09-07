@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { TruncateToSample } from "@/components/candidates/truncate-to-sample"
+import {
+  CANDIDATE_LIST_CITY_MAX_SAMPLE,
+  CANDIDATE_LIST_CITY_TRUNCATE_CLASS,
+  CANDIDATE_LIST_NAME_MAX_SAMPLE,
+  CANDIDATE_LIST_NAME_TRUNCATE_CLASS,
+} from "@/lib/utils/candidate-list-truncate"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -643,7 +650,14 @@ export function CandidatesCardsView({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <CardTitle className="text-lg truncate flex-1">{candidate.name}</CardTitle>
+                      <CardTitle className="min-w-0 text-lg">
+                        <TruncateToSample
+                          sample={CANDIDATE_LIST_NAME_MAX_SAMPLE}
+                          text={candidate.name}
+                          allowShrink
+                          className={CANDIDATE_LIST_NAME_TRUNCATE_CLASS}
+                        />
+                      </CardTitle>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge 
                           variant="outline"
@@ -698,9 +712,14 @@ export function CandidatesCardsView({
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <span className="truncate">{getJobTitle(candidate)}</span>
                       <span>•</span>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        <span>{candidate.city}</span>
+                      <div className="flex min-w-0 items-center gap-1">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <TruncateToSample
+                          sample={CANDIDATE_LIST_CITY_MAX_SAMPLE}
+                          text={candidate.city ?? ""}
+                          allowShrink
+                          className={CANDIDATE_LIST_CITY_TRUNCATE_CLASS}
+                        />
                       </div>
                     </div>
                   </div>

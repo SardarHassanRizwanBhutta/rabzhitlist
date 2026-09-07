@@ -1,6 +1,7 @@
 # Call Notes Extract — Employer status Python prompt lock
 
-**Status:** Locked (2026-09-04).  
+**Status:** Locked (2026-09-04). **Shipped** in QG `POST /api/call-notes/extract` (2026-09-05) — Active → Open (ES1–ES3).  
+**Python scope:** Shipped. `work_experience_{i}_status` maps spoken Active to `Open` before the select enum drop.  
 **Audience:** AI agent updating **`POST /api/call-notes/extract`** in the Python QG FastAPI app (`:8002`).  
 **HTTP / allowlist (unchanged):** [`CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md`](./CALL_NOTES_EXTRACT_QG_SERVICE_AGENT_CONTRACT.md) §4–§6.  
 **Whitelist options (FE):** `work_experience_{i}_status` is `select` with **`Open`** and **`Closed`** only.

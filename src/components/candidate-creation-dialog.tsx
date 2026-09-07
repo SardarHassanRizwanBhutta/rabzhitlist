@@ -644,7 +644,7 @@ function WorkExperienceProjectCombobox({
   projectLookups?: ProjectLookups
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }) {
   const [preloadedName, setPreloadedName] = React.useState<string | null>(null)
   const [preloadedEmployerName, setPreloadedEmployerName] = React.useState<string | null>(null)
@@ -935,7 +935,7 @@ export interface NestedProjectCreationProps {
     technicalAspectTypes?: MultiSelectOption[]
   }
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }
 
 const createEmptyProject = (): ProjectExperience => ({
@@ -1188,7 +1188,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
     achievements: candidate.achievements?.map(ach => ({
       id: ach.id,
       name: ach.name || "",
-      achievementType: (ach.achievementType || "competition") as AchievementType,
+      achievementType: (ach.achievementType || "") as AchievementType,
       ranking: ach.ranking || "",
       year: ach.year,
       url: ach.url || "",
@@ -2368,7 +2368,7 @@ export function CandidateCreationDialog({
   const createEmptyAchievement = (): Achievement => ({
     id: `ach-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     name: "",
-    achievementType: "competition",
+    achievementType: "" as AchievementType,
     ranking: "",
     year: undefined,
     url: "",
@@ -4574,7 +4574,7 @@ export function CandidateCreationDialog({
                       <div className="space-y-2">
                         <Label htmlFor={`achievementType-${index}`}>Achievement Type *</Label>
                         <Select
-                          value={achievement.achievementType}
+                          value={achievement.achievementType || undefined}
                           onValueChange={(value) => handleAchievementChange(index, "achievementType", value as AchievementType)}
                         >
                           <SelectTrigger id={`achievementType-${index}`}>

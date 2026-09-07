@@ -147,7 +147,7 @@ interface ProjectCreationDialogProps {
   /** Optional `context.aspectTypeId` when adding from a scoped list (backend may use later). */
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTechnicalAspect?: (name: string) => Promise<void>
-  onCreateClientLocation?: (name: string) => Promise<void>
+  onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }
 
 const initialFormData: ProjectFormData = {

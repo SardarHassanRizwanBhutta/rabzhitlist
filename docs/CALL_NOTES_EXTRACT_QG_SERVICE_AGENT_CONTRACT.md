@@ -1,11 +1,15 @@
 # Call Notes Extract — QG Service Agent Contract (v1)
 
-**Status:** Locked (2026-08-05).  
+**Status:** Locked (2026-08-05). Updated 2026-09-05 — select SL1 and employer status Active→Open shipped in QG extract.  
 **Audience:** AI agent implementing **`POST /api/call-notes/extract`** in the **Python Question Generation (QG) service** (`llm-questions` / FastAPI on port **`8002`**).  
 **This document is the primary implementation contract for the QG agent.**  
 **Related (shorter summary):** [`CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md`](./CALL_NOTES_EXTRACT_PYTHON_HANDOFF.md)  
 **Multi-office extract prompt (2026-09-03):** [`CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md)  
 **Nested project extract prompt (2026-09-03):** [`CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md)  
+**Main Contributor extract prompt (2026-09-04):** [`CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md)  
+**Employer status extract prompt (2026-09-04):** [`CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_EMPLOYER_STATUS_PYTHON_PROMPT_LOCK.md) — **Shipped** in QG extract (Active → Open).  
+**Select label → value post-process (2026-09-05):** [`CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md) — **Shipped** in QG extract (T-SL1 / T-SL2).  
+**Project catalog extras extract prompt (2026-09-04):** [`CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md`](./CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md)  
 **Cross-repo API mirror:** [`CALL_NOTES_EXTRACT_API_CONTRACT.md`](./CALL_NOTES_EXTRACT_API_CONTRACT.md)  
 **Product locks:** [`CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md`](./CALL_NOTES_EXTRACT_REQUIREMENTS_LOCKED.md)  
 **Shared field vocabulary:** [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md)
@@ -239,8 +243,8 @@ Error body (minimum):
 | `number` | number | Integer for salaries; strip currency words in pre-parse |
 | `date` | string | **`YYYY-MM-DD`** ISO date only |
 | `boolean` | boolean | |
-| `select` | string | Must be in `options[].value`; else **drop row** |
-| `multiselect` | string[] | Each item non-empty; enum members must be in `options` when provided |
+| `select` | string | After SL1 rewrite, must be in `options[].value`; else **drop row**. Rewrite: trim + case-insensitive match on `options[].value` **or** `options[].label` → that option’s `options[].value` ([select label→value lock](./CALL_NOTES_EXTRACT_SELECT_LABEL_VALUE_PYTHON_PROMPT_LOCK.md)). Employer status Active→Open still applies first (ES1–ES3). |
+| `multiselect` | string[] | Each item non-empty. **Default:** enum members must be in `options` when provided. **Exceptions:** `clientLocations` (PX2 — keep unmatched spoken); `verticalDomains` / `horizontalDomains` / `technicalDomains` (PX5 / CNE19 — keep spoken tokens; never rewrite to catalog labels; never drop unmatched items) |
 | `benefits` | object[] | `{ "name": string, "amount"?: number, "unit"?: string }` |
 | `combobox` | string | Employer/project **name** as spoken — not id |
 
@@ -341,6 +345,7 @@ work_experience_{i}_project_{j}_startDate
 work_experience_{i}_project_{j}_status
 work_experience_{i}_project_{j}_description
 work_experience_{i}_project_{j}_contributionNotes
+work_experience_{i}_project_{j}_isMainContribution
 work_experience_{i}_project_{j}_techStacks
 work_experience_{i}_project_{j}_verticalDomains
 work_experience_{i}_project_{j}_horizontalDomains
@@ -352,7 +357,11 @@ work_experience_{i}_project_{j}_latestUpdate
 work_experience_{i}_project_{j}_endDate
 ```
 
-**Not allowlisted:** `downloadCount`, `publishPlatforms`, `projectLink`, single `teamSize`, `notes`
+**Not allowlisted for generate-questions:** `isMainContribution` (CNE17). Extract **must** accept `isMainContribution` when it appears on `allowedEmptyFields`.
+
+**Not allowlisted (QG §5 / CNE18 lock-out — reject on extract; do not return mappings):** `downloadCount`, `publishPlatforms`, `projectLink`, `isPublished`, single `teamSize`, `notes`
+
+**CNE19:** `verticalDomains` / `horizontalDomains` / `technicalDomains` stay **spoken tokens** in `extractions[].value`. Post-process must not rewrite them to catalog labels and must not drop unmatched items (PX5). FE maps to catalog on apply.
 
 Note: FE may omit `employerName` / `projectType` when parent WE already has employer (CNE14) — you only validate what is sent.
 
@@ -532,10 +541,10 @@ Fail fast with `400`/`422` before LLM call.
 - Return JSON matching response schema.  
 - Use `candidateSnapshot` + `context` to disambiguate rows.  
 - If uncertain, omit the field (do not guess).  
-- For enums, output exact `options[].value` strings.  
+- For enums, output exact `options[].value` strings, **except** nested project `verticalDomains` / `horizontalDomains` / `technicalDomains` (keep spoken tokens; CNE19) and `clientLocations` unmatched spoken (PX2).  
 - Include verbatim `sourceText` substring supporting each value.  
 - **Offices:** `work_experience_{i}_office_{j}_*` — each whitelist `j` is a separate site. Multiple offices in notes → different `j`; never merge into `office_0`. Omit unused `j`. Full lock: `CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md`.  
-- **Projects:** `work_experience_{i}_project_{j}_*` — if those keys are on the whitelist, extract `projectName` and `description` from notes when evidenced. `contributionNotes` is a **separate** field: fill only from contribution evidence; never copy the project description paragraph into it. Do not skip the project block because snapshot `projects` is empty. `combobox` + empty `options` is not an enum drop. Full lock: `CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`.
+- **Projects:** `work_experience_{i}_project_{j}_*` — if those keys are on the whitelist, extract `projectName` and `description` from notes when evidenced. `contributionNotes` is a **separate** field: fill only from contribution evidence (what the candidate did); never copy the project description paragraph into it; never copy “Was Main Contributor …” into it. `isMainContribution` is a **separate boolean**: fill `true` when notes say the candidate was the main contributor / main owner of delivery. Also fill `averageTeamSize` and `clientLocations` when those keys are whitelisted and evidenced. Fill `verticalDomains` / `horizontalDomains` / `technicalDomains` with **spoken tokens** from notes (CNE19 / PX5) — do not rewrite to catalog labels. Never extract `projectLink`, `isPublished`, `publishPlatforms`, or `downloadCount`. Do not skip the project block because snapshot `projects` is empty. `combobox` + empty `options` is not an enum drop. Full locks: `CALL_NOTES_EXTRACT_PROJECT_PYTHON_PROMPT_LOCK.md`, `CALL_NOTES_EXTRACT_MAIN_CONTRIBUTOR_PYTHON_PROMPT_LOCK.md`, `CALL_NOTES_EXTRACT_PROJECT_CATALOG_EXTRAS_PYTHON_PROMPT_LOCK.md`.
 
 **User message content:**
 
@@ -558,7 +567,10 @@ For each LLM row:
 1. Drop if `fieldPath` not in whitelist.  
 2. Drop if `confidence` < threshold.  
 3. Validate `value` type vs `fieldType`.  
-4. For `select` / enum multiselect: drop if value ∉ `options[].value`.  
+4. For `select` / enum multiselect: drop if value ∉ `options[].value`, **except**:
+   - `select`: first rewrite a case-insensitive `options[].value` or `options[].label` hit to that option’s `options[].value` (SL1). Then drop if still unmatched (SL2 / T8). Employer status ES1/ES2 runs before this for `work_experience_{i}_status`.
+   - `clientLocations`: keep unmatched spoken; rewrite only when a match exists (PX2).
+   - `verticalDomains` / `horizontalDomains` / `technicalDomains`: keep spoken tokens; never rewrite to catalog labels; never drop unmatched items (PX5 / CNE19).  
 5. Normalize dates → `YYYY-MM-DD`.  
 6. Coerce salaries → integer.  
 7. Truncate `sourceText` to ~200 chars.  
@@ -620,7 +632,7 @@ Use **anonymized** fixture notes only.
 | T5 | Unknown `apiFieldName` | `400` |
 | T6 | `apiFieldName: "techStacks"` | `400` |
 | T7 | `education_0_degree` in whitelist | `400` |
-| T8 | Enum value not in `options` | Row dropped; `200` with remaining rows or `[]` |
+| T8 | Enum value not in `options` | Row dropped; `200` with remaining rows or `[]` — **except** PX2 `clientLocations` and PX5 domain keys (CNE19). **Select:** apply SL1 label→value rewrite before this drop. |
 | T9 | Confidence 0.5 | Row omitted |
 | T10 | No evidence for whitelisted field | Row omitted; `200` `[]` or partial ok |
 | T11 | Two employers ambiguous | At most one WE row filled, or none |
@@ -631,6 +643,11 @@ Use **anonymized** fixture notes only.
 | T-PN1 | Jazz project + description in notes; whitelist name + description + contributionNotes | Name + description returned; contributionNotes omitted; see project prompt lock |
 | T-PN2 | `projectName` combobox `options: []` | Row not dropped |
 | T-PN3 | No `project_*` on whitelist | No `project_*` extractions |
+| T-MC1 | Notes: “Was Main Contributor in the project”; whitelist includes `isMainContribution` + `contributionNotes` | `isMainContribution: true`; `contributionNotes` omitted; see main-contributor prompt lock |
+| T-MC2 | Same notes; `isMainContribution` **not** on whitelist | No `isMainContribution` row (CNE1) |
+| T-PX1 | Team size, USA client, URL, published on Play/App Store, 350000 users; those keys on whitelist | See project catalog extras prompt lock |
+| T-PX4 | Domain notes (`gaming` / `ERP` / `AI, ML, Devops`); domain keys on whitelist with catalog `options` | Spoken tokens in `value`; not dropped; not rewritten to catalog labels |
+| T-SL1 | `achievement_0_achievementType`; options include medal/Medal; LLM raw `"Medal"` | `value` is `"medal"`; row not dropped |
 
 ---
 

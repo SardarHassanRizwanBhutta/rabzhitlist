@@ -40,7 +40,7 @@ interface MultiSelectProps {
   creatable?: boolean  // New prop
   createLabel?: string  // New prop - e.g., "Add Technology", "Add Domain"
   /** When "+ Add" is clicked: if provided and returns a Promise, we await it and only add to selected on success. */
-  onCreateNew?: (value: string) => void | Promise<void>
+  onCreateNew?: (value: string) => void | Promise<unknown>
   /** Pin selected options to the top of the dropdown list (original order preserved within each group). */
   pinSelectedToTop?: boolean
   /** When `pinSelectedToTop`, heading for selected rows. `{count}` is replaced with selected visible count. */
@@ -76,8 +76,11 @@ export function MultiSelect({
   }, [])
 
   const selectedOptions = React.useMemo(
-    () => items.filter((item) => selected.includes(item.value)),
-    [items, selected]
+    () =>
+      selected.map(
+        (value) => items.find((item) => item.value === value) ?? { value, label: value },
+      ),
+    [items, selected],
   )
 
   const handleUnselect = (value: string) => {

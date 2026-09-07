@@ -160,7 +160,7 @@ interface AllowedEmptyField {
 | `rawNotes` missing or whitespace-only after trim | `400` |
 | `allowedEmptyFields` missing or empty array | `400` |
 | Duplicate `fieldPath` | `400` |
-| Any `apiFieldName` not in QG allowlist | `400` |
+| Any `apiFieldName` not in the extract allowlist (QG keys plus CNE17 `isMainContribution`) | `400` |
 | `apiFieldName` exactly `techStacks` (top-level independent — CNE16) | `400` |
 | `rawNotes` length over server max (define in env, e.g. 100_000 chars) | `413` or `400` |
 

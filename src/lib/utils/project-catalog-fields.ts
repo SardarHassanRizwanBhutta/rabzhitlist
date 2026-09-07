@@ -367,7 +367,9 @@ export function isProjectCatalogFieldMissing(
   value: unknown,
 ): boolean {
   if (payloadKey === "downloadCount" || payloadKey === "averageTeamSize") {
-    return value === null || value === undefined
+    if (value === null || value === undefined) return true
+    if (typeof value === "string" && value.trim() === "") return true
+    return false
   }
   if (Array.isArray(value)) return value.length === 0
   if (value === null || value === undefined) return true
@@ -399,12 +401,18 @@ export interface ProjectFieldPathContext {
   apiPrefix: string
   parentIndex: number
   context?: string
+  /** When false, omit Project Employer + Project Type (CNE14). Default true. */
+  includeProjectEmployerFields?: boolean
+}
+
+function projectEmptyFieldDefs(ctx: ProjectFieldPathContext): ProjectFieldDef[] {
+  return coldCallerQgProjectFieldDefs(ctx.includeProjectEmployerFields !== false)
 }
 
 export function buildLinkedProjectEmptyFields(ctx: ProjectFieldPathContext): EmptyField[] {
   const fields: EmptyField[] = []
 
-  for (const def of PROJECT_FIELD_DEFS) {
+  for (const def of projectEmptyFieldDefs(ctx)) {
     fields.push({
       fieldPath: `${ctx.fieldPathPrefix}.${def.payloadKey}`,
       apiFieldName: `${ctx.apiPrefix}_${def.apiSuffix}`,
@@ -428,7 +436,7 @@ export function collectMissingLinkedProjectFields(
 ): EmptyField[] {
   const fields: EmptyField[] = []
 
-  for (const def of PROJECT_FIELD_DEFS) {
+  for (const def of projectEmptyFieldDefs(ctx)) {
     const value = readLinkedProjectPayloadValue(project, def.payloadKey)
     if (!isProjectCatalogFieldMissing(def.payloadKey, value)) continue
 

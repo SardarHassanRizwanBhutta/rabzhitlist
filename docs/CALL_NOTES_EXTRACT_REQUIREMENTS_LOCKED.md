@@ -43,7 +43,7 @@ Stored notes remain the **human source of truth** (CN16). Extract never rewrites
 | **CNE1** | **Empty-only:** proposals may target only fields **empty at extract request time**; apply re-checks empty before writing |
 | **CNE2** | **Both apply targets in v1:** (a) saved candidate → Candidate Details **Edit Mode**; (b) draft → **Create** dialog prefill |
 | **CNE3** | **Analyze Notes** is a explicit button next to **Save Notes** (saved) or in the same editor action row (draft). Not triggered automatically on save |
-| **CNE4** | **Field scope:** QG Cold Caller allowlist keys per [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md) **except** top-level independent tech stacks (CNE16). No broader Create-only fields |
+| **CNE4** | **Field scope:** QG Cold Caller allowlist keys per [`COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md`](./COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md) **except** top-level independent tech stacks (CNE16). No broader Create-only fields, except **CNE17** |
 | **CNE5** | **Human review required:** extract → modal review → Apply Selected. No silent auto-apply |
 | **CNE6** | **Python:** extend existing QG FastAPI app on **same host/port** as `POST /api/generate-questions` (default `:8002`). New route `POST /api/call-notes/extract` |
 | **CNE7** | **Analyze input:** current **textarea value** (including unsaved draft text). Save Notes success is **not** a prerequisite |
@@ -56,6 +56,9 @@ Stored notes remain the **human source of truth** (CN16). Extract never rewrites
 | **CNE14** | **Project `employerName` / `projectType`:** omit from extract allowlist when parent WE already has an employer (same rule as QG §3 nested projects) |
 | **CNE15** | **`resume`:** include in allowlist only when candidate has **no** attached resume (`hasResume !== true`); notes cannot attach binary resume — extract may propose URL/text cues only if product adds later; v1 typically excludes populated resume attachment targets |
 | **CNE16** | **Top-level independent tech stacks excluded:** do **not** include candidate-level `techStacks` / QG section `independent_tech_stacks` in extract v1 (hidden in Cold Caller Call Notes UI). **In scope:** `work_experience_{i}_techStacks` and `work_experience_{i}_project_{j}_techStacks` |
+| **CNE17** | **Main Contributor (`isMainContribution`):** extract-only. Include `work_experience_{i}_project_{j}_isMainContribution` when the switch is not already `true` (default `false` counts as unset). **Do not** add to generate-questions or QG weights. Notes like “Was Main Contributor in the project” map to this boolean, **not** to `contributionNotes` |
+| **CNE18** | **Project catalog extras (extract):** include empty QG keys `averageTeamSize` and `clientLocations` (Cold Caller nested-project defs, not legacy `teamSize`). **Locked out of extract** (same as QG §5 — do not whitelist, do not return mappings): `projectLink` / Link, `publishPlatforms` / Platforms, `isPublished` / Published, `downloadCount` / Download Count. |
+| **CNE19** | **Project domain extract values stay spoken:** `verticalDomains`, `horizontalDomains`, `technicalDomains` return the notes tokens (e.g. `gaming`, `ERP`, `AI`). Do **not** rewrite to catalog labels in extract. Do **not** drop items that fail enum membership when `options` is non-empty. FE maps to catalog on Apply / + Create New Project. Review shows `extractions[].value` (spoken). |
 
 ---
 
@@ -120,6 +123,9 @@ Same as QG / persistence trim rules:
 - Basic: `resume`, `linkedinUrl` (subject to CNE15)  
 - Preferences: `currentSalary`, `expectedSalary`  
 - Work experience role, employer, office, layoff, and nested project fields (including role and project **tech stacks**, and WE-owned **`salaryPolicy`**)  
+- Nested project **Main Contributor** (`work_experience_{i}_project_{j}_isMainContribution`) — extract-only; not a generate-questions field (CNE17)  
+- Nested project catalog extras: `averageTeamSize`, `clientLocations` (CNE18)  
+- Nested project domain arrays: `verticalDomains`, `horizontalDomains`, `technicalDomains` — extract `value` stays spoken (CNE19)  
 - Certification and achievement row fields  
 
 **Excluded from extract v1 (never send to extract):**
@@ -127,7 +133,7 @@ Same as QG / persistence trim rules:
 - **Top-level independent tech stacks:** candidate-level `techStacks` / QG `independent_tech_stacks` section (CNE16 — hidden in Call Notes UI)  
 - Education and all `education_*` keys  
 - `cnic`, `personalityType`, postingTitle, contact fields outside allowlist  
-- Project fields explicitly forbidden in QG §5  
+- Project fields explicitly forbidden in QG §5, including `projectLink`, `isPublished`, `publishPlatforms`, `downloadCount` (CNE18 lock-out)  
 - WE role `endDate` (not QG allowlisted)
 
 **Synthetic index `0`:** when collections are empty (draft / new rows), FE emits the same synthetic `0` keys as QG (`work_experience_0_*`, `certification_0_*`, etc.) in `apiFieldName`, with `fieldPath` using bracket `[0]`.

@@ -769,6 +769,7 @@ export function CandidatesPageClient() {
         ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
         created,
       ])
+      return created
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add client location")
       throw e

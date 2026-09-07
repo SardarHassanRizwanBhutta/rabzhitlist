@@ -7,6 +7,11 @@ import type { CandidateFormData } from "../src/components/candidate-creation-dia
 import type { Candidate } from "../src/lib/types/candidate"
 import type { AllowedEmptyField, CallNotesExtraction } from "../src/types/call-notes-extraction"
 import { applyCallNotesExtractionsToFormData } from "../src/lib/utils/call-notes-apply-extractions"
+import { buildCallNotesAllowedEmptyFields } from "../src/lib/utils/call-notes-allowed-empty-fields"
+import {
+  isCallNotesExtractApiFieldAllowed,
+  isQuestionFieldAllowed,
+} from "../src/lib/utils/question-field-allowlist"
 import type { CallNotesCatalogResolution } from "../src/lib/utils/call-notes-extract-lookup"
 import { hasUnresolvedCheckedCatalogIdRows } from "../src/lib/utils/call-notes-extract-catalog"
 import { buildCallNotesExtractCandidateSnapshot } from "../src/lib/utils/call-notes-extract-snapshot"
@@ -14,7 +19,10 @@ import {
   buildEmployerCreatePrefillFromExtractRows,
   buildEmployerCreatePrefillFromWorkExperience,
   buildProjectCreatePrefillFromExtractRows,
+  buildProjectCreatePrefillFromProjectExperience,
 } from "../src/lib/utils/call-notes-extract-create-prefill"
+import { resolveLookupIdsByName } from "../src/lib/utils/lookup-ids-by-name"
+import { formatQgDisplayValue } from "../src/lib/utils/qg-value"
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message)
@@ -732,4 +740,574 @@ assert(
   "generate-questions does not add a sixth office slot",
 )
 
-console.log("call-notes-extract-v2: all tests passed")
+assert(
+  isCallNotesExtractApiFieldAllowed("work_experience_0_project_0_isMainContribution"),
+  "extract allowlist accepts isMainContribution",
+)
+assert(
+  !isQuestionFieldAllowed("work_experience", "work_experience_0_project_0_isMainContribution"),
+  "generate-questions still rejects isMainContribution",
+)
+
+const jazzMainContributorMeta: AllowedEmptyField[] = [
+  ...jazzProjectMeta,
+  {
+    fieldPath: "workExperiences[we-1].projects[0].isMainContribution",
+    apiFieldName: "work_experience_0_project_0_isMainContribution",
+    fieldLabel: "Main Contributor",
+    fieldType: "boolean",
+    options: [
+      { value: "true", label: "Yes" },
+      { value: "false", label: "No" },
+    ],
+  },
+]
+const jazzMainContributorApplied = applyCallNotesExtractionsToFormData(
+  {
+    ...baseForm,
+    workExperiences: baseForm.workExperiences.map((we) => ({
+      ...we,
+      projects: we.projects.map((p) => ({
+        ...p,
+        isMainContribution: false,
+      })),
+    })),
+  },
+  [
+    {
+      fieldPath: jazzMainContributorMeta[3].fieldPath,
+      apiFieldName: jazzMainContributorMeta[3].apiFieldName,
+      value: true,
+      sourceText: "Was Main Contributor in the project",
+      confidence: 1,
+    },
+  ],
+  jazzMainContributorMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+assert(
+  jazzMainContributorApplied.formData.workExperiences[0].projects[0].isMainContribution === true,
+  "expected isMainContribution true to apply over default false",
+)
+
+const jazzMainContributorYesApplied = applyCallNotesExtractionsToFormData(
+  {
+    ...baseForm,
+    workExperiences: baseForm.workExperiences.map((we) => ({
+      ...we,
+      projects: we.projects.map((p) => ({
+        ...p,
+        isMainContribution: false,
+      })),
+    })),
+  },
+  [
+    {
+      fieldPath: jazzMainContributorMeta[3].fieldPath,
+      apiFieldName: jazzMainContributorMeta[3].apiFieldName,
+      value: "yes",
+      sourceText: "Was Main Contributor in the project",
+      confidence: 1,
+    },
+  ],
+  jazzMainContributorMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+assert(
+  jazzMainContributorYesApplied.formData.workExperiences[0].projects[0].isMainContribution ===
+    true,
+  "expected isMainContribution yes string to apply as true",
+)
+
+const jazzMainContributorOverwriteBlocked = applyCallNotesExtractionsToFormData(
+  {
+    ...baseForm,
+    workExperiences: baseForm.workExperiences.map((we) => ({
+      ...we,
+      projects: we.projects.map((p) => ({
+        ...p,
+        isMainContribution: true,
+      })),
+    })),
+  },
+  [
+    {
+      fieldPath: jazzMainContributorMeta[3].fieldPath,
+      apiFieldName: jazzMainContributorMeta[3].apiFieldName,
+      value: false,
+      sourceText: "Was Main Contributor in the project",
+      confidence: 1,
+    },
+  ],
+  jazzMainContributorMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+assert(
+  jazzMainContributorOverwriteBlocked.formData.workExperiences[0].projects[0]
+    .isMainContribution === true,
+  "expected already-true isMainContribution not to be overwritten",
+)
+
+const extractWhitelistCandidate = {
+  id: "1",
+  workExperiences: [
+    {
+      id: "5cbf0838-66a3-4df1-a457-6fdbb2a65287",
+      employerName: "Arcana Info",
+      jobTitle: "Senior WSO2 Integration / Middleware Engineer",
+      projects: [],
+    },
+  ],
+} as unknown as Candidate
+const extractWhitelist = buildCallNotesAllowedEmptyFields(extractWhitelistCandidate)
+const mainContributorRow = extractWhitelist.find(
+  (row) => row.apiFieldName === "work_experience_0_project_0_isMainContribution",
+)
+assert(mainContributorRow != null, "expected extract whitelist to inject isMainContribution")
+assert(
+  mainContributorRow?.fieldPath ===
+    "workExperiences[5cbf0838-66a3-4df1-a457-6fdbb2a65287].projects[0].isMainContribution",
+  "expected synthetic projects[0] isMainContribution path",
+)
+assert(mainContributorRow?.fieldType === "boolean", "expected isMainContribution boolean type")
+assert(
+  mainContributorRow?.requiresLinkedCatalogId == null,
+  "expected isMainContribution not to require a linked project catalog id",
+)
+
+const whitelistApiNames = new Set(extractWhitelist.map((row) => row.apiFieldName))
+assert(
+  whitelistApiNames.has("work_experience_0_project_0_averageTeamSize"),
+  "expected extract whitelist to include averageTeamSize",
+)
+assert(
+  whitelistApiNames.has("work_experience_0_project_0_clientLocations"),
+  "expected extract whitelist to include clientLocations",
+)
+assert(
+  !whitelistApiNames.has("work_experience_0_project_0_projectLink"),
+  "expected extract whitelist to omit projectLink",
+)
+assert(
+  !whitelistApiNames.has("work_experience_0_project_0_isPublished"),
+  "expected extract whitelist to omit isPublished",
+)
+assert(
+  !whitelistApiNames.has("work_experience_0_project_0_publishPlatforms"),
+  "expected extract whitelist to omit publishPlatforms",
+)
+assert(
+  !whitelistApiNames.has("work_experience_0_project_0_downloadCount"),
+  "expected extract whitelist to omit downloadCount",
+)
+assert(
+  !isCallNotesExtractApiFieldAllowed("work_experience_0_project_0_projectLink"),
+  "extract allowlist rejects projectLink",
+)
+assert(
+  !isCallNotesExtractApiFieldAllowed("work_experience_0_project_0_isPublished"),
+  "extract allowlist rejects isPublished",
+)
+assert(
+  !isCallNotesExtractApiFieldAllowed("work_experience_0_project_0_publishPlatforms"),
+  "extract allowlist rejects publishPlatforms",
+)
+assert(
+  !isCallNotesExtractApiFieldAllowed("work_experience_0_project_0_downloadCount"),
+  "extract allowlist rejects downloadCount",
+)
+assert(
+  isQuestionFieldAllowed("work_experience", "work_experience_0_project_0_averageTeamSize"),
+  "generate-questions still allows averageTeamSize",
+)
+const verticalDomainWhitelist = extractWhitelist.find(
+  (row) => row.apiFieldName === "work_experience_0_project_0_verticalDomains",
+)
+assert(
+  verticalDomainWhitelist != null,
+  "expected extract whitelist to include verticalDomains",
+)
+assert(
+  (verticalDomainWhitelist?.options?.length ?? 0) === 0,
+  "CNE19: extract whitelist must omit domain catalog options so review stays spoken",
+)
+const horizontalDomainWhitelist = extractWhitelist.find(
+  (row) => row.apiFieldName === "work_experience_0_project_0_horizontalDomains",
+)
+assert(
+  (horizontalDomainWhitelist?.options?.length ?? 0) === 0,
+  "CNE19: extract whitelist must omit horizontalDomains catalog options",
+)
+const technicalDomainWhitelist = extractWhitelist.find(
+  (row) => row.apiFieldName === "work_experience_0_project_0_technicalDomains",
+)
+assert(
+  (technicalDomainWhitelist?.options?.length ?? 0) === 0,
+  "CNE19: extract whitelist must omit technicalDomains catalog options",
+)
+
+const jazzCatalogExtrasMeta: AllowedEmptyField[] = [
+  {
+    fieldPath: "workExperiences[we-1].projects[0].averageTeamSize",
+    apiFieldName: "work_experience_0_project_0_averageTeamSize",
+    fieldLabel: "Average Team Size",
+    fieldType: "number",
+    requiresLinkedCatalogId: "project",
+  },
+  {
+    fieldPath: "workExperiences[we-1].projects[0].clientLocations",
+    apiFieldName: "work_experience_0_project_0_clientLocations",
+    fieldLabel: "Client Location",
+    fieldType: "multiselect",
+    requiresLinkedCatalogId: "project",
+  },
+  {
+    fieldPath: "workExperiences[we-1].projects[0].verticalDomains",
+    apiFieldName: "work_experience_0_project_0_verticalDomains",
+    fieldLabel: "Vertical Domains",
+    fieldType: "multiselect",
+    requiresLinkedCatalogId: "project",
+  },
+  {
+    fieldPath: "workExperiences[we-1].projects[0].horizontalDomains",
+    apiFieldName: "work_experience_0_project_0_horizontalDomains",
+    fieldLabel: "Horizontal Domains",
+    fieldType: "multiselect",
+    requiresLinkedCatalogId: "project",
+  },
+  {
+    fieldPath: "workExperiences[we-1].projects[0].technicalDomains",
+    apiFieldName: "work_experience_0_project_0_technicalDomains",
+    fieldLabel: "Technical Domains",
+    fieldType: "multiselect",
+    requiresLinkedCatalogId: "project",
+  },
+]
+const jazzCatalogExtrasApplied = applyCallNotesExtractionsToFormData(
+  {
+    ...baseForm,
+    workExperiences: baseForm.workExperiences.map((we) => ({
+      ...we,
+      projects: we.projects.map((p) => ({
+        ...p,
+        averageTeamSize: "",
+        clientLocations: [],
+        verticalDomains: [],
+        horizontalDomains: [],
+        technicalDomains: [],
+      })),
+    })),
+  },
+  [
+    {
+      fieldPath: jazzCatalogExtrasMeta[0].fieldPath,
+      apiFieldName: jazzCatalogExtrasMeta[0].apiFieldName,
+      value: 15,
+      sourceText: "Team size is 15",
+      confidence: 1,
+    },
+    {
+      fieldPath: jazzCatalogExtrasMeta[1].fieldPath,
+      apiFieldName: jazzCatalogExtrasMeta[1].apiFieldName,
+      value: ["USA"],
+      sourceText: "Client is located in USA",
+      confidence: 1,
+    },
+    {
+      fieldPath: jazzCatalogExtrasMeta[2].fieldPath,
+      apiFieldName: jazzCatalogExtrasMeta[2].apiFieldName,
+      value: ["gaming"],
+      sourceText: "Vertical Domain is gaming",
+      confidence: 1,
+    },
+    {
+      fieldPath: jazzCatalogExtrasMeta[3].fieldPath,
+      apiFieldName: jazzCatalogExtrasMeta[3].apiFieldName,
+      value: ["ERP"],
+      sourceText: "Horizontal Domain is ERP",
+      confidence: 1,
+    },
+    {
+      fieldPath: jazzCatalogExtrasMeta[4].fieldPath,
+      apiFieldName: jazzCatalogExtrasMeta[4].apiFieldName,
+      value: "AI, ML, Devops",
+      sourceText: "Technical Domain is AI, ML, Devops",
+      confidence: 1,
+    },
+  ],
+  jazzCatalogExtrasMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+const jazzExtrasProject = jazzCatalogExtrasApplied.formData.workExperiences[0].projects[0]
+assert(jazzExtrasProject.averageTeamSize === "15", "expected averageTeamSize 15")
+assert(
+  JSON.stringify(jazzExtrasProject.clientLocations) === JSON.stringify(["USA"]),
+  "expected clientLocations USA",
+)
+assert(
+  JSON.stringify(jazzExtrasProject.verticalDomains) === JSON.stringify(["Gaming"]),
+  "expected verticalDomains mapped to catalog Gaming",
+)
+assert(
+  JSON.stringify(jazzExtrasProject.horizontalDomains) ===
+    JSON.stringify(["ERP (Enterprise Resource Planning)"]),
+  "expected horizontalDomains mapped to catalog ERP label",
+)
+assert(
+  JSON.stringify(jazzExtrasProject.technicalDomains) ===
+    JSON.stringify([
+      "Artificial Intelligence (AI)",
+      "Machine Learning (ML)",
+      "DevOps",
+    ]),
+  "expected technicalDomains mapped to catalog AI/ML/DevOps labels",
+)
+const jazzProjectCreatePrefill = buildProjectCreatePrefillFromProjectExperience(jazzExtrasProject)
+assert(
+  JSON.stringify(jazzProjectCreatePrefill.clientLocations) === JSON.stringify(["USA"]),
+  "expected + Add New Project prefill to keep clientLocations USA",
+)
+assert(
+  JSON.stringify(jazzProjectCreatePrefill.verticalDomains) === JSON.stringify(["Gaming"]),
+  "expected + Add New Project prefill to select catalog Gaming",
+)
+assert(
+  JSON.stringify(jazzProjectCreatePrefill.horizontalDomains) ===
+    JSON.stringify(["ERP (Enterprise Resource Planning)"]),
+  "expected + Add New Project prefill to select catalog ERP",
+)
+assert(
+  JSON.stringify(jazzProjectCreatePrefill.technicalDomains) ===
+    JSON.stringify([
+      "Artificial Intelligence (AI)",
+      "Machine Learning (ML)",
+      "DevOps",
+    ]),
+  "expected + Add New Project prefill to select catalog technical domains",
+)
+const spokenDomainPrefill = buildProjectCreatePrefillFromProjectExperience({
+  ...jazzExtrasProject,
+  verticalDomains: ["gaming"],
+  horizontalDomains: ["ERP"],
+  technicalDomains: ["AI", "ML", "Devops"],
+})
+assert(
+  JSON.stringify(spokenDomainPrefill.verticalDomains) === JSON.stringify(["Gaming"]),
+  "expected spoken gaming to pre-select catalog Gaming",
+)
+assert(
+  JSON.stringify(spokenDomainPrefill.horizontalDomains) ===
+    JSON.stringify(["ERP (Enterprise Resource Planning)"]),
+  "expected spoken ERP to pre-select catalog ERP label",
+)
+assert(
+  JSON.stringify(spokenDomainPrefill.technicalDomains) ===
+    JSON.stringify([
+      "Artificial Intelligence (AI)",
+      "Machine Learning (ML)",
+      "DevOps",
+    ]),
+  "expected spoken AI/ML/Devops to pre-select catalog technical domains",
+)
+assert(
+  formatQgDisplayValue(["gaming", "ERP", "AI", "ML", "Devops"]) ===
+    "gaming, ERP, AI, ML, Devops",
+  "CNE19: Analyze Notes review must show spoken domain tokens, not catalog labels",
+)
+
+const lockedOutApply = applyCallNotesExtractionsToFormData(
+  {
+    ...baseForm,
+    workExperiences: baseForm.workExperiences.map((we) => ({
+      ...we,
+      projects: we.projects.map((p) => ({
+        ...p,
+        link: "",
+        publishPlatforms: [],
+        downloadCount: "",
+      })),
+    })),
+  },
+  [
+    {
+      fieldPath: "workExperiences[we-1].projects[0].link",
+      apiFieldName: "work_experience_0_project_0_projectLink",
+      value: "https://www.google.com",
+      sourceText: "Here's the link: https://www.google.com",
+      confidence: 1,
+    },
+    {
+      fieldPath: "workExperiences[we-1].projects[0].publishPlatforms",
+      apiFieldName: "work_experience_0_project_0_publishPlatforms",
+      value: ["Play Store", "App Store"],
+      sourceText: "The App is Published on Play Store and App Store",
+      confidence: 1,
+    },
+    {
+      fieldPath: "workExperiences[we-1].projects[0].downloadCount",
+      apiFieldName: "work_experience_0_project_0_downloadCount",
+      value: 350000,
+      sourceText: "It has 350000 active users",
+      confidence: 1,
+    },
+  ],
+  jazzCatalogExtrasMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+const lockedOutProject = lockedOutApply.formData.workExperiences[0].projects[0]
+assert(!lockedOutProject.link, "expected project link not mapped from extract")
+assert(
+  (lockedOutProject.publishPlatforms ?? []).length === 0,
+  "expected publish platforms not mapped from extract",
+)
+assert(!lockedOutProject.downloadCount, "expected download count not mapped from extract")
+assert(
+  lockedOutApply.skipped.some((row) => row.fieldPath.endsWith(".link")),
+  "expected projectLink extraction skipped as not in whitelist",
+)
+
+const alreadyMainContributorWhitelist = buildCallNotesAllowedEmptyFields({
+  id: "1",
+  workExperiences: [
+    {
+      id: "5cbf0838-66a3-4df1-a457-6fdbb2a65287",
+      employerName: "Arcana Info",
+      jobTitle: "Senior WSO2 Integration / Middleware Engineer",
+      projects: [
+        {
+          id: "proj-1",
+          projectId: null,
+          projectName: "Jazz Project",
+          contributionNotes: "",
+          isMainContribution: true,
+        },
+      ],
+    },
+  ],
+} as unknown as Candidate)
+assert(
+  !alreadyMainContributorWhitelist.some((row) =>
+    row.apiFieldName.endsWith("_isMainContribution"),
+  ),
+  "expected isMainContribution omitted when already true",
+)
+
+async function testUsaClientLocationLookup(): Promise<void> {
+  const existingUnitedStates = [{ id: 5, name: "United States" }]
+  const createdUsaIds = await resolveLookupIdsByName(
+    ["USA"],
+    existingUnitedStates,
+    async (name) => ({ id: 99, name }),
+  )
+  assert(
+    JSON.stringify(createdUsaIds) === JSON.stringify([99]),
+    "expected USA to create a new client location id, not map to United States",
+  )
+  const reusedUsaIds = await resolveLookupIdsByName(
+    ["USA"],
+    [{ id: 7, name: "USA" }, ...existingUnitedStates],
+  )
+  assert(
+    JSON.stringify(reusedUsaIds) === JSON.stringify([7]),
+    "expected existing USA lookup row to be reused",
+  )
+}
+
+const achievementTypeExtractMeta: AllowedEmptyField[] = [
+  {
+    fieldPath: "achievements[0].name",
+    apiFieldName: "achievement_0_name",
+    fieldLabel: "Name",
+    fieldType: "text",
+    requiresLookupResolution: false,
+  },
+  {
+    fieldPath: "achievements[0].achievementType",
+    apiFieldName: "achievement_0_achievementType",
+    fieldLabel: "Achievement Type",
+    fieldType: "select",
+    requiresLookupResolution: false,
+    options: [
+      { value: "competition", label: "Competition" },
+      { value: "medal", label: "Medal" },
+    ],
+  },
+]
+const achievementTypeExtractApplied = applyCallNotesExtractionsToFormData(
+  { ...baseForm, achievements: [] },
+  [
+    {
+      fieldPath: "achievements[0].name",
+      apiFieldName: "achievement_0_name",
+      value: "Gold Medal",
+      sourceText: "Achieved Gold Medal in 2025",
+      confidence: 1,
+    },
+    {
+      fieldPath: "achievements[0].achievementType",
+      apiFieldName: "achievement_0_achievementType",
+      value: "Medal",
+      sourceText: "Achieved Gold Medal in 2025",
+      confidence: 1,
+    },
+  ],
+  achievementTypeExtractMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+assert(
+  achievementTypeExtractApplied.formData.achievements[0]?.name === "Gold Medal",
+  "expected achievement name Gold Medal",
+)
+assert(
+  achievementTypeExtractApplied.formData.achievements[0]?.achievementType === "medal",
+  "expected extract Medal to select catalog medal, not leftover competition",
+)
+
+const competitionPlaceholderForm: CandidateFormData = {
+  ...baseForm,
+  achievements: [
+    {
+      id: "0",
+      name: "",
+      achievementType: "competition",
+      ranking: "",
+      year: undefined,
+      url: "",
+      description: "",
+    },
+  ],
+}
+const medalOverPlaceholder = applyCallNotesExtractionsToFormData(
+  competitionPlaceholderForm,
+  [
+    {
+      fieldPath: "achievements[0].achievementType",
+      apiFieldName: "achievement_0_achievementType",
+      value: "Medal",
+      sourceText: "Achieved Gold Medal in 2025",
+      confidence: 1,
+    },
+  ],
+  achievementTypeExtractMeta,
+  lookupResolutions,
+  { deferCatalogLinking: true },
+)
+assert(
+  medalOverPlaceholder.formData.achievements[0]?.achievementType === "medal",
+  "expected placeholder competition to be treated as unset for extract apply",
+)
+
+testUsaClientLocationLookup()
+  .then(() => {
+    console.log("call-notes-extract-v2: all tests passed")
+  })
+  .catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })

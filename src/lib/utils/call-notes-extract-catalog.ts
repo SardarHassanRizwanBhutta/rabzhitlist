@@ -78,7 +78,10 @@ export function parseCatalogFieldPath(fieldPath: string): ParsedCatalogFieldPath
   const projectMatch = PROJECT_SCALAR_PATH.exec(fieldPath)
   if (projectMatch) {
     const property = projectMatch[3]
-    const isLink = property === "projectName" || property === "contributionNotes"
+    const isLink =
+      property === "projectName" ||
+      property === "contributionNotes" ||
+      property === "isMainContribution"
     return {
       workExperienceId: projectMatch[1],
       projectId: projectMatch[2],
