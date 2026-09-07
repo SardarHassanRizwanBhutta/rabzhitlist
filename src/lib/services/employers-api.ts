@@ -574,6 +574,7 @@ export interface FetchEmployersParams {
   verticalDomains?: number[]
   horizontalDomains?: number[]
   technicalDomains?: number[]
+  technicalAspects?: number[]
   clientLocations?: number[]
   projectStatus?: number[]
   projectTeamSizeMin?: number
@@ -652,6 +653,7 @@ function buildQueryString(params: FetchEmployersParams): string {
   appendNumberList(q, "verticalDomains", params.verticalDomains)
   appendNumberList(q, "horizontalDomains", params.horizontalDomains)
   appendNumberList(q, "technicalDomains", params.technicalDomains)
+  appendNumberList(q, "technicalAspects", params.technicalAspects)
   appendNumberList(q, "clientLocations", params.clientLocations)
   appendNumberList(q, "projectStatus", params.projectStatus)
 

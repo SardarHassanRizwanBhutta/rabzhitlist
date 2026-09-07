@@ -37,18 +37,10 @@ async function createOne<T>(path: string, body: CreateLookupItemDto): Promise<T>
   return res.json()
 }
 
-// --- Vertical Domains & Horizontal Domains ---
-// These are now fixed enums on the backend (no CRUD).
-// Use VERTICAL_DOMAINS / HORIZONTAL_DOMAINS from projects-api.ts for dropdowns.
-
-// --- Technical Aspects ---
+// --- Technical Aspects (GET-only catalog; no POST) ---
 
 export async function getTechnicalAspects(): Promise<LookupItem[]> {
-  return getList<LookupItem>("/api/technicalaspects")
-}
-
-export async function createTechnicalAspect(name: string): Promise<LookupItem> {
-  return createOne<LookupItem>("/api/technicalaspects", { name })
+  return getList<LookupItem>("/api/TechnicalAspects")
 }
 
 // --- Tech Stacks ---

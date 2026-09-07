@@ -14,11 +14,8 @@ import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
 import { getTotalExperienceYears } from "@/lib/utils/candidate-experience"
 import { normalizeProgress } from "@/lib/utils/candidate-data-progress"
 import {
-  HORIZONTAL_DOMAIN_LABELS,
   PROJECT_STATUS_UI_TO_NUM,
   PUBLISH_PLATFORM_UI_TO_NUM,
-  TECHNICAL_DOMAIN_HUMAN_LABELS,
-  VERTICAL_DOMAIN_LABELS,
 } from "@/lib/services/projects-api"
 import type { ProjectStatus, ProjectType, PublishPlatform } from "@/lib/types/project"
 import type {
@@ -222,15 +219,15 @@ function getCandidateProjects(candidate: Candidate) {
 }
 
 function resolveVerticalDomainLabel(domain: MatchedDomainDto): string {
-  return VERTICAL_DOMAIN_LABELS[domain.id] ?? domain.label
+  return domain.label
 }
 
 function resolveHorizontalDomainLabel(domain: MatchedDomainDto): string {
-  return HORIZONTAL_DOMAIN_LABELS[domain.id] ?? domain.label
+  return domain.label
 }
 
 function resolveTechnicalDomainLabel(domain: MatchedDomainDto): string {
-  return TECHNICAL_DOMAIN_HUMAN_LABELS[domain.id] ?? domain.label
+  return domain.label
 }
 
 function resolveProjectStatusLabel(status: MatchedDomainDto): string {

@@ -24,10 +24,10 @@ import {
 } from "@/lib/types/employer"
 import { PROJECT_STATUS_LABELS, PROJECT_TYPES, type ProjectStatus } from "@/lib/types/project"
 import {
-  HORIZONTAL_DOMAIN_CATALOG_OPTIONS,
-  TECHNICAL_DOMAIN_CATALOG_OPTIONS,
-  VERTICAL_DOMAIN_CATALOG_OPTIONS,
   catalogOptionsForProjectDomainKey,
+  getHorizontalDomainCatalogOptions,
+  getTechnicalDomainCatalogOptions,
+  getVerticalDomainCatalogOptions,
   mapSpokenValuesToCatalogOptions,
 } from "@/lib/utils/catalog-multiselect-match"
 
@@ -424,9 +424,14 @@ export function buildProjectCreatePrefillFromExtractRows(
         if (options) prefill.technicalDomains = mapSpokenValuesToCatalogOptions(row.value, options)
         break
       }
-      case "technicalAspects":
-        prefill.technicalAspects = resolveMultiselectValues(row.value, meta?.options)
+      case "technicalAspects": {
+        const options =
+          meta?.options && meta.options.length > 0
+            ? meta.options
+            : catalogOptionsForProjectDomainKey("technicalAspects")
+        if (options) prefill.technicalAspects = mapSpokenValuesToCatalogOptions(row.value, options)
         break
+      }
       case "clientLocations":
         prefill.clientLocations = resolveMultiselectValues(row.value, meta?.options)
         break
@@ -475,15 +480,20 @@ export function mergeProjectFormCreatePrefill(
     projectName: initialName?.trim() || prefill?.projectName?.trim() || base.projectName,
     selectedEmployer: initialSelectedEmployer ?? prefill?.selectedEmployer ?? base.selectedEmployer,
     verticalDomains: prefill?.verticalDomains
-      ? mapSpokenValuesToCatalogOptions(prefill.verticalDomains, VERTICAL_DOMAIN_CATALOG_OPTIONS)
+      ? mapSpokenValuesToCatalogOptions(prefill.verticalDomains, getVerticalDomainCatalogOptions())
       : base.verticalDomains,
     horizontalDomains: prefill?.horizontalDomains
-      ? mapSpokenValuesToCatalogOptions(prefill.horizontalDomains, HORIZONTAL_DOMAIN_CATALOG_OPTIONS)
+      ? mapSpokenValuesToCatalogOptions(prefill.horizontalDomains, getHorizontalDomainCatalogOptions())
       : base.horizontalDomains,
     technicalDomains: prefill?.technicalDomains
-      ? mapSpokenValuesToCatalogOptions(prefill.technicalDomains, TECHNICAL_DOMAIN_CATALOG_OPTIONS)
+      ? mapSpokenValuesToCatalogOptions(prefill.technicalDomains, getTechnicalDomainCatalogOptions())
       : base.technicalDomains,
-    technicalAspects: prefill?.technicalAspects ?? base.technicalAspects,
+    technicalAspects: prefill?.technicalAspects
+      ? mapSpokenValuesToCatalogOptions(
+          prefill.technicalAspects,
+          catalogOptionsForProjectDomainKey("technicalAspects") ?? [],
+        )
+      : base.technicalAspects,
     clientLocations: prefill?.clientLocations ?? base.clientLocations,
   }
 }
@@ -573,22 +583,27 @@ export function buildProjectCreatePrefillFromProjectExperience(
   if (project.verticalDomains?.length) {
     prefill.verticalDomains = mapSpokenValuesToCatalogOptions(
       project.verticalDomains,
-      VERTICAL_DOMAIN_CATALOG_OPTIONS,
+      getVerticalDomainCatalogOptions(),
     )
   }
   if (project.horizontalDomains?.length) {
     prefill.horizontalDomains = mapSpokenValuesToCatalogOptions(
       project.horizontalDomains,
-      HORIZONTAL_DOMAIN_CATALOG_OPTIONS,
+      getHorizontalDomainCatalogOptions(),
     )
   }
   if (project.technicalDomains?.length) {
     prefill.technicalDomains = mapSpokenValuesToCatalogOptions(
       project.technicalDomains,
-      TECHNICAL_DOMAIN_CATALOG_OPTIONS,
+      getTechnicalDomainCatalogOptions(),
     )
   }
-  if (project.technicalAspects?.length) prefill.technicalAspects = [...project.technicalAspects]
+  if (project.technicalAspects?.length) {
+    prefill.technicalAspects = mapSpokenValuesToCatalogOptions(
+      project.technicalAspects,
+      catalogOptionsForProjectDomainKey("technicalAspects") ?? [],
+    )
+  }
   if (project.clientLocations?.length) prefill.clientLocations = [...project.clientLocations]
   if (project.publishPlatforms?.length) prefill.publishPlatforms = [...project.publishPlatforms]
 

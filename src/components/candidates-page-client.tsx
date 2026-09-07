@@ -36,11 +36,10 @@ import type { ApplyCallNotesExtractionsResult } from "@/lib/utils/call-notes-app
 import {
   fetchTechStacks,
   fetchClientLocations,
-  fetchTechnicalAspects,
   fetchTechnicalAspectTypes,
   createTechStack,
-  createTechnicalAspect,
   createClientLocation,
+  ensureDomainCatalogsLoaded,
   type LookupItem,
 } from "@/lib/services/lookups-api"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
@@ -96,12 +95,10 @@ import {
   WORK_MODE_TO_API,
 } from "@/lib/services/employers-api"
 import {
-  horizontalDomainLabelToInt,
   PROJECT_STATUS_UI_TO_NUM,
   PUBLISH_PLATFORM_UI_TO_NUM,
-  technicalDomainLabelToInt,
-  verticalDomainLabelToInt,
 } from "@/lib/services/projects-api"
+import { catalogIdStringsToInts, catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 
 const DEFAULT_PAGE_SIZE = 20
 
@@ -122,6 +119,7 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,
@@ -251,6 +249,10 @@ export function CandidatesPageClient() {
   const [majorsLookup, setMajorsLookup] = useState<NonNullable<CandidateLookups["majors"]>>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
   const [technicalAspectsLookup, setTechnicalAspectsLookup] = useState<LookupItem[]>([])
+  const [verticalDomainSelectOptions, setVerticalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [horizontalDomainSelectOptions, setHorizontalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [technicalAspectSelectOptions, setTechnicalAspectSelectOptions] = useState<MultiSelectOption[]>([])
   const [technicalAspectTypeSelectOptions, setTechnicalAspectTypeSelectOptions] = useState<
     MultiSelectOption[]
   >([])
@@ -367,11 +369,11 @@ export function CandidatesPageClient() {
       fetchDegrees(),
       fetchMajors(),
       fetchClientLocations(),
-      fetchTechnicalAspects(),
       fetchTechnicalAspectTypes(),
       fetchCertificationIssuers(),
+      ensureDomainCatalogsLoaded(),
     ])
-      .then(([techStacks, timeSupportZones, awards, benefits, degrees, majors, clientLocs, technicalAspects, aspectTypes, issuers]) => {
+      .then(([techStacks, timeSupportZones, awards, benefits, degrees, majors, clientLocs, aspectTypes, issuers, catalogs]) => {
         if (!cancelled) {
           setTechStacksLookup(techStacks)
           setTimeSupportZonesLookup(timeSupportZones)
@@ -380,9 +382,13 @@ export function CandidatesPageClient() {
           setDegreesLookup(degrees)
           setMajorsLookup(majors)
           setClientLocationsLookup(clientLocs)
-          setTechnicalAspectsLookup(technicalAspects)
+          setTechnicalAspectsLookup(catalogs.technicalAspects)
+          setVerticalDomainSelectOptions(catalogToSelectOptions(catalogs.verticalDomains))
+          setHorizontalDomainSelectOptions(catalogToSelectOptions(catalogs.horizontalDomains))
+          setTechnicalDomainSelectOptions(catalogToSelectOptions(catalogs.technicalDomains))
+          setTechnicalAspectSelectOptions(catalogToSelectOptions(catalogs.technicalAspects))
           setTechnicalAspectTypeSelectOptions(
-            aspectTypes.map((a) => ({ value: String(a.value), label: a.label })),
+            aspectTypes.map((a) => ({ value: String(a.id), label: a.name })),
           )
           setCertificationIssuersLookup(Array.isArray(issuers) ? issuers : [])
         }
@@ -397,6 +403,10 @@ export function CandidatesPageClient() {
           setMajorsLookup([])
           setClientLocationsLookup([])
           setTechnicalAspectsLookup([])
+          setVerticalDomainSelectOptions([])
+          setHorizontalDomainSelectOptions([])
+          setTechnicalDomainSelectOptions([])
+          setTechnicalAspectSelectOptions([])
           setTechnicalAspectTypeSelectOptions([])
           setCertificationIssuersLookup([])
           toast.error("Failed to load candidate form lookups.")
@@ -575,15 +585,10 @@ export function CandidatesPageClient() {
     const publishPlatforms = combinedFiltersForBackend.publishPlatforms
       .map((p) => PUBLISH_PLATFORM_UI_TO_NUM[p as keyof typeof PUBLISH_PLATFORM_UI_TO_NUM])
       .filter((n): n is number => n != null)
-    const verticalDomains = combinedFiltersForBackend.verticalDomains
-      .map((v) => verticalDomainLabelToInt(v))
-      .filter((n): n is number => n != null)
-    const horizontalDomains = combinedFiltersForBackend.horizontalDomains
-      .map((h) => horizontalDomainLabelToInt(h))
-      .filter((n): n is number => n != null)
-    const technicalDomains = combinedFiltersForBackend.technicalDomains
-      .map((t) => technicalDomainLabelToInt(t))
-      .filter((n): n is number => n != null)
+    const verticalDomains = catalogIdStringsToInts(combinedFiltersForBackend.verticalDomains)
+    const horizontalDomains = catalogIdStringsToInts(combinedFiltersForBackend.horizontalDomains)
+    const technicalDomains = catalogIdStringsToInts(combinedFiltersForBackend.technicalDomains)
+    const technicalAspects = catalogIdStringsToInts(combinedFiltersForBackend.technicalAspects)
     const achievementTypes = combinedFiltersForBackend.achievementTypes
       .map((label) => achievementLabelToDb.get(label))
       .filter((db): db is string => !!db)
@@ -665,6 +670,7 @@ export function CandidatesPageClient() {
       verticalDomains: verticalDomains.length > 0 ? verticalDomains : undefined,
       horizontalDomains: horizontalDomains.length > 0 ? horizontalDomains : undefined,
       technicalDomains: technicalDomains.length > 0 ? technicalDomains : undefined,
+      technicalAspects: technicalAspects.length > 0 ? technicalAspects : undefined,
       clientLocations: clientLocationIds.length > 0 ? clientLocationIds : undefined,
       projectStatus: projectStatus.length > 0 ? projectStatus : undefined,
       projectTypes: projectTypes.length > 0 ? projectTypes : undefined,
@@ -748,19 +754,6 @@ export function CandidatesPageClient() {
       ac.abort()
     }
   }, [pageNumber, pageSize, reloadToken, backendListOptions])
-
-  const handleCreateTechnicalAspect = useCallback(async (name: string) => {
-    try {
-      const created = await createTechnicalAspect(name)
-      setTechnicalAspectsLookup((prev) => [
-        ...prev.filter((l) => l.id !== created.id && l.name !== created.name),
-        created,
-      ])
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to add technical aspect")
-      throw e
-    }
-  }, [])
 
   const handleCreateClientLocation = useCallback(async (name: string) => {
     try {
@@ -897,15 +890,19 @@ export function CandidatesPageClient() {
         clientLocations: clientLocationsLookup,
         technicalAspects: technicalAspectsLookup,
         technicalAspectTypes: technicalAspectTypeSelectOptions,
+        verticalDomains: verticalDomainSelectOptions,
+        horizontalDomains: horizontalDomainSelectOptions,
+        technicalDomains: technicalDomainSelectOptions,
       },
-      onCreateTechnicalAspect: handleCreateTechnicalAspect,
       onCreateClientLocation: handleCreateClientLocation,
     }),
     [
       clientLocationsLookup,
       technicalAspectsLookup,
       technicalAspectTypeSelectOptions,
-      handleCreateTechnicalAspect,
+      verticalDomainSelectOptions,
+      horizontalDomainSelectOptions,
+      technicalDomainSelectOptions,
       handleCreateClientLocation,
     ],
   )
@@ -955,9 +952,12 @@ export function CandidatesPageClient() {
         techStacks: techStacksLookup,
         technicalAspects: technicalAspectsLookup,
         clientLocations: clientLocationsLookup,
+        verticalDomains: verticalDomainSelectOptions,
+        horizontalDomains: horizontalDomainSelectOptions,
+        technicalDomains: technicalDomainSelectOptions,
+        technicalAspectTypes: technicalAspectTypeSelectOptions,
       },
       onCreateTechStack: handleCreateTechStack,
-      onCreateTechnicalAspect: handleCreateTechnicalAspect,
       onCreateClientLocation: handleCreateClientLocation,
       certificationIssuers: certificationIssuersLookup,
       certificationIssuersLoading: lookupsLoading,
@@ -970,8 +970,11 @@ export function CandidatesPageClient() {
       techStacksLookup,
       technicalAspectsLookup,
       clientLocationsLookup,
+      verticalDomainSelectOptions,
+      horizontalDomainSelectOptions,
+      technicalDomainSelectOptions,
+      technicalAspectTypeSelectOptions,
       handleCreateTechStack,
-      handleCreateTechnicalAspect,
       handleCreateClientLocation,
       certificationIssuersLookup,
       lookupsLoading,
@@ -1306,6 +1309,10 @@ export function CandidatesPageClient() {
             techStacks={techStacksLookup}
             benefits={benefitsLookup}
             technicalAspectTypes={technicalAspectTypeSelectOptions}
+            verticalDomains={verticalDomainSelectOptions}
+            horizontalDomains={horizontalDomainSelectOptions}
+            technicalDomains={technicalDomainSelectOptions}
+            technicalAspects={technicalAspectSelectOptions}
           />
           <ResumeParserDialog
             onApplyToCreateCandidate={handleApplyResumeParse}

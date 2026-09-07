@@ -8,13 +8,14 @@ import type {
 } from "@/types/question-generation"
 import { PROJECT_TYPES, PUBLISH_PLATFORM_FILTER_OPTIONS } from "@/lib/types/project"
 import {
-  HORIZONTAL_DOMAINS,
-  TECHNICAL_DOMAIN_HUMAN_LABELS,
-  VERTICAL_DOMAINS,
   fetchProjectById,
   type ProjectDto,
 } from "@/lib/services/projects-api"
-import { fetchTechnicalAspects } from "@/lib/services/lookups-api"
+import {
+  ensureDomainCatalogsLoaded,
+  getCachedDomainCatalogs,
+} from "@/lib/services/lookups-api"
+import { catalogNameById, catalogNamesForIds } from "@/lib/utils/domain-catalog"
 import { normalizeProjectType } from "@/lib/utils/project-type-badge"
 import { formatTeamSizeForService, readLinkedProjectPayloadValue } from "@/lib/utils/project-catalog-fields"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
@@ -48,32 +49,35 @@ function parseStringArray(raw: unknown): string[] {
     .filter((s) => s.trim() !== "")
 }
 
-/** Resolve technical domain ints / labels from Candidate/Project API shapes. */
-function parseTechnicalDomains(raw: unknown): string[] {
+/** Resolve catalog ids / `{ id, label|name }` / legacy strings to display names. */
+function parseCatalogIdsToNames(
+  raw: unknown,
+  items: { id: number; name: string }[],
+): string[] {
   if (!Array.isArray(raw)) return []
   return raw
     .map((item) => {
       if (typeof item === "number") {
-        return TECHNICAL_DOMAIN_HUMAN_LABELS[item] ?? String(item)
+        return catalogNameById(items, item)
       }
       if (typeof item === "string") {
         const trimmed = item.trim()
         if (trimmed === "") return ""
         const asInt = Number(trimmed)
         if (Number.isInteger(asInt) && String(asInt) === trimmed) {
-          return TECHNICAL_DOMAIN_HUMAN_LABELS[asInt] ?? trimmed
+          return catalogNameById(items, asInt)
         }
         return trimmed
       }
       const r = asRecord(item)
       if (!r) return ""
-      if (typeof r.value === "number") {
-        return (
-          TECHNICAL_DOMAIN_HUMAN_LABELS[r.value] ??
-          String(r.label ?? r.name ?? r.domainName ?? r.value)
-        )
+      if (typeof r.id === "number") {
+        return catalogNameById(items, r.id)
       }
-      return String(r.name ?? r.label ?? r.domainName ?? "")
+      if (typeof r.value === "number") {
+        return String(r.label ?? r.name ?? r.domainName ?? r.aspectName ?? r.value)
+      }
+      return String(r.name ?? r.label ?? r.domainName ?? r.aspectName ?? "")
     })
     .filter((s) => s.trim() !== "")
 }
@@ -137,12 +141,22 @@ export function parseLinkedProjectCatalogFromApi(
           : null,
     averageTeamSize: Number.isFinite(averageTeamSize as number) ? (averageTeamSize as number) : null,
     techStacks: parseStringArray(nested.techStacks ?? nested.techStackNames),
-    technicalAspects: parseStringArray(
-      nested.technicalAspects ?? nested.aspectTypeLabels,
+    technicalAspects: parseCatalogIdsToNames(
+      nested.technicalAspects,
+      getCachedDomainCatalogs().technicalAspects,
     ),
-    technicalDomains: parseTechnicalDomains(nested.technicalDomains),
-    horizontalDomains: parseStringArray(nested.horizontalDomains),
-    verticalDomains: parseStringArray(nested.verticalDomains),
+    technicalDomains: parseCatalogIdsToNames(
+      nested.technicalDomains,
+      getCachedDomainCatalogs().technicalDomains,
+    ),
+    horizontalDomains: parseCatalogIdsToNames(
+      nested.horizontalDomains,
+      getCachedDomainCatalogs().horizontalDomains,
+    ),
+    verticalDomains: parseCatalogIdsToNames(
+      nested.verticalDomains,
+      getCachedDomainCatalogs().verticalDomains,
+    ),
     description: nested.description != null ? String(nested.description) : null,
     latestUpdate:
       nested.latestUpdate != null
@@ -233,51 +247,28 @@ export function servicePayloadValueForApiSuffix(
 }
 
 const PROJECT_STATUS_LABELS = ["Development", "Maintenance", "Closed"] as const
-const VERTICAL_LABEL_BY_VALUE = new Map(VERTICAL_DOMAINS.map((d) => [d.value, d.label]))
-const HORIZONTAL_LABEL_BY_VALUE = new Map(HORIZONTAL_DOMAINS.map((d) => [d.value, d.label]))
+
+function resolveDomainLabels(
+  raw: number[] | undefined,
+  items: { id: number; name: string }[],
+): string[] {
+  return catalogNamesForIds(raw, items)
+}
 
 function formatAverageTeamSizeDisplay(averageTeamSize: number | null): string | null {
   if (averageTeamSize == null) return null
   return String(averageTeamSize)
 }
 
-function resolveDomainLabels(
-  raw: number[] | undefined,
-  labelByValue: Map<number, string> | readonly string[],
-): string[] {
-  if (!raw?.length) return []
-  return raw
-    .map((n) => {
-      if (labelByValue instanceof Map) {
-        return labelByValue.get(n) ?? String(n)
-      }
-      return labelByValue[n] ?? String(n)
-    })
-    .filter((s) => s.trim() !== "")
-}
-
-/**
- * Map GET /api/projects/{id} → linked-project catalog fields for Cold Caller / QG.
- * `technicalAspects`: prefer `aspectTypeLabels`; else resolve enum ints via lookup map.
- */
+/** Map GET /api/projects/{id} → linked-project catalog fields for Cold Caller / QG. */
 export function projectDtoToLinkedCatalogFields(
   dto: ProjectDto,
-  technicalAspectLabelById?: Map<number, string>,
 ): LinkedProjectFields {
-  const aspectTypeLabels = (dto.aspectTypeLabels ?? [])
-    .map((s) => String(s).trim())
-    .filter((s) => s !== "")
-
-  let technicalAspects = aspectTypeLabels
-  if (technicalAspects.length === 0 && (dto.technicalAspects?.length ?? 0) > 0) {
-    technicalAspects = (dto.technicalAspects ?? [])
-      .map((n) => {
-        const label = technicalAspectLabelById?.get(n)
-        return label != null && label.trim() !== "" ? label.trim() : ""
-      })
-      .filter((s) => s !== "")
-  }
-
+  const catalogs = getCachedDomainCatalogs()
+  const technicalAspects = resolveDomainLabels(
+    dto.technicalAspects,
+    catalogs.technicalAspects,
+  )
   const typeNum = dto.type ?? 0
   const statusNum = dto.status ?? 0
   const publishPlatforms = (dto.publishPlatforms ?? []).map(
@@ -292,9 +283,9 @@ export function projectDtoToLinkedCatalogFields(
     averageTeamSize: dto.averageTeamSize ?? null,
     techStacks: Array.isArray(dto.techStacks) ? dto.techStacks.map(String).filter((s) => s.trim() !== "") : [],
     technicalAspects,
-    technicalDomains: resolveDomainLabels(dto.technicalDomains, TECHNICAL_DOMAIN_HUMAN_LABELS),
-    horizontalDomains: resolveDomainLabels(dto.horizontalDomains, HORIZONTAL_LABEL_BY_VALUE),
-    verticalDomains: resolveDomainLabels(dto.verticalDomains, VERTICAL_LABEL_BY_VALUE),
+    technicalDomains: resolveDomainLabels(dto.technicalDomains, catalogs.technicalDomains),
+    horizontalDomains: resolveDomainLabels(dto.horizontalDomains, catalogs.horizontalDomains),
+    verticalDomains: resolveDomainLabels(dto.verticalDomains, catalogs.verticalDomains),
     description: dto.description != null ? String(dto.description) : null,
     latestUpdate: dto.latestUpdate != null ? String(dto.latestUpdate) : null,
     startDate: dto.startDate ? new Date(dto.startDate) : undefined,
@@ -381,6 +372,8 @@ export async function enrichWorkExperiencesWithProjectCatalog(
 ): Promise<WorkExperience[]> {
   if (!workExperiences?.length) return workExperiences ?? []
 
+  await ensureDomainCatalogsLoaded().catch(() => undefined)
+
   const ids = new Set<number>()
   for (const we of workExperiences) {
     for (const project of we.projects ?? []) {
@@ -402,21 +395,6 @@ export async function enrichWorkExperiencesWithProjectCatalog(
     }),
   )
 
-  const needsAspectLookup = [...dtoById.values()].some((dto) => {
-    const labels = (dto.aspectTypeLabels ?? []).filter((s) => String(s).trim() !== "")
-    return labels.length === 0 && (dto.technicalAspects?.length ?? 0) > 0
-  })
-
-  let technicalAspectLabelById: Map<number, string> | undefined
-  if (needsAspectLookup) {
-    try {
-      const items = await fetchTechnicalAspects()
-      technicalAspectLabelById = new Map(items.map((item) => [item.id, item.name]))
-    } catch {
-      technicalAspectLabelById = undefined
-    }
-  }
-
   return workExperiences.map((we) => ({
     ...we,
     projects: (we.projects ?? []).map((project) => {
@@ -426,7 +404,7 @@ export async function enrichWorkExperiencesWithProjectCatalog(
       if (!dto) return project
       return mergeProjectCatalogIntoProjectExperience(
         project,
-        projectDtoToLinkedCatalogFields(dto, technicalAspectLabelById),
+        projectDtoToLinkedCatalogFields(dto),
         dto.name,
       )
     }),

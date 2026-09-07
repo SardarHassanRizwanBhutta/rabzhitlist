@@ -47,11 +47,6 @@ import { useEmployerOfficeLocationsForIds } from "@/hooks/useEmployerOfficeLocat
 import type { UniversityLookupDto } from "@/lib/services/universities-api"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import {
-  VERTICAL_DOMAINS,
-  HORIZONTAL_DOMAINS,
-  TECHNICAL_DOMAIN_HUMAN_LABELS,
-} from "@/lib/services/projects-api"
-import {
   PROJECT_STATUS_LABELS,
   PROJECT_TYPES,
   PUBLISH_PLATFORM_FILTER_OPTIONS,
@@ -107,9 +102,11 @@ export interface CandidateFilters {
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   verticalDomains: string[]
   horizontalDomains: string[]
-  /** Labels aligned with project `technicalDomains` (same catalog as `TECHNICAL_DOMAIN_HUMAN_LABELS` / API). */
+  /** Labels aligned with project `technicalDomains` catalog ids. */
   technicalDomains: string[]
-  /** Catalog ids as strings from GET /api/TechnicalAspectTypes (`value`). Wired to API in Phase 2. */
+  /** Catalog ids as strings from GET /api/TechnicalAspects. */
+  technicalAspects: string[]
+  /** Catalog ids as strings from GET /api/TechnicalAspectTypes (`id`). */
   technicalAspectTypeIds: string[]
   // Start Date Range - filters by project startDate only
   startDateStart: Date | null
@@ -221,6 +218,11 @@ interface CandidatesFilterDialogProps {
   benefits?: LookupItem[]
   /** From GET /api/TechnicalAspectTypes — same catalog as Projects filter / creation dialog. */
   technicalAspectTypes?: MultiSelectOption[]
+  verticalDomains?: MultiSelectOption[]
+  horizontalDomains?: MultiSelectOption[]
+  technicalDomains?: MultiSelectOption[]
+  /** From GET /api/TechnicalAspects. */
+  technicalAspects?: MultiSelectOption[]
 }
 
 // Mock data for filter options (removed unused statusOptions)
@@ -250,22 +252,6 @@ const extractUniqueCandidateTechStacks = () => {
     })
   })
   return Array.from(techStacksMap.values()).sort()
-}
-
-const extractUniqueVerticalDomains = () => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractUniqueHorizontalDomains = () => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
 }
 
 // Extract unique client locations from projects
@@ -307,21 +293,6 @@ const workModeFilterOptions: MultiSelectOption[] = WORK_MODE_DB.map((key: WorkMo
 const publishPlatformFilterOptions: MultiSelectOption[] = PUBLISH_PLATFORM_FILTER_OPTIONS.map((o) => ({
   value: o.value,
   label: o.label,
-}))
-
-const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const technicalDomainFilterOptions: MultiSelectOption[] = TECHNICAL_DOMAIN_HUMAN_LABELS.map((label) => ({
-  value: label,
-  label,
 }))
 
 // Employer-related filter options (same catalog as EmployersFilterDialog / employer `status` field)
@@ -401,6 +372,7 @@ const initialFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,
@@ -523,6 +495,7 @@ function clearSectionFromFilters(
           updated.verticalDomains = []
           updated.horizontalDomains = []
       updated.technicalDomains = []
+      updated.technicalAspects = []
       updated.technicalAspectTypeIds = []
           updated.startDateStart = null
           updated.startDateEnd = null
@@ -582,6 +555,10 @@ export function CandidatesFilterDialog({
   techStacks = [],
   benefits = [],
   technicalAspectTypes = [],
+  verticalDomains = [],
+  horizontalDomains = [],
+  technicalDomains: technicalDomainCatalogOptions = [],
+  technicalAspects: technicalAspectCatalogOptions = [],
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
@@ -1212,6 +1189,7 @@ export function CandidatesFilterDialog({
           tempFilters.verticalDomains.length +
           tempFilters.horizontalDomains.length +
           tempFilters.technicalDomains.length +
+          tempFilters.technicalAspects.length +
           tempFilters.technicalAspectTypeIds.length +
           (tempFilters.startDateStart ? 1 : 0) +
           (tempFilters.startDateEnd ? 1 : 0) +
@@ -1398,6 +1376,7 @@ export function CandidatesFilterDialog({
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalDomains.length > 0 ||
+    tempFilters.technicalAspects.length > 0 ||
     tempFilters.technicalAspectTypeIds.length > 0 ||
     tempFilters.startDateStart !== null ||
     tempFilters.startDateEnd !== null ||
@@ -2308,7 +2287,7 @@ export function CandidatesFilterDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <MultiSelect
-                  items={verticalDomainOptions}
+                  items={verticalDomains}
                   selected={tempFilters.verticalDomains}
                   onChange={(values) => handleFilterChange("verticalDomains", values)}
                   placeholder="Filter by industry..."
@@ -2318,7 +2297,7 @@ export function CandidatesFilterDialog({
                 />
 
                 <MultiSelect
-                  items={horizontalDomainOptions}
+                  items={horizontalDomains}
                   selected={tempFilters.horizontalDomains}
                   onChange={(values) => handleFilterChange("horizontalDomains", values)}
                   placeholder="Filter by solution type..."
@@ -2329,7 +2308,7 @@ export function CandidatesFilterDialog({
               </div>
 
               <MultiSelect
-                items={technicalDomainFilterOptions}
+                items={technicalDomainCatalogOptions}
                 selected={tempFilters.technicalDomains}
                 onChange={(values) => handleFilterChange("technicalDomains", values)}
                 placeholder="Filter by technical domain..."
@@ -2339,12 +2318,22 @@ export function CandidatesFilterDialog({
               />
 
               <MultiSelect
+                items={technicalAspectCatalogOptions}
+                selected={tempFilters.technicalAspects}
+                onChange={(values) => handleFilterChange("technicalAspects", values)}
+                placeholder="Filter by technical aspect..."
+                label="Technical Aspects"
+                searchPlaceholder="Search technical aspects..."
+                maxDisplay={3}
+              />
+
+              <MultiSelect
                 items={technicalAspectTypeFilterOptions}
                 selected={tempFilters.technicalAspectTypeIds}
                 onChange={(values) => handleFilterChange("technicalAspectTypeIds", values)}
                 placeholder="Select technical aspect types..."
-                label="Technical Aspects"
-                searchPlaceholder="Search technical aspects..."
+                label="Technical Aspect Types"
+                searchPlaceholder="Search technical aspect types..."
                 maxDisplay={3}
               />
 

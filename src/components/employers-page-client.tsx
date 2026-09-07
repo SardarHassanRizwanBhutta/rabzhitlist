@@ -19,7 +19,7 @@ import {
   SALARY_POLICY_DISPLAY_TO_DB,
 } from "@/lib/types/employer"
 import type { Country } from "@/lib/types/country"
-import { fetchClientLocations, type LookupItem } from "@/lib/services/lookups-api"
+import { fetchClientLocations, ensureDomainCatalogsLoaded, type LookupItem } from "@/lib/services/lookups-api"
 import type { PublishPlatform, ProjectStatus } from "@/lib/types/project"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
 import {
@@ -52,24 +52,16 @@ import {
   WORK_MODE_TO_API,
 } from "@/lib/services/employers-api"
 import {
-  ensureTechnicalDomainsCatalogLoaded,
-  technicalDomainCatalogToSelectOptions,
-  technicalDomainLabelToInt,
-  verticalDomainLabelToInt,
-  horizontalDomainLabelToInt,
   PROJECT_STATUS_UI_TO_NUM,
   PUBLISH_PLATFORM_UI_TO_NUM,
 } from "@/lib/services/projects-api"
+import { catalogIdStringsToInts, catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 
 const DEFAULT_PAGE_SIZE = 20
 
 function employerRankingsToApiInts(rankings: EmployerRanking[]): number[] {
   return rankings.map((r) => RANKING_TO_API[RANKING_DISPLAY_TO_DB[r]])
-}
-
-function labelsToTechnicalDomainInts(labels: string[]): number[] {
-  return labels.map((l) => technicalDomainLabelToInt(l)).filter((v): v is number => v != null)
 }
 
 function countryNamesToIds(names: string[], list: Country[]): number[] {
@@ -163,6 +155,7 @@ const initialFilters: EmployerFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   clientLocations: [],
   projectStatus: [],
   averageTeamSizeMin: "",
@@ -223,6 +216,9 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
   const [technicalDomainSelectOptions, setTechnicalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [verticalDomainSelectOptions, setVerticalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [horizontalDomainSelectOptions, setHorizontalDomainSelectOptions] = useState<MultiSelectOption[]>([])
+  const [technicalAspectSelectOptions, setTechnicalAspectSelectOptions] = useState<MultiSelectOption[]>([])
   const [clientLocationsLookup, setClientLocationsLookup] = useState<LookupItem[]>([])
 
   useEffect(() => {
@@ -242,13 +238,10 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     const timeZoneIds = lookupNamesToIds(combinedFilters.timeSupportZones, timeSupportZonesLookup)
     const awardIds = lookupNamesToIds(combinedFilters.awards, awardsLookup)
     const clientLocIds = lookupNamesToIds(combinedFilters.clientLocations, clientLocationsLookup)
-    const technicalInts = labelsToTechnicalDomainInts(combinedFilters.technicalDomains)
-    const verticalInts = combinedFilters.verticalDomains
-      .map((l) => verticalDomainLabelToInt(l))
-      .filter((v): v is number => v != null)
-    const horizontalInts = combinedFilters.horizontalDomains
-      .map((l) => horizontalDomainLabelToInt(l))
-      .filter((v): v is number => v != null)
+    const technicalInts = catalogIdStringsToInts(combinedFilters.technicalDomains)
+    const verticalInts = catalogIdStringsToInts(combinedFilters.verticalDomains)
+    const horizontalInts = catalogIdStringsToInts(combinedFilters.horizontalDomains)
+    const technicalAspectInts = catalogIdStringsToInts(combinedFilters.technicalAspects)
 
     const benefits = combinedFilters.benefits.map((t) => t.trim()).filter(Boolean)
 
@@ -326,6 +319,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       ...(verticalInts.length ? { verticalDomains: verticalInts } : {}),
       ...(horizontalInts.length ? { horizontalDomains: horizontalInts } : {}),
       ...(technicalInts.length ? { technicalDomains: technicalInts } : {}),
+      ...(technicalAspectInts.length ? { technicalAspects: technicalAspectInts } : {}),
       ...(clientLocIds.length ? { clientLocations: clientLocIds } : {}),
       ...(projectStatusInts.length ? { projectStatus: projectStatusInts } : {}),
       ...(projectTeamSizeMin != null ? { projectTeamSizeMin } : {}),
@@ -382,15 +376,18 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       fetchTimeSupportZones(),
       fetchAwards(),
       fetchBenefits(),
-      ensureTechnicalDomainsCatalogLoaded(),
+      ensureDomainCatalogsLoaded(),
       fetchClientLocations(),
     ])
-      .then(([timeSupportZones, awards, benefits, tdCatalog, clientLocations]) => {
+      .then(([timeSupportZones, awards, benefits, catalogs, clientLocations]) => {
         if (!cancelled) {
           setTimeSupportZonesLookup(timeSupportZones)
           setAwardsLookup(awards)
           setBenefitsLookup(benefits)
-          setTechnicalDomainSelectOptions(technicalDomainCatalogToSelectOptions(tdCatalog))
+          setVerticalDomainSelectOptions(catalogToSelectOptions(catalogs.verticalDomains))
+          setHorizontalDomainSelectOptions(catalogToSelectOptions(catalogs.horizontalDomains))
+          setTechnicalDomainSelectOptions(catalogToSelectOptions(catalogs.technicalDomains))
+          setTechnicalAspectSelectOptions(catalogToSelectOptions(catalogs.technicalAspects))
           setClientLocationsLookup(clientLocations)
         }
       })
@@ -399,7 +396,10 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
           setTimeSupportZonesLookup([])
           setAwardsLookup([])
           setBenefitsLookup([])
+          setVerticalDomainSelectOptions([])
+          setHorizontalDomainSelectOptions([])
           setTechnicalDomainSelectOptions([])
+          setTechnicalAspectSelectOptions([])
           setClientLocationsLookup([])
         }
       })
@@ -478,7 +478,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
     setLoading(true)
     setError(null)
     try {
-      await ensureTechnicalDomainsCatalogLoaded()
+      await ensureDomainCatalogsLoaded()
       const result = await fetchEmployers(employerListParams)
       setEmployers(result.items.map(employerListItemToEmployer))
       setTotalCount(result.totalCount)
@@ -612,6 +612,9 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
             onClearFilters={handleClearFilters}
             lookupOptions={{
               technicalDomains: technicalDomainSelectOptions,
+              verticalDomains: verticalDomainSelectOptions,
+              horizontalDomains: horizontalDomainSelectOptions,
+              technicalAspects: technicalAspectSelectOptions,
               timeSupportZones: timeSupportZoneFilterOptions,
               awards: awardFilterOptions,
               benefits: benefitFilterOptions,

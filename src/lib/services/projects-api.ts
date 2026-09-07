@@ -4,6 +4,12 @@ import { PROJECT_TYPES } from "@/lib/types/project"
 import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progress"
 
 import { API_BASE_URL } from "@/lib/config/api"
+import {
+  ensureDomainCatalogsLoaded,
+  fetchTechnicalDomains as fetchTechnicalDomainsLookup,
+  type LookupItem,
+} from "@/lib/services/lookups-api"
+import { catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 
 // --- API types (from Projects API Reference) ---
 
@@ -29,7 +35,7 @@ export interface ProjectListItemDto {
   verticalDomains?: number[]
   horizontalDomains?: number[]
   technicalDomains?: number[]
-  /** `TechnicalAspect` enum values (numbers per PROJECT-API-REFERENCE.md). */
+  /** Catalog ids from GET /api/TechnicalAspects. */
   technicalAspects?: number[]
   /**
    * Server-derived distinct `TechnicalAspectType.DisplayName` values from the
@@ -72,7 +78,7 @@ export interface ProjectDto {
   verticalDomains: number[]
   horizontalDomains: number[]
   technicalDomains: number[]
-  /** `TechnicalAspect` enum values from API (numbers). */
+  /** Catalog ids from GET /api/TechnicalAspects. */
   technicalAspects: number[]
   /**
    * Server-derived distinct `TechnicalAspectType.DisplayName` values from the
@@ -103,7 +109,7 @@ export interface CreateProjectDto {
   verticalDomains?: number[] | null
   horizontalDomains?: number[] | null
   technicalDomains?: number[] | null
-  /** `TechnicalAspect` enum values — API property name is `technicalAspects`, not `technicalAspectIds`. */
+  /** Catalog ids from GET /api/TechnicalAspects. */
   technicalAspects?: number[] | null
   publishPlatforms?: number[] | null
   clientLocationIds?: number[] | null
@@ -126,7 +132,7 @@ export interface UpdateProjectDto {
   verticalDomains?: number[] | null
   horizontalDomains?: number[] | null
   technicalDomains?: number[] | null
-  /** `TechnicalAspect` enum values — API property name is `technicalAspects`, not `technicalAspectIds`. */
+  /** Catalog ids from GET /api/TechnicalAspects. */
   technicalAspects?: number[] | null
   publishPlatforms?: number[] | null
   clientLocationIds?: number[] | null
@@ -173,157 +179,28 @@ const PUBLISH_PLATFORM_NUM_TO_UI: Record<number, PublishPlatform> = {
   6: "Embedded",
 }
 
-// --- Domain enum constants (backend serializes as integers) ---
+// --- Domain catalogs (GET /api/VerticalDomains, HorizontalDomains, TechnicalDomains) ---
 
-export const VERTICAL_DOMAIN_LABELS: Record<number, string> = {
-  0: "Banking", 1: "Financial Services", 2: "Insurance", 3: "Healthcare",
-  4: "Retail", 5: "E-commerce", 6: "Telecommunications", 7: "Manufacturing",
-  8: "Automotive", 9: "Real Estate / Property Management",
-  10: "Travel & Hospitality", 11: "Logistics & Supply Chain",
-  12: "Energy & Utilities", 13: "Education",
-  14: "Government / Public Sector", 15: "Media & Entertainment",
-  16: "Agriculture", 17: "Aviation",
-  18: "Pharma / Life Sciences", 19: "Gaming",
-  20: "Legal", 21: "Fitness & Wellness", 22: "Sports",
-  23: "Facilities Management",
-  24: "Cross-Industry / Enterprise",
-  25: "Information Technology / Software",
-  26: "Transportation",
-  27: "Non-Profit & NGOs",
-}
+export type TechnicalDomainOption = LookupItem
 
-export const HORIZONTAL_DOMAIN_LABELS: Record<number, string> = {
-  0: "CRM (Customer Relationship Management)",
-  1: "ERP (Enterprise Resource Planning)",
-  2: "HR / HRMS", 3: "Finance & Accounting",
-  4: "Identity & Access Management", 5: "Document Management",
-  6: "Payment Processing", 7: "Analytics & Business Intelligence",
-  8: "Marketing Automation", 9: "Customer Support / Helpdesk",
-  10: "Notification Systems", 11: "Workflow / BPM",
-}
-
-export const VERTICAL_DOMAINS: Array<{ value: number; label: string }> =
-  Object.entries(VERTICAL_DOMAIN_LABELS).map(([k, v]) => ({ value: Number(k), label: v }))
-
-export const HORIZONTAL_DOMAINS: Array<{ value: number; label: string }> =
-  Object.entries(HORIZONTAL_DOMAIN_LABELS).map(([k, v]) => ({ value: Number(k), label: v }))
-
-/** Authoritative list from GET /api/TechnicalDomains (value = enum ordinal, label = API display, often PascalCase). */
-export type TechnicalDomainOption = { value: number; label: string }
-
-/**
- * Human-readable labels; index matches backend TechnicalDomain enum (0–23).
- * API may send PascalCase names; UI uses these strings for display and form values.
- */
-export const TECHNICAL_DOMAIN_HUMAN_LABELS: readonly string[] = [
-  "Cloud Computing",
-  "Artificial Intelligence (AI)",
-  "Machine Learning (ML)",
-  "Data Science & Analytics",
-  "Big Data",
-  "Cybersecurity",
-  "DevOps",
-  "Internet of Things (IoT)",
-  "Blockchain",
-  "Robotic Process Automation (RPA)",
-  "API Management & Integration",
-  "Microservices Architecture",
-  "Containerization & Orchestration",
-  "Edge Computing",
-  "Augmented Reality (AR)",
-  "Virtual Reality (VR)",
-  "Mixed Reality (MR)",
-  "Digital Transformation",
-  "Low-Code / No-Code Platforms",
-  "Enterprise Integration Platforms",
-  "Identity & Access Management (IAM)",
-  "Data Governance & Compliance",
-  "Quantum Computing (Emerging)",
-  "5G & Advanced Networking",
-]
-
-const HUMAN_TECHNICAL_DOMAIN_TO_INT = new Map<string, number>(
-  TECHNICAL_DOMAIN_HUMAN_LABELS.map((label, i) => [label, i])
-)
-
-/** Dropdown options: value and label are the human string (stable for filters and POST body mapping). */
 export function technicalDomainCatalogToSelectOptions(
-  items: TechnicalDomainOption[]
+  items: LookupItem[],
 ): Array<{ value: string; label: string }> {
-  return items.map((d) => {
-    const human = TECHNICAL_DOMAIN_HUMAN_LABELS[d.value] ?? d.label
-    return { value: human, label: human }
-  })
+  return catalogToSelectOptions(items)
 }
 
-let technicalDomainByValue = new Map<number, string>()
-let technicalDomainByLabel = new Map<string, number>()
-
-/** Replace in-memory technical domain maps (call after fetchTechnicalDomains). */
-export function applyTechnicalDomainsCatalog(items: TechnicalDomainOption[]): void {
-  technicalDomainByValue = new Map(items.map((i) => [i.value, i.label]))
-  technicalDomainByLabel = new Map(items.map((i) => [i.label, i.value]))
+/** Fetch the four domain/aspect catalogs once per session. */
+export async function ensureTechnicalDomainsCatalogLoaded(): Promise<LookupItem[]> {
+  const catalogs = await ensureDomainCatalogsLoaded()
+  return catalogs.technicalDomains
 }
 
-let technicalDomainsCatalogFetched = false
-let cachedTechnicalDomainList: TechnicalDomainOption[] = []
-
-/** Fetch catalog once per session so mappers and label→int resolve correctly. */
-export async function ensureTechnicalDomainsCatalogLoaded(): Promise<TechnicalDomainOption[]> {
-  if (technicalDomainsCatalogFetched) return cachedTechnicalDomainList
-  const items = await fetchTechnicalDomains().catch(() => [])
-  applyTechnicalDomainsCatalog(items)
-  cachedTechnicalDomainList = items
-  technicalDomainsCatalogFetched = true
-  return items
+export async function fetchTechnicalDomains(): Promise<LookupItem[]> {
+  return fetchTechnicalDomainsLookup()
 }
 
-/** GET /api/TechnicalDomains — same shape as vertical/horizontal domain list endpoints. */
-export async function fetchTechnicalDomains(): Promise<TechnicalDomainOption[]> {
-  const res = await fetch(`${API_BASE_URL}/api/TechnicalDomains`)
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`TechnicalDomains API: ${res.status} — ${text}`)
-  }
-  const data = (await res.json()) as TechnicalDomainOption[]
-  if (!Array.isArray(data)) return []
-  return data
-    .filter((row) => row && typeof row.value === "number" && typeof row.label === "string")
-    .map((row) => ({ value: row.value, label: row.label }))
-}
-
-function resolveVerticalDomain(raw: number): string {
-  return VERTICAL_DOMAIN_LABELS[raw] ?? String(raw)
-}
-
-function resolveHorizontalDomain(raw: number): string {
-  return HORIZONTAL_DOMAIN_LABELS[raw] ?? String(raw)
-}
-
-function resolveTechnicalDomain(raw: number): string {
-  const human = TECHNICAL_DOMAIN_HUMAN_LABELS[raw]
-  if (human !== undefined) return human
-  return technicalDomainByValue.get(raw) ?? String(raw)
-}
-
-/** Reverse lookup: display label → enum integer. */
-const VERTICAL_LABEL_TO_INT = new Map(VERTICAL_DOMAINS.map((d) => [d.label, d.value]))
-const HORIZONTAL_LABEL_TO_INT = new Map(HORIZONTAL_DOMAINS.map((d) => [d.label, d.value]))
-
-export function verticalDomainLabelToInt(label: string): number | undefined {
-  return VERTICAL_LABEL_TO_INT.get(label)
-}
-export function horizontalDomainLabelToInt(label: string): number | undefined {
-  return HORIZONTAL_LABEL_TO_INT.get(label)
-}
-/**
- * Human label (preferred) or API PascalCase label → enum int.
- * Uses catalog from applyTechnicalDomainsCatalog for API names after GET /api/TechnicalDomains.
- */
-export function technicalDomainLabelToInt(label: string): number | undefined {
-  const fromHuman = HUMAN_TECHNICAL_DOMAIN_TO_INT.get(label)
-  if (fromHuman !== undefined) return fromHuman
-  return technicalDomainByLabel.get(label)
+function catalogIdsToFormValues(raw: number[] | undefined): string[] {
+  return (raw ?? []).map((id) => String(id))
 }
 
 // --- List params (query string) — see ProjectFilterChanges.md / ProjectFilterRequest ---
@@ -338,7 +215,7 @@ export interface ProjectsListFilterInput {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalDomains: string[]
-  /** Legacy lookup names → resolved to enum ints in page client. */
+  /** Catalog id strings from GET /api/TechnicalAspects. */
   technicalAspects: string[]
   /** Catalog type id strings (client-side aspect label filter until API supports type ids). */
   technicalAspectTypeIds: string[]
@@ -377,7 +254,7 @@ export interface FetchProjectsParams {
   verticalDomains?: number[]
   horizontalDomains?: number[]
   technicalDomains?: number[]
-  /** Backend query key `technicalAspects` (enum ints, repeated). */
+  /** Catalog ids for query key `technicalAspects`. */
   technicalAspects?: number[]
   isPublished?: boolean
   publishPlatforms?: number[]
@@ -428,7 +305,7 @@ export function buildFetchProjectsParams(
     verticalDomains?: number[]
     horizontalDomains?: number[]
     technicalDomains?: number[]
-    /** Legacy aspect lookup ids + aspect type catalog ids → backend `technicalAspects` enum list. */
+    /** Catalog ids from GET /api/TechnicalAspects. */
     technicalAspectEnumValues?: number[]
   } = {}
 ): FetchProjectsParams {
@@ -548,10 +425,10 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     clientLocation: clientLocations[0] ?? null,
     clientLocations,
     techStacks: dto.techStacks ?? [],
-    verticalDomains: (dto.verticalDomains ?? []).map(resolveVerticalDomain),
-    horizontalDomains: (dto.horizontalDomains ?? []).map(resolveHorizontalDomain),
-    technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
-    technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
+    verticalDomains: catalogIdsToFormValues(dto.verticalDomains),
+    horizontalDomains: catalogIdsToFormValues(dto.horizontalDomains),
+    technicalDomains: catalogIdsToFormValues(dto.technicalDomains),
+    technicalAspects: catalogIdsToFormValues(dto.technicalAspects),
     aspectTypeLabels: dto.aspectTypeLabels ?? [],
     teamSize: formatTeamSize(dto.averageTeamSize ?? null),
     averageTeamSize: dto.averageTeamSize ?? undefined,
@@ -582,10 +459,10 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     clientLocation: clientLocations[0] ?? null,
     clientLocations,
     techStacks: dto.techStacks ?? [],
-    verticalDomains: (dto.verticalDomains ?? []).map(resolveVerticalDomain),
-    horizontalDomains: (dto.horizontalDomains ?? []).map(resolveHorizontalDomain),
-    technicalDomains: (dto.technicalDomains ?? []).map(resolveTechnicalDomain),
-    technicalAspects: (dto.technicalAspects ?? []).map((v) => String(v)),
+    verticalDomains: catalogIdsToFormValues(dto.verticalDomains),
+    horizontalDomains: catalogIdsToFormValues(dto.horizontalDomains),
+    technicalDomains: catalogIdsToFormValues(dto.technicalDomains),
+    technicalAspects: catalogIdsToFormValues(dto.technicalAspects),
     aspectTypeLabels: dto.aspectTypeLabels ?? [],
     teamSize: formatTeamSize(dto.averageTeamSize),
     averageTeamSize: dto.averageTeamSize ?? undefined,
@@ -759,7 +636,7 @@ export interface CreateProjectOptions {
   verticalDomains?: number[] | null
   horizontalDomains?: number[] | null
   technicalDomains?: number[] | null
-  /** Merged `TechnicalAspect` enum ints (legacy lookup names + aspect type catalog ids). */
+  /** Catalog ids from GET /api/TechnicalAspects. */
   technicalAspects?: number[] | null
   clientLocationIds?: number[] | null
 }

@@ -933,6 +933,9 @@ export interface NestedProjectCreationProps {
     clientLocations: LookupItem[]
     technicalAspects: LookupItem[]
     technicalAspectTypes?: MultiSelectOption[]
+    verticalDomains?: MultiSelectOption[]
+    horizontalDomains?: MultiSelectOption[]
+    technicalDomains?: MultiSelectOption[]
   }
   onCreateTechnicalAspect?: (name: string) => Promise<void>
   onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
@@ -1320,6 +1323,9 @@ export function CandidateCreationDialog({
       technicalAspects: nestedProjectCreation?.lookups.technicalAspects ?? [],
       clientLocations: nestedProjectCreation?.lookups.clientLocations ?? [],
       technicalAspectTypes: nestedProjectCreation?.lookups.technicalAspectTypes,
+      verticalDomains: nestedProjectCreation?.lookups.verticalDomains,
+      horizontalDomains: nestedProjectCreation?.lookups.horizontalDomains,
+      technicalDomains: nestedProjectCreation?.lookups.technicalDomains,
     }),
     [lookups?.techStacks, nestedProjectCreation]
   )

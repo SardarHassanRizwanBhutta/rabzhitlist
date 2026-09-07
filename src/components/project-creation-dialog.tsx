@@ -59,13 +59,8 @@ import {
   PUBLISH_PLATFORM_FILTER_OPTIONS,
 } from "@/lib/types/project"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
-import { fetchTechnicalAspectTypes, fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
-import {
-  VERTICAL_DOMAINS,
-  HORIZONTAL_DOMAINS,
-  ensureTechnicalDomainsCatalogLoaded,
-  technicalDomainCatalogToSelectOptions,
-} from "@/lib/services/projects-api"
+import { fetchTechnicalAspectTypes, fetchTechStacks, ensureDomainCatalogsLoaded, type LookupItem } from "@/lib/services/lookups-api"
+import { catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 import { mergeStacksFromAspectSelections } from "@/lib/utils/technical-aspect-type-selection"
 import { mergeProjectFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
 import { techStackLookupItemsToMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
@@ -101,9 +96,9 @@ export interface ProjectFormData {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalDomains: string[]
-  /** Legacy free-form technical aspect names from API (edit); not edited in UI during prototype. */
+  /** Catalog id strings from GET /api/TechnicalAspects. */
   technicalAspects: string[]
-  /** Technical aspect type ids as strings from GET /api/TechnicalAspectTypes (`value`). */
+  /** Technical aspect type ids as strings from GET /api/TechnicalAspectTypes (`id`). */
   technicalAspectTypeIds: string[]
   /** Selected technology names per aspect type id string; merged into techStacks (deduped). */
   techStacksByAspectType: Record<string, string[]>
@@ -121,7 +116,9 @@ export interface ProjectLookups {
   techStacks: LookupItem[]
   technicalAspects: LookupItem[]
   clientLocations: LookupItem[]
-  /** From GET /api/TechnicalDomains. When omitted, dialog loads catalog on open (create). */
+  verticalDomains?: MultiSelectOption[]
+  horizontalDomains?: MultiSelectOption[]
+  /** From GET /api/TechnicalDomains. When omitted, dialog loads catalog on open. */
   technicalDomains?: MultiSelectOption[]
   /** From GET /api/TechnicalAspectTypes. When omitted, dialog fetches on open. */
   technicalAspectTypes?: MultiSelectOption[]
@@ -193,22 +190,6 @@ const extractUniqueClientLocations = (): string[] => {
     }
   })
   return Array.from(locations).sort()
-}
-
-const extractUniqueVerticalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractUniqueHorizontalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
 }
 
 // Type options: fixed list matching backend project_type (employer, freelance, independent)
@@ -284,19 +265,35 @@ export function ProjectCreationDialog({
   initialCreatePrefill,
   lookups,
   onCreateTechStack,
-  onCreateTechnicalAspect,
   onCreateClientLocation,
 }: ProjectCreationDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
-  const [fetchedTechnicalDomainOptions, setFetchedTechnicalDomainOptions] = useState<MultiSelectOption[]>([])
+  const [fetchedDomainOptions, setFetchedDomainOptions] = useState<{
+    verticalDomains: MultiSelectOption[]
+    horizontalDomains: MultiSelectOption[]
+    technicalDomains: MultiSelectOption[]
+    technicalAspects: MultiSelectOption[]
+  }>({
+    verticalDomains: [],
+    horizontalDomains: [],
+    technicalDomains: [],
+    technicalAspects: [],
+  })
 
   const verticalDomainOptions: MultiSelectOption[] = useMemo(
-    () => VERTICAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
-    []
+    () => lookups?.verticalDomains ?? fetchedDomainOptions.verticalDomains,
+    [lookups?.verticalDomains, fetchedDomainOptions.verticalDomains]
   )
   const horizontalDomainOptions: MultiSelectOption[] = useMemo(
-    () => HORIZONTAL_DOMAINS.map((d) => ({ value: d.label, label: d.label })),
-    []
+    () => lookups?.horizontalDomains ?? fetchedDomainOptions.horizontalDomains,
+    [lookups?.horizontalDomains, fetchedDomainOptions.horizontalDomains]
+  )
+  const technicalAspectOptions: MultiSelectOption[] = useMemo(
+    () =>
+      lookups?.technicalAspects?.length
+        ? catalogToSelectOptions(lookups.technicalAspects)
+        : fetchedDomainOptions.technicalAspects,
+    [lookups?.technicalAspects, fetchedDomainOptions.technicalAspects]
   )
   const clientLocationOptions: MultiSelectOption[] = useMemo(
     () => lookups?.clientLocations?.map((l) => ({ value: l.name, label: l.name })) ?? extractUniqueClientLocations().map((loc) => ({ value: loc, label: loc })),
@@ -369,8 +366,8 @@ export function ProjectCreationDialog({
 
   const technicalDomainOptions: MultiSelectOption[] = useMemo(() => {
     if (lookups?.technicalDomains !== undefined) return lookups.technicalDomains
-    return fetchedTechnicalDomainOptions
-  }, [lookups?.technicalDomains, fetchedTechnicalDomainOptions])
+    return fetchedDomainOptions.technicalDomains
+  }, [lookups?.technicalDomains, fetchedDomainOptions.technicalDomains])
 
   const technicalAspectTypeOptions: MultiSelectOption[] = useMemo(
     () => lookups?.technicalAspectTypes ?? fetchedTechnicalAspectTypeOptions,
@@ -389,7 +386,7 @@ export function ProjectCreationDialog({
     fetchTechnicalAspectTypes()
       .then((rows) => {
         if (cancelled) return
-        setFetchedTechnicalAspectTypeOptions(rows.map((r) => ({ value: String(r.value), label: r.label })))
+        setFetchedTechnicalAspectTypeOptions(rows.map((r) => ({ value: String(r.id), label: r.name })))
       })
       .catch(() => {
         if (!cancelled) setFetchedTechnicalAspectTypeOptions([])
@@ -435,21 +432,46 @@ export function ProjectCreationDialog({
   }, [open, aspectTypeIdsKey])
 
   useEffect(() => {
-    if (!open || mode !== "create") return
-    if (lookups?.technicalDomains !== undefined) return
+    if (!open) return
+    if (
+      lookups?.verticalDomains !== undefined &&
+      lookups?.horizontalDomains !== undefined &&
+      lookups?.technicalDomains !== undefined &&
+      lookups?.technicalAspects !== undefined
+    ) {
+      return
+    }
     let cancelled = false
-    ensureTechnicalDomainsCatalogLoaded()
-      .then((items) => {
+    ensureDomainCatalogsLoaded()
+      .then((catalogs) => {
         if (cancelled) return
-        setFetchedTechnicalDomainOptions(technicalDomainCatalogToSelectOptions(items))
+        setFetchedDomainOptions({
+          verticalDomains: catalogToSelectOptions(catalogs.verticalDomains),
+          horizontalDomains: catalogToSelectOptions(catalogs.horizontalDomains),
+          technicalDomains: catalogToSelectOptions(catalogs.technicalDomains),
+          technicalAspects: catalogToSelectOptions(catalogs.technicalAspects),
+        })
       })
       .catch(() => {
-        if (!cancelled) setFetchedTechnicalDomainOptions([])
+        if (!cancelled) {
+          setFetchedDomainOptions({
+            verticalDomains: [],
+            horizontalDomains: [],
+            technicalDomains: [],
+            technicalAspects: [],
+          })
+        }
       })
     return () => {
       cancelled = true
     }
-  }, [open, mode, lookups?.technicalDomains])
+  }, [
+    open,
+    lookups?.verticalDomains,
+    lookups?.horizontalDomains,
+    lookups?.technicalDomains,
+    lookups?.technicalAspects,
+  ])
 
   // Load existing verification status if in edit mode with verification
   const existingVerifications = useMemo(() => {
@@ -1734,18 +1756,18 @@ export function ProjectCreationDialog({
                         <VerificationCheckbox fieldName="technicalDomains" />
                       </div>
 
-                      {mode === "edit" && formData.technicalAspects.length > 0 && (
-                        <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 space-y-2">
-                          <Label className="text-xs text-muted-foreground font-normal">Legacy technical aspects</Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {formData.technicalAspects.map((a) => (
-                              <Badge key={a} variant="outline" className="font-normal text-xs">
-                                {a}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        <Label>Technical Aspects</Label>
+                        <MultiSelect
+                          items={technicalAspectOptions}
+                          selected={formData.technicalAspects}
+                          onChange={(values) => handleInputChange("technicalAspects", values)}
+                          placeholder="Select technical aspects..."
+                          searchPlaceholder="Search technical aspects..."
+                          maxDisplay={4}
+                        />
+                        <VerificationCheckbox fieldName="technicalAspects" />
+                      </div>
                     </CardContent>
                   </CollapsibleContent>
                 </Card>

@@ -1345,6 +1345,7 @@ export async function fetchCandidatesPage(
     verticalDomains?: number[]
     horizontalDomains?: number[]
     technicalDomains?: number[]
+    technicalAspects?: number[]
     clientLocations?: number[]
     projectStatus?: number[]
     projectTypes?: number[]
@@ -1446,6 +1447,7 @@ export async function fetchCandidatesPage(
   appendNumberList("verticalDomains", options?.verticalDomains)
   appendNumberList("horizontalDomains", options?.horizontalDomains)
   appendNumberList("technicalDomains", options?.technicalDomains)
+  appendNumberList("technicalAspects", options?.technicalAspects)
   appendNumberList("clientLocations", options?.clientLocations)
   appendNumberList("projectStatus", options?.projectStatus)
   appendNumberList("projectTypes", options?.projectTypes)

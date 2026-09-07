@@ -76,6 +76,7 @@ const defaultFilters: CandidateFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   technicalAspectTypeIds: [],
   startDateStart: null,
   startDateEnd: null,

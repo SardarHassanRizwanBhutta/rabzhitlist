@@ -39,7 +39,6 @@ import { ProjectStatus, PROJECT_STATUS_LABELS } from "@/lib/types/project"
 import { sampleEmployers } from "@/lib/sample-data/employers"
 import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
-import { VERTICAL_DOMAINS, HORIZONTAL_DOMAINS } from "@/lib/services/projects-api"
 
 // Filter interfaces
 export interface EmployerFilters {
@@ -77,6 +76,7 @@ export interface EmployerFilters {
   verticalDomains: string[]
   horizontalDomains: string[]
   technicalDomains: string[]
+  technicalAspects: string[]
   clientLocations: string[]  // Filter by client's location in projects (e.g., "San Francisco", "Silicon Valley", "United States")
   projectStatus: string[]
   /** UI state; mapped to API `projectTeamSizeMin` on employer list fetch. */
@@ -103,6 +103,9 @@ export interface EmployerFilters {
 
 export interface EmployerFilterLookupOptions {
   technicalDomains: MultiSelectOption[]
+  verticalDomains?: MultiSelectOption[]
+  horizontalDomains?: MultiSelectOption[]
+  technicalAspects?: MultiSelectOption[]
   /** Time support zone names from the lookups API (preferred over sample data). */
   timeSupportZones?: MultiSelectOption[]
   /** Award names from GET /api/awards (preferred). */
@@ -168,22 +171,6 @@ const extractUniqueBenefits = (): string[] => {
   return Array.from(benefitsMap.values()).sort()
 }
 
-const extractUniqueVerticalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.verticalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
-const extractUniqueHorizontalDomains = (): string[] => {
-  const domains = new Set<string>()
-  sampleProjects.forEach(project => {
-    project.horizontalDomains.forEach(domain => domains.add(domain))
-  })
-  return Array.from(domains).sort()
-}
-
 // Extract unique client locations from projects
 const extractUniqueClientLocations = (): string[] => {
   const locations = new Set<string>()
@@ -220,17 +207,6 @@ const workModeDbOptions: MultiSelectOption[] = (
   Object.entries(WORK_MODE_DB_LABELS) as [WorkModeDb, string][]
 ).map(([value, label]) => ({ value, label }))
 
-// Project-based filter options
-const verticalDomainOptions: MultiSelectOption[] = VERTICAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
-const horizontalDomainOptions: MultiSelectOption[] = HORIZONTAL_DOMAINS.map((d) => ({
-  value: d.label,
-  label: d.label,
-}))
-
 const projectStatusFilterOptions: MultiSelectOption[] = (
   Object.entries(PROJECT_STATUS_LABELS) as [ProjectStatus, string][]
 ).map(([value, label]) => ({ value, label }))
@@ -260,6 +236,7 @@ const initialFilters: EmployerFilters = {
   verticalDomains: [],
   horizontalDomains: [],
   technicalDomains: [],
+  technicalAspects: [],
   clientLocations: [],
   projectStatus: [],
   averageTeamSizeMin: "",
@@ -287,6 +264,9 @@ export function EmployersFilterDialog({
   lookupOptions,
 }: EmployersFilterDialogProps) {
   const technicalDomainOptions: MultiSelectOption[] = lookupOptions?.technicalDomains ?? []
+  const verticalDomainOptions: MultiSelectOption[] = lookupOptions?.verticalDomains ?? []
+  const horizontalDomainOptions: MultiSelectOption[] = lookupOptions?.horizontalDomains ?? []
+  const technicalAspectOptions: MultiSelectOption[] = lookupOptions?.technicalAspects ?? []
   /** Zone names from GET lookups only — filter matches `employer_time_support_zones` ids on the server. */
   const timeSupportZoneSelectItems = useMemo(
     () => lookupOptions?.timeSupportZones ?? [],
@@ -348,6 +328,7 @@ export function EmployersFilterDialog({
     filters.verticalDomains.length +
     filters.horizontalDomains.length +
     filters.technicalDomains.length +
+    filters.technicalAspects.length +
     filters.clientLocations.length +
     filters.projectStatus.length +
     (filters.averageTeamSizeMin ? 1 : 0) +
@@ -436,6 +417,7 @@ export function EmployersFilterDialog({
     tempFilters.verticalDomains.length > 0 ||
     tempFilters.horizontalDomains.length > 0 ||
     tempFilters.technicalDomains.length > 0 ||
+    tempFilters.technicalAspects.length > 0 ||
     tempFilters.clientLocations.length > 0 ||
     tempFilters.projectStatus.length > 0 ||
     tempFilters.averageTeamSizeMin ||
@@ -789,6 +771,18 @@ export function EmployersFilterDialog({
                     placeholder="Filter by technical domain..."
                     label="Technical Domains"
                     searchPlaceholder="Search technical domains..."
+                    maxDisplay={3}
+                  />
+                </div>
+
+                <div className="mt-4">
+                  <MultiSelect
+                    items={technicalAspectOptions}
+                    selected={tempFilters.technicalAspects}
+                    onChange={(values) => handleFilterChange("technicalAspects", values)}
+                    placeholder="Filter by technical aspect..."
+                    label="Technical Aspects"
+                    searchPlaceholder="Search technical aspects..."
                     maxDisplay={3}
                   />
                 </div>
