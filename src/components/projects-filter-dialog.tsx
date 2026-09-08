@@ -740,7 +740,8 @@ export function ProjectsFilterDialog({
               {useTechnicalAspectTypesFilter ? (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium">Technical Aspect Types</Label>
+                    {/* <Label className="text-sm font-medium">Technical Aspect Types</Label> */}
+                    <Label className="text-sm font-medium">Technical Aspects</Label>
                     <MultiSelect
                       items={technicalAspectTypeFilterOptions}
                       selected={tempFilters.technicalAspectTypeIds}
@@ -803,7 +804,7 @@ export function ProjectsFilterDialog({
                 </>
               )}
 
-              <MultiSelect
+              {/* <MultiSelect
                 items={technicalAspectOptions}
                 selected={tempFilters.technicalAspects}
                 onChange={(values) => handleFilterChange("technicalAspects", values)}
@@ -811,7 +812,7 @@ export function ProjectsFilterDialog({
                 label="Technical Aspects"
                 searchPlaceholder="Search technical aspects..."
                 maxDisplay={3}
-              />
+              /> */}
 
               <div className="space-y-4">
                 <MultiSelect

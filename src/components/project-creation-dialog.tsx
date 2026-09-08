@@ -248,7 +248,7 @@ const PROJECT_VERIFICATION_FIELDS = [
   'verticalDomains',
   'horizontalDomains',
   'technicalDomains',
-  'technicalAspects',
+  // 'technicalAspects',
 ]
 
 export function ProjectCreationDialog({
@@ -1594,7 +1594,8 @@ export function ProjectCreationDialog({
                   <CollapsibleContent>
                     <CardContent className="pt-0 space-y-5">
                       <div className="space-y-2">
-                        <Label>Technical aspect types</Label>
+                        {/* <Label>Technical aspect types</Label> */}
+                        <Label>Technical Aspects</Label>
                         <MultiSelect
                           items={technicalAspectTypeOptions}
                           selected={formData.technicalAspectTypeIds}
@@ -1756,7 +1757,7 @@ export function ProjectCreationDialog({
                         <VerificationCheckbox fieldName="technicalDomains" />
                       </div>
 
-                      <div className="space-y-2">
+                      {/* <div className="space-y-2">
                         <Label>Technical Aspects</Label>
                         <MultiSelect
                           items={technicalAspectOptions}
@@ -1767,7 +1768,7 @@ export function ProjectCreationDialog({
                           maxDisplay={4}
                         />
                         <VerificationCheckbox fieldName="technicalAspects" />
-                      </div>
+                      </div> */}
                     </CardContent>
                   </CollapsibleContent>
                 </Card>

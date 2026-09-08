@@ -17,7 +17,8 @@ import {
   CERTIFICATION_FIELD_ORDER,
   LAYOFF_FIELD_ORDER,
   OFFICE_FIELD_ORDER,
-  paddedEmployerOfficeRows,
+  paddedEmployerOfficeRowsForPurpose,
+  type EmployerOfficeSlotPurpose,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
   WORK_EXPERIENCE_ROLE_FIELD_ORDER,
 } from "@/lib/utils/qg-field-weights"
@@ -146,6 +147,7 @@ function workExperienceSparse(
   workExperience: WorkExperienceForService | undefined,
   workExperienceIndex: number,
   fieldsToGenerate: string[],
+  employerOfficeSlots: EmployerOfficeSlotPurpose = "generate-questions",
 ): WorkExperienceForService {
   const source = workExperience ?? {}
   const sparse: SparseRecord = {}
@@ -175,7 +177,10 @@ function workExperienceSparse(
   }
 
   const locationsSource = source.locations ?? []
-  const locationRows = paddedEmployerOfficeRows(locationsSource)
+  const locationRows = paddedEmployerOfficeRowsForPurpose(
+    locationsSource,
+    employerOfficeSlots,
+  )
   sparse.locations = locationRows.map((office, officeIndex) =>
     officeSparse(office, workExperienceIndex, officeIndex, fieldsToGenerate),
   )
@@ -260,15 +265,23 @@ function achievementSparse(
   return sparse as AchievementForService
 }
 
+export interface BuildMissingOnlyQuestionRequestOptions {
+  /** Default `generate-questions` (single synthetic office). Use `call-notes-extract` for Analyze whitelist. */
+  employerOfficeSlots?: EmployerOfficeSlotPurpose
+}
+
 /**
  * Builds a sparse QG payload and the authoritative `fields_to_generate` list for
  * every missing allowlisted key. Populated values are omitted. Empty collections
- * and empty nested projects/layoffs use synthetic index 0. Employer catalog
- * offices are padded to five slots when fewer exist.
+ * and empty nested projects/layoffs use synthetic index 0. Generate Questions uses
+ * a single synthetic office row when `locations` is empty; Call Notes extract may
+ * pad up to five office slots via `employerOfficeSlots`.
  */
 export function buildMissingOnlyQuestionRequest(
   candidateData: CandidateDataForQuestionService,
+  options: BuildMissingOnlyQuestionRequestOptions = {},
 ): MissingOnlyQuestionRequest {
+  const employerOfficeSlots = options.employerOfficeSlots ?? "generate-questions"
   const fieldsToGenerate: string[] = []
   const sparse: CandidateDataForQuestionService = {}
 
@@ -297,7 +310,7 @@ export function buildMissingOnlyQuestionRequest(
   const workExperienceRows =
     workExperiences.length > 0 ? workExperiences : [undefined]
   sparse.workExperiences = workExperienceRows.map((row, index) =>
-    workExperienceSparse(row, index, fieldsToGenerate),
+    workExperienceSparse(row, index, fieldsToGenerate, employerOfficeSlots),
   )
 
   const certifications = candidateData.certifications ?? []

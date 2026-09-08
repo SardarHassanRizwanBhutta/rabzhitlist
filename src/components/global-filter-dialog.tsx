@@ -321,7 +321,7 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
                 />
               </div>
 
-              <MultiSelect
+              {/* <MultiSelect
                 items={technicalAspectOptions}
                 selected={tempFilters.technicalAspects}
                 onChange={(values) => handleFilterChange("technicalAspects", values)}
@@ -329,7 +329,7 @@ export function GlobalFilterDialog({ children }: GlobalFilterDialogProps) {
                 label="Technical Aspects"
                 searchPlaceholder="Search aspects..."
                 maxDisplay={3}
-              />
+              /> */}
             </div>
 
             {/* Entity Filters */}

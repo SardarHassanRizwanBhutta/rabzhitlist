@@ -11,10 +11,10 @@ import {
   type EmployerTypeDb,
 } from "@/lib/types/employer"
 import {
-  COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP,
   LAYOFF_FIELD_ORDER,
   OFFICE_FIELD_ORDER,
-  paddedEmployerOfficeRows,
+  paddedEmployerOfficeRowsForPurpose,
+  type EmployerOfficeSlotPurpose,
   WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER,
 } from "@/lib/utils/qg-field-weights"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
@@ -75,6 +75,7 @@ function isEmptyEmployerScalar(key: string, value: unknown): boolean {
 export function buildWorkExperienceEmployerCatalogPlaceholderFields(
   index: number,
   context?: string,
+  employerOfficeSlots: EmployerOfficeSlotPurpose = "generate-questions",
 ): EmptyField[] {
   const fields: EmptyField[] = []
 
@@ -95,7 +96,7 @@ export function buildWorkExperienceEmployerCatalogPlaceholderFields(
     })
   }
 
-  for (let officeIndex = 0; officeIndex < COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP; officeIndex++) {
+  paddedEmployerOfficeRowsForPurpose(undefined, employerOfficeSlots).forEach((_, officeIndex) => {
     for (const def of OFFICE_DEFS) {
       fields.push({
         fieldPath: `workExperiences[${index}].locations[${officeIndex}].${def.key}`,
@@ -109,7 +110,7 @@ export function buildWorkExperienceEmployerCatalogPlaceholderFields(
         options: def.options,
       })
     }
-  }
+  })
 
   for (const def of LAYOFF_DEFS) {
     fields.push({
@@ -131,6 +132,7 @@ export function collectMissingWorkExperienceEmployerCatalogFields(
   we: WorkExperience,
   index: number,
   context?: string,
+  employerOfficeSlots: EmployerOfficeSlotPurpose = "generate-questions",
 ): EmptyField[] {
   const fields: EmptyField[] = []
   const weRecord = we as unknown as Record<string, unknown>
@@ -151,7 +153,7 @@ export function collectMissingWorkExperienceEmployerCatalogFields(
     })
   }
 
-  const locationRows = paddedEmployerOfficeRows(we.locations)
+  const locationRows = paddedEmployerOfficeRowsForPurpose(we.locations, employerOfficeSlots)
   locationRows.forEach((office, officeIndex) => {
     for (const def of OFFICE_DEFS) {
       const value = office?.[def.key as keyof typeof office]

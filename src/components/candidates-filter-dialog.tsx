@@ -2317,7 +2317,7 @@ export function CandidatesFilterDialog({
                 maxDisplay={3}
               />
 
-              <MultiSelect
+              {/* <MultiSelect
                 items={technicalAspectCatalogOptions}
                 selected={tempFilters.technicalAspects}
                 onChange={(values) => handleFilterChange("technicalAspects", values)}
@@ -2325,14 +2325,15 @@ export function CandidatesFilterDialog({
                 label="Technical Aspects"
                 searchPlaceholder="Search technical aspects..."
                 maxDisplay={3}
-              />
+              /> */}
 
               <MultiSelect
                 items={technicalAspectTypeFilterOptions}
                 selected={tempFilters.technicalAspectTypeIds}
                 onChange={(values) => handleFilterChange("technicalAspectTypeIds", values)}
                 placeholder="Select technical aspect types..."
-                label="Technical Aspect Types"
+                // label="Technical Aspect Types"
+                label="Technical Aspects"
                 searchPlaceholder="Search technical aspect types..."
                 maxDisplay={3}
               />

@@ -221,12 +221,13 @@ export function buildCallNotesAllowedEmptyFields(
 ): AllowedEmptyField[] {
   const hasResume = options.hasResume ?? candidate.hasResume === true
   const mapped = mapMainAppCandidateToQuestionService(candidate)
-  const { fieldsToGenerate } = buildMissingOnlyQuestionRequest(mapped)
+  const extractOfficeOptions = { employerOfficeSlots: "call-notes-extract" as const }
+  const { fieldsToGenerate } = buildMissingOnlyQuestionRequest(mapped, extractOfficeOptions)
   const allowedApiNames = new Set(
     fieldsToGenerate.filter((name) => isCallNotesExtractApiFieldAllowed(name)),
   )
 
-  const emptyFields = getEmptyFields(candidate)
+  const emptyFields = getEmptyFields(candidate, extractOfficeOptions)
   const seenPaths = new Set<string>()
   const result: AllowedEmptyField[] = []
 
