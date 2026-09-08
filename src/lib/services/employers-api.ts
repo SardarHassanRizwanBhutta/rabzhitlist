@@ -810,6 +810,22 @@ export async function deleteEmployerLocation(employerId: number, locationId: num
   return del(`/api/employers/${employerId}/locations/${locationId}`)
 }
 
+/** Clear HQ flag on all existing office rows so a new HQ can be assigned exclusively. */
+export async function clearEmployerHeadquarters(employerId: number): Promise<void> {
+  const employer = await fetchEmployerById(employerId)
+  const hqRows = (employer.locations ?? []).filter((loc) => loc.isHeadquarters)
+  await Promise.all(
+    hqRows.map((loc) =>
+      updateEmployerLocation(employerId, loc.id, {
+        countryId: loc.country.id,
+        city: loc.city,
+        address: loc.address ?? null,
+        isHeadquarters: false,
+      }),
+    ),
+  )
+}
+
 /** Add a layoff to an existing employer. Body must not include employerId. layoffDate and affectedEmployees required. */
 export async function addEmployerLayoff(
   employerId: number,

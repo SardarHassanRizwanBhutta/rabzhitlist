@@ -64,6 +64,7 @@ import {
   type EmployerComboboxNestedCreationProps,
 } from "@/components/employer-combobox"
 import type { Country } from "@/lib/types/country"
+import { fetchCountries, createCountry } from "@/lib/services/countries-api"
 import type { BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchEmployerById } from "@/lib/services/employers-api"
 import type { ProjectLookups } from "@/components/project-creation-dialog"
@@ -4188,6 +4189,8 @@ export function CandidateDetailsModal({
     majors: MajorDto[]
   }>({ degrees: [], majors: [] })
   const [degreesMajorsLoading, setDegreesMajorsLoading] = useState(false)
+  const [countries, setCountries] = useState<Country[]>([])
+  const [countriesLoading, setCountriesLoading] = useState(false)
 
   /** Full candidate from GET /api/candidates/{id} (list rows omit nested educations, etc.). */
   const [fullCandidate, setFullCandidate] = useState<Candidate | null>(null)
@@ -4255,10 +4258,26 @@ export function CandidateDetailsModal({
     [apiTimeSupportZones, apiAwards]
   )
 
-  const nestedEmployerCreation = useMemo(
+  const handleCreateCountry = React.useCallback(async (name: string): Promise<Country | null> => {
+    try {
+      const newCountry = await createCountry(name)
+      setCountries((prev) => [
+        ...prev.filter(
+          (c) => c.id !== newCountry.id && c.name.toLowerCase() !== newCountry.name.toLowerCase(),
+        ),
+        newCountry,
+      ])
+      return newCountry
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add country.")
+      return null
+    }
+  }, [])
+
+  const nestedEmployerCreation = useMemo<EmployerComboboxNestedCreationProps>(
     () => ({
-      countries: [] as Country[],
-      countriesLoading: false,
+      countries,
+      countriesLoading,
       lookups: {
         timeSupportZones: apiTimeSupportZones,
         awards: apiAwards,
@@ -4305,9 +4324,16 @@ export function CandidateDetailsModal({
           unit: null,
         }
       },
-      onCreateCountry: async () => null,
+      onCreateCountry: handleCreateCountry,
     }),
-    [apiTimeSupportZones, apiAwards, apiBenefits]
+    [
+      countries,
+      countriesLoading,
+      apiTimeSupportZones,
+      apiAwards,
+      apiBenefits,
+      handleCreateCountry,
+    ],
   )
 
   const projectLookups = useMemo<ProjectLookups>(
@@ -4503,6 +4529,28 @@ export function CandidateDetailsModal({
       })
       .finally(() => {
         if (!cancelled) setBenefitsCatalogLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setCountriesLoading(true)
+    fetchCountries()
+      .then((data) => {
+        if (!cancelled) setCountries(Array.isArray(data) ? data : [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCountries([])
+          toast.error("Failed to load countries.")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCountriesLoading(false)
       })
     return () => {
       cancelled = true
@@ -7592,6 +7640,7 @@ export function CandidateDetailsModal({
             onCandidateUpdated?.()
           }}
           lookups={editLookups}
+          nestedEmployerCreation={nestedEmployerCreation}
           editFormBootstrap={editFormBootstrap}
           onEditFormBootstrapConsumed={() => setEditFormBootstrap(null)}
         />

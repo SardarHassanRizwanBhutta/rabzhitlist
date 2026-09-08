@@ -3490,6 +3490,15 @@ export function CandidateCreationDialog({
                           markFieldModified(`workExperiences.${index}.employerLocationId`)
                         }}
                         disabled={isLoading}
+                        createContext={
+                          nestedEmployerCreation
+                            ? {
+                                countries: nestedEmployerCreation.countries,
+                                countriesLoading: nestedEmployerCreation.countriesLoading,
+                                onCreateCountry: nestedEmployerCreation.onCreateCountry,
+                              }
+                            : undefined
+                        }
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.employerLocationId`} />
                     </div>
