@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { fetchEmployerById, type EmployerLocationDto } from "@/lib/services/employers-api"
 import { formatUniversityLocationLabel } from "@/lib/utils/university-location-label"
 
@@ -10,6 +10,7 @@ export interface EmployerOfficeLocationOption {
   city: string
   address: string | null
   label: string
+  isHeadquarters: boolean
 }
 
 function toOption(loc: EmployerLocationDto): EmployerOfficeLocationOption | null {
@@ -23,6 +24,7 @@ function toOption(loc: EmployerLocationDto): EmployerOfficeLocationOption | null
     city,
     address,
     label: formatUniversityLocationLabel(city, address),
+    isHeadquarters: loc.isHeadquarters,
   }
 }
 
@@ -30,6 +32,11 @@ function toOption(loc: EmployerLocationDto): EmployerOfficeLocationOption | null
 export function useEmployerOfficeLocations(employerId: number | null) {
   const [locations, setLocations] = useState<EmployerOfficeLocationOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refetch = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+  }, [])
 
   useEffect(() => {
     if (employerId == null || employerId <= 0) {
@@ -57,9 +64,9 @@ export function useEmployerOfficeLocations(employerId: number | null) {
     return () => {
       cancelled = true
     }
-  }, [employerId])
+  }, [employerId, refreshKey])
 
-  return { locations, loading }
+  return { locations, loading, refetch }
 }
 
 /** Load office rows for several employers (Candidates filter). */
