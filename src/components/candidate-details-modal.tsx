@@ -118,14 +118,14 @@ import { CandidateCreationDialog, CandidateFormData, VerificationState, candidat
 import { CandidateResumeField } from "@/components/candidates/candidate-resume-field"
 import { useUniversityCampusLocations } from "@/hooks/useUniversityCampusLocations"
 import { useEmployerOfficeLocations } from "@/hooks/useEmployerOfficeLocations"
-// import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import {
-  // updateCandidate,
-  // candidateFormDataToUpdateDto,
-  // syncCandidateSubResources,
-  // prepareCandidateCreateLookups,
-  // fetchCandidateDataProgress,
+  updateCandidate,
+  candidateFormDataToUpdateDto,
+  syncCandidateSubResources,
+  prepareCandidateCreateLookups,
   fetchCandidateById,
+  type CandidateCreateLookups,
   // upsertCandidateCertification,
   // updateCandidateEducation,
   // updateCandidateWorkExperience,
@@ -5798,69 +5798,70 @@ export function CandidateDetailsModal({
   }, [open, candidate?.id])
   
   const handleEditSubmit = async (
-    _formData: CandidateFormData,
+    formData: CandidateFormData,
     options?: CandidateSubmitOptions,
   ): Promise<CandidateCreateSubmitResult | void> => {
     if (!candidate) return
-    // Persist not implemented yet — Full Edit submit from Details deferred to a later version.
-    // const id = Number(candidate.id)
-    // if (!Number.isFinite(id)) {
-    //   toast.error("Invalid candidate id.")
-    //   return
-    // }
-    // const existing = fullCandidate ?? candidate
-    // const resumeFile = options?.resumeFile ?? null
-    //
-    // try {
-    //   const preparedLookups = await prepareCandidateCreateLookups(formData, editLookups)
-    //   await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
-    //   await syncCandidateSubResources(id, formData, existing, preparedLookups)
-    //
-    //   if (resumeFile) {
-    //     try {
-    //       await uploadCandidateResume({
-    //         candidateId: id,
-    //         file: resumeFile,
-    //       })
-    //     } catch (resumeError) {
-    //       await refreshFullCandidate()
-    //       onCandidateUpdated?.()
-    //       return {
-    //         status: "resume-upload-failed",
-    //         candidateId: id,
-    //         candidateName: existing.name,
-    //         file: resumeFile,
-    //         error:
-    //           resumeError instanceof Error
-    //             ? resumeError.message
-    //             : "The new resume could not be uploaded.",
-    //       }
-    //     }
-    //   }
-    //
-    //   const verifiedCount = options?.verificationState?.verifiedFields.size || 0
-    //   const modifiedCount = options?.verificationState?.modifiedFields.size || 0
-    //   toast.success(
-    //     `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
-    //     { duration: 4000 },
-    //   )
-    //   setEditDialogOpen(false)
-    //   await refreshFullCandidate()
-    //   onCandidateUpdated?.()
-    //   return { status: "success" }
-    // } catch (err) {
-    //   toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
-    //   throw err
-    // }
+    const id = Number(candidate.id)
+    if (!Number.isFinite(id)) {
+      toast.error("Invalid candidate id.")
+      return
+    }
+    const existing = fullCandidate ?? candidate
+    const resumeFile = options?.resumeFile ?? null
 
-    const verifiedCount = options?.verificationState?.verifiedFields.size || 0
-    const modifiedCount = options?.verificationState?.modifiedFields.size || 0
+    const lookupsForSave: CandidateCreateLookups = {
+      techStacks: editLookups.techStacks?.length ? editLookups.techStacks : apiTechStacks,
+      timeSupportZones: editLookups.timeSupportZones?.length
+        ? editLookups.timeSupportZones
+        : apiTimeSupportZones,
+      benefits: editLookups.benefits?.length ? editLookups.benefits : apiBenefits,
+      degrees: editLookups.degrees?.length ? editLookups.degrees : degreeMajorLookups.degrees,
+      majors: editLookups.majors?.length ? editLookups.majors : degreeMajorLookups.majors,
+    }
+
+    try {
+      const preparedLookups = await prepareCandidateCreateLookups(formData, lookupsForSave)
+      await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
+      await syncCandidateSubResources(id, formData, existing, preparedLookups)
+
+      if (resumeFile) {
+        try {
+          await uploadCandidateResume({
+            candidateId: id,
+            file: resumeFile,
+            onStageChange: options?.onResumeStageChange,
+          })
+        } catch (resumeError) {
+          await refreshFullCandidate()
+          onCandidateUpdated?.()
+          return {
+            status: "resume-upload-failed",
+            candidateId: id,
+            candidateName: existing.name,
+            file: resumeFile,
+            error:
+              resumeError instanceof Error
+                ? resumeError.message
+                : "The new resume could not be uploaded.",
+          }
+        }
+      }
+
+      const verifiedCount = options?.verificationState?.verifiedFields.size || 0
+      const modifiedCount = options?.verificationState?.modifiedFields.size || 0
       toast.success(
         `Candidate updated! ${verifiedCount} field(s) verified${modifiedCount > 0 ? `, ${modifiedCount} field(s) modified` : ""}.`,
-      { duration: 4000 },
+        { duration: 4000 },
       )
       setEditDialogOpen(false)
-    return { status: "success" }
+      await refreshFullCandidate()
+      onCandidateUpdated?.()
+      return { status: "success" }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update candidate.")
+      throw err
+    }
   }
 
   // Get verification data for this candidate
