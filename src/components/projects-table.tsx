@@ -315,9 +315,9 @@ export function ProjectsTable({
 
   const verticalDomainOptions = lookups?.verticalDomains ?? []
   const horizontalDomainOptions = lookups?.horizontalDomains ?? []
-  const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
-    ? catalogToSelectOptions(lookups.technicalAspects)
-    : []
+  // const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
+  //   ? catalogToSelectOptions(lookups.technicalAspects)
+  //   : []
   const q = searchQuery.toLowerCase()
   const matchesCatalog = (values: string[], options: MultiSelectOption[]) =>
     catalogLabelsForValues(values, options).some((label) => label.toLowerCase().includes(q)) ||
@@ -362,13 +362,13 @@ export function ProjectsTable({
         matchesCatalog(project.verticalDomains, verticalDomainOptions) ||
         matchesCatalog(project.horizontalDomains, horizontalDomainOptions) ||
         matchesCatalog(project.technicalDomains, technicalDomainOptions) ||
-        matchesCatalog(project.technicalAspects, technicalAspectCatalogOptions) ||
+        // matchesCatalog(project.technicalAspects, technicalAspectCatalogOptions) ||
         project.aspectTypeLabels.some(label => label.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (project.isPublished && "published".includes(searchQuery.toLowerCase())) ||
         (project.publishPlatforms && project.publishPlatforms.some(platform => platform.toLowerCase().includes(searchQuery.toLowerCase())))
     )
-  }, [projects, searchQuery, verticalDomainOptions, horizontalDomainOptions, technicalDomainOptions, technicalAspectCatalogOptions])
-
+  // }, [projects, searchQuery, verticalDomainOptions, horizontalDomainOptions, technicalDomainOptions, technicalAspectCatalogOptions])
+}, [projects, searchQuery, verticalDomainOptions, horizontalDomainOptions, technicalDomainOptions])
   // Sorting
   const sortedProjects = useMemo(() => {
     return [...filteredProjects].sort((a, b) => {
@@ -529,7 +529,8 @@ export function ProjectsTable({
               <TableHead className="w-[160px]">Horizontal Domains</TableHead>
               <TableHead className="w-[160px]">Vertical Domains</TableHead>
               <TableHead className="w-[160px]">Technical Domains</TableHead>
-              <TableHead className="w-[180px]">Technical Aspect Types</TableHead>
+              {/* <TableHead className="w-[180px]">Technical Aspect Types</TableHead> */}
+              <TableHead className="w-[180px]">Technical Aspects</TableHead>
               <TableHead className="w-[100px]">
                 <SortButton column="teamSize">Team Size</SortButton>
               </TableHead>
@@ -2880,9 +2881,9 @@ function ProjectDetailDialog({
 
   const verticalDomainOptions = lookups?.verticalDomains ?? []
   const horizontalDomainOptions = lookups?.horizontalDomains ?? []
-  const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
-    ? catalogToSelectOptions(lookups.technicalAspects)
-    : []
+  // const technicalAspectCatalogOptions = lookups?.technicalAspects?.length
+  //   ? catalogToSelectOptions(lookups.technicalAspects)
+  //   : []
 
   const technicalDomainOptionsResolved = useMemo(
     () => lookups?.technicalDomains ?? technicalDomainOptionsForDetail,
@@ -3293,7 +3294,7 @@ function ProjectDetailDialog({
                 maxDisplay={4}
               />
 
-              <InlineEditableMultiSelect
+              {/* <InlineEditableMultiSelect
                 label="Technical Aspects"
                 value={localProject.technicalAspects || []}
                 fieldName="technicalAspects"
@@ -3304,7 +3305,7 @@ function ProjectDetailDialog({
                 searchPlaceholder="Search technical aspects..."
                 badgeColorClass="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
                 maxDisplay={4}
-              />
+              /> */}
 
               {/*
                 Technical Aspect Types is a server-derived, read-only summary of the
@@ -3313,7 +3314,8 @@ function ProjectDetailDialog({
               */}
               <div className="py-2 px-3 rounded-md">
                 <div className="mb-3">
-                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspect Types</Label>
+                  {/* <Label className="text-sm font-semibold text-muted-foreground">Technical Aspect Types</Label> */}
+                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspects</Label>
                 </div>
                 {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
                   <div className="flex flex-wrap gap-2 min-h-[2rem]">

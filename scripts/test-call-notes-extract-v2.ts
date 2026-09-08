@@ -723,21 +723,41 @@ const wePrefill = buildEmployerCreatePrefillFromWorkExperience(
 )
 assert(wePrefill.headcount === "500", "form-state employer prefill headcount")
 
-import { paddedEmployerOfficeSlotCount } from "../src/lib/utils/qg-field-weights"
+import {
+  callNotesExtractEmployerOfficeSlotCount,
+  generateQuestionsEmployerOfficeSlotCount,
+} from "../src/lib/utils/qg-field-weights"
 import { buildMissingOnlyQuestionRequest } from "../src/lib/utils/missing-only-question-request"
 
-assert(paddedEmployerOfficeSlotCount(0) === 5, "cap when empty")
-assert(paddedEmployerOfficeSlotCount(2) === 5, "pad two offices to cap")
-assert(paddedEmployerOfficeSlotCount(7) === 7, "keep offices above cap")
+assert(generateQuestionsEmployerOfficeSlotCount(0) === 1, "generate-questions: synthetic office_0 when empty")
+assert(generateQuestionsEmployerOfficeSlotCount(2) === 2, "generate-questions: two existing offices")
+assert(generateQuestionsEmployerOfficeSlotCount(7) === 7, "generate-questions: keep all existing offices")
+
+assert(callNotesExtractEmployerOfficeSlotCount(0) === 5, "call-notes-extract: pad empty to five slots")
+assert(callNotesExtractEmployerOfficeSlotCount(2) === 5, "call-notes-extract: pad partial list to five slots")
+assert(callNotesExtractEmployerOfficeSlotCount(7) === 7, "call-notes-extract: keep offices above cap")
 
 const qgOffices = buildMissingOnlyQuestionRequest({ workExperiences: [{}] })
 assert(
-  qgOffices.fieldsToGenerate.includes("work_experience_0_office_4_city"),
-  "generate-questions includes fifth office slot",
+  qgOffices.fieldsToGenerate.includes("work_experience_0_office_0_city"),
+  "generate-questions includes first office slot",
 )
 assert(
-  !qgOffices.fieldsToGenerate.includes("work_experience_0_office_5_city"),
-  "generate-questions does not add a sixth office slot",
+  !qgOffices.fieldsToGenerate.includes("work_experience_0_office_1_city"),
+  "generate-questions does not add a second empty office slot",
+)
+
+const extractOffices = buildMissingOnlyQuestionRequest(
+  { workExperiences: [{}] },
+  { employerOfficeSlots: "call-notes-extract" },
+)
+assert(
+  extractOffices.fieldsToGenerate.includes("work_experience_0_office_4_city"),
+  "call-notes-extract includes fifth office slot",
+)
+assert(
+  !extractOffices.fieldsToGenerate.includes("work_experience_0_office_5_city"),
+  "call-notes-extract does not add a sixth office slot",
 )
 
 assert(

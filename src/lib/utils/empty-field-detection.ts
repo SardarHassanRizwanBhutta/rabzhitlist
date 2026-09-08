@@ -21,6 +21,7 @@ import {
   buildWorkExperienceEmployerCatalogPlaceholderFields,
   collectMissingWorkExperienceEmployerCatalogFields,
 } from '@/lib/utils/employer-catalog-empty-fields'
+import type { EmployerOfficeSlotPurpose } from '@/lib/utils/qg-field-weights'
 import { RANKING_DISPLAY_TO_DB, SALARY_POLICY_DB_LABELS, type RankingDb, type SalaryPolicyDb } from '@/lib/types/employer'
 
 // Shift type options — canonical labels aligned with Candidate form / backend enum.
@@ -190,10 +191,19 @@ function formatWorkExperienceEmptyFieldContext(
   return ""
 }
 
+export interface GetEmptyFieldsOptions {
+  /** Default `generate-questions`. Use `call-notes-extract` for Analyze Notes whitelist. */
+  employerOfficeSlots?: EmployerOfficeSlotPurpose
+}
+
 /**
  * Get all empty/null fields from a candidate profile
  */
-export function getEmptyFields(candidate: Candidate): EmptyField[] {
+export function getEmptyFields(
+  candidate: Candidate,
+  options: GetEmptyFieldsOptions = {},
+): EmptyField[] {
+  const employerOfficeSlots = options.employerOfficeSlots ?? "generate-questions"
   const emptyFields: EmptyField[] = []
 
   // Basic Information Fields
@@ -332,7 +342,7 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       apiPrefix: 'work_experience_0_project_0',
       parentIndex: 0,
     }))
-    emptyFields.push(...buildWorkExperienceEmployerCatalogPlaceholderFields(0))
+    emptyFields.push(...buildWorkExperienceEmployerCatalogPlaceholderFields(0, undefined, employerOfficeSlots))
   } else {
     // Existing work experiences - check for empty fields within them
     candidate.workExperiences.forEach((we, index) => {
@@ -373,7 +383,12 @@ export function getEmptyFields(candidate: Candidate): EmptyField[] {
       })
 
       emptyFields.push(
-        ...collectMissingWorkExperienceEmployerCatalogFields(we, index, context),
+        ...collectMissingWorkExperienceEmployerCatalogFields(
+          we,
+          index,
+          context,
+          employerOfficeSlots,
+        ),
       )
 
       const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(we)

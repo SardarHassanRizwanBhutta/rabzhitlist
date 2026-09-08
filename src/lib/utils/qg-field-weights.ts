@@ -106,25 +106,81 @@ export const OFFICE_FIELD_ORDER = [
 ] as const
 
 /**
- * Max employer-catalog office rows for QG generate-questions and Call Notes extract.
- * Existing offices beyond this cap are kept; fewer rows are padded with empty slots.
+ * Max employer-catalog office rows whitelisted for Call Notes extract Analyze.
+ * @see docs/CALL_NOTES_EXTRACT_MULTI_OFFICE_PYTHON_PROMPT_LOCK.md
  */
-export const COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP = 5
+export const CALL_NOTES_EXTRACT_EMPLOYER_OFFICE_SLOT_CAP = 5
 
-export function paddedEmployerOfficeSlotCount(existingCount: number): number {
-  const n =
-    typeof existingCount === "number" && Number.isFinite(existingCount) && existingCount > 0
-      ? Math.floor(existingCount)
-      : 0
-  return Math.max(n, COLD_CALLER_EMPLOYER_OFFICE_SLOT_CAP)
+export type EmployerOfficeSlotPurpose = "generate-questions" | "call-notes-extract"
+
+function normalizedEmployerOfficeCount(existingCount: number): number {
+  return typeof existingCount === "number" &&
+    Number.isFinite(existingCount) &&
+    existingCount > 0
+    ? Math.floor(existingCount)
+    : 0
 }
 
+/**
+ * Generate Questions: empty `locations` → synthetic `office_0` only
+ * (@see COLD_CALLER_QG_FIELD_ALLOWLIST_CONTRACT.md §2).
+ */
+export function generateQuestionsEmployerOfficeSlotCount(existingCount: number): number {
+  const n = normalizedEmployerOfficeCount(existingCount)
+  return n === 0 ? 1 : n
+}
+
+/**
+ * Call Notes extract whitelist: pad empty/partial lists up to five slots so
+ * multi-office notes can map to `office_0` … `office_4`. Rows above the cap are kept.
+ */
+export function callNotesExtractEmployerOfficeSlotCount(existingCount: number): number {
+  const n = normalizedEmployerOfficeCount(existingCount)
+  return Math.max(n, CALL_NOTES_EXTRACT_EMPLOYER_OFFICE_SLOT_CAP)
+}
+
+export function employerOfficeSlotCountForPurpose(
+  existingCount: number,
+  purpose: EmployerOfficeSlotPurpose,
+): number {
+  return purpose === "call-notes-extract"
+    ? callNotesExtractEmployerOfficeSlotCount(existingCount)
+    : generateQuestionsEmployerOfficeSlotCount(existingCount)
+}
+
+/** @deprecated Prefer `generateQuestionsEmployerOfficeSlotCount`. */
+export function paddedEmployerOfficeSlotCount(existingCount: number): number {
+  return generateQuestionsEmployerOfficeSlotCount(existingCount)
+}
+
+export function paddedEmployerOfficeRowsForPurpose<T>(
+  rows: readonly T[] | undefined,
+  purpose: EmployerOfficeSlotPurpose,
+): Array<T | undefined> {
+  const source = rows ?? []
+  const count = employerOfficeSlotCountForPurpose(source.length, purpose)
+  return Array.from({ length: count }, (_, i) => source[i])
+}
+
+/** Generate Questions sparse payload / empty-field detection (single synthetic office when empty). */
+export function paddedEmployerOfficeRowsForGenerateQuestions<T>(
+  rows: readonly T[] | undefined,
+): Array<T | undefined> {
+  return paddedEmployerOfficeRowsForPurpose(rows, "generate-questions")
+}
+
+/** Call Notes extract allowedEmptyFields builder (up to five office slots when empty). */
+export function paddedEmployerOfficeRowsForCallNotesExtract<T>(
+  rows: readonly T[] | undefined,
+): Array<T | undefined> {
+  return paddedEmployerOfficeRowsForPurpose(rows, "call-notes-extract")
+}
+
+/** @deprecated Prefer `paddedEmployerOfficeRowsForGenerateQuestions`. */
 export function paddedEmployerOfficeRows<T>(
   rows: readonly T[] | undefined,
 ): Array<T | undefined> {
-  const source = rows ?? []
-  const count = paddedEmployerOfficeSlotCount(source.length)
-  return Array.from({ length: count }, (_, i) => source[i])
+  return paddedEmployerOfficeRowsForGenerateQuestions(rows)
 }
 
 export const LAYOFF_FIELD_ORDER = [

@@ -775,7 +775,7 @@ export function EmployersFilterDialog({
                   />
                 </div>
 
-                <div className="mt-4">
+                {/* <div className="mt-4">
                   <MultiSelect
                     items={technicalAspectOptions}
                     selected={tempFilters.technicalAspects}
@@ -785,7 +785,7 @@ export function EmployersFilterDialog({
                     searchPlaceholder="Search technical aspects..."
                     maxDisplay={3}
                   />
-                </div>
+                </div> */}
 
                 <div className="grid md:grid-cols-2 gap-4 mt-4">
                   <MultiSelect
