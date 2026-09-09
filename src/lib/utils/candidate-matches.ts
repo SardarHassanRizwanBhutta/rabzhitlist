@@ -205,9 +205,74 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
   )
 }
 
-/**
- * Get candidate's projects (from work experience nested projects only).
- */
+/** True when the only active candidate filter is employer selection (no other filter dimensions). */
+export function isEmployerOnlyFilter(filters: CandidateFilters): boolean {
+  if (filters.employers.length === 0) return false
+  return !(
+    filters.name.trim() ||
+    filters.postingTitle.trim() ||
+    filters.city.trim() ||
+    filters.currentSalaryMin ||
+    filters.currentSalaryMax ||
+    filters.expectedSalaryMin ||
+    filters.expectedSalaryMax ||
+    filters.employerLocationIds.length > 0 ||
+    filters.projects.length > 0 ||
+    filters.projectStatus.length > 0 ||
+    filters.projectTypes.length > 0 ||
+    filters.techStacks.length > 0 ||
+    filters.clientLocations.length > 0 ||
+    filters.verticalDomains.length > 0 ||
+    filters.horizontalDomains.length > 0 ||
+    filters.technicalDomains.length > 0 ||
+    filters.technicalAspectTypeIds.length > 0 ||
+    filters.startDateStart !== null ||
+    filters.startDateEnd !== null ||
+    filters.candidateTechStacks.length > 0 ||
+    filters.workExperienceBenefits.length > 0 ||
+    filters.shiftTypes.length > 0 ||
+    filters.workModes.length > 0 ||
+    filters.workExperienceSalaryPolicies.length > 0 ||
+    filters.timeSupportZones.length > 0 ||
+    filters.jobTitle ||
+    filters.yearsOfExperienceMin ||
+    filters.yearsOfExperienceMax ||
+    filters.hasMutualConnectionWithDPL !== null ||
+    filters.joinedProjectFromStart !== null ||
+    filters.averageTeamSizeMin ||
+    filters.averageTeamSizeMax ||
+    filters.hasPublishedProject === true ||
+    filters.hasMainContribution === true ||
+    filters.publishPlatforms.length > 0 ||
+    filters.minProjectDownloadCount ||
+    filters.employerStatus.length > 0 ||
+    filters.employerCountries.length > 0 ||
+    !!filters.employerCity.trim() ||
+    filters.employerTypes.length > 0 ||
+    filters.employerSalaryPolicies.length > 0 ||
+    filters.employerSizeMin ||
+    filters.employerSizeMax ||
+    filters.employerRankings.length > 0 ||
+    filters.universities.length > 0 ||
+    filters.universityLocationIds.length > 0 ||
+    filters.degreeNames.length > 0 ||
+    filters.majorNames.length > 0 ||
+    filters.isTopper !== null ||
+    filters.isCheetah !== null ||
+    filters.educationEndDateStart !== null ||
+    filters.educationEndDateEnd !== null ||
+    filters.certificationNames.length > 0 ||
+    filters.certificationIssuingBodies.length > 0 ||
+    filters.certificationLevels.length > 0 ||
+    (filters.achievementTypes && filters.achievementTypes.length > 0) ||
+    !!filters.achievementName.trim() ||
+    filters.personalityTypes.length > 0 ||
+    filters.source.length > 0 ||
+    filters.dataProgressMin ||
+    filters.dataProgressMax
+  )
+}
+
 function getCandidateProjects(candidate: Candidate) {
   const workExperienceProjectNames = candidate.workExperiences?.flatMap(we => 
     we.projects.map(p => p.projectName)
@@ -1070,6 +1135,7 @@ function appendBackendMatchedWorkExperienceItem(
     context: {
       workExperienceId: mwe.workExperienceId,
       employerId: mwe.employerId,
+      employerName: mwe.employerName,
       jobTitle: mwe.jobTitle,
       startDate: mwe.startDate,
       endDate: mwe.endDate,
@@ -1838,6 +1904,7 @@ export function getCandidateMatchContext(
             name: `${we.employerName} - ${we.jobTitle || "N/A"}`,
           matchedCriteria,
           context: {
+            employerId: we.employerId ?? undefined,
             employerName: we.employerName,
             jobTitle: we.jobTitle,
             startDate: we.startDate,
@@ -2069,11 +2136,23 @@ export function getCandidateMatchContext(
     }
   }
 
-  const totalMatches = categories.reduce((sum, cat) => sum + cat.count, 0)
+  const displayCategories = dropRedundantEmployerExperienceCategory(categories, filters)
+  const totalMatches = displayCategories.reduce((sum, cat) => sum + cat.count, 0)
 
   return {
     candidateId: candidate.id,
     totalMatches,
-    categories
+    categories: displayCategories
   }
+}
+
+/** When employer filter is combined with work-experience drivers, hide Employer Experience (Work Experience already links to the employer). */
+function dropRedundantEmployerExperienceCategory(
+  categories: MatchCategory[],
+  filters: CandidateFilters
+): MatchCategory[] {
+  if (filters.employers.length === 0) return categories
+  const hasWorkExperienceCategory = categories.some((category) => category.type === "workExperience")
+  if (!hasWorkExperienceCategory) return categories
+  return categories.filter((category) => category.type !== "employers")
 }

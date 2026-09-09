@@ -16,6 +16,7 @@ import {
   CANDIDATE_LIST_CITY_TRUNCATE_CLASS,
   CANDIDATE_LIST_NAME_MAX_SAMPLE,
   CANDIDATE_LIST_NAME_TRUNCATE_CLASS,
+  CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE,
 } from "@/lib/utils/candidate-list-truncate"
 import {
   DropdownMenu,
@@ -45,6 +46,7 @@ import type { EmployerBenefit } from "@/lib/types/benefits"
 import { 
   getCandidateMatchContext, 
   hasActiveFilters,
+  isEmployerOnlyFilter,
   type MatchCriterion,
   type CandidateMatchContext,
   type MatchCategory,
@@ -333,6 +335,21 @@ function getMatchItemListHref(
     return `/employers?${params.toString()}`
   }
 
+  if (categoryType === "workExperience") {
+    const employerId = parsePositiveIntId(item.context.employerId)
+    if (employerId == null) return null
+    const employerName =
+      typeof item.context.employerName === "string" && item.context.employerName.trim()
+        ? item.context.employerName.trim()
+        : name.split(" - ")[0]?.trim() ?? ""
+    if (!employerName) return null
+    const params = new URLSearchParams({
+      employerFilter: employerName,
+      employerId: String(employerId),
+    })
+    return `/employers?${params.toString()}`
+  }
+
   if (categoryType === "certifications") {
     const certificationId = parsePositiveIntId(item.context.certificationId)
     if (certificationId == null) return null
@@ -356,7 +373,13 @@ function getMatchItemListHref(
   return null
 }
 
-function getMatchItemListDestinationLabel(categoryType: MatchCategory["type"]): string {
+function getMatchItemListDestinationLabel(
+  categoryType: MatchCategory["type"],
+  item?: MatchItem,
+): string {
+  if (categoryType === "workExperience" && item && parsePositiveIntId(item.context.employerId) != null) {
+    return "Employers"
+  }
   switch (categoryType) {
     case "projects":
       return "Projects"
@@ -382,6 +405,12 @@ function MatchItemName({
 }) {
   const router = useRouter()
   const href = getMatchItemListHref(categoryType, item)
+  const linkLabel =
+    categoryType === "workExperience" &&
+    typeof item.context.employerName === "string" &&
+    item.context.employerName.trim()
+      ? item.context.employerName.trim()
+      : item.name
 
   if (!href) {
     return <div className={className}>{item.name}</div>
@@ -394,7 +423,7 @@ function MatchItemName({
         className,
         "text-left text-primary font-medium underline underline-offset-2 decoration-primary/70 hover:decoration-primary hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm cursor-pointer transition-colors",
       )}
-      title={`Open ${item.name} in ${getMatchItemListDestinationLabel(categoryType)}`}
+      title={`Open ${linkLabel} in ${getMatchItemListDestinationLabel(categoryType, item)}`}
       onClick={(e) => {
         e.stopPropagation()
         router.push(href)
@@ -427,6 +456,32 @@ function StoreLinkVisitBadge({ url, label = "Visit App" }: { url: string; label?
         {url.trim()}
       </TooltipContent>
     </Tooltip>
+  )
+}
+
+function MatchCriterionValueBadge({ type, value }: { type: string; value: string }) {
+  const truncateOfficeLocation = type === "employerLocation"
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        getCriterionColor(type),
+        "h-5 max-w-full min-w-0 shrink border px-2 text-xs whitespace-normal",
+        truncateOfficeLocation && "overflow-hidden",
+      )}
+    >
+      {truncateOfficeLocation ? (
+        <TruncateToSample
+          sample={CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE}
+          text={value}
+          allowShrink
+          className="max-w-full"
+        />
+      ) : (
+        value
+      )}
+    </Badge>
   )
 }
 
@@ -491,11 +546,12 @@ export function CandidatesCardsView({
   const [deleteInProgress, setDeleteInProgress] = React.useState(false)
 
   const activeFilters = hasActiveFilters(filters)
+  const employerOnlyFilter = isEmployerOnlyFilter(filters)
 
   // Collect all unique criterion types from all candidates for the single legend
   // Must be called before any early returns (React Hooks rule)
   const allUniqueCriteria = React.useMemo(() => {
-    if (!activeFilters) return []
+    if (!activeFilters || employerOnlyFilter) return []
     
     const criterionMap = new Map<string, MatchCriterion>()
     
@@ -504,6 +560,7 @@ export function CandidatesCardsView({
       if (matchContext) {
         const criteria = getAllCriterionTypes(matchContext)
         criteria.forEach((criterion) => {
+          if (filters.employers.length > 0 && criterion.type === "employer") return
           if (!criterionMap.has(criterion.type)) {
             criterionMap.set(criterion.type, criterion)
           }
@@ -512,7 +569,7 @@ export function CandidatesCardsView({
     })
     
     return Array.from(criterionMap.values())
-  }, [candidates, filters, activeFilters])
+  }, [candidates, filters, activeFilters, employerOnlyFilter])
 
   const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -628,7 +685,7 @@ export function CandidatesCardsView({
     <TooltipProvider>
     <>
       {/* Single Filter Legend at the top */}
-      {activeFilters && allUniqueCriteria.length > 0 && (
+      {activeFilters && !employerOnlyFilter && allUniqueCriteria.length > 0 && (
         <div className="mb-4">
           <FilterLegend criteria={allUniqueCriteria} />
         </div>
@@ -748,7 +805,7 @@ export function CandidatesCardsView({
                         return (
                           <div 
                             key={category.type}
-                            className={`p-3 rounded-lg border ${colors.bg} ${colors.border}`}
+                            className={`min-w-0 p-3 rounded-lg border ${colors.bg} ${colors.border}`}
                           >
                             <div className="flex items-center gap-2 mb-3">
                               <CategoryIcon className={`h-4 w-4 ${colors.text}`} />
@@ -790,6 +847,10 @@ export function CandidatesCardsView({
                                   ) {
                                     return false
                                   }
+                                  // Employer Experience heading is the employer name — never show employer badge.
+                                  if (category.type === "employers" && badge.type === "employer") {
+                                    return false
+                                  }
                                   return true
                                 })
                                 const showNameHeading =
@@ -799,7 +860,7 @@ export function CandidatesCardsView({
                                   (isRedundantHeading && storeLinkBadges.length === 0)
 
                                 return (
-                                  <div key={itemIndex} className="space-y-2">
+                                  <div key={itemIndex} className="min-w-0 space-y-2">
                                     {showNameHeading &&
                                       (storeLinkBadges.length > 0 ? (
                                         <div className="flex items-center justify-between gap-3 min-w-0">
@@ -827,7 +888,7 @@ export function CandidatesCardsView({
                                       ))}
 
                                     {showBadgesRow && (
-                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                                       {isRedundantHeading && storeLinkBadges.length === 0 && (
                                         <Badge 
                                           variant="outline" 
@@ -838,13 +899,11 @@ export function CandidatesCardsView({
                                       )}
                                       
                                       {otherBadges.map((badge, badgeIndex) => (
-                                          <Badge
-                                            key={badgeIndex}
-                                            variant="outline"
-                                            className={`${getCriterionColor(badge.type)} text-xs h-5 px-2 border`}
-                                          >
-                                            {badge.value}
-                                          </Badge>
+                                        <MatchCriterionValueBadge
+                                          key={badgeIndex}
+                                          type={badge.type}
+                                          value={badge.value}
+                                        />
                                       ))}
                                     </div>
                                     )}
