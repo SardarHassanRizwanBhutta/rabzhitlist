@@ -1028,6 +1028,13 @@ function appendBackendMatchedEmployerItem(
   })
 }
 
+function formatWorkExperienceMatchItemName(
+  employerName: string,
+  jobTitle: string | null | undefined,
+): string {
+  return `${employerName} — ${jobTitle?.trim() || "N/A"}`
+}
+
 /** Active list filters that drive backend `matchedWorkExperiences`. */
 function hasBackendMatchedWorkExperienceFilterDrivers(filters: CandidateFilters): boolean {
   return (
@@ -1128,9 +1135,8 @@ function appendBackendMatchedWorkExperienceItem(
 
   if (matchedCriteria.length === 0) return
 
-  const jobTitleDisplay = mwe.jobTitle?.trim() || "N/A"
   workExperienceItems.push({
-    name: `${mwe.employerName} - ${jobTitleDisplay}`,
+    name: formatWorkExperienceMatchItemName(mwe.employerName, mwe.jobTitle),
     matchedCriteria,
     context: {
       workExperienceId: mwe.workExperienceId,
@@ -1901,7 +1907,7 @@ export function getCandidateMatchContext(
 
       if (hasMatch) {
         workExperienceItems.push({
-            name: `${we.employerName} - ${we.jobTitle || "N/A"}`,
+            name: formatWorkExperienceMatchItemName(we.employerName, we.jobTitle),
           matchedCriteria,
           context: {
             employerId: we.employerId ?? undefined,
