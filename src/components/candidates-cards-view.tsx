@@ -18,6 +18,7 @@ import {
   CANDIDATE_LIST_JOB_TITLE_TRUNCATE_CLASS,
   CANDIDATE_LIST_NAME_MAX_SAMPLE,
   CANDIDATE_LIST_NAME_TRUNCATE_CLASS,
+  CANDIDATE_MATCH_CAMPUS_LOCATION_BADGE_MAX_SAMPLE,
   CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE,
 } from "@/lib/utils/candidate-list-truncate"
 import {
@@ -471,23 +472,27 @@ function StoreLinkVisitBadge({ url, label = "Visit App" }: { url: string; label?
 }
 
 function MatchCriterionValueBadge({ type, value }: { type: string; value: string }) {
-  const truncateOfficeLocation = type === "employerLocation"
+  const truncateLocationBadge = type === "employerLocation" || type === "universityLocation"
+  const locationBadgeSample =
+    type === "universityLocation"
+      ? CANDIDATE_MATCH_CAMPUS_LOCATION_BADGE_MAX_SAMPLE
+      : CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE
 
   return (
     <Badge
       variant="outline"
       className={cn(
         getCriterionColor(type),
-        "h-5 max-w-full min-w-0 shrink border px-2 text-xs whitespace-normal",
-        truncateOfficeLocation && "overflow-hidden",
+        "h-5 max-w-full min-w-0 shrink border px-2 text-xs",
+        truncateLocationBadge ? "overflow-hidden whitespace-nowrap" : "whitespace-normal",
       )}
     >
-      {truncateOfficeLocation ? (
+      {truncateLocationBadge ? (
         <TruncateToSample
-          sample={CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE}
+          sample={locationBadgeSample}
           text={value}
           allowShrink
-          className="max-w-full"
+          className="block w-full min-w-0 max-w-full"
         />
       ) : (
         value

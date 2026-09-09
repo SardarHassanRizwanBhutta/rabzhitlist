@@ -7,9 +7,13 @@ export const CANDIDATE_LIST_JOB_TITLE_MAX_SAMPLE = "Senior Software Engineer"
 /** Visible city cap in the candidates list (table and cards). */
 export const CANDIDATE_LIST_CITY_MAX_SAMPLE = "Rawalpindi"
 
-/** Visible office-location match badge cap in candidates cards. */
+/** Visible office/campus location match badge cap in candidates cards. */
 export const CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE =
   "Karachi — Main Street, Area"
+
+/** Alias for campus location badges (same City — Address format). */
+export const CANDIDATE_MATCH_CAMPUS_LOCATION_BADGE_MAX_SAMPLE =
+  CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE
 
 /** Exported for candidates list views; width comes from `CANDIDATE_LIST_NAME_MAX_SAMPLE`. */
 export const CANDIDATE_LIST_NAME_TRUNCATE_CLASS = ""
