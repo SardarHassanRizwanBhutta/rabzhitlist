@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { User, Target, FolderOpen, Building2, Briefcase, GraduationCap, Award, Trophy, Check, Eye, Edit, Trash2, MoreHorizontal, MapPin, Star, Smartphone, Loader2, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 
-import { Candidate, CANDIDATE_STATUS_COLORS, CANDIDATE_STATUS_LABELS } from "@/lib/types/candidate"
+import { Candidate } from "@/lib/types/candidate"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -736,12 +736,6 @@ export function CandidatesCardsView({
                         />
                       </CardTitle>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Badge 
-                          variant="outline"
-                          className={`${CANDIDATE_STATUS_COLORS[candidate.status]} text-xs shrink-0`}
-                        >
-                          {CANDIDATE_STATUS_LABELS[candidate.status]}
-                        </Badge>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
