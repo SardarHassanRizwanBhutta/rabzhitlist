@@ -14,6 +14,8 @@ import { TruncateToSample } from "@/components/candidates/truncate-to-sample"
 import {
   CANDIDATE_LIST_CITY_MAX_SAMPLE,
   CANDIDATE_LIST_CITY_TRUNCATE_CLASS,
+  CANDIDATE_LIST_JOB_TITLE_MAX_SAMPLE,
+  CANDIDATE_LIST_JOB_TITLE_TRUNCATE_CLASS,
   CANDIDATE_LIST_NAME_MAX_SAMPLE,
   CANDIDATE_LIST_NAME_TRUNCATE_CLASS,
   CANDIDATE_MATCH_OFFICE_LOCATION_BADGE_MAX_SAMPLE,
@@ -701,14 +703,14 @@ export function CandidatesCardsView({
               className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-primary/50 flex flex-col h-full overflow-hidden"
               onClick={() => setSelectedCandidate(candidate)}
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-start gap-3">
+              <CardHeader className="min-w-0 overflow-hidden pb-3">
+                <div className="flex min-w-0 items-start gap-3">
                   <div className="size-12 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
                     <User className="size-6 text-primary" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <CardTitle className="min-w-0 text-lg">
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="mb-1 flex min-w-0 items-start justify-between gap-2">
+                      <CardTitle className="min-w-0 flex-1 overflow-hidden text-lg">
                         <TruncateToSample
                           sample={CANDIDATE_LIST_NAME_MAX_SAMPLE}
                           text={candidate.name}
@@ -767,17 +769,26 @@ export function CandidatesCardsView({
                         </DropdownMenu>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="truncate">{getJobTitle(candidate)}</span>
-                      <span>•</span>
-                      <div className="flex min-w-0 items-center gap-1">
-                        <MapPin className="h-3 w-3 shrink-0" />
+                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,auto)] items-center gap-x-2 text-sm text-muted-foreground">
+                      <div className="min-w-0 overflow-hidden">
                         <TruncateToSample
-                          sample={CANDIDATE_LIST_CITY_MAX_SAMPLE}
-                          text={candidate.city ?? ""}
+                          sample={CANDIDATE_LIST_JOB_TITLE_MAX_SAMPLE}
+                          text={getJobTitle(candidate)}
                           allowShrink
-                          className={CANDIDATE_LIST_CITY_TRUNCATE_CLASS}
+                          className={CANDIDATE_LIST_JOB_TITLE_TRUNCATE_CLASS}
                         />
+                      </div>
+                      <span className="shrink-0">•</span>
+                      <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <div className="min-w-0 overflow-hidden">
+                          <TruncateToSample
+                            sample={CANDIDATE_LIST_CITY_MAX_SAMPLE}
+                            text={candidate.city ?? ""}
+                            allowShrink
+                            className={CANDIDATE_LIST_CITY_TRUNCATE_CLASS}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
