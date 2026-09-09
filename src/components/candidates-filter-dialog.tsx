@@ -324,6 +324,12 @@ const certificationLevelOptions: MultiSelectOption[] = CERTIFICATION_LEVEL_DB.ma
   }),
 )
 
+/** Hidden from filter UI; filter state and API query params are unchanged. */
+const SHOW_DATA_VERIFICATION_FILTER = false
+const SHOW_AVG_JOB_TENURE_FILTER = false
+const SHOW_JOINED_PROJECT_FROM_START_FILTER = false
+const SHOW_MUTUAL_CONNECTION_FILTER = false
+
 // Achievement-related filter options
 const achievementTypeOptions: MultiSelectOption[] = [
   { value: "Competition", label: "Competition" },
@@ -1572,52 +1578,53 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Verification Percentage Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Verification Percentage</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="verificationPercentageMin" className="text-xs text-muted-foreground">
-                      Minimum (%)
-                    </Label>
-                    <Input
-                      id="verificationPercentageMin"
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="0"
-                      value={tempFilters.verificationPercentageMin}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        // Only allow numbers 0-100
-                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
-                          handleFilterChange("verificationPercentageMin", value)
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="verificationPercentageMax" className="text-xs text-muted-foreground">
-                      Maximum (%)
-                    </Label>
-                    <Input
-                      id="verificationPercentageMax"
-                      type="number"
-                      min="0"
-                      max="100"
-                      placeholder="100"
-                      value={tempFilters.verificationPercentageMax}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        // Only allow numbers 0-100
-                        if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
-                          handleFilterChange("verificationPercentageMax", value)
-                        }
-                      }}
-                    />
+              {SHOW_DATA_VERIFICATION_FILTER && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Verification Percentage</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="verificationPercentageMin" className="text-xs text-muted-foreground">
+                        Minimum (%)
+                      </Label>
+                      <Input
+                        id="verificationPercentageMin"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        value={tempFilters.verificationPercentageMin}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          // Only allow numbers 0-100
+                          if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                            handleFilterChange("verificationPercentageMin", value)
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="verificationPercentageMax" className="text-xs text-muted-foreground">
+                        Maximum (%)
+                      </Label>
+                      <Input
+                        id="verificationPercentageMax"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="100"
+                        value={tempFilters.verificationPercentageMax}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          // Only allow numbers 0-100
+                          if (value === "" || (parseInt(value) >= 0 && parseInt(value) <= 100)) {
+                            handleFilterChange("verificationPercentageMax", value)
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Data Progress Filter */}
               <div className="space-y-3">
@@ -1950,42 +1957,43 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
 
-              {/* Average Job Tenure Range Filter */}
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">Average Job Tenure (Years)</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="avgJobTenureMin" className="text-xs text-muted-foreground">
-                      Minimum Tenure
-                    </Label>
-                    <Input
-                      id="avgJobTenureMin"
-                      type="number"
-                      placeholder="e.g., 1.5"
-                      value={tempFilters.avgJobTenureMin}
-                      onChange={(e) => handleFilterChange("avgJobTenureMin", e.target.value)}
-                      min="0"
-                      step="0.5"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="avgJobTenureMax" className="text-xs text-muted-foreground">
-                      Maximum Tenure
-                    </Label>
-                    <Input
-                      id="avgJobTenureMax"
-                      type="number"
-                      placeholder="e.g., 3.0"
-                      value={tempFilters.avgJobTenureMax}
-                      onChange={(e) => handleFilterChange("avgJobTenureMax", e.target.value)}
-                      min="0"
-                      step="0.5"
-                    />
+              {SHOW_AVG_JOB_TENURE_FILTER && (
+                <div className="space-y-3">
+                  <Label className="text-sm font-semibold">Average Job Tenure (Years)</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="avgJobTenureMin" className="text-xs text-muted-foreground">
+                        Minimum Tenure
+                      </Label>
+                      <Input
+                        id="avgJobTenureMin"
+                        type="number"
+                        placeholder="e.g., 1.5"
+                        value={tempFilters.avgJobTenureMin}
+                        onChange={(e) => handleFilterChange("avgJobTenureMin", e.target.value)}
+                        min="0"
+                        step="0.5"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="avgJobTenureMax" className="text-xs text-muted-foreground">
+                        Maximum Tenure
+                      </Label>
+                      <Input
+                        id="avgJobTenureMax"
+                        type="number"
+                        placeholder="e.g., 3.0"
+                        value={tempFilters.avgJobTenureMax}
+                        onChange={(e) => handleFilterChange("avgJobTenureMax", e.target.value)}
+                        min="0"
+                        step="0.5"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Joined Project From Start Filter */}
+              {SHOW_JOINED_PROJECT_FROM_START_FILTER && (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -2031,8 +2039,9 @@ export function CandidatesFilterDialog({
                   Filter for candidates whose work experience start date matches or is close to project start date
                 </p>
               </div>
+              )}
 
-              {/* Mutual Connections with DPL Filter */}
+              {SHOW_MUTUAL_CONNECTION_FILTER && (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -2106,6 +2115,7 @@ export function CandidatesFilterDialog({
                   This indicates potential mutual connections (batchmates, classmates, or colleagues).
                 </p>
               </div>
+              )}
             </section>
 
             {/* Project-Based Filters Section */}
