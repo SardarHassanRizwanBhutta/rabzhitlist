@@ -1503,6 +1503,14 @@ export function CandidatesPageClient() {
               filters={getCombinedFilters()}
               candidateLookups={candidateLookups}
               lookupsLoading={lookupsLoading}
+              totalCount={totalCount}
+              pageNumber={pageNumber}
+              pageSize={pageSize}
+              totalPages={totalPages}
+              hasPrevious={hasPrevious}
+              hasNext={hasNext}
+              onPageChange={setPageNumber}
+              onPageSizeChange={handlePageSizeChange}
               onCreateTechStack={handleCreateTechStack}
               onCreateTimeSupportZone={handleCreateTimeSupportZone}
               onCreateBenefit={handleCreateBenefit}

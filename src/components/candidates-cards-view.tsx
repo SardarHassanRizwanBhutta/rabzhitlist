@@ -42,6 +42,7 @@ import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CandidateDetailsModal } from "@/components/candidate-details-modal"
 import { CandidateCreationDialog, CandidateFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
+import { CandidatesListPagination } from "@/components/candidates-list-pagination"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import { CandidateFilters } from "@/components/candidates-filter-dialog"
 import type { EmployerBenefit } from "@/lib/types/benefits"
@@ -142,6 +143,14 @@ interface CandidatesCardsViewProps {
   filters?: CandidateFilters
   candidateLookups?: CandidateLookups
   lookupsLoading?: boolean
+  totalCount: number
+  pageNumber: number
+  pageSize: number
+  totalPages: number
+  hasPrevious: boolean
+  hasNext: boolean
+  onPageChange: (page: number) => void
+  onPageSizeChange: (pageSize: number) => void
   onCreateTechStack?: (name: string, context?: { aspectTypeId: number }) => Promise<void>
   onCreateTimeSupportZone?: (name: string) => Promise<void>
   onCreateBenefit?: (name: string) => Promise<EmployerBenefit | null | void>
@@ -532,6 +541,14 @@ export function CandidatesCardsView({
   filters = defaultFilters,
   candidateLookups,
   lookupsLoading,
+  totalCount,
+  pageNumber,
+  pageSize,
+  totalPages,
+  hasPrevious,
+  hasNext,
+  onPageChange,
+  onPageSizeChange,
   onCreateTechStack,
   onCreateTimeSupportZone,
   onCreateBenefit,
@@ -936,6 +953,19 @@ export function CandidatesCardsView({
             </Card>
           )
         })}
+      </div>
+
+      <div className="mt-4">
+        <CandidatesListPagination
+          totalCount={totalCount}
+          pageNumber={pageNumber}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          hasPrevious={hasPrevious}
+          hasNext={hasNext}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+        />
       </div>
 
       <CandidateDetailsModal
