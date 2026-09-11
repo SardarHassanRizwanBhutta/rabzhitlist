@@ -4072,6 +4072,7 @@ export function CandidateCreationDialog({
                               markFieldModified(`educations.${index}.campusLocationId`)
                             }}
                             disabled={isLoading}
+                            createContext={nestedEmployerCreation ? {} : undefined}
                           />
                           <VerificationCheckbox fieldPath={`educations.${index}.campusLocationId`} />
                         </div>

@@ -147,6 +147,21 @@ export async function updateUniversityLocation(
   return response.json()
 }
 
+/** Clear main-campus flag on all campus rows before setting a new main campus. */
+export async function clearUniversityMainCampus(universityId: number): Promise<void> {
+  const university = await fetchUniversityById(universityId)
+  const mainRows = (university.locations ?? []).filter((loc) => loc.isMainCampus)
+  await Promise.all(
+    mainRows.map((loc) =>
+      updateUniversityLocation(universityId, loc.id, {
+        city: loc.city,
+        address: loc.address ?? null,
+        isMainCampus: false,
+      }),
+    ),
+  )
+}
+
 /** Search universities by name (e.g. for combobox). GET /api/universities/search */
 export async function searchUniversities(
   search: string,

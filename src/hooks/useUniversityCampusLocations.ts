@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { fetchUniversityById } from "@/lib/services/universities-api"
 import type { UniversityLocation } from "@/lib/types/university"
 import { formatUniversityLocationLabel } from "@/lib/utils/university-location-label"
@@ -11,6 +11,7 @@ export interface CampusLocationOption {
   city: string
   address: string | null
   label: string
+  isMainCampus: boolean
 }
 
 function toOption(loc: UniversityLocation): CampusLocationOption | null {
@@ -24,6 +25,7 @@ function toOption(loc: UniversityLocation): CampusLocationOption | null {
     city,
     address,
     label: formatUniversityLocationLabel(city, address),
+    isMainCampus: loc.isMainCampus,
   }
 }
 
@@ -31,6 +33,11 @@ function toOption(loc: UniversityLocation): CampusLocationOption | null {
 export function useUniversityCampusLocations(universityId: number | null) {
   const [locations, setLocations] = useState<CampusLocationOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const refetch = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+  }, [])
 
   useEffect(() => {
     if (universityId == null || universityId <= 0) {
@@ -54,9 +61,9 @@ export function useUniversityCampusLocations(universityId: number | null) {
     return () => {
       cancelled = true
     }
-  }, [universityId])
+  }, [universityId, refreshKey])
 
-  return { locations, loading }
+  return { locations, loading, refetch }
 }
 
 /** Load campus rows for several universities (Candidates filter). */
