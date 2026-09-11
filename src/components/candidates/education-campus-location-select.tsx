@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,8 +14,15 @@ import {
 } from "@/components/ui/command"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  UniversityCampusLocationCreateDialog,
+  type CreatedUniversityCampusLocation,
+} from "@/components/candidates/university-campus-location-create-dialog"
 import { useUniversityCampusLocations } from "@/hooks/useUniversityCampusLocations"
 import { cn } from "@/lib/utils"
+
+/** When set, user can add a campus via dialog (same gate as office location `createContext`). */
+export type UniversityCampusLocationCreateContext = Record<string, never>
 
 interface EducationCampusLocationSelectProps {
   universityId: number | null
@@ -23,6 +30,7 @@ interface EducationCampusLocationSelectProps {
   onChange: (locationId: number | null) => void
   disabled?: boolean
   id?: string
+  createContext?: UniversityCampusLocationCreateContext
 }
 
 export function EducationCampusLocationSelect({
@@ -31,25 +39,85 @@ export function EducationCampusLocationSelect({
   onChange,
   disabled,
   id = "campus-location",
+  createContext,
 }: EducationCampusLocationSelectProps) {
-  const { locations, loading } = useUniversityCampusLocations(universityId)
+  const { locations, loading, refetch } = useUniversityCampusLocations(universityId)
+  const [optimisticCreated, setOptimisticCreated] =
+    React.useState<CreatedUniversityCampusLocation | null>(null)
+
+  React.useEffect(() => {
+    setOptimisticCreated(null)
+  }, [universityId])
+
+  const locationOptions = React.useMemo(() => {
+    if (
+      optimisticCreated &&
+      !locations.some((loc) => loc.id === optimisticCreated.id)
+    ) {
+      return [
+        ...locations,
+        {
+          id: optimisticCreated.id,
+          universityId: universityId ?? 0,
+          city: optimisticCreated.label,
+          address: null,
+          label: optimisticCreated.label,
+          isMainCampus: false,
+        },
+      ]
+    }
+    return locations
+  }, [locations, optimisticCreated, universityId])
+
   const hasUniversity = universityId != null && universityId > 0
+  const canCreate = Boolean(createContext && hasUniversity)
   const selectedValue = value != null && value > 0 ? String(value) : ""
-  const selectedLabel = locations.find((loc) => String(loc.id) === selectedValue)?.label
+  const selectedLabel = locationOptions.find((loc) => String(loc.id) === selectedValue)?.label
   const comboboxDisabled = disabled || !hasUniversity || loading
 
   const [open, setOpen] = React.useState(false)
   const [searchValue, setSearchValue] = React.useState("")
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false)
+  const [createDialogInitialCity, setCreateDialogInitialCity] = React.useState("")
 
   const filteredLocations = React.useMemo(() => {
-    if (!searchValue.trim()) return locations
+    if (!searchValue.trim()) return locationOptions
     const searchLower = searchValue.toLowerCase()
-    return locations.filter(
+    return locationOptions.filter(
       (loc) =>
-        loc.label.toLowerCase().includes(searchLower) ||
-        String(loc.id).includes(searchLower)
+        loc.label.toLowerCase().includes(searchLower) || String(loc.id).includes(searchLower),
     )
-  }, [locations, searchValue])
+  }, [locationOptions, searchValue])
+
+  const searchHasExactMatch = React.useMemo(() => {
+    if (!searchValue.trim()) return false
+    const q = searchValue.trim().toLowerCase()
+    return locationOptions.some((loc) => loc.label.toLowerCase() === q)
+  }, [locationOptions, searchValue])
+
+  const shouldShowSearchCreate =
+    canCreate &&
+    !loading &&
+    searchValue.trim().length >= 2 &&
+    filteredLocations.length === 0 &&
+    !searchHasExactMatch
+
+  const showEmptyListCreate = canCreate && !loading && locationOptions.length === 0
+
+  const hasExistingMainCampus = locationOptions.some((loc) => loc.isMainCampus)
+
+  const openCreateDialog = (initialCity = "") => {
+    setCreateDialogInitialCity(initialCity)
+    setOpen(false)
+    setSearchValue("")
+    setCreateDialogOpen(true)
+  }
+
+  const handleCreated = (location: CreatedUniversityCampusLocation) => {
+    setOptimisticCreated(location)
+    refetch()
+    onChange(location.id)
+  }
 
   const triggerText = selectedLabel
     ? selectedLabel
@@ -119,7 +187,7 @@ export function EducationCampusLocationSelect({
                         <Check
                           className={cn(
                             "ml-auto",
-                            selectedValue === locValue ? "opacity-100" : "opacity-0"
+                            selectedValue === locValue ? "opacity-100" : "opacity-0",
                           )}
                         />
                       </CommandItem>
@@ -127,10 +195,47 @@ export function EducationCampusLocationSelect({
                   })}
                 </CommandGroup>
               )}
+
+              {showEmptyListCreate ? (
+                <CommandGroup>
+                  <CommandItem
+                    value="__add_campus_location_empty__"
+                    onSelect={() => openCreateDialog()}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add campus
+                  </CommandItem>
+                </CommandGroup>
+              ) : null}
+
+              {shouldShowSearchCreate ? (
+                <CommandGroup>
+                  <CommandItem
+                    value={`__add_campus_location_${searchValue.trim()}`}
+                    onSelect={() => openCreateDialog(searchValue.trim())}
+                    className="cursor-pointer font-medium text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {`Add campus "${searchValue.trim()}"`}
+                  </CommandItem>
+                </CommandGroup>
+              ) : null}
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
+
+      {canCreate && createContext && universityId != null && universityId > 0 ? (
+        <UniversityCampusLocationCreateDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          universityId={universityId}
+          initialCity={createDialogInitialCity}
+          hasExistingMainCampus={hasExistingMainCampus}
+          onCreated={handleCreated}
+        />
+      ) : null}
     </div>
   )
 }
