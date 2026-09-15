@@ -207,6 +207,7 @@ import { formatYearsOfExperience, getTotalExperienceYears } from "@/lib/utils/ca
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { QG_LIST_VALUE_BADGE_CLASS } from "@/lib/utils/qg-list-value-badges"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Command,
@@ -517,7 +518,15 @@ interface CandidateDetailsModalProps {
   onCandidateUpdated?: () => void
 }
 
-const normalizeKey = (value: string) => value.trim().toLowerCase()
+function teamSizeLabelForDomainBadges(
+  project: Pick<ProjectExperience, "teamSize" | "averageTeamSize">,
+): string | null {
+  if (project.averageTeamSize != null && Number.isFinite(project.averageTeamSize)) {
+    return String(project.averageTeamSize)
+  }
+  const trimmed = project.teamSize?.trim()
+  return trimmed ? trimmed : null
+}
 
 const DomainBadges = ({
   projectName,
@@ -534,58 +543,66 @@ const DomainBadges = ({
 }) => {
   const hasVertical = verticalDomains.length > 0
   const hasHorizontal = horizontalDomains.length > 0
-  const hasTeamSize = teamSize !== null && teamSize !== undefined
+  const hasTeamSize = teamSize !== null && teamSize !== undefined && teamSize !== ""
 
   if (!hasVertical && !hasHorizontal && !hasTeamSize) return null
 
-  const renderGroup = (domains: string[], type: "vertical" | "horizontal") => {
+  const renderGroup = (
+    domains: string[],
+    colorClass: string,
+    type: "vertical" | "horizontal",
+  ) => {
     const visible = domains.slice(0, maxDisplay)
     const remaining = domains.slice(maxDisplay)
     const moreCount = remaining.length
 
-    const baseClass =
-      type === "vertical"
-        ? "bg-teal-100 text-teal-700 border border-teal-300 dark:bg-teal-950/30 dark:text-teal-200 dark:border-teal-800"
-        : "bg-purple-100 text-purple-700 border border-purple-300 dark:bg-purple-950/30 dark:text-purple-200 dark:border-purple-800"
-
     return (
-      <>
+      <div className="flex flex-wrap gap-1">
         {visible.map((d) => (
-          <span
+          <Badge
             key={`${type}-${d}`}
-            className={`text-xs px-2 py-1 rounded-md ${baseClass}`}
+            variant="secondary"
+            className={cn(colorClass, "text-xs")}
           >
             {d}
-          </span>
+          </Badge>
         ))}
         {moreCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-600 border border-gray-200 dark:bg-gray-900/40 dark:text-gray-300 dark:border-gray-700"
+              <Badge
+                variant="outline"
+                className="text-xs cursor-default bg-background text-foreground border-border hover:bg-background"
                 aria-label={`Show ${moreCount} more ${type} domains for ${projectName}`}
               >
                 +{moreCount} more
-              </button>
+              </Badge>
             </TooltipTrigger>
-            <TooltipContent sideOffset={6} className="max-w-xs">
-              <div className="space-y-1">
-                <div className="font-medium">
+            <TooltipContent
+              sideOffset={6}
+              className="max-w-xs border border-border bg-background px-3 py-2 text-foreground shadow-md"
+              arrowClassName="bg-background fill-background border-border"
+            >
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">
                   {type === "vertical" ? "Vertical Domains" : "Horizontal Domains"}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {remaining.map((d) => (
-                    <span key={`${type}-remaining-${d}`} className="px-1.5 py-0.5 rounded bg-background/20">
+                    <Badge
+                      key={`${type}-remaining-${d}`}
+                      variant="secondary"
+                      className={cn(colorClass, "text-xs")}
+                    >
                       {d}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
             </TooltipContent>
           </Tooltip>
         )}
-      </>
+      </div>
     )
   }
 
@@ -594,23 +611,36 @@ const DomainBadges = ({
       className="flex flex-wrap items-center gap-2 mt-2"
       aria-label={`Project domains and team size for ${projectName}`}
     >
-      {hasVertical && renderGroup(verticalDomains, "vertical")}
+      {hasVertical &&
+        renderGroup(
+          verticalDomains,
+          QG_LIST_VALUE_BADGE_CLASS.verticalDomains,
+          "vertical",
+        )}
       {hasVertical && hasHorizontal && (
         <span className="mx-2 text-muted-foreground" aria-hidden="true">
           •
         </span>
       )}
-      {hasHorizontal && renderGroup(horizontalDomains, "horizontal")}
+      {hasHorizontal &&
+        renderGroup(
+          horizontalDomains,
+          QG_LIST_VALUE_BADGE_CLASS.horizontalDomains,
+          "horizontal",
+        )}
       {(hasVertical || hasHorizontal) && hasTeamSize && (
         <span className="mx-2 text-muted-foreground" aria-hidden="true">
           •
         </span>
       )}
       {hasTeamSize && (
-        <span className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-300 dark:bg-indigo-950/30 dark:text-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-          <Users className="size-3" />
+        <Badge
+          variant="secondary"
+          className={cn(QG_LIST_VALUE_BADGE_CLASS.techStacks, "text-xs")}
+        >
+          <Users className="size-3" aria-hidden />
           {teamSize}
-        </span>
+        </Badge>
       )}
     </div>
   )
@@ -4363,23 +4393,6 @@ export function CandidateDetailsModal({
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
   ]
 
-  const projectsByName = useMemo(() => {
-    const map = new Map<string, (typeof sampleProjects)[number]>()
-    sampleProjects.forEach((p) => {
-      map.set(normalizeKey(p.projectName), p)
-    })
-    return map
-  }, [])
-
-  const getProjectDetails = (projectName: string) => {
-    const project = projectsByName.get(normalizeKey(projectName))
-    return {
-      verticalDomains: project?.verticalDomains ?? [],
-      horizontalDomains: project?.horizontalDomains ?? [],
-      teamSize: project?.teamSize ?? null,
-    }
-  }
-
   // Scroll to section function
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
@@ -6939,13 +6952,13 @@ export function CandidateDetailsModal({
                                 <span className="text-sm font-medium text-muted-foreground">Projects ({experience.projects.length})</span>
                               </div>
                               <div className="space-y-3">
-                                {experience.projects.map((project, projIdx) => (
-                                  <div key={project.id} className="border rounded-md p-4 bg-muted/30">
+                                {experience.projects.map((linkedProject, projIdx) => (
+                                  <div key={linkedProject.id} className="border rounded-md p-4 bg-muted/30">
                                     <div className="flex items-start justify-between gap-4">
                                       <div className="flex-1">
                                         <div className="mb-2 w-full min-w-0">
                                           <InlineEditableProject
-                                            project={project}
+                                            project={linkedProject}
                                             comboboxId={`work-exp-project-${idx}-${projIdx}`}
                                             fieldName={`workExperiences[${idx}].projects[${projIdx}].projectId`}
                                             workExperienceHasEmployer={isWorkExperienceEmployerPresent(
@@ -6970,14 +6983,16 @@ export function CandidateDetailsModal({
                                             titleClassName="text-base font-medium"
                                           />
                                         </div>
-                                        {project.projectName && (
+                                        {(linkedProject.projectId != null || linkedProject.projectName) && (
                                           <DomainBadges
-                                            projectName={project.projectName}
-                                            {...getProjectDetails(project.projectName)}
+                                            projectName={linkedProject.projectName || "Project"}
+                                            verticalDomains={linkedProject.verticalDomains ?? []}
+                                            horizontalDomains={linkedProject.horizontalDomains ?? []}
+                                            teamSize={teamSizeLabelForDomainBadges(linkedProject)}
                                           />
                                         )}
                                           <InlineEditableTextarea
-                                          value={project.contributionNotes ?? ''}
+                                          value={linkedProject.contributionNotes ?? ''}
                                             fieldName={`workExperiences[${idx}].projects[${projIdx}].contributionNotes`}
                                             onSave={handleFieldSave}
                                             maxLength={100}
@@ -6988,7 +7003,7 @@ export function CandidateDetailsModal({
                                           />
                                           <InlineEditableCheckbox
                                             label="Main Contributor"
-                                            value={project.isMainContribution === true}
+                                            value={linkedProject.isMainContribution === true}
                                             fieldName={`workExperiences[${idx}].projects[${projIdx}].isMainContribution`}
                                             onSave={async (_fieldName, newValue, verify) => {
                                               await handleWorkExperienceProjectMainContributionSave(
