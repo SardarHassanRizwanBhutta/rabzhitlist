@@ -94,7 +94,7 @@ function enumLabel(
   return s === "" ? null : s
 }
 
-/** Merge junction row + nested `project` graph from GET candidate APIs. */
+/** Merge junction row + nested `project` graph from GET candidate APIs. See docs/CANDIDATE_WE_LINKED_PROJECT_CATALOG_BACKEND_CONTRACT.md. */
 export function parseLinkedProjectCatalogFromApi(
   raw: Record<string, unknown>,
 ): LinkedProjectFields {
