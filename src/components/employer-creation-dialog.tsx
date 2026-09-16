@@ -55,7 +55,9 @@ import {
 import { format } from "date-fns"
 import type { Country } from "@/lib/types/country"
 import { cn } from "@/lib/utils"
+import { employerNameFieldErrorFromApi } from "@/lib/utils/api-error-message"
 import { mergeEmployerFormCreatePrefill } from "@/lib/utils/call-notes-extract-create-prefill"
+import { toast } from "sonner"
 
 // Form data interfaces
 export interface EmployerLocationFormData {
@@ -922,6 +924,18 @@ export function EmployerCreationDialog({
       setModifiedFields(new Set())
       setOpen(false)
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Failed to ${mode === "edit" ? "update" : "create"} employer`
+      const nameError = employerNameFieldErrorFromApi(message)
+      if (nameError) {
+        setErrors((prev) => ({
+          ...prev,
+          employer: { ...prev.employer, name: nameError },
+        }))
+      }
+      toast.error(message)
       console.error(`Error ${mode === "edit" ? "updating" : "creating"} employer:`, error)
     } finally {
       setIsLoading(false)

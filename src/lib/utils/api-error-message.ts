@@ -30,3 +30,30 @@ export function extractApiErrorMessage(text: string, status: number): string {
   if (trimmed.length <= 600 && !trimmed.startsWith("<")) return trimmed
   return `Request failed (${status})`
 }
+
+/** Backend ValidationException messages (employer / university name uniqueness). */
+export const API_NAME_REQUIRED_MESSAGE = "Name is required."
+export const API_EMPLOYER_DUPLICATE_NAME_MESSAGE =
+  "An employer with this name already exists."
+export const API_UNIVERSITY_DUPLICATE_NAME_MESSAGE =
+  "A university with this name already exists."
+
+export function employerNameFieldErrorFromApi(message: string): string | null {
+  if (
+    message === API_EMPLOYER_DUPLICATE_NAME_MESSAGE ||
+    message === API_NAME_REQUIRED_MESSAGE
+  ) {
+    return message
+  }
+  return null
+}
+
+export function universityNameFieldErrorFromApi(message: string): string | null {
+  if (
+    message === API_UNIVERSITY_DUPLICATE_NAME_MESSAGE ||
+    message === API_NAME_REQUIRED_MESSAGE
+  ) {
+    return message
+  }
+  return null
+}
