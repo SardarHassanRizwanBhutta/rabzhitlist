@@ -7498,7 +7498,7 @@ export function CandidateDetailsModal({
                         <div className="space-y-3">
                           {/* Name and Achievement Type */}
                           <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
+                            <div className="min-w-0 flex-1">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <InlineEditableField
                                   label="Name"
@@ -7545,6 +7545,38 @@ export function CandidateDetailsModal({
                                     getFieldVerification={getFieldVerification}
                                   />
                               </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 min-w-0">
+                                <div className="min-w-0">
+                                  <InlineEditableField
+                                    label="Description"
+                                    value={ach.description ?? ""}
+                                    fieldName={`achievements[${idx}].description`}
+                                    fieldType="text"
+                                    onSave={handleFieldSave}
+                                    verificationIndicator={
+                                      <VerificationIndicator
+                                        fieldName={`achievements[${idx}].description`}
+                                      />
+                                    }
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                </div>
+                                <div className="min-w-0 space-y-2">
+                                  <InlineEditableField
+                                    label="URL"
+                                    value={ach.url ?? ""}
+                                    fieldName={`achievements[${idx}].url`}
+                                    fieldType="url"
+                                    validation={validateURL}
+                                    onSave={handleFieldSave}
+                                    verificationIndicator={
+                                      <VerificationIndicator fieldName={`achievements[${idx}].url`} />
+                                    }
+                                    getFieldVerification={getFieldVerification}
+                                  />
+                                  <VisitUrlButton url={ach.url} label="Visit Link" />
+                                </div>
+                              </div>
                             </div>
                             <Button
                               type="button"
@@ -7557,30 +7589,6 @@ export function CandidateDetailsModal({
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                          {/* Achievement URL */}
-                          <div className="space-y-2">
-                            <InlineEditableField 
-                              label="URL" 
-                              value={ach.url ?? ''} 
-                              fieldName={`achievements[${idx}].url`}
-                              fieldType="url"
-                              validation={validateURL}
-                              onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].url`} />}
-                              getFieldVerification={getFieldVerification}
-                            />
-                            <VisitUrlButton url={ach.url} label="Visit Link" />
-                          </div>
-                          {/* Description */}
-                            <InlineEditableField 
-                              label="Description" 
-                            value={ach.description ?? ''} 
-                              fieldName={`achievements[${idx}].description`}
-                              fieldType="text"
-                              onSave={handleFieldSave}
-                              verificationIndicator={<VerificationIndicator fieldName={`achievements[${idx}].description`} />}
-                              getFieldVerification={getFieldVerification}
-                            />
                         </div>
                       </div>
                     ))
