@@ -311,9 +311,9 @@ export function UniversitiesPageClient() {
         toast.error("University not found.")
         setEditDialogOpen(false)
         setUniversityToEdit(null)
-      } else {
-        toast.error(message || "Failed to save university.")
+        return
       }
+      throw err
     }
   }
 

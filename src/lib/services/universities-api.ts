@@ -3,6 +3,7 @@ import type { Ranking } from "@/lib/types/university"
 import type { UniversityDataProgressResponse } from "@/lib/types/university-data-progress"
 
 import { API_BASE_URL } from "@/lib/config/api"
+import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 
 function parseDataProgressPercentage(value: unknown): number | null {
   if (typeof value === "number") return value
@@ -283,7 +284,7 @@ export async function createUniversity(body: CreateUniversityDto): Promise<Unive
   })
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Failed to create university: ${response.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, response.status))
   }
   const data = await response.json()
   return mapUniversityDto(data as Record<string, unknown>)
@@ -303,7 +304,7 @@ export async function updateUniversity(
   }
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(`Failed to update university: ${response.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, response.status))
   }
   const data = await response.json()
   return mapUniversityDto(data as Record<string, unknown>)

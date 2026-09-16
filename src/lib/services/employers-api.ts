@@ -33,6 +33,7 @@ import {
 } from "@/lib/types/employer"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { API_BASE_URL } from "@/lib/config/api"
+import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 
 // --- API enum values (backend uses 0-based integers) ---
 export const WORK_MODE_TO_API: Record<WorkModeDb, number> = {
@@ -708,7 +709,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Employers API ${path}: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   return res.json()
 }
@@ -721,7 +722,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`Employers API ${path}: ${res.status} — ${text}`)
+    throw new Error(extractApiErrorMessage(text, res.status))
   }
   return res.json()
 }

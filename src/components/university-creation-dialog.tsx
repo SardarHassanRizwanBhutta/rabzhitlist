@@ -49,6 +49,8 @@ import { Loader2, Plus, GraduationCap, MapPin, Trash2, ShieldCheck, ChevronDown,
 import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS, RANKING_TO_LABEL } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
 import { cn } from "@/lib/utils"
+import { universityNameFieldErrorFromApi } from "@/lib/utils/api-error-message"
+import { toast } from "sonner"
 
 // Form data interfaces
 export interface UniversityLocationFormData {
@@ -593,6 +595,18 @@ export function UniversityCreationDialog({
       setModifiedFields(new Set())
       setOpen(false)
     } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `Failed to ${mode === "edit" ? "update" : "create"} university`
+      const nameError = universityNameFieldErrorFromApi(message)
+      if (nameError) {
+        setErrors((prev) => ({
+          ...prev,
+          university: { ...prev.university, name: nameError },
+        }))
+      }
+      toast.error(message)
       console.error(`Error ${mode === "edit" ? "updating" : "creating"} university:`, error)
     } finally {
       setIsLoading(false)
