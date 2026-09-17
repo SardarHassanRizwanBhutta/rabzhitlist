@@ -754,7 +754,7 @@ export function UniversityCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="name">University Name *</Label>
+                          <Label htmlFor="name">Name *</Label>
                           <Input
                             id="name"
                             type="text"
@@ -1070,7 +1070,7 @@ export function UniversityCreationDialog({
                               </div>
 
                               <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`address-${index}`}>Office location</Label>
+                                <Label htmlFor={`address-${index}`}>Address</Label>
                                 <Input
                                   id={`address-${index}`}
                                   type="text"

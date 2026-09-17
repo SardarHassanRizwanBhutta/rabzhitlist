@@ -86,6 +86,8 @@ interface UniversitiesTableProps {
   countries?: Country[]
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
+  /** Refetch list when details modal closes after inline edits. */
+  onRefreshUniversities?: () => void | Promise<void>
 }
 
 type SortKey = keyof University
@@ -180,6 +182,7 @@ export function UniversitiesTable({
   countries,
   countriesLoading,
   onCreateCountry,
+  onRefreshUniversities,
 }: UniversitiesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -187,6 +190,7 @@ export function UniversitiesTable({
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [expandedUniversities, setExpandedUniversities] = useState<Set<number>>(new Set())
   const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null)
+  const detailsListStaleRef = React.useRef(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [universityToDelete, setUniversityToDelete] = useState<University | null>(null)
 
@@ -387,7 +391,10 @@ export function UniversitiesTable({
                   {/* University Master Row */}
                   <TableRow 
                     className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => setSelectedUniversity(university)}
+                    onClick={() => {
+                      detailsListStaleRef.current = false
+                      setSelectedUniversity(university)
+                    }}
                   >
                     <TableCell>
                       <Button
@@ -494,6 +501,7 @@ export function UniversitiesTable({
                           className="h-8 w-8 p-0 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
+                            detailsListStaleRef.current = false
                             setSelectedUniversity(university)
                           }}
                           title="View details"
@@ -692,9 +700,17 @@ export function UniversitiesTable({
           onOpenChange={(open) => {
             if (!open) {
               setSelectedUniversity(null)
+              if (detailsListStaleRef.current) {
+                detailsListStaleRef.current = false
+                void onRefreshUniversities?.()
+              }
             }
           }}
+          onPersistedChange={() => {
+            detailsListStaleRef.current = true
+          }}
           onEdit={onEdit ? (university) => {
+            detailsListStaleRef.current = false
             setSelectedUniversity(null) // Close detail modal
             onEdit(university)
           } : undefined}

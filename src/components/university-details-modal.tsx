@@ -21,9 +21,17 @@ import {
   Plus,
 } from "lucide-react"
 
-import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS, getRankingLabel } from "@/lib/types/university"
+import { University, UniversityRanking, UNIVERSITY_RANKING_LABELS, getRankingLabel, LABEL_TO_RANKING } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
-import { deleteUniversityLocation, fetchUniversityById } from "@/lib/services/universities-api"
+import {
+  deleteUniversityLocation,
+  fetchUniversityById,
+  patchUniversity,
+  patchUniversityLocation,
+  type PatchUniversityDto,
+  type PatchUniversityLocationDto,
+} from "@/lib/services/universities-api"
+import { universityNameFieldErrorFromApi } from "@/lib/utils/api-error-message"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -89,6 +97,16 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
 
 const EMPTY_COUNTRIES: Country[] = []
 
+/** Field verification API not shipped — hide verify UI in this modal. */
+const UNIVERSITY_DETAILS_INLINE_VERIFY = false
+
+const UNIVERSITY_SCALAR_FIELD_LABELS: Record<string, string> = {
+  name: "University name",
+  ranking: "Ranking",
+  websiteUrl: "Website",
+  linkedInUrl: "LinkedIn",
+}
+
 function isInlineFieldValueEmpty(value: string | number | null | undefined): boolean {
   if (value === null || value === undefined) return true
   const trimmed = String(value).trim()
@@ -118,6 +136,7 @@ interface InlineEditFieldProps {
   onSave: (fieldName: string, newValue: string | number, verify: boolean) => Promise<void>
   placeholder?: string
   getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  showVerification?: boolean
   className?: string
 }
 
@@ -131,6 +150,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
   onSave,
   placeholder,
   getFieldVerification,
+  showVerification = false,
   className
 }) => {
   const [isEditing, setIsEditing] = useState(false)
@@ -179,7 +199,14 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
       setIsEditing(false)
       setError(null)
     } catch (err) {
-      setError('Failed to save. Please try again.')
+      const message = err instanceof Error ? err.message : null
+      if (fieldName === "name" && message) {
+        const nameErr = universityNameFieldErrorFromApi(message)
+        setError(nameErr ?? message)
+      } else {
+        setError("Failed to save. Please try again.")
+      }
+      throw err
     } finally {
       setIsSaving(false)
     }
@@ -222,7 +249,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         {!isEditing && (
           <div className="flex items-center gap-1 shrink-0">
-            <VerificationIndicator fieldName={fieldName} />
+            {showVerification && <VerificationIndicator fieldName={fieldName} />}
             <Button
               size="sm"
               variant="ghost"
@@ -298,7 +325,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                 />
               )}
               
-              {/* Mark as verified checkbox */}
+              {showVerification && (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -317,6 +344,10 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                   {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
+              )}
+              {error && (
+                <p className="text-sm text-red-500">{error}</p>
+              )}
             </div>
             
             {/* Action Buttons */}
@@ -326,7 +357,7 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title="Save"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -346,11 +377,6 @@ const InlineEditField: React.FC<InlineEditFieldProps> = ({
               </Button>
             </div>
           </div>
-          
-          {/* Error Message */}
-          {error && (
-            <p className="text-xs text-red-500">{error}</p>
-          )}
         </div>
       ) : (
         <div className="flex items-center justify-between">
@@ -377,7 +403,8 @@ interface InlineEditableCountryFieldProps {
   countries?: Country[]
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
-  onSave: (country: Country, verify: boolean) => Promise<void>
+  onSave: (country: Country | null) => Promise<void>
+  showVerification?: boolean
   getFieldVerification?: (fieldName: string) => "verified" | "unverified" | undefined
   className?: string
 }
@@ -391,6 +418,7 @@ const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
   countriesLoading = false,
   onCreateCountry,
   onSave,
+  showVerification = false,
   getFieldVerification,
   className,
 }) => {
@@ -429,22 +457,25 @@ const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
   }
 
   const handleCountrySelect = (country: Country) => {
-    setEditCountry(country)
+    if (editCountry?.id === country.id) {
+      setEditCountry(null)
+    } else {
+      setEditCountry(country)
+    }
     setCountryPopoverOpen(false)
     setCountrySearchQuery("")
   }
 
   const handleSave = async () => {
-    if (!editCountry) return
-
-    if (editCountry.id === countryId) {
+    const nextId = editCountry?.id ?? null
+    if (nextId === countryId) {
       setIsEditing(false)
       return
     }
 
     setIsSaving(true)
     try {
-      await onSave(editCountry, willVerify)
+      await onSave(editCountry)
       setIsEditing(false)
       setCountryPopoverOpen(false)
       setCountrySearchQuery("")
@@ -470,7 +501,7 @@ const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         {!isEditing && (
           <div className="flex items-center gap-1 shrink-0">
-            <VerificationIndicator fName={fieldName} />
+            {showVerification && <VerificationIndicator fName={fieldName} />}
             <Button
               size="sm"
               variant="ghost"
@@ -615,6 +646,7 @@ const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
                 </PopoverContent>
               </Popover>
 
+              {showVerification && (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -635,15 +667,16 @@ const InlineEditableCountryField: React.FC<InlineEditableCountryFieldProps> = ({
                   {willVerify ? "✓ Verified" : "Mark as verified"}
                 </Label>
               </div>
+              )}
             </div>
 
             <div className="flex gap-1 shrink-0">
               <Button
                 size="sm"
                 onClick={handleSave}
-                disabled={isSaving || !editCountry}
+                disabled={isSaving}
                 className="h-8 w-8 p-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title="Save"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -885,6 +918,7 @@ interface InlineEditableSwitchProps {
   fieldName: string
   onSave: (fieldName: string, newValue: boolean, verify: boolean) => Promise<void>
   getFieldVerification?: (fieldName: string) => 'verified' | 'unverified' | undefined
+  showVerification?: boolean
   className?: string
   description?: string
 }
@@ -895,6 +929,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
   fieldName,
   onSave,
   getFieldVerification,
+  showVerification = false,
   className,
   description
 }) => {
@@ -925,7 +960,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
   }
   
   const handleSave = async () => {
-    const verificationChanged = willVerify !== isCurrentlyVerified
+    const verificationChanged = showVerification && willVerify !== isCurrentlyVerified
     const valueChanged = editValue !== value
     
     if (!valueChanged && !verificationChanged) {
@@ -970,7 +1005,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
         <Label className="text-sm font-medium text-muted-foreground">{label}</Label>
         {!isEditing && (
           <div className="flex items-center gap-1 shrink-0">
-            <VerificationIndicator fieldName={fieldName} />
+            {showVerification && <VerificationIndicator fieldName={fieldName} />}
             <Button
               size="sm"
               variant="ghost"
@@ -1009,7 +1044,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
                 <p className="text-xs text-muted-foreground pl-6 -mt-1">{description}</p>
               )}
               
-              {/* Mark as verified checkbox */}
+              {showVerification && (
               <div className="flex items-center gap-2 pl-1">
                 <Checkbox
                   id={`verify-${fieldName}`}
@@ -1028,6 +1063,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
                   {willVerify ? '✓ Verified' : 'Mark as verified'}
                 </Label>
               </div>
+              )}
             </div>
             
             {/* Action Buttons */}
@@ -1037,7 +1073,7 @@ const InlineEditableSwitch: React.FC<InlineEditableSwitchProps> = ({
                 onClick={handleSave}
                 disabled={isSaving}
                 className="h-8 w-8 p-0"
-                title={willVerify ? "Save & Verify" : "Save"}
+                title="Save"
               >
                 {isSaving ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -1087,6 +1123,8 @@ export interface UniversityDetailsModalProps {
   countries?: Country[]
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
+  /** Called after a successful PATCH or location delete (list can refresh on modal close). */
+  onPersistedChange?: () => void
 }
 
 export function UniversityDetailsModal({
@@ -1097,9 +1135,14 @@ export function UniversityDetailsModal({
   countries = EMPTY_COUNTRIES,
   countriesLoading = false,
   onCreateCountry,
+  onPersistedChange,
 }: UniversityDetailsModalProps) {
   const [localUniversity, setLocalUniversity] = useState<University>(university)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  const notifyPersistedChange = () => {
+    onPersistedChange?.()
+  }
   
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "locations"]))
   
@@ -1162,61 +1205,105 @@ export function UniversityDetailsModal({
     return undefined
   }
   
-  const handleCountrySave = async (country: Country, verify: boolean) => {
+  const handleCountrySave = async (country: Country | null) => {
     try {
-      setLocalUniversity((prev) => ({
-        ...prev,
-        country: { id: country.id, name: country.name },
-      }))
-      toast.success(`country updated${verify ? " and verified" : ""}`)
+      const updated = await patchUniversity(localUniversity.id, {
+        countryId: country?.id ?? null,
+      })
+      setLocalUniversity(updated)
+      notifyPersistedChange()
+      toast.success(country ? "Country updated" : "Country cleared")
     } catch (error) {
-      setLocalUniversity(university)
-      toast.error("Failed to save field")
+      const message = error instanceof Error ? error.message : "Failed to save field"
+      toast.error(message)
       throw error
     }
   }
 
-  const handleFieldSave = async (fieldName: string, newValue: string | number | null, verify: boolean) => {
+  const buildScalarPatch = (
+    fieldName: string,
+    newValue: string | number | null
+  ): PatchUniversityDto | null => {
+    switch (fieldName) {
+      case "name":
+        return { name: String(newValue).trim() }
+      case "ranking": {
+        const s = String(newValue).trim()
+        if (s === "" || s === "—") return { ranking: null }
+        if (s in LABEL_TO_RANKING) {
+          return { ranking: LABEL_TO_RANKING[s as UniversityRanking] }
+        }
+        return { ranking: null }
+      }
+      case "websiteUrl":
+        return { websiteUrl: String(newValue).trim() || null }
+      case "linkedInUrl":
+        return { linkedInUrl: String(newValue).trim() || null }
+      default:
+        return null
+    }
+  }
+
+  const handleFieldSave = async (
+    fieldName: string,
+    newValue: string | number | null,
+    _verify: boolean
+  ) => {
+    const patch = buildScalarPatch(fieldName, newValue)
+    if (!patch) return
+
     try {
-      // Optimistic update
-      setLocalUniversity(prev => ({
-        ...prev,
-        [fieldName]: newValue === "" ? null : newValue
-      }))
-      
-      // TODO: API call to save field
-      // await updateUniversityField(university.id, fieldName, newValue, verify)
-      
-      toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
+      const updated = await patchUniversity(localUniversity.id, patch)
+      setLocalUniversity(updated)
+      notifyPersistedChange()
+      const label = UNIVERSITY_SCALAR_FIELD_LABELS[fieldName] ?? fieldName
+      toast.success(`${label} updated`)
     } catch (error) {
-      // Revert on error
-      setLocalUniversity(university)
-      toast.error('Failed to save field')
+      const message = error instanceof Error ? error.message : "Failed to save field"
+      if (fieldName === "name") {
+        toast.error(universityNameFieldErrorFromApi(message) ?? message)
+      } else {
+        toast.error(message)
+      }
       throw error
     }
   }
-  
-  // Handle location field save
-  const handleLocationFieldSave = async (locationId: number, fieldName: string, newValue: string | boolean | null, verify: boolean) => {
+
+  const handleLocationFieldSave = async (
+    locationId: number,
+    fieldName: string,
+    newValue: string | boolean | null,
+    _verify: boolean
+  ) => {
+    let patch: PatchUniversityLocationDto = {}
+    if (fieldName === "city") {
+      patch = { city: String(newValue).trim() }
+    } else if (fieldName === "address") {
+      patch = { address: String(newValue).trim() || null }
+    } else if (fieldName === "isMainCampus") {
+      patch = { isMainCampus: Boolean(newValue) }
+    } else {
+      return
+    }
+
+    const locationLabels: Record<string, string> = {
+      city: "City",
+      address: "Address",
+      isMainCampus: "Main campus",
+    }
+
     try {
-      // Optimistic update
-      setLocalUniversity((prev) => ({
-        ...prev,
-        locations: prev.locations.map((loc) =>
-          loc.id === locationId
-            ? { ...loc, [fieldName]: newValue === "" ? null : newValue }
-            : loc
-        ),
-      }))
-      
-      // TODO: API call to save location field
-      // await updateLocationField(locationId, fieldName, newValue, verify)
-      
-      toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
+      const updated = await patchUniversityLocation(
+        localUniversity.id,
+        locationId,
+        patch
+      )
+      setLocalUniversity(updated)
+      notifyPersistedChange()
+      toast.success(`${locationLabels[fieldName] ?? fieldName} updated`)
     } catch (error) {
-      // Revert on error
-      setLocalUniversity(university)
-      toast.error('Failed to save field')
+      const message = error instanceof Error ? error.message : "Failed to save field"
+      toast.error(message)
       throw error
     }
   }
@@ -1244,6 +1331,7 @@ export function UniversityDetailsModal({
       await deleteUniversityLocation(localUniversity.id, locationToDelete.locationId)
       const updated = await fetchUniversityById(localUniversity.id)
       setLocalUniversity(updated)
+      notifyPersistedChange()
       toast.success(`Location "${locationToDelete.locationName}" deleted successfully`)
       setDeleteDialogOpen(false)
       setLocationToDelete(null)
@@ -1327,13 +1415,14 @@ export function UniversityDetailsModal({
                 <CardContent className="space-y-2">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                     <InlineEditField
-                      label="University Name"
+                      label="Name"
                       value={localUniversity.name}
                       fieldName="name"
                       fieldType="text"
                       validation={validateName}
                       onSave={handleFieldSave}
                       placeholder="Enter university name"
+                      showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                       getFieldVerification={getFieldVerification}
                     />
                     
@@ -1346,6 +1435,7 @@ export function UniversityDetailsModal({
                       countriesLoading={countriesLoading}
                       onCreateCountry={onCreateCountry}
                       onSave={handleCountrySave}
+                      showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                       getFieldVerification={getFieldVerification}
                     />
                     
@@ -1360,6 +1450,7 @@ export function UniversityDetailsModal({
                       fieldType="select"
                       options={rankingOptions}
                       onSave={handleFieldSave}
+                      showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                       getFieldVerification={getFieldVerification}
                     />
                     
@@ -1372,7 +1463,8 @@ export function UniversityDetailsModal({
                         validation={validateURL}
                         onSave={handleFieldSave}
                         placeholder="https://example.com"
-                        getFieldVerification={getFieldVerification}
+                        showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
+                      getFieldVerification={getFieldVerification}
                       />
                       {localUniversity.websiteUrl && (
                         <Button
@@ -1396,7 +1488,8 @@ export function UniversityDetailsModal({
                         validation={validateURL}
                         onSave={handleFieldSave}
                         placeholder="https://linkedin.com/school/example"
-                        getFieldVerification={getFieldVerification}
+                        showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
+                      getFieldVerification={getFieldVerification}
                       />
                       {localUniversity.linkedInUrl && (
                         <Button
@@ -1475,12 +1568,14 @@ export function UniversityDetailsModal({
                                       Main Campus
                                     </Badge>
                                   )}
+                                  {UNIVERSITY_DETAILS_INLINE_VERIFY && (
                                   <div className="flex items-center gap-1 shrink-0">
                                     <VerificationBadge 
                                       status={getFieldVerification(`locations[${idx}].city`) || 'unverified'}
                                       size="sm"
                                     />
                                   </div>
+                                  )}
                                 </div>
                               </div>
                               <Button
@@ -1506,6 +1601,7 @@ export function UniversityDetailsModal({
                                   await handleLocationFieldSave(location.id, 'city', String(newValue), verify)
                                 }}
                                 placeholder="Enter city"
+                                showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                                 getFieldVerification={getFieldVerification}
                               />
                               
@@ -1519,6 +1615,7 @@ export function UniversityDetailsModal({
                                     await handleLocationFieldSave(location.id, 'address', String(newValue), verify)
                                   }}
                                   placeholder="Enter full address"
+                                  showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                                   getFieldVerification={getFieldVerification}
                                 />
                               </div>
@@ -1531,6 +1628,7 @@ export function UniversityDetailsModal({
                                   onSave={async (fieldName, newValue, verify) => {
                                     await handleLocationFieldSave(location.id, 'isMainCampus', newValue, verify)
                                   }}
+                                  showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                                   getFieldVerification={getFieldVerification}
                                 />
                               </div>

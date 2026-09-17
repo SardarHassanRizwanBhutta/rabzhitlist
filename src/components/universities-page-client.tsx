@@ -437,6 +437,7 @@ export function UniversitiesPageClient() {
         isLoading={universitiesLoading}
         onEdit={handleEditUniversity}
         onDelete={handleDeleteUniversity}
+        onRefreshUniversities={loadUniversities}
         countries={countries}
         countriesLoading={countriesLoading}
         onCreateCountry={handleCreateCountry}
