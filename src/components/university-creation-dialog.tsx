@@ -117,6 +117,9 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
   label
 }))
 
+/** Radix Select requires non-empty item values; maps to `ranking: ""` in form state. */
+const RANKING_SELECT_NONE = "__ranking_none__"
+
 // Helper to convert University (API) to UniversityFormData
 function universityToFormData(university: University, _countries?: Country[]): UniversityFormData {
   const countryId = university.country?.id ?? null
@@ -273,7 +276,11 @@ export function UniversityCreationDialog({
   }
 
   const handleCountrySelect = (country: Country) => {
-    setFormData((prev) => ({ ...prev, countryId: country.id }))
+    const clearing = formData.countryId === country.id
+    setFormData((prev) => ({
+      ...prev,
+      countryId: clearing ? null : country.id,
+    }))
     setCountryPopoverOpen(false)
     setCountrySearchQuery("")
     if (showVerification) {
@@ -284,6 +291,21 @@ export function UniversityCreationDialog({
       setErrors((prev) => ({
         ...prev,
         university: { ...prev.university, countryId: undefined },
+      }))
+    }
+  }
+
+  const handleRankingChange = (value: string) => {
+    const ranking = value === RANKING_SELECT_NONE ? "" : (value as UniversityRanking)
+    setFormData((prev) => ({ ...prev, ranking }))
+    if (showVerification) {
+      setModifiedFields((prev) => new Set(prev).add("ranking"))
+      setVerifiedFields((prev) => new Set(prev).add("ranking"))
+    }
+    if (errors.university?.ranking) {
+      setErrors((prev) => ({
+        ...prev,
+        university: { ...prev.university, ranking: undefined },
       }))
     }
   }
@@ -898,13 +920,18 @@ export function UniversityCreationDialog({
                         <div className="space-y-2">
                           <Label htmlFor="ranking">Ranking</Label>
                           <Select
-                            value={formData.ranking}
-                            onValueChange={(value: UniversityRanking) => handleInputChange("ranking", value)}
+                            value={
+                              formData.ranking === ""
+                                ? RANKING_SELECT_NONE
+                                : formData.ranking
+                            }
+                            onValueChange={handleRankingChange}
                           >
                             <SelectTrigger className={errors.university?.ranking ? "border-red-500" : ""}>
                               <SelectValue placeholder="Select ranking" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value={RANKING_SELECT_NONE}>None</SelectItem>
                               {rankingOptions.map((ranking) => (
                                 <SelectItem key={ranking.value} value={ranking.value}>
                                   {ranking.label}

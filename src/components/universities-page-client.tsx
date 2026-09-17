@@ -244,7 +244,7 @@ export function UniversitiesPageClient() {
       if (universityToEdit) {
         await updateUniversity(universityToEdit.id, {
           name: data.name.trim(),
-          ...(data.countryId != null ? { countryId: data.countryId } : {}),
+          countryId: data.countryId ?? null,
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:
@@ -289,7 +289,7 @@ export function UniversitiesPageClient() {
         )
         const university = await createUniversity({
           name: data.name.trim(),
-          ...(data.countryId != null ? { countryId: data.countryId } : {}),
+          countryId: data.countryId ?? null,
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:
