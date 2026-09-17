@@ -108,7 +108,7 @@ const initialFormData: UniversityFormData = {
   linkedinUrl: "",
   countryId: null,
   ranking: "",
-  locations: [],
+  locations: [createEmptyLocation()],
 }
 
 // Ranking options
@@ -363,7 +363,7 @@ export function UniversityCreationDialog({
   }
 
   const removeLocation = (index: number) => {
-    if (formData.locations.length > 0) {
+    if (formData.locations.length > 1) {
       setFormData(prev => ({
         ...prev,
         locations: prev.locations.filter((_, i) => i !== index)
@@ -1055,7 +1055,7 @@ export function UniversityCreationDialog({
                         variant="ghost"
                         size="sm"
                         onClick={() => removeLocation(index)}
-                        disabled={formData.locations.length === 0}
+                        disabled={formData.locations.length <= 1}
                         className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
