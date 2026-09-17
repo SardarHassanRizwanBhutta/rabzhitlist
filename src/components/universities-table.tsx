@@ -86,6 +86,8 @@ interface UniversitiesTableProps {
   countries?: Country[]
   countriesLoading?: boolean
   onCreateCountry?: (name: string) => Promise<Country | null>
+  /** Refetch list when details modal closes after inline edits. */
+  onRefreshUniversities?: () => void | Promise<void>
 }
 
 type SortKey = keyof University
@@ -180,6 +182,7 @@ export function UniversitiesTable({
   countries,
   countriesLoading,
   onCreateCountry,
+  onRefreshUniversities,
 }: UniversitiesTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
@@ -187,8 +190,41 @@ export function UniversitiesTable({
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [expandedUniversities, setExpandedUniversities] = useState<Set<number>>(new Set())
   const [selectedUniversity, setSelectedUniversity] = useState<University | null>(null)
+  const detailsListStaleRef = React.useRef(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [universityToDelete, setUniversityToDelete] = useState<University | null>(null)
+
+  const universityDetailsModal =
+    selectedUniversity != null ? (
+      <UniversityDetailsModal
+        university={selectedUniversity}
+        open
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedUniversity(null)
+            if (detailsListStaleRef.current) {
+              detailsListStaleRef.current = false
+              void onRefreshUniversities?.()
+            }
+          }
+        }}
+        onPersistedChange={() => {
+          detailsListStaleRef.current = true
+        }}
+        onEdit={
+          onEdit
+            ? (university) => {
+                detailsListStaleRef.current = false
+                setSelectedUniversity(null)
+                onEdit(university)
+              }
+            : undefined
+        }
+        countries={countries}
+        countriesLoading={countriesLoading}
+        onCreateCountry={onCreateCountry}
+      />
+    ) : null
 
   const toggleUniversityExpanded = (universityId: number) => {
     setExpandedUniversities(prev => {
@@ -292,21 +328,25 @@ export function UniversitiesTable({
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="h-10 w-[300px] bg-muted animate-pulse rounded"></div>
-          <div className="h-10 w-[130px] bg-muted animate-pulse rounded"></div>
+      <>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-10 w-[300px] bg-muted animate-pulse rounded"></div>
+            <div className="h-10 w-[130px] bg-muted animate-pulse rounded"></div>
+          </div>
+          <div className="rounded-md border">
+            <div className="h-[400px] bg-muted animate-pulse"></div>
+          </div>
         </div>
-        <div className="rounded-md border">
-          <div className="h-[400px] bg-muted animate-pulse"></div>
-        </div>
-      </div>
+        {universityDetailsModal}
+      </>
     )
   }
 
   if (universities.length === 0) {
     return (
-      <div className="space-y-4">
+      <>
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           {onAdd && (
             <Button onClick={onAdd}>
@@ -331,11 +371,14 @@ export function UniversitiesTable({
             </div>
           </div>
         </div>
-      </div>
+        </div>
+        {universityDetailsModal}
+      </>
     )
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Header with Add Button */}
       <div className="flex items-center justify-between">
@@ -387,7 +430,10 @@ export function UniversitiesTable({
                   {/* University Master Row */}
                   <TableRow 
                     className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => setSelectedUniversity(university)}
+                    onClick={() => {
+                      detailsListStaleRef.current = false
+                      setSelectedUniversity(university)
+                    }}
                   >
                     <TableCell>
                       <Button
@@ -494,6 +540,7 @@ export function UniversitiesTable({
                           className="h-8 w-8 p-0 cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation()
+                            detailsListStaleRef.current = false
                             setSelectedUniversity(university)
                           }}
                           title="View details"
@@ -684,25 +731,8 @@ export function UniversitiesTable({
         {sortedUniversities.length} entries
       </div>
 
-      {/* University Detail Modal */}
-      {selectedUniversity && (
-        <UniversityDetailsModal
-          university={selectedUniversity}
-          open={!!selectedUniversity}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedUniversity(null)
-            }
-          }}
-          onEdit={onEdit ? (university) => {
-            setSelectedUniversity(null) // Close detail modal
-            onEdit(university)
-          } : undefined}
-          countries={countries}
-          countriesLoading={countriesLoading}
-          onCreateCountry={onCreateCountry}
-        />
-      )}
+      {/* University Detail Modal — kept mounted during table loading refreshes */}
+      {universityDetailsModal}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -727,5 +757,6 @@ export function UniversitiesTable({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 }

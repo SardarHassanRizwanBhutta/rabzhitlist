@@ -138,6 +138,8 @@ export function UniversitiesPageClient() {
   const [universitiesLoading, setUniversitiesLoading] = useState(true)
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
+  const countriesRef = useRef(countries)
+  countriesRef.current = countries
 
   useEffect(() => {
     if (prevListFilterKeyRef.current === listFilterKey) return
@@ -152,9 +154,9 @@ export function UniversitiesPageClient() {
   const loadUniversities = useCallback(async () => {
     try {
       setUniversitiesLoading(true)
-      const countryIds = combinedFilters.countries.length && countries.length
+      const countryIds = combinedFilters.countries.length && countriesRef.current.length
         ? combinedFilters.countries
-            .map((name) => countries.find((c) => c.name === name)?.id)
+            .map((name) => countriesRef.current.find((c) => c.name === name)?.id)
             .filter((id): id is number => id != null)
         : undefined
       const rankingParam =
@@ -191,7 +193,7 @@ export function UniversitiesPageClient() {
     } finally {
       setUniversitiesLoading(false)
     }
-  }, [combinedFilters, countries])
+  }, [combinedFilters])
 
   useEffect(() => {
     loadUniversities()
@@ -242,7 +244,7 @@ export function UniversitiesPageClient() {
       if (universityToEdit) {
         await updateUniversity(universityToEdit.id, {
           name: data.name.trim(),
-          ...(data.countryId != null ? { countryId: data.countryId } : {}),
+          countryId: data.countryId ?? null,
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:
@@ -287,7 +289,7 @@ export function UniversitiesPageClient() {
         )
         const university = await createUniversity({
           name: data.name.trim(),
-          ...(data.countryId != null ? { countryId: data.countryId } : {}),
+          countryId: data.countryId ?? null,
           websiteUrl: data.websiteUrl?.trim() || null,
           linkedInUrl: data.linkedinUrl?.trim() || null,
           ranking:
@@ -437,6 +439,7 @@ export function UniversitiesPageClient() {
         isLoading={universitiesLoading}
         onEdit={handleEditUniversity}
         onDelete={handleDeleteUniversity}
+        onRefreshUniversities={loadUniversities}
         countries={countries}
         countriesLoading={countriesLoading}
         onCreateCountry={handleCreateCountry}

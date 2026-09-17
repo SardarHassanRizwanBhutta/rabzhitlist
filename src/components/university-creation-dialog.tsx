@@ -108,7 +108,7 @@ const initialFormData: UniversityFormData = {
   linkedinUrl: "",
   countryId: null,
   ranking: "",
-  locations: [],
+  locations: [createEmptyLocation()],
 }
 
 // Ranking options
@@ -116,6 +116,9 @@ const rankingOptions = Object.entries(UNIVERSITY_RANKING_LABELS).map(([value, la
   value: value as UniversityRanking,
   label
 }))
+
+/** Radix Select requires non-empty item values; maps to `ranking: ""` in form state. */
+const RANKING_SELECT_NONE = "__ranking_none__"
 
 // Helper to convert University (API) to UniversityFormData
 function universityToFormData(university: University, _countries?: Country[]): UniversityFormData {
@@ -208,7 +211,8 @@ export function UniversityCreationDialog({
     onOpenChange?.(newOpen)
   }
 
-  // Reset form when dialog opens/closes or mode/universityData changes
+  // Reset form when dialog opens/closes or mode/universityData changes.
+  // Do not depend on `countries`: catalog updates (e.g. create country) must not reset the form.
   useEffect(() => {
     if (open) {
       if (mode === "edit" && universityData) {
@@ -240,7 +244,7 @@ export function UniversityCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, universityData, showVerification, initialName, countries])
+  }, [open, mode, universityData, showVerification, initialName])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -272,7 +276,11 @@ export function UniversityCreationDialog({
   }
 
   const handleCountrySelect = (country: Country) => {
-    setFormData((prev) => ({ ...prev, countryId: country.id }))
+    const clearing = formData.countryId === country.id
+    setFormData((prev) => ({
+      ...prev,
+      countryId: clearing ? null : country.id,
+    }))
     setCountryPopoverOpen(false)
     setCountrySearchQuery("")
     if (showVerification) {
@@ -283,6 +291,21 @@ export function UniversityCreationDialog({
       setErrors((prev) => ({
         ...prev,
         university: { ...prev.university, countryId: undefined },
+      }))
+    }
+  }
+
+  const handleRankingChange = (value: string) => {
+    const ranking = value === RANKING_SELECT_NONE ? "" : (value as UniversityRanking)
+    setFormData((prev) => ({ ...prev, ranking }))
+    if (showVerification) {
+      setModifiedFields((prev) => new Set(prev).add("ranking"))
+      setVerifiedFields((prev) => new Set(prev).add("ranking"))
+    }
+    if (errors.university?.ranking) {
+      setErrors((prev) => ({
+        ...prev,
+        university: { ...prev.university, ranking: undefined },
       }))
     }
   }
@@ -340,7 +363,7 @@ export function UniversityCreationDialog({
   }
 
   const removeLocation = (index: number) => {
-    if (formData.locations.length > 0) {
+    if (formData.locations.length > 1) {
       setFormData(prev => ({
         ...prev,
         locations: prev.locations.filter((_, i) => i !== index)
@@ -754,7 +777,7 @@ export function UniversityCreationDialog({
                     <CardContent className="pt-0">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="name">University Name *</Label>
+                          <Label htmlFor="name">Name *</Label>
                           <Input
                             id="name"
                             type="text"
@@ -897,13 +920,18 @@ export function UniversityCreationDialog({
                         <div className="space-y-2">
                           <Label htmlFor="ranking">Ranking</Label>
                           <Select
-                            value={formData.ranking}
-                            onValueChange={(value: UniversityRanking) => handleInputChange("ranking", value)}
+                            value={
+                              formData.ranking === ""
+                                ? RANKING_SELECT_NONE
+                                : formData.ranking
+                            }
+                            onValueChange={handleRankingChange}
                           >
                             <SelectTrigger className={errors.university?.ranking ? "border-red-500" : ""}>
                               <SelectValue placeholder="Select ranking" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value={RANKING_SELECT_NONE}>None</SelectItem>
                               {rankingOptions.map((ranking) => (
                                 <SelectItem key={ranking.value} value={ranking.value}>
                                   {ranking.label}
@@ -1027,7 +1055,7 @@ export function UniversityCreationDialog({
                         variant="ghost"
                         size="sm"
                         onClick={() => removeLocation(index)}
-                        disabled={formData.locations.length === 0}
+                        disabled={formData.locations.length <= 1}
                         className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -1070,7 +1098,7 @@ export function UniversityCreationDialog({
                               </div>
 
                               <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor={`address-${index}`}>Office location</Label>
+                                <Label htmlFor={`address-${index}`}>Address</Label>
                                 <Input
                                   id={`address-${index}`}
                                   type="text"
