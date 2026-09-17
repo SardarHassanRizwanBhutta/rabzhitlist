@@ -1356,7 +1356,18 @@ export function UniversityDetailsModal({
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] lg:max-w-[800px] max-h-[90vh] flex flex-col p-0">
+      <DialogContent
+        className="sm:max-w-[700px] lg:max-w-[800px] max-h-[90vh] flex flex-col p-0"
+        onInteractOutside={(event) => {
+          const target = event.target
+          if (
+            target instanceof Element &&
+            target.closest('[data-slot="popover-content"]')
+          ) {
+            event.preventDefault()
+          }
+        }}
+      >
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-start justify-between">
             <DialogTitle className="flex items-center gap-2 text-xl">
@@ -1604,6 +1615,17 @@ export function UniversityDetailsModal({
                                 showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                                 getFieldVerification={getFieldVerification}
                               />
+
+                              <InlineEditableSwitch
+                                label="Main Campus"
+                                value={location.isMainCampus}
+                                fieldName={`locations[${idx}].isMainCampus`}
+                                onSave={async (fieldName, newValue, verify) => {
+                                  await handleLocationFieldSave(location.id, 'isMainCampus', newValue, verify)
+                                }}
+                                showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
+                                getFieldVerification={getFieldVerification}
+                              />
                               
                               <div className="sm:col-span-2">
                                 <InlineEditField
@@ -1615,19 +1637,6 @@ export function UniversityDetailsModal({
                                     await handleLocationFieldSave(location.id, 'address', String(newValue), verify)
                                   }}
                                   placeholder="Enter full address"
-                                  showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
-                                  getFieldVerification={getFieldVerification}
-                                />
-                              </div>
-                              
-                              <div className="sm:col-span-2">
-                                <InlineEditableSwitch
-                                  label="Main Campus"
-                                  value={location.isMainCampus}
-                                  fieldName={`locations[${idx}].isMainCampus`}
-                                  onSave={async (fieldName, newValue, verify) => {
-                                    await handleLocationFieldSave(location.id, 'isMainCampus', newValue, verify)
-                                  }}
                                   showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
                                   getFieldVerification={getFieldVerification}
                                 />

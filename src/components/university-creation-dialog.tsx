@@ -208,7 +208,8 @@ export function UniversityCreationDialog({
     onOpenChange?.(newOpen)
   }
 
-  // Reset form when dialog opens/closes or mode/universityData changes
+  // Reset form when dialog opens/closes or mode/universityData changes.
+  // Do not depend on `countries`: catalog updates (e.g. create country) must not reset the form.
   useEffect(() => {
     if (open) {
       if (mode === "edit" && universityData) {
@@ -240,7 +241,7 @@ export function UniversityCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-  }, [open, mode, universityData, showVerification, initialName, countries])
+  }, [open, mode, universityData, showVerification, initialName])
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {

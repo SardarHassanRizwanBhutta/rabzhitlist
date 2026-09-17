@@ -138,6 +138,8 @@ export function UniversitiesPageClient() {
   const [universitiesLoading, setUniversitiesLoading] = useState(true)
   const [countries, setCountries] = useState<Country[]>([])
   const [countriesLoading, setCountriesLoading] = useState(true)
+  const countriesRef = useRef(countries)
+  countriesRef.current = countries
 
   useEffect(() => {
     if (prevListFilterKeyRef.current === listFilterKey) return
@@ -152,9 +154,9 @@ export function UniversitiesPageClient() {
   const loadUniversities = useCallback(async () => {
     try {
       setUniversitiesLoading(true)
-      const countryIds = combinedFilters.countries.length && countries.length
+      const countryIds = combinedFilters.countries.length && countriesRef.current.length
         ? combinedFilters.countries
-            .map((name) => countries.find((c) => c.name === name)?.id)
+            .map((name) => countriesRef.current.find((c) => c.name === name)?.id)
             .filter((id): id is number => id != null)
         : undefined
       const rankingParam =
@@ -191,7 +193,7 @@ export function UniversitiesPageClient() {
     } finally {
       setUniversitiesLoading(false)
     }
-  }, [combinedFilters, countries])
+  }, [combinedFilters])
 
   useEffect(() => {
     loadUniversities()

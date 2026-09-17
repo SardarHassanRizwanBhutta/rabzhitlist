@@ -194,6 +194,38 @@ export function UniversitiesTable({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [universityToDelete, setUniversityToDelete] = useState<University | null>(null)
 
+  const universityDetailsModal =
+    selectedUniversity != null ? (
+      <UniversityDetailsModal
+        university={selectedUniversity}
+        open
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedUniversity(null)
+            if (detailsListStaleRef.current) {
+              detailsListStaleRef.current = false
+              void onRefreshUniversities?.()
+            }
+          }
+        }}
+        onPersistedChange={() => {
+          detailsListStaleRef.current = true
+        }}
+        onEdit={
+          onEdit
+            ? (university) => {
+                detailsListStaleRef.current = false
+                setSelectedUniversity(null)
+                onEdit(university)
+              }
+            : undefined
+        }
+        countries={countries}
+        countriesLoading={countriesLoading}
+        onCreateCountry={onCreateCountry}
+      />
+    ) : null
+
   const toggleUniversityExpanded = (universityId: number) => {
     setExpandedUniversities(prev => {
       const newSet = new Set(prev)
@@ -296,21 +328,25 @@ export function UniversitiesTable({
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="h-10 w-[300px] bg-muted animate-pulse rounded"></div>
-          <div className="h-10 w-[130px] bg-muted animate-pulse rounded"></div>
+      <>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="h-10 w-[300px] bg-muted animate-pulse rounded"></div>
+            <div className="h-10 w-[130px] bg-muted animate-pulse rounded"></div>
+          </div>
+          <div className="rounded-md border">
+            <div className="h-[400px] bg-muted animate-pulse"></div>
+          </div>
         </div>
-        <div className="rounded-md border">
-          <div className="h-[400px] bg-muted animate-pulse"></div>
-        </div>
-      </div>
+        {universityDetailsModal}
+      </>
     )
   }
 
   if (universities.length === 0) {
     return (
-      <div className="space-y-4">
+      <>
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           {onAdd && (
             <Button onClick={onAdd}>
@@ -335,11 +371,14 @@ export function UniversitiesTable({
             </div>
           </div>
         </div>
-      </div>
+        </div>
+        {universityDetailsModal}
+      </>
     )
   }
 
   return (
+    <>
     <div className="space-y-4">
       {/* Header with Add Button */}
       <div className="flex items-center justify-between">
@@ -692,33 +731,8 @@ export function UniversitiesTable({
         {sortedUniversities.length} entries
       </div>
 
-      {/* University Detail Modal */}
-      {selectedUniversity && (
-        <UniversityDetailsModal
-          university={selectedUniversity}
-          open={!!selectedUniversity}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedUniversity(null)
-              if (detailsListStaleRef.current) {
-                detailsListStaleRef.current = false
-                void onRefreshUniversities?.()
-              }
-            }
-          }}
-          onPersistedChange={() => {
-            detailsListStaleRef.current = true
-          }}
-          onEdit={onEdit ? (university) => {
-            detailsListStaleRef.current = false
-            setSelectedUniversity(null) // Close detail modal
-            onEdit(university)
-          } : undefined}
-          countries={countries}
-          countriesLoading={countriesLoading}
-          onCreateCountry={onCreateCountry}
-        />
-      )}
+      {/* University Detail Modal — kept mounted during table loading refreshes */}
+      {universityDetailsModal}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -743,5 +757,6 @@ export function UniversitiesTable({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   )
 }
