@@ -84,6 +84,22 @@ export interface CreateUniversityDto {
 
 export type UpdateUniversityDto = CreateUniversityDto
 
+/** Partial merge body for PATCH /api/universities/{id} (inline details modal). */
+export interface PatchUniversityDto {
+  name?: string
+  countryId?: number | null
+  ranking?: Ranking | null
+  websiteUrl?: string | null
+  linkedInUrl?: string | null
+}
+
+/** Partial merge body for PATCH /api/universities/{id}/locations/{locationId}. */
+export interface PatchUniversityLocationDto {
+  city?: string
+  address?: string | null
+  isMainCampus?: boolean
+}
+
 /** Body for POST /api/universities/{universityId}/locations (universityId from URL) */
 export interface CreateUniversityLocationBody {
   city: string
@@ -282,6 +298,50 @@ export async function createUniversity(body: CreateUniversityDto): Promise<Unive
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(extractApiErrorMessage(text, response.status))
+  }
+  const data = await response.json()
+  return mapUniversityDto(data as Record<string, unknown>)
+}
+
+export async function patchUniversity(
+  id: number,
+  body: PatchUniversityDto
+): Promise<University> {
+  const response = await fetch(`${API_BASE_URL}/api/universities/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (response.status === 404) {
+    throw new Error("Not found")
+  }
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(extractApiErrorMessage(text, response.status))
+  }
+  const data = await response.json()
+  return mapUniversityDto(data as Record<string, unknown>)
+}
+
+export async function patchUniversityLocation(
+  universityId: number,
+  locationId: number,
+  body: PatchUniversityLocationDto
+): Promise<University> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/universities/${universityId}/locations/${locationId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  )
+  if (response.status === 404) {
+    throw new Error("Not found")
+  }
   if (!response.ok) {
     const text = await response.text()
     throw new Error(extractApiErrorMessage(text, response.status))

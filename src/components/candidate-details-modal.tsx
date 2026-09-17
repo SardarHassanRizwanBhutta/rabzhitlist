@@ -3947,11 +3947,11 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
   )
 
   const fieldVerificationIndicator = (
-    <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
       <VerificationBadge status={verification?.status || "unverified"} size="sm" />
-    </div>
-  )
-
+      </div>
+    )
+  
   return (
     <div
       className={cn(
@@ -3960,106 +3960,106 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
       )}
     >
       <div className="flex-1 min-w-0">
-        {isEditing ? (
-          <div className="space-y-2">
+      {isEditing ? (
+        <div className="space-y-2">
             {labelElement}
-            <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0 space-y-3">
-                <div className="flex items-center gap-2 pl-1">
+              <div className="flex items-center gap-2 pl-1">
                   {useSwitch ? (
-                    <>
-                      <Switch
-                        id={`switch-${fieldName}`}
-                        checked={editValue}
-                        onCheckedChange={(checked) => setEditValue(checked as boolean)}
-                        disabled={isSaving}
-                      />
-                      <Label
-                        htmlFor={`switch-${fieldName}`}
-                        className="text-sm font-medium cursor-pointer"
-                      >
+                  <>
+                    <Switch
+                      id={`switch-${fieldName}`}
+                      checked={editValue}
+                      onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                      disabled={isSaving}
+                    />
+                    <Label 
+                      htmlFor={`switch-${fieldName}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
                         {editValue ? "Yes" : "No"}
-                      </Label>
-                    </>
-                  ) : (
-                    <>
-                      <Checkbox
-                        id={`checkbox-${fieldName}`}
-                        checked={editValue}
-                        onCheckedChange={(checked) => setEditValue(checked as boolean)}
-                        disabled={isSaving}
-                        className="h-4 w-4"
-                      />
-                      <Label
-                        htmlFor={`checkbox-${fieldName}`}
-                        className="text-sm font-medium cursor-pointer"
-                      >
+                    </Label>
+                  </>
+                ) : (
+                  <>
+                    <Checkbox
+                      id={`checkbox-${fieldName}`}
+                      checked={editValue}
+                      onCheckedChange={(checked) => setEditValue(checked as boolean)}
+                      disabled={isSaving}
+                      className="h-4 w-4"
+                    />
+                    <Label 
+                      htmlFor={`checkbox-${fieldName}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
                         {editValue ? "Yes" : "No"}
-                      </Label>
-                    </>
-                  )}
-                </div>
-
-                {description && (
-                  <p className="text-xs text-muted-foreground pl-1">{description}</p>
+                    </Label>
+                  </>
                 )}
-
-                <div className="flex items-center gap-2 pl-1">
-                  <Checkbox
-                    id={`verify-${fieldName}`}
-                    checked={willVerify}
-                    onCheckedChange={(checked) => setWillVerify(checked as boolean)}
-                    disabled={isSaving}
-                    className="h-4 w-4"
-                  />
-                  <Label
-                    htmlFor={`verify-${fieldName}`}
-                    className={cn(
-                      "text-xs cursor-pointer",
+              </div>
+              
+              {description && (
+                  <p className="text-xs text-muted-foreground pl-1">{description}</p>
+              )}
+              
+              <div className="flex items-center gap-2 pl-1">
+                <Checkbox
+                  id={`verify-${fieldName}`}
+                  checked={willVerify}
+                  onCheckedChange={(checked) => setWillVerify(checked as boolean)}
+                  disabled={isSaving}
+                  className="h-4 w-4"
+                />
+                <Label 
+                  htmlFor={`verify-${fieldName}`}
+                  className={cn(
+                    "text-xs cursor-pointer",
                       willVerify
                         ? "text-green-600 dark:text-green-400 font-medium"
                         : "text-muted-foreground",
-                    )}
-                  >
-                    {willVerify ? "✓ Verified" : "Mark as verified"}
-                  </Label>
-                </div>
-              </div>
-
-              <div className="flex gap-1 shrink-0">
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="h-8 w-8 p-0 shrink-0"
-                  title={willVerify ? "Save & Verify" : "Save"}
-                >
-                  {isSaving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
                   )}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                  className="h-8 w-8 p-0 shrink-0"
-                  title="Cancel"
                 >
-                  <X className="w-4 h-4" />
-                </Button>
+                    {willVerify ? "✓ Verified" : "Mark as verified"}
+                </Label>
               </div>
             </div>
+            
+            <div className="flex gap-1 shrink-0">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving}
+                  className="h-8 w-8 p-0 shrink-0"
+                title={willVerify ? "Save & Verify" : "Save"}
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancel}
+                disabled={isSaving}
+                  className="h-8 w-8 p-0 shrink-0"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
-        ) : (
+        </div>
+      ) : (
           <>
             {labelElement}
             {description && (
               <p className="text-xs text-muted-foreground mb-1">{description}</p>
             )}
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
               {useSwitch ? (
                 <Switch checked={value} disabled className="opacity-50" />
               ) : (
@@ -4067,7 +4067,7 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
               )}
               <span
                 className={cn(
-                  "text-sm",
+              "text-sm",
                   value ? "font-medium" : "text-muted-foreground",
                 )}
               >
@@ -4075,10 +4075,10 @@ const InlineEditableCheckbox: React.FC<InlineEditableCheckboxProps> = ({
               </span>
               {value && !useSwitch && (
                 <Badge variant="default" className="text-xs">
-                  {label}
-                </Badge>
-              )}
-            </div>
+                {label}
+              </Badge>
+            )}
+          </div>
           </>
         )}
       </div>
@@ -7169,24 +7169,24 @@ export function CandidateDetailsModal({
                               />
                               <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <InlineEditableCombobox
-                                    label="Degree Name"
-                                    value={education.degreeName}
-                                    fieldName={`educations[${idx}].degreeName`}
-                                    options={degreeOptions}
+                                <InlineEditableCombobox
+                                  label="Degree Name"
+                                  value={education.degreeName}
+                                  fieldName={`educations[${idx}].degreeName`}
+                                  options={degreeOptions}
                                     catalogOptions={degreeCatalogOptions}
                                     optionsLoading={degreesMajorsLoading}
-                                    onSave={handleFieldSave}
-                                    placeholder="Select degree..."
-                                    searchPlaceholder="Search degrees..."
+                                  onSave={handleFieldSave}
+                                  placeholder="Select degree..."
+                                  searchPlaceholder="Search degrees..."
                                     verificationIndicator={
                                       <VerificationIndicator
                                         fieldName={`educations[${idx}].degreeName`}
                                       />
                                     }
-                                    getFieldVerification={getFieldVerification}
-                                    creatable={true}
-                                    createLabel="Add New Degree"
+                                  getFieldVerification={getFieldVerification}
+                                  creatable={true}
+                                  createLabel="Add New Degree"
                                     onCreateNew={async (newDegree) => {
                                       await handleFieldSave(
                                         `educations[${idx}].degreeName`,
@@ -7221,37 +7221,37 @@ export function CandidateDetailsModal({
                                       )
                                     }}
                                   />
-                                </div>
+                              </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <InlineEditableDate
-                                    label="Start Month"
-                                    value={education.startMonth}
-                                    fieldName={`educations[${idx}].startMonth`}
-                                    onSave={handleFieldSave}
-                                    formatDisplay={formatMonth}
-                                    mode="month"
+                                <InlineEditableDate
+                                  label="Start Month"
+                                  value={education.startMonth}
+                                  fieldName={`educations[${idx}].startMonth`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatMonth}
+                                  mode="month"
                                     verificationIndicator={
                                       <VerificationIndicator
                                         fieldName={`educations[${idx}].startMonth`}
                                       />
                                     }
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                  <InlineEditableDate
-                                    label="End Month"
-                                    value={education.endMonth}
-                                    fieldName={`educations[${idx}].endMonth`}
-                                    onSave={handleFieldSave}
-                                    formatDisplay={formatMonth}
-                                    mode="month"
+                                  getFieldVerification={getFieldVerification}
+                                />
+                                <InlineEditableDate
+                                  label="End Month"
+                                  value={education.endMonth}
+                                  fieldName={`educations[${idx}].endMonth`}
+                                  onSave={handleFieldSave}
+                                  formatDisplay={formatMonth}
+                                  mode="month"
                                     verificationIndicator={
                                       <VerificationIndicator
                                         fieldName={`educations[${idx}].endMonth`}
                                       />
                                     }
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                </div>
+                                  getFieldVerification={getFieldVerification}
+                                />
+                              </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <InlineEducationCampusLocation
                                     education={education}
@@ -7277,26 +7277,26 @@ export function CandidateDetailsModal({
                                     }
                                     getFieldVerification={getFieldVerification}
                                   />
-                                </div>
+                            </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <InlineEditableCheckbox
-                                    label="Topper"
-                                    value={education.isTopper === true}
-                                    fieldName={`educations[${idx}].isTopper`}
-                                    onSave={async (fieldName, newValue, verify) => {
-                                      await handleFieldSave(fieldName, newValue, verify)
-                                    }}
-                                    getFieldVerification={getFieldVerification}
-                                  />
-                                  <InlineEditableCheckbox
-                                    label="Cheetah"
-                                    value={education.isCheetah === true}
-                                    fieldName={`educations[${idx}].isCheetah`}
-                                    onSave={async (fieldName, newValue, verify) => {
-                                      await handleFieldSave(fieldName, newValue, verify)
-                                    }}
-                                    getFieldVerification={getFieldVerification}
-                                  />
+                            <InlineEditableCheckbox
+                              label="Topper"
+                              value={education.isTopper === true}
+                              fieldName={`educations[${idx}].isTopper`}
+                              onSave={async (fieldName, newValue, verify) => {
+                                await handleFieldSave(fieldName, newValue, verify)
+                              }}
+                              getFieldVerification={getFieldVerification}
+                            />
+                            <InlineEditableCheckbox
+                              label="Cheetah"
+                              value={education.isCheetah === true}
+                              fieldName={`educations[${idx}].isCheetah`}
+                              onSave={async (fieldName, newValue, verify) => {
+                                await handleFieldSave(fieldName, newValue, verify)
+                              }}
+                              getFieldVerification={getFieldVerification}
+                            />
                                 </div>
                               </div>
                             </div>
