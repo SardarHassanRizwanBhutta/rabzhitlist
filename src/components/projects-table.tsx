@@ -3281,61 +3281,49 @@ function ProjectDetailDialog({
                 />
               </div>
 
-              <InlineEditableMultiSelect
-                label="Technical Domains"
-                value={localProject.technicalDomains || []}
-                fieldName="technicalDomains"
-                options={technicalDomainOptionsResolved}
-                onSave={handleMultiSelectFieldSave}
-                getFieldVerification={getFieldVerification}
-                placeholder="Select technical domains..."
-                searchPlaceholder="Search technical domains..."
-                badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
-                maxDisplay={4}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InlineEditableMultiSelect
+                  label="Technical Domains"
+                  value={localProject.technicalDomains || []}
+                  fieldName="technicalDomains"
+                  options={technicalDomainOptionsResolved}
+                  onSave={handleMultiSelectFieldSave}
+                  getFieldVerification={getFieldVerification}
+                  placeholder="Select technical domains..."
+                  searchPlaceholder="Search technical domains..."
+                  badgeColorClass="bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                  maxDisplay={4}
+                />
 
-              {/* <InlineEditableMultiSelect
-                label="Technical Aspects"
-                value={localProject.technicalAspects || []}
-                fieldName="technicalAspects"
-                options={technicalAspectCatalogOptions}
-                onSave={handleMultiSelectFieldSave}
-                getFieldVerification={getFieldVerification}
-                placeholder="Select technical aspects..."
-                searchPlaceholder="Search technical aspects..."
-                badgeColorClass="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
-                maxDisplay={4}
-              /> */}
-
-              {/*
-                Technical Aspect Types is a server-derived, read-only summary of the
-                `TechnicalAspectType` rows whose tech stacks the project uses
-                (server projects `aspectTypeLabels`). Change tech stacks to change this list.
-              */}
-              <div className="py-2 px-3 rounded-md">
-                <div className="mb-3">
-                  {/* <Label className="text-sm font-semibold text-muted-foreground">Technical Aspect Types</Label> */}
-                  <Label className="text-sm font-semibold text-muted-foreground">Technical Aspects</Label>
-                </div>
-                {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 min-h-[2rem]">
-                    {localProject.aspectTypeLabels.map((label) => (
-                      <Badge
-                        key={label}
-                        variant="secondary"
-                        className={cn(
-                          "text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                        )}
-                      >
-                        {label}
-                      </Badge>
-                    ))}
+                {/*
+                  Technical Aspect Types is a server-derived, read-only summary of the
+                  `TechnicalAspectType` rows whose tech stacks the project uses
+                  (server projects `aspectTypeLabels`). Change tech stacks to change this list.
+                */}
+                <div className="py-2 px-3 rounded-md">
+                  <div className="mb-3">
+                    <Label className="text-sm font-semibold text-muted-foreground">Technical Aspects</Label>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">
-                    Derived from selected tech stacks.
-                  </p>
-                )}
+                  {localProject.aspectTypeLabels && localProject.aspectTypeLabels.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                      {localProject.aspectTypeLabels.map((label) => (
+                        <Badge
+                          key={label}
+                          variant="secondary"
+                          className={cn(
+                            "text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                          )}
+                        >
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Derived from selected tech stacks.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
