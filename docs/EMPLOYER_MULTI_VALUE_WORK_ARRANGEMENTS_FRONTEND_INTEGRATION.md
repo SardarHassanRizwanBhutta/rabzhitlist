@@ -109,18 +109,21 @@ List rows may return **human-readable label strings** in arrays (server-normaliz
 
 | Before | After |
 |--------|--------|
+| `employerType: "Services Based"` | **`employerTypes: ["Services Based", "SaaS", …]`** (all junction types) |
 | `workMode: "Remote"` | **`workModes: ["Remote", "Hybrid"]`** |
 | `shiftType: "Day"` | **`shiftTypes: ["Day"]`** |
 | `salaryPolicy: "Gross Salary"` | **`salaryPolicies: ["Gross Salary", "Net Salary"]`** |
 
 **Parsing by endpoint:**
 
-| Endpoint | `workModes` / `shiftTypes` / `salaryPolicies` wire format |
+| Endpoint | `employerTypes` / `workModes` / `shiftTypes` / `salaryPolicies` wire format |
 |----------|-----------------------------------------------------------|
-| **GET `/api/employers/{id}`** (detail) | **Integer arrays** (same as POST/PUT) |
-| **GET `/api/employers`** (paged list) | **Label string arrays** (display text only) |
+| **GET `/api/employers/{id}`** (detail) | **`types`** + work/shift/policy fields: **integer arrays** (same as POST/PUT) |
+| **GET `/api/employers`** (paged list) | **`employerTypes`**, **`workModes`**, **`shiftTypes`**, **`salaryPolicies`**: **label string arrays** (display text only) |
 
-List parsers may accept int or string elements defensively (see `parseWorkModesFromApi`, `parseShiftTypesFromApi`, `parseSalaryPoliciesFromApi` in the FE repo). **Detail parsers should expect integers only.**
+List parsers may accept int or string elements defensively (see `parseEmployerTypesFromApi`, `parseWorkModesFromApi`, `parseShiftTypesFromApi`, `parseSalaryPoliciesFromApi` in the FE repo). **Detail parsers should expect integers only.**
+
+Backend handoff for list **`employerTypes`:** [`EMPLOYER_LIST_EMPLOYER_TYPES_BACKEND_HANDOFF.md`](./EMPLOYER_LIST_EMPLOYER_TYPES_BACKEND_HANDOFF.md).
 
 ---
 

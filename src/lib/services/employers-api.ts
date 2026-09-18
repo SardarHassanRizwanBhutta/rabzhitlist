@@ -14,6 +14,7 @@ import {
 import type { EmployerFormData, EmployerLocationFormData, LayoffFormData } from "@/components/employer-creation-dialog"
 import {
   EMPLOYER_TYPE_DB_LABELS,
+  EMPLOYER_TYPE_DISPLAY_TO_DB,
   SALARY_POLICY_DB_LABELS,
   normalizeSalaryPolicy,
   RANKING_DB_LABELS,
@@ -136,6 +137,29 @@ const SALARY_POLICY_WIRE_TO_DB: Record<string, SalaryPolicyDb> = {
   FixedSalaryPlusCommissionOrMonthlyBonus: "fixed_salary_plus_commission_or_monthly_bonus",
 }
 
+const EMPLOYER_TYPE_WIRE_TO_DB: Record<string, EmployerTypeDb> = {
+  ServicesBased: "services_based",
+  ProductBased: "product_based",
+  Saas: "saas",
+  Startup: "startup",
+  Integrator: "integrator",
+  ResourceAugmentation: "resource_augmentation",
+  ItConsulting: "it_consulting",
+  BusinessProcessOutsourcing: "business_process_outsourcing",
+}
+
+function employerTypeListLabelToDb(label: string): EmployerTypeDb | null {
+  const trimmed = label.trim()
+  if (!trimmed) return null
+  if (trimmed in EMPLOYER_TYPE_DISPLAY_TO_DB) {
+    return EMPLOYER_TYPE_DISPLAY_TO_DB[trimmed as EmployerType]
+  }
+  for (const [db, display] of Object.entries(EMPLOYER_TYPE_DB_LABELS) as [EmployerTypeDb, string][]) {
+    if (display === trimmed) return db
+  }
+  return null
+}
+
 function dbKeysToWire<T extends string>(
   keys: T[] | undefined,
   map: Record<T, string>,
@@ -238,6 +262,26 @@ export function parseSalaryPoliciesFromApi(raw: unknown): SalaryPolicyDb[] {
     const display = normalizeSalaryPolicy(item)
     const fromDisplay = SALARY_POLICY_DISPLAY_TO_DB[display]
     if (fromDisplay) out.push(fromDisplay)
+  }
+  return out
+}
+
+/** GET `/api/employers` list rows — elements may be ints or display label strings. */
+export function parseEmployerTypesFromApi(raw: unknown): EmployerTypeDb[] {
+  if (!Array.isArray(raw)) return []
+  const out: EmployerTypeDb[] = []
+  const seen = new Set<EmployerTypeDb>()
+  for (const item of raw) {
+    let db: EmployerTypeDb | null = null
+    if (typeof item === "number" && item in API_TO_EMPLOYER_TYPE) {
+      db = API_TO_EMPLOYER_TYPE[item]
+    } else if (typeof item === "string") {
+      db = EMPLOYER_TYPE_WIRE_TO_DB[item] ?? employerTypeListLabelToDb(item)
+    }
+    if (db && !seen.has(db)) {
+      seen.add(db)
+      out.push(db)
+    }
   }
   return out
 }
@@ -365,7 +409,8 @@ export interface EmployerListItemDto {
   foundedYear: number | null
   /** Display string (e.g. "Tier 1") or numeric enum 0–3 from API. */
   ranking: string | number | null
-  employerType: string | null
+  /** All employer type display labels from the types junction (e.g. "Services Based", "SaaS"). */
+  employerTypes?: string[]
   /** Employer-level work mode display labels (e.g. "Remote", "Hybrid"). */
   workModes?: string[]
   /** Employer-level shift type display labels (e.g. "Day", "Night"). */
@@ -529,6 +574,8 @@ export interface UpdateEmployerDto {
   timeSupportZoneIds?: number[] | null
   /** Replaces employer award links; always send an array (empty clears). */
   awardIds: number[]
+  /** Replaces employer benefit links; always send an array (empty clears). */
+  benefits: CreateEmployerBenefitDto[]
   headcount?: number | null
   salaryPolicies?: number[]
 }
@@ -994,16 +1041,21 @@ export function employerListItemToEmployer(item: EmployerListItemDto): Employer 
       ? (SALARY_POLICY_DB_LABELS[salaryPoliciesDb[0]] as SalaryPolicy)
       : "Gross Salary"
   const statusDisplay = normalizeEmployerStatus(item.status)
+  const employerTypesDb = parseEmployerTypesFromApi(item.employerTypes)
+  const firstTypeDb = employerTypesDb[0]
+  const employerTypeDisplay: EmployerType | null = firstTypeDb
+    ? (EMPLOYER_TYPE_DB_LABELS[firstTypeDb] as EmployerType)
+    : null
   return {
     id: String(item.id),
     name: item.name,
     websiteUrl: item.websiteUrl ?? null,
     linkedinUrl: item.linkedInUrl ?? null,
-    /** List returns only the first stored status's label, not the full set. */
     status: statusDisplay,
     foundedYear: item.foundedYear,
     ranking: normalizeEmployerRankingFromApi(item.ranking),
-    employerType: (item.employerType as EmployerType) || null,
+    employerType: employerTypeDisplay,
+    employerTypes: employerTypesDb.length ? employerTypesDb : undefined,
     workModes: workModesDb.length ? workModesDb : undefined,
     shiftTypes: shiftTypesDb.length ? shiftTypesDb : undefined,
     salaryPolicies: salaryPoliciesDb.length ? salaryPoliciesDb : undefined,
@@ -1246,6 +1298,15 @@ export function buildUpdateEmployerDto(
     .map((name) => awardsLookup.find((a) => a.name === name)?.id)
     .filter((id): id is number => id != null)
 
+  const benefits: CreateEmployerBenefitDto[] = formData.benefits
+    .map((b): CreateEmployerBenefitDto | null => {
+      const benefitId = typeof b.id === "string" ? parseInt(b.id, 10) : b.id
+      if (Number.isNaN(benefitId) || benefitId <= 0) return null
+      const { hasValue, unitType, value } = employerBenefitToApiValueFields(b)
+      return { benefitId, hasValue, unitType, value }
+    })
+    .filter((b): b is CreateEmployerBenefitDto => b != null)
+
   return {
     name: formData.name.trim(),
     websiteUrl: formData.websiteUrl.trim() || null,
@@ -1263,6 +1324,7 @@ export function buildUpdateEmployerDto(
       : null,
     timeSupportZoneIds: timeSupportZoneIds.length ? timeSupportZoneIds : null,
     awardIds,
+    benefits,
     headcount: formData.headcount.trim()
       ? parseInt(formData.headcount.trim(), 10)
       : null,

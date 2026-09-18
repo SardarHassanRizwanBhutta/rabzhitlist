@@ -49,9 +49,11 @@ The handler returns `PagedResult<EmployerListItemDto>` (JSON property names are 
 
 ### `EmployerListItemDto` (summary row)
 
-Each item includes: `id`, `name`, `websiteUrl`, `linkedInUrl`, `status`, `foundedYear`, `ranking`, `employerType`, **`workModes`**, **`shiftTypes`**, **`salaryPolicies`**, `headcount`, `locations` (array of `{ id, country, city, address, isHeadquarters }`), `benefits` (string array of benefit **names**), `timeSupportZones`, `awards`, `isDPLCompetitive`, **`dataProgressPercentage`**.
+Each item includes: `id`, `name`, `websiteUrl`, `linkedInUrl`, `status`, `foundedYear`, `ranking`, **`employerTypes`**, **`workModes`**, **`shiftTypes`**, **`salaryPolicies`**, `headcount`, `locations` (array of `{ id, country, city, address, isHeadquarters }`), `benefits` (string array of benefit **names**), `timeSupportZones`, `awards`, `isDPLCompetitive`, **`dataProgressPercentage`**.
 
-**Multi-value work arrangements on list rows:** `workModes`, `shiftTypes`, and `salaryPolicies` are **string arrays** of server-normalized display labels (e.g. `["Remote", "Hybrid"]`, `["Day"]`, `["Gross Salary"]`). Singular `workMode` / `shiftType` / `salaryPolicy` are **removed**.
+**Multi-value fields on list rows:** `employerTypes`, `workModes`, `shiftTypes`, and `salaryPolicies` are **string arrays** of server-normalized display labels (e.g. `["Services Based", "SaaS"]`, `["Remote", "Hybrid"]`). Singular **`employerType`**, **`workMode`**, **`shiftType`**, and **`salaryPolicy`** are **removed** from list items.
+
+See [`EMPLOYER_LIST_EMPLOYER_TYPES_BACKEND_HANDOFF.md`](./EMPLOYER_LIST_EMPLOYER_TYPES_BACKEND_HANDOFF.md) for the employer types list DTO change.
 
 Display strings for enums (e.g. ranking tier labels) are **server-normalized** in the DTO; do not assume they match raw C# enum names.
 
