@@ -177,7 +177,7 @@ const initialFormData: EmployerFormData = {
   isDPLCompetitive: false,
   headcount: "",
   locations: [createEmptyLocation()], // Start with one location
-  layoffs: [],
+  layoffs: [createEmptyLayoff()],
 }
 
 // Scalar status options (DB enum values)
@@ -320,7 +320,7 @@ export function EmployerCreationDialog({
   
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["basic-info", "work-arrangements", "benefits-salary-policy", "locations"])
+    new Set(["basic-info", "work-arrangements", "benefits-salary-policy", "locations", "layoffs"])
   )
 
   // Location country combobox: which location's popover is open (null = none)
@@ -369,6 +369,16 @@ export function EmployerCreationDialog({
       }
       setErrors({})
       setModifiedFields(new Set())
+
+      setExpandedSections(
+        new Set([
+          "basic-info",
+          "work-arrangements",
+          "benefits-salary-policy",
+          "locations",
+          "layoffs",
+        ])
+      )
       
       // Reset verified fields if not in verification mode
       if (!showVerification) {
@@ -535,6 +545,7 @@ export function EmployerCreationDialog({
   }
 
   const removeLayoff = (index: number) => {
+    if (formData.layoffs.length <= 1) return
     setFormData(prev => ({
       ...prev,
       layoffs: prev.layoffs.filter((_, i) => i !== index)
@@ -599,6 +610,13 @@ export function EmployerCreationDialog({
     })
 
     formData.layoffs.forEach((layoff, index) => {
+      const hasAny =
+        layoff.layoffDate != null ||
+        layoff.numberOfEmployeesLaidOff.trim() !== "" ||
+        layoff.reason.trim() !== "" ||
+        layoff.reasonOther.trim() !== ""
+      if (!hasAny) return
+
       const layErrors: Partial<Record<keyof LayoffFormData, string>> = {}
       if (!layoff.layoffDate) layErrors.layoffDate = "Layoff date is required"
       const affected = parseInt(layoff.numberOfEmployeesLaidOff, 10)
@@ -1852,7 +1870,7 @@ export function EmployerCreationDialog({
                     </Button>
                   </div>
 
-                  {formData.layoffs.length === 0 ? (
+                  {formData.layoffs.length === 0 && mode !== "edit" ? (
                     <p className="text-base text-muted-foreground text-center py-6">No layoffs recorded</p>
                   ) : (
                     formData.layoffs.map((layoff, index) => (
@@ -1865,7 +1883,8 @@ export function EmployerCreationDialog({
                               variant="ghost"
                               size="sm"
                               onClick={() => removeLayoff(index)}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                              disabled={formData.layoffs.length <= 1}
+                              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
