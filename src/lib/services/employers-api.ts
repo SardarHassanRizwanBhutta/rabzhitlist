@@ -33,7 +33,7 @@ import {
   type EmployerStatusDb,
 } from "@/lib/types/employer"
 import type { LookupItem } from "@/lib/services/lookups-api"
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch, apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 
 // --- API enum values (backend uses 0-based integers) ---
@@ -739,53 +739,10 @@ function parseDataProgressPercentage(value: unknown): number {
   return 0
 }
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`)
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Employers API ${path}: ${res.status} — ${text}`)
-  }
-  return res.json()
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(extractApiErrorMessage(text, res.status))
-  }
-  return res.json()
-}
-
-async function put<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(extractApiErrorMessage(text, res.status))
-  }
-  return res.json()
-}
-
-async function del(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" })
-  if (!res.ok && res.status !== 204) {
-    const text = await res.text()
-    throw new Error(`Employers API ${path}: ${res.status} — ${text}`)
-  }
-}
-
 // --- API calls ---
 export async function fetchEmployers(params: FetchEmployersParams): Promise<PagedResult<EmployerListItemDto>> {
   const qs = buildQueryString(params)
-  const result = await get<PagedResult<EmployerListItemDto>>(`/api/employers?${qs}`)
+  const result = await apiGet<PagedResult<EmployerListItemDto>>(`/api/employers?${qs}`)
   return {
     ...result,
     items: result.items.map((item) => ({
@@ -796,7 +753,7 @@ export async function fetchEmployers(params: FetchEmployersParams): Promise<Page
 }
 
 export async function fetchEmployerById(id: number): Promise<EmployerDto> {
-  return get<EmployerDto>(`/api/employers/${id}`)
+  return apiGet<EmployerDto>(`/api/employers/${id}`)
 }
 
 /**
@@ -808,7 +765,7 @@ export async function fetchEmployerDataProgress(
   signal?: AbortSignal,
 ): Promise<EmployerDataProgressResponse> {
   const path = `/api/employers/${employerId}/data-progress`
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",
@@ -825,15 +782,15 @@ export async function fetchEmployerDataProgress(
 }
 
 export async function createEmployer(dto: CreateEmployerDto): Promise<EmployerDto> {
-  return post<EmployerDto>("/api/employers", dto)
+  return apiPost<EmployerDto>("/api/employers", dto)
 }
 
 export async function updateEmployer(id: number, dto: UpdateEmployerDto): Promise<EmployerDto> {
-  return put<EmployerDto>(`/api/employers/${id}`, dto)
+  return apiPut<EmployerDto>(`/api/employers/${id}`, dto)
 }
 
 export async function deleteEmployer(id: number): Promise<void> {
-  return del(`/api/employers/${id}`)
+  return apiDelete(`/api/employers/${id}`)
 }
 
 /** Create a location row. @see EmployerApiReference.md */
@@ -841,7 +798,7 @@ export async function createEmployerLocation(
   employerId: number,
   body: CreateEmployerLocationDto
 ): Promise<EmployerLocationDto> {
-  return post<EmployerLocationDto>(`/api/employers/${employerId}/locations`, body)
+  return apiPost<EmployerLocationDto>(`/api/employers/${employerId}/locations`, body)
 }
 
 /** Update a location row by server location id. @see EmployerApiReference.md */
@@ -850,12 +807,12 @@ export async function updateEmployerLocation(
   locationId: number,
   body: UpdateEmployerLocationDto
 ): Promise<EmployerLocationDto> {
-  return put<EmployerLocationDto>(`/api/employers/${employerId}/locations/${locationId}`, body)
+  return apiPut<EmployerLocationDto>(`/api/employers/${employerId}/locations/${locationId}`, body)
 }
 
 /** Delete a location row. @see EmployerApiReference.md */
 export async function deleteEmployerLocation(employerId: number, locationId: number): Promise<void> {
-  return del(`/api/employers/${employerId}/locations/${locationId}`)
+  return apiDelete(`/api/employers/${employerId}/locations/${locationId}`)
 }
 
 /** Clear HQ flag on all existing office rows so a new HQ can be assigned exclusively. */
@@ -882,7 +839,7 @@ export async function addEmployerLayoff(
   if (body.layoffDate == null || body.affectedEmployees == null) {
     throw new Error("layoffDate and affectedEmployees are required.")
   }
-  return post<EmployerLayoffDto>(`/api/employers/${employerId}/layoffs`, body)
+  return apiPost<EmployerLayoffDto>(`/api/employers/${employerId}/layoffs`, body)
 }
 
 /** True when the layoff row was added in the form (id is UUID). False when it came from the server (id is numeric). */
@@ -1016,7 +973,7 @@ export async function searchEmployers(
   if (search.trim()) params.set("search", search.trim())
   params.set("limit", String(Math.min(20, Math.max(1, limit))))
   const path = `/api/employers/search?${params.toString()}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Employers API ${path}: ${res.status} — ${text}`)

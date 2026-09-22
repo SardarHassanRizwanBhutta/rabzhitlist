@@ -1,7 +1,7 @@
 import type { Certification, CertificationIssuer } from '@/lib/types/certification'
 import type { CertificationDataProgressResponse } from '@/lib/types/certification-data-progress'
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 
 function parseDataProgressPercentage(value: unknown): number | null {
   if (typeof value === "number") return value
@@ -52,9 +52,9 @@ export async function fetchCertificationsPage(params: FetchCertificationsParams 
     search.set('maxDataProgressPercentage', String(params.maxDataProgressPercentage))
   }
   const query = search.toString()
-  const url = `${API_BASE_URL}/api/certifications${query ? `?${query}` : ''}`
+  const url = `/api/certifications${query ? `?${query}` : ''}`
 
-  const response = await fetch(url)
+  const response = await apiFetch(url)
 
   if (!response.ok) {
     const text = await response.text()
@@ -69,7 +69,7 @@ export async function fetchCertificationsPage(params: FetchCertificationsParams 
 }
 
 export async function fetchCertificationIssuers(): Promise<CertificationIssuer[]> {
-  const response = await fetch(`${API_BASE_URL}/api/CertificationIssuers`)
+  const response = await apiFetch(`/api/CertificationIssuers`)
 
   if (!response.ok) {
     throw new Error(`Failed to fetch certification issuers: ${response.status}`)
@@ -84,7 +84,7 @@ interface CreateCertificationIssuerRequest {
 }
 
 export async function createCertificationIssuer(data: CreateCertificationIssuerRequest): Promise<CertificationIssuer> {
-  const response = await fetch(`${API_BASE_URL}/api/CertificationIssuers`, {
+  const response = await apiFetch(`/api/CertificationIssuers`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -104,7 +104,7 @@ interface CreateCertificationRequest {
 }
 
 export async function createCertification(data: CreateCertificationRequest): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/certifications`, {
+  const response = await apiFetch(`/api/certifications`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -122,7 +122,7 @@ export interface UpdateCertificationRequest {
 }
 
 export async function updateCertification(id: number, body: UpdateCertificationRequest): Promise<Certification> {
-  const response = await fetch(`${API_BASE_URL}/api/certifications/${id}`, {
+  const response = await apiFetch(`/api/certifications/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -145,8 +145,8 @@ export async function fetchCertificationDataProgress(
   certificationId: number,
   signal?: AbortSignal,
 ): Promise<CertificationDataProgressResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/certifications/${certificationId}/data-progress`,
+  const response = await apiFetch(
+    `/api/certifications/${certificationId}/data-progress`,
     {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -163,7 +163,7 @@ export async function fetchCertificationDataProgress(
 }
 
 export async function deleteCertification(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/certifications/${id}`, {
+  const response = await apiFetch(`/api/certifications/${id}`, {
     method: 'DELETE',
   })
 

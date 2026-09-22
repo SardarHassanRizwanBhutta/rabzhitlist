@@ -6,7 +6,7 @@ import type {
   CreateResumeUploadUrlResponse,
   ResumeUploadStage,
 } from "@/lib/contracts/candidate-resume"
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { validateResumeFile } from "@/lib/utils/candidate-resume"
 
@@ -15,9 +15,8 @@ async function resumeApiPost<T>(
   body: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     signal,
   })
@@ -29,7 +28,7 @@ async function resumeApiPost<T>(
 }
 
 async function resumeApiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(extractApiErrorMessage(text, res.status))

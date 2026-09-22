@@ -4,7 +4,7 @@
  * @see Tags-and-TimeSupportZones-API-Reference.md
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiGet, apiPost } from "@/lib/api-client"
 
 export interface TimeSupportZoneDto {
   id: number
@@ -12,31 +12,15 @@ export interface TimeSupportZoneDto {
 }
 
 async function getList<T>(path: string): Promise<T[]> {
-  const response = await fetch(`${API_BASE_URL}${path}`)
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch ${path}: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiGet<T[]>(path)
 }
 
 async function createItem<T extends { id: number; name: string }>(
   path: string,
-  name: string
+  name: string,
 ): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: name.trim() }),
-  })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to create ${path}: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiPost<T>(path, { name: name.trim() })
 }
-
-// --- Time Support Zones ---
 
 export async function fetchTimeSupportZones(): Promise<TimeSupportZoneDto[]> {
   return getList<TimeSupportZoneDto>("/api/timesupportzones")

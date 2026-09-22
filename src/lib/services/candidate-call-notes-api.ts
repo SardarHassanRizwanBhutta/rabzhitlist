@@ -3,7 +3,7 @@
  * @see docs/CALL_NOTES_PERSISTENCE_FRONTEND_INTEGRATION.md
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 
 export interface CandidateCallNotesDto {
@@ -19,7 +19,7 @@ export async function fetchCandidateCallNotes(
   signal?: AbortSignal,
 ): Promise<CandidateCallNotesDto> {
   const path = callNotesPath(candidateId)
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(extractApiErrorMessage(text, res.status))
@@ -32,9 +32,8 @@ export async function patchCandidateCallNotes(
   call_notes: string,
 ): Promise<CandidateCallNotesDto> {
   const path = callNotesPath(candidateId)
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ call_notes }),
   })
   if (!res.ok) {
