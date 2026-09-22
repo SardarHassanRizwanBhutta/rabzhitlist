@@ -2,7 +2,7 @@ import type { University, UniversityLocation } from "@/lib/types/university"
 import type { Ranking } from "@/lib/types/university"
 import type { UniversityDataProgressResponse } from "@/lib/types/university-data-progress"
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 
 function parseDataProgressPercentage(value: unknown): number | null {
@@ -114,8 +114,8 @@ export async function createUniversityLocation(
   universityId: number,
   body: CreateUniversityLocationBody
 ): Promise<UniversityLocation> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/universities/${universityId}/locations`,
+  const response = await apiFetch(
+    `/api/universities/${universityId}/locations`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,8 +140,8 @@ export async function updateUniversityLocation(
   locationId: number,
   body: UpdateUniversityLocationBody
 ): Promise<UniversityLocation> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/universities/${universityId}/locations/${locationId}`,
+  const response = await apiFetch(
+    `/api/universities/${universityId}/locations/${locationId}`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -189,7 +189,7 @@ export async function searchUniversities(
   if (search.trim()) params.set("search", search.trim())
   params.set("limit", String(Math.min(20, Math.max(1, limit))))
   const path = `/api/universities/search?${params.toString()}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(`${path}`, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Universities API ${path}: ${res.status} — ${text}`)
@@ -198,7 +198,7 @@ export async function searchUniversities(
 }
 
 export async function fetchUniversities(): Promise<University[]> {
-  const response = await fetch(`${API_BASE_URL}/api/universities`)
+  const response = await apiFetch(`/api/universities`)
   if (!response.ok) {
     throw new Error(`Failed to fetch universities: ${response.status}`)
   }
@@ -224,8 +224,8 @@ export async function fetchUniversitiesFiltered(
   if (params.maxDataProgressPercentage != null) {
     search.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
   }
-  const url = `${API_BASE_URL}/api/universities?${search.toString()}`
-  const response = await fetch(url)
+  const url = `/api/universities?${search.toString()}`
+  const response = await apiFetch(url)
   if (!response.ok) {
     const text = await response.text()
     throw new Error(`Failed to fetch universities: ${response.status} — ${text}`)
@@ -241,7 +241,7 @@ export async function fetchUniversitiesFiltered(
 }
 
 export async function fetchUniversityById(id: number): Promise<University> {
-  const response = await fetch(`${API_BASE_URL}/api/universities/${id}`)
+  const response = await apiFetch(`/api/universities/${id}`)
   if (response.status === 404) {
     throw new Error("Not found")
   }
@@ -256,8 +256,8 @@ export async function fetchUniversityDataProgress(
   universityId: number,
   signal?: AbortSignal,
 ): Promise<UniversityDataProgressResponse> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/universities/${universityId}/data-progress`,
+  const response = await apiFetch(
+    `/api/universities/${universityId}/data-progress`,
     {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -277,8 +277,8 @@ export async function deleteUniversityLocation(
   universityId: number,
   locationId: number
 ): Promise<void> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/universities/${universityId}/locations/${locationId}`,
+  const response = await apiFetch(
+    `/api/universities/${universityId}/locations/${locationId}`,
     { method: "DELETE" }
   )
   if (response.status === 404) {
@@ -293,7 +293,7 @@ export async function deleteUniversityLocation(
 }
 
 export async function createUniversity(body: CreateUniversityDto): Promise<University> {
-  const response = await fetch(`${API_BASE_URL}/api/universities`, {
+  const response = await apiFetch(`/api/universities`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -310,7 +310,7 @@ export async function patchUniversity(
   id: number,
   body: PatchUniversityDto
 ): Promise<University> {
-  const response = await fetch(`${API_BASE_URL}/api/universities/${id}`, {
+  const response = await apiFetch(`/api/universities/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -331,8 +331,8 @@ export async function patchUniversityLocation(
   locationId: number,
   body: PatchUniversityLocationDto
 ): Promise<University> {
-  const response = await fetch(
-    `${API_BASE_URL}/api/universities/${universityId}/locations/${locationId}`,
+  const response = await apiFetch(
+    `/api/universities/${universityId}/locations/${locationId}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -354,7 +354,7 @@ export async function updateUniversity(
   id: number,
   body: UpdateUniversityDto
 ): Promise<University> {
-  const response = await fetch(`${API_BASE_URL}/api/universities/${id}`, {
+  const response = await apiFetch(`/api/universities/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -371,7 +371,7 @@ export async function updateUniversity(
 }
 
 export async function deleteUniversity(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/universities/${id}`, {
+  const response = await apiFetch(`/api/universities/${id}`, {
     method: "DELETE",
   })
   if (response.status === 404) {

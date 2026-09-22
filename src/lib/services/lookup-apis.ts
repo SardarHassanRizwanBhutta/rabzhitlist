@@ -4,7 +4,7 @@
  * @see Lookup-APIs-Reference.md
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiGet, apiPost } from "@/lib/api-client"
 
 export interface LookupItem {
   id: number
@@ -16,34 +16,16 @@ export interface CreateLookupItemDto {
 }
 
 async function getList<T>(path: string): Promise<T[]> {
-  const res = await fetch(`${API_BASE_URL}${path}`)
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Failed to fetch ${path}: ${res.status} — ${text}`)
-  }
-  return res.json()
+  return apiGet<T[]>(path)
 }
 
 async function createOne<T>(path: string, body: CreateLookupItemDto): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Failed to create ${path}: ${res.status} — ${text}`)
-  }
-  return res.json()
+  return apiPost<T>(path, body)
 }
-
-// --- Technical Aspects (GET-only catalog; no POST) ---
 
 export async function getTechnicalAspects(): Promise<LookupItem[]> {
   return getList<LookupItem>("/api/TechnicalAspects")
 }
-
-// --- Tech Stacks ---
 
 export async function getTechStacks(): Promise<LookupItem[]> {
   return getList<LookupItem>("/api/techstacks")

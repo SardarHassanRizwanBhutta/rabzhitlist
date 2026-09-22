@@ -5,9 +5,12 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Users, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
+import { AuthUserMenu } from "@/components/auth-user-menu"
 
 import {
   Sidebar,
+  SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -136,28 +139,32 @@ function AppSidebar() {
           </div>
         </Link>
       </SidebarHeader>
-          <SidebarMenu className="p-2">
-            {navigationItems.map((item) => {
-              const isActive = isNavItemActive(pathname, item.url)
-              
-              return (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={isActive}
-                    tooltip={item.description}
-                    className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
-                  >
-                    <Link href={item.url} className="flex items-center gap-3">
-                      <item.icon className="size-4" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )
-            })}
-          </SidebarMenu>
-        {/* </div> */}
+      <SidebarContent>
+        <SidebarMenu className="p-2">
+          {navigationItems.map((item) => {
+            const isActive = isNavItemActive(pathname, item.url)
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.description}
+                  className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
+                >
+                  <Link href={item.url} className="flex items-center gap-3">
+                    <item.icon className="size-4" />
+                    <span className="font-medium">{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarContent>
+      <SidebarFooter>
+        <AuthUserMenu />
+      </SidebarFooter>
     </Sidebar>
   )
 }

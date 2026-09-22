@@ -4,7 +4,7 @@
  * @see docs/EMPLOYER_AWARDS_FRONTEND_INTEGRATION.md
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiGet, apiPost } from "@/lib/api-client"
 
 export interface AwardDto {
   id: number
@@ -12,12 +12,7 @@ export interface AwardDto {
 }
 
 async function getList<T>(path: string): Promise<T[]> {
-  const response = await fetch(`${API_BASE_URL}${path}`)
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch ${path}: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiGet<T[]>(path)
 }
 
 export async function fetchAwards(): Promise<AwardDto[]> {
@@ -25,14 +20,5 @@ export async function fetchAwards(): Promise<AwardDto[]> {
 }
 
 export async function createAward(name: string): Promise<AwardDto> {
-  const response = await fetch(`${API_BASE_URL}/api/awards`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: name.trim() }),
-  })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to create /api/awards: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiPost<AwardDto>("/api/awards", { name: name.trim() })
 }

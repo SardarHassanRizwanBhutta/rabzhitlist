@@ -3,7 +3,7 @@ import type { PublishPlatform } from "@/lib/types/project"
 import { PROJECT_TYPES } from "@/lib/types/project"
 import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progress"
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import {
   ensureDomainCatalogsLoaded,
   fetchTechnicalDomains as fetchTechnicalDomainsLookup,
@@ -531,8 +531,8 @@ export async function fetchProjectsFiltered(
   params: FetchProjectsParams
 ): Promise<PagedResult<ProjectListItemDto>> {
   const query = buildListQuery(params)
-  const url = `${API_BASE_URL}/api/projects?${query}`
-  const response = await fetch(url)
+  const url = `/api/projects?${query}`
+  const response = await apiFetch(url)
   if (!response.ok) {
     const text = await response.text()
     throw new Error(`Failed to fetch projects: ${response.status} — ${text}`)
@@ -544,7 +544,7 @@ export async function fetchProjectDataProgress(
   projectId: number,
   signal?: AbortSignal,
 ): Promise<ProjectDataProgressResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/data-progress`, {
+  const response = await apiFetch(`/api/projects/${projectId}/data-progress`, {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",
@@ -559,7 +559,7 @@ export async function fetchProjectDataProgress(
 }
 
 export async function fetchProjectById(id: number): Promise<ProjectDto> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`)
+  const response = await apiFetch(`/api/projects/${id}`)
   if (response.status === 404) throw new Error("Not found")
   if (!response.ok) {
     const text = await response.text()
@@ -569,7 +569,7 @@ export async function fetchProjectById(id: number): Promise<ProjectDto> {
 }
 
 export async function createProject(body: CreateProjectDto): Promise<ProjectDto> {
-  const response = await fetch(`${API_BASE_URL}/api/projects`, {
+  const response = await apiFetch(`/api/projects`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -582,7 +582,7 @@ export async function createProject(body: CreateProjectDto): Promise<ProjectDto>
 }
 
 export async function updateProject(id: number, body: UpdateProjectDto): Promise<ProjectDto> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, {
+  const response = await apiFetch(`/api/projects/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -596,7 +596,7 @@ export async function updateProject(id: number, body: UpdateProjectDto): Promise
 }
 
 export async function deleteProject(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${id}`, { method: "DELETE" })
+  const response = await apiFetch(`/api/projects/${id}`, { method: "DELETE" })
   if (response.status === 404) throw new Error("Not found")
   if (!response.ok) {
     const text = await response.text()

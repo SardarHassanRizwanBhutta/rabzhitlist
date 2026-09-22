@@ -4,7 +4,7 @@
  * @see Lookup-APIs-Reference.md
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch, apiGet, apiPost } from "@/lib/api-client"
 import { parseIdNameList } from "@/lib/utils/domain-catalog"
 import {
   normalizeTechStackLookupList,
@@ -43,25 +43,11 @@ let domainCatalogsInflight: Promise<DomainCatalogSnapshot> | null = null
 const TECH_STACKS_PATH = "/api/TechStacks"
 
 async function getList<T>(path: string): Promise<T[]> {
-  const response = await fetch(`${API_BASE_URL}${path}`)
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch ${path}: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiGet<T[]>(path)
 }
 
 async function createItem(path: string, name: string): Promise<LookupItem> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: name.trim() }),
-  })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to create ${path}: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiPost<LookupItem>(path, { name: name.trim() })
 }
 
 async function fetchIdNameCatalog(path: string): Promise<LookupItem[]> {
@@ -107,7 +93,7 @@ export async function ensureDomainCatalogsLoaded(): Promise<DomainCatalogSnapsho
 
 /** GET /api/TechnicalAspectTypes — `{ id, name }`. Distinct from GET /api/TechnicalAspects. */
 export async function fetchTechnicalAspectTypes(): Promise<TechnicalAspectTypeCatalogItem[]> {
-  const res = await fetch(`${API_BASE_URL}/api/TechnicalAspectTypes`)
+  const res = await apiFetch("/api/TechnicalAspectTypes")
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`TechnicalAspectTypes: ${res.status} — ${text}`)
@@ -138,16 +124,7 @@ export async function createTechStack(name: string, technicalAspectTypeIds?: num
   if (technicalAspectTypeIds?.length) {
     body.technicalAspectTypeIds = technicalAspectTypeIds
   }
-  const response = await fetch(`${API_BASE_URL}${TECH_STACKS_PATH}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to create tech stack: ${response.status} — ${text}`)
-  }
-  return response.json()
+  return apiPost<LookupItem>(TECH_STACKS_PATH, body)
 }
 
 // --- Domain catalogs (GET-only; `{ id, name }`) ---

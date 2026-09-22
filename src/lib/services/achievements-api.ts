@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import type { PagedResult } from "@/lib/services/candidates-api"
 import { ACHIEVEMENT_TYPE_DB, ACHIEVEMENT_TYPE_LABELS } from "@/lib/constants/candidate-enums"
@@ -91,7 +91,7 @@ export async function fetchAchievementsPage(
   }
 
   const path = `/api/achievements?${search.toString()}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(extractApiErrorMessage(text, res.status))

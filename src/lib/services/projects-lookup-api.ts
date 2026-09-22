@@ -3,7 +3,7 @@
  * Does not replace {@link projects-api.ts} (management CRUD / table).
  */
 
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch, apiGet } from "@/lib/api-client"
 
 export interface ProjectLookupDto {
   id: number
@@ -14,13 +14,13 @@ export interface ProjectLookupDto {
 export async function searchProjects(
   search: string,
   limit = 10,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<ProjectLookupDto[]> {
   const params = new URLSearchParams()
   if (search.trim()) params.set("search", search.trim())
   params.set("limit", String(Math.min(20, Math.max(1, limit))))
   const path = `/api/projects/search?${params.toString()}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Projects lookup ${path}: ${res.status} — ${text}`)
@@ -31,12 +31,7 @@ export async function searchProjects(
 /** GET /api/projects/{id} — returns full project; we only need id + name for the combobox. */
 export async function fetchProjectById(id: number): Promise<{ id: number; name: string }> {
   const path = `/api/projects/${id}`
-  const res = await fetch(`${API_BASE_URL}${path}`)
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Projects lookup ${path}: ${res.status} — ${text}`)
-  }
-  const data = (await res.json()) as { id?: number; name?: string }
+  const data = await apiGet<{ id?: number; name?: string }>(path)
   if (data.id == null || typeof data.name !== "string") {
     throw new Error(`Projects lookup ${path}: invalid response shape`)
   }

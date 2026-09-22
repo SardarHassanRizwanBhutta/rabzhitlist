@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { DEFAULT_DASHBOARD_TIMEZONE } from "@/lib/utils/dashboard-metrics"
 import type {
   DataProgressResponse,
@@ -9,7 +9,7 @@ export interface FetchDataProgressOptions extends FetchDataProgressParams {
   signal?: AbortSignal
 }
 
-function dataProgressUrl(params: FetchDataProgressParams): string {
+function dataProgressPath(params: FetchDataProgressParams): string {
   const timezone = params.timezone ?? DEFAULT_DASHBOARD_TIMEZONE
   const q = new URLSearchParams({
     module: params.module,
@@ -17,7 +17,7 @@ function dataProgressUrl(params: FetchDataProgressParams): string {
     to: params.to,
     timezone,
   })
-  return `${API_BASE_URL}/api/dashboard/data-progress?${q.toString()}`
+  return `/api/dashboard/data-progress?${q.toString()}`
 }
 
 /**
@@ -30,7 +30,7 @@ export async function fetchDataProgress(
 ): Promise<DataProgressResponse> {
   const { signal, ...query } = params
 
-  const response = await fetch(dataProgressUrl(query), {
+  const response = await apiFetch(dataProgressPath(query), {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",

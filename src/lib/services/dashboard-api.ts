@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { buildMockDashboardMetrics } from "@/lib/mock-data/dashboard-metrics"
 import {
   DEFAULT_DASHBOARD_TIMEZONE,
@@ -10,7 +10,7 @@ import type {
   FetchDashboardMetricsParams,
 } from "@/types/dashboard"
 
-function dashboardMetricsUrl(params: FetchDashboardMetricsParams): string {
+function dashboardMetricsPath(params: FetchDashboardMetricsParams): string {
   const timezone = params.timezone ?? DEFAULT_DASHBOARD_TIMEZONE
   const { from, to } = getRangeDateBounds(params.range)
   const q = new URLSearchParams({
@@ -18,7 +18,7 @@ function dashboardMetricsUrl(params: FetchDashboardMetricsParams): string {
     to,
     timezone,
   })
-  return `${API_BASE_URL}/api/dashboard/metrics?${q.toString()}`
+  return `/api/dashboard/metrics?${q.toString()}`
 }
 
 /**
@@ -33,7 +33,7 @@ export async function fetchDashboardMetrics(
     return buildMockDashboardMetrics()
   }
 
-  const response = await fetch(dashboardMetricsUrl(params), {
+  const response = await apiFetch(dashboardMetricsPath(params), {
     method: "GET",
     headers: { Accept: "application/json" },
     cache: "no-store",

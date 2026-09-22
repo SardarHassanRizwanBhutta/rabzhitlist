@@ -54,7 +54,7 @@ import {
   type SalaryPolicyDb,
 } from "@/lib/types/employer"
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
-import { API_BASE_URL } from "@/lib/config/api"
+import { apiFetch } from "@/lib/api-client"
 import { createBenefit } from "@/lib/services/benefits-api"
 import { createTechStack, type LookupItem } from "@/lib/services/lookups-api"
 import { dedupeTechStackIds } from "@/lib/utils/tech-stack-lookup"
@@ -1495,7 +1495,7 @@ export async function fetchCandidatesPage(
   appendNumberList("workExperienceBenefitIds", options?.workExperienceBenefitIds)
 
   const path = `/api/candidates?${params.toString()}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Candidates list ${path}: ${res.status} — ${text}`)
@@ -1508,7 +1508,7 @@ export async function fetchCandidatesPage(
 //   signal?: AbortSignal,
 // ): Promise<CandidateDataProgressResponse> {
 //   const path = `/api/candidates/${candidateId}/data-progress`
-//   const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+//   const res = await apiFetch(path, { signal })
 //   if (!res.ok) {
 //     const text = await res.text()
 //     throw new Error(`Candidate data progress ${path}: ${res.status} — ${text}`)
@@ -1518,7 +1518,7 @@ export async function fetchCandidatesPage(
 
 export async function fetchCandidateById(id: number, signal?: AbortSignal): Promise<Candidate> {
   const path = `/api/candidates/${id}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { signal })
+  const res = await apiFetch(path, { signal })
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`Candidate ${path}: ${res.status} — ${text}`)
@@ -1529,7 +1529,7 @@ export async function fetchCandidateById(id: number, signal?: AbortSignal): Prom
 
 export async function createCandidate(body: CreateCandidateDto): Promise<Candidate> {
   const path = `/api/candidates`
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1550,7 +1550,7 @@ export async function createCandidate(body: CreateCandidateDto): Promise<Candida
 
 export async function updateCandidate(id: number, body: UpdateCandidateDto): Promise<Candidate> {
   const path = `/api/candidates/${id}`
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1565,7 +1565,7 @@ export async function updateCandidate(id: number, body: UpdateCandidateDto): Pro
 
 export async function deleteCandidate(id: number): Promise<void> {
   const path = `/api/candidates/${id}`
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" })
+  const res = await apiFetch(path, { method: "DELETE" })
   if (res.status === 404) {
     throw new Error("Candidate not found or already deleted.")
   }
@@ -1580,7 +1580,7 @@ export async function deleteCandidate(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function subPost(path: string, body?: object): Promise<unknown> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
@@ -1594,7 +1594,7 @@ async function subPost(path: string, body?: object): Promise<unknown> {
 }
 
 async function subPut(path: string, body: object): Promise<unknown> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await apiFetch(path, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -1608,7 +1608,7 @@ async function subPut(path: string, body: object): Promise<unknown> {
 }
 
 async function subDelete(path: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: "DELETE" })
+  const res = await apiFetch(path, { method: "DELETE" })
   if (!res.ok && res.status !== 404) {
     const text = await res.text()
     throw new Error(extractApiErrorMessage(text, res.status))
