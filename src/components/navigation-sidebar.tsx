@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
+import { Users, UserCog, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 import { AuthUserMenu } from "@/components/auth-user-menu"
 
@@ -63,6 +63,12 @@ const navigationItems = [
     url: "/achievements",
     icon: Trophy,
     description: "Browse candidate achievement instances",
+  },
+  {
+    title: "Users",
+    url: "/users",
+    icon: UserCog,
+    description: "Manage application user accounts",
   },
 ] as const
 
