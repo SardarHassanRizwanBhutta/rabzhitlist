@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { GalleryVerticalEnd } from "lucide-react"
 import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
@@ -61,9 +59,6 @@ export function LoginForm({
       <form onSubmit={handleSubmit}>
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <GalleryVerticalEnd className="size-4" />
-            </div>
             <h1 className="text-xl font-bold">Welcome to Rabz Hit List</h1>
             <p className="text-muted-foreground text-sm text-balance">
               Sign in with your organization email and password.
@@ -110,16 +105,5 @@ export function LoginForm({
         By continuing, you agree to use this application for authorized DPL work only.
       </p>
     </div>
-  )
-}
-
-export function LoginBrandHeader() {
-  return (
-    <Link href="/login" className="flex items-center gap-2 font-medium">
-      <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <GalleryVerticalEnd className="size-4" />
-      </div>
-      Rabz Hit List
-    </Link>
   )
 }
