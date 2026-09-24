@@ -1,4 +1,5 @@
 import { NavigationSidebar } from "@/components/navigation-sidebar";
+import { RoleRouteGuard } from "@/components/role-route-guard";
 import { DashboardAuthGuard } from "@/contexts/auth-context";
 
 export default function DashboardLayout({
@@ -8,7 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <DashboardAuthGuard>
-      <NavigationSidebar>{children}</NavigationSidebar>
+      <RoleRouteGuard>
+        <NavigationSidebar>{children}</NavigationSidebar>
+      </RoleRouteGuard>
     </DashboardAuthGuard>
   );
 }

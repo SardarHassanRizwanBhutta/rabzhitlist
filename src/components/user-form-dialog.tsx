@@ -13,13 +13,23 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Loader2, Plus } from "lucide-react"
 import type { AppUser } from "@/lib/types/app-user"
+import { UserRole, userRoleLabel, type UserRole as UserRoleType } from "@/lib/types/user-role"
+import { assignableRolesForActor } from "@/lib/auth/roles"
 
 export interface UserFormData {
   fullName: string
   email: string
   password: string
+  role: UserRoleType
 }
 
 type UserFormDialogMode = "create" | "edit"
@@ -27,15 +37,24 @@ type UserFormDialogMode = "create" | "edit"
 interface UserFormDialogProps {
   mode?: UserFormDialogMode
   user?: AppUser | null
+  actorRole: UserRoleType
   open?: boolean
   onOpenChange?: (open: boolean) => void
   onSubmit?: (data: UserFormData, mode: UserFormDialogMode) => Promise<void> | void
 }
 
-const emptyForm: UserFormData = {
-  fullName: "",
-  email: "",
-  password: "",
+function defaultRoleForActor(actorRole: UserRoleType): UserRoleType {
+  const options = assignableRolesForActor(actorRole)
+  return options[0] ?? UserRole.Recruiter
+}
+
+function emptyForm(actorRole: UserRoleType): UserFormData {
+  return {
+    fullName: "",
+    email: "",
+    password: "",
+    role: defaultRoleForActor(actorRole),
+  }
 }
 
 function userToForm(user: AppUser): UserFormData {
@@ -43,6 +62,7 @@ function userToForm(user: AppUser): UserFormData {
     fullName: user.fullName,
     email: user.email,
     password: "",
+    role: user.role,
   }
 }
 
@@ -51,6 +71,7 @@ const MIN_PASSWORD_LENGTH = 8
 export function UserFormDialog({
   mode = "create",
   user = null,
+  actorRole,
   open: controlledOpen,
   onOpenChange,
   onSubmit,
@@ -63,8 +84,10 @@ export function UserFormDialog({
     onOpenChange?.(next)
   }
 
+  const roleOptions = assignableRolesForActor(actorRole)
+
   const [isLoading, setIsLoading] = useState(false)
-  const [formData, setFormData] = useState<UserFormData>(emptyForm)
+  const [formData, setFormData] = useState<UserFormData>(() => emptyForm(actorRole))
   const [errors, setErrors] = useState<Partial<Record<keyof UserFormData, string>>>({})
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -72,14 +95,17 @@ export function UserFormDialog({
 
   useEffect(() => {
     if (!open) return
-    setFormData(user ? userToForm(user) : emptyForm)
+    setFormData(user ? userToForm(user) : emptyForm(actorRole))
     setErrors({})
     const t = window.setTimeout(() => nameInputRef.current?.focus(), 100)
     return () => window.clearTimeout(t)
-  }, [open, user])
+  }, [open, user, actorRole])
 
   const handleChange = (field: keyof UserFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({
+      ...prev,
+      [field]: field === "role" ? (Number(value) as UserRoleType) : value,
+    }))
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }))
     }
@@ -94,6 +120,9 @@ export function UserFormDialog({
       next.email = "Email is required"
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
       next.email = "Enter a valid email address"
+    }
+    if (!roleOptions.includes(formData.role)) {
+      next.role = "Select a valid role"
     }
     if (effectiveMode === "create") {
       if (!formData.password.trim()) {
@@ -118,11 +147,12 @@ export function UserFormDialog({
           fullName: formData.fullName.trim(),
           email: formData.email.trim(),
           password: formData.password,
+          role: formData.role,
         },
         effectiveMode,
       )
       if (effectiveMode === "create") {
-        setFormData(emptyForm)
+        setFormData(emptyForm(actorRole))
       }
       setOpen(false)
     } catch {
@@ -171,6 +201,28 @@ export function UserFormDialog({
           />
           {errors.email ? (
             <p className="text-destructive text-sm">{errors.email}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="userRole">Role *</Label>
+          <Select
+            value={String(formData.role)}
+            onValueChange={(v) => handleChange("role", v)}
+            disabled={isLoading || roleOptions.length === 0}
+          >
+            <SelectTrigger id="userRole" className={errors.role ? "border-destructive" : ""}>
+              <SelectValue placeholder="Select role" />
+            </SelectTrigger>
+            <SelectContent>
+              {roleOptions.map((r) => (
+                <SelectItem key={r} value={String(r)}>
+                  {userRoleLabel(r)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.role ? (
+            <p className="text-destructive text-sm">{errors.role}</p>
           ) : null}
         </div>
         <div className="space-y-2">

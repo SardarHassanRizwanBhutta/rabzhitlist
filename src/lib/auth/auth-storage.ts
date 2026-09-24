@@ -1,4 +1,5 @@
 import type { AuthUser } from "@/lib/types/auth"
+import { mapApiUserToAuthUser } from "@/lib/auth/map-auth-user"
 
 const TOKEN_KEY = "rabzhitlist.accessToken"
 const EXPIRES_KEY = "rabzhitlist.expiresAt"
@@ -23,7 +24,8 @@ export function getStoredUser(): AuthUser | null {
   const raw = localStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as AuthUser
+    const parsed = JSON.parse(raw) as AuthUser
+    return mapApiUserToAuthUser(parsed)
   } catch {
     return null
   }

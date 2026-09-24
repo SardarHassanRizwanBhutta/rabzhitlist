@@ -923,6 +923,8 @@ interface CandidateCreationDialogProps {
    * {@link ProjectCreationDialog} with client locations, technical aspects, and create handlers.
    */
   nestedProjectCreation?: NestedProjectCreationProps
+  /** Recruiter: omit salary / WE compensation inputs (POST body stripped in API layer). */
+  hideCompensationFields?: boolean
 }
 
 export type { EmployerComboboxNestedCreationProps as NestedEmployerCreationProps }
@@ -1243,6 +1245,7 @@ export function CandidateCreationDialog({
   onEditFormBootstrapConsumed,
   nestedEmployerCreation,
   nestedProjectCreation,
+  hideCompensationFields = false,
 }: CandidateCreationDialogProps) {
   // Always show verification by default (both create and edit modes), allow override via prop
   const showVerification = showVerificationProp ?? true
@@ -3107,6 +3110,8 @@ export function CandidateCreationDialog({
                 <VerificationCheckbox fieldPath="city" />
               </div>
 
+              {!hideCompensationFields ? (
+              <>
               <div className="space-y-2">
                 <Label htmlFor="currentSalary">Current Salary</Label>
                 <Input
@@ -3130,6 +3135,8 @@ export function CandidateCreationDialog({
                 />
                 <VerificationCheckbox fieldPath="expectedSalary" />
               </div>
+              </>
+              ) : null}
 
               <div className="space-y-2">
                 <Label htmlFor="cnic">CNIC</Label>
@@ -3637,6 +3644,7 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.workMode`} />
                     </div>
 
+                    {!hideCompensationFields ? (
                     <div className="min-w-0 space-y-2">
                       <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy</Label>
                       <ReusableCombobox
@@ -3650,6 +3658,7 @@ export function CandidateCreationDialog({
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.salaryPolicy`} />
                     </div>
+                    ) : null}
 
                     <div className="min-w-0 space-y-2">
                     <Label htmlFor={`timeSupportZones-${index}`}>Time Support Zones</Label>
@@ -3689,6 +3698,7 @@ export function CandidateCreationDialog({
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.techStacks`} />
                     </div>
 
+                    {!hideCompensationFields ? (
                     <div className="min-w-0 space-y-2">
                     <BenefitsSelector
                       benefits={experience.benefits as EmployerBenefit[]}
@@ -3705,6 +3715,7 @@ export function CandidateCreationDialog({
                     />
                     <VerificationCheckbox fieldPath={`workExperiences.${index}.benefits`} />
                     </div>
+                    ) : null}
                   </div>
 
                   {/* Projects Section */}

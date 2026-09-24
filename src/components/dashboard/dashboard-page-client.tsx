@@ -5,6 +5,8 @@ import { RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DashboardDataProgressSection } from "@/components/dashboard/dashboard-data-progress-section"
 import { DashboardDatePicker } from "@/components/dashboard/dashboard-date-picker"
+import { useAuth } from "@/contexts/auth-context"
+import { canAccessDashboard } from "@/lib/auth/roles"
 import {
   dashboardRangeLabel,
   formatSelectionRangeButtonLabel,
@@ -17,6 +19,7 @@ const RANGE_OPTIONS: DashboardRange[] = ["today", "7d", "30d"]
 const DEFAULT_SELECTION: DashboardDateSelection = { mode: "preset", range: "7d" }
 
 export function DashboardPageClient() {
+  const { user, isLoading } = useAuth()
   const [selection, setSelection] =
     useState<DashboardDateSelection>(DEFAULT_SELECTION)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -26,6 +29,16 @@ export function DashboardPageClient() {
 
   const handlePresetChange = (range: DashboardRange) => {
     setSelection({ mode: "preset", range })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="text-muted-foreground text-sm">Loading dashboard…</div>
+    )
+  }
+
+  if (!canAccessDashboard(user?.role)) {
+    return null
   }
 
   return (

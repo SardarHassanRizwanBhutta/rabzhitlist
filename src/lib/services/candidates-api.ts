@@ -23,6 +23,8 @@ import type {
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
+import type { UserRole } from "@/lib/types/user-role"
 import { parseLinkedProjectCatalogFromApi } from "@/lib/utils/map-linked-project-for-service"
 import {
   isProjectType,
@@ -1381,8 +1383,10 @@ export async function fetchCandidatesPage(
     workExperienceTechStackIds?: number[]
     /** Work experience benefit catalog ids (`candidate_work_experience_benefits`). */
     workExperienceBenefitIds?: number[]
-  }
+  },
+  actorRole?: UserRole | null,
 ): Promise<PagedResult<CandidateListItemDto>> {
+  const listOptions = stripRecruiterForbiddenListQueryOptions(actorRole, options)
   const params = new URLSearchParams()
 
   const appendNumberList = (key: string, values?: number[]) => {
@@ -1400,99 +1404,99 @@ export async function fetchCandidatesPage(
 
   params.set("pageNumber", String(Math.max(1, pageNumber)))
   params.set("pageSize", String(Math.min(100, Math.max(1, pageSize))))
-  if (options?.name?.trim()) params.set("name", options.name.trim())
-  if (options?.postingTitle?.trim()) params.set("postingTitle", options.postingTitle.trim())
-  if (options?.jobTitle?.trim()) params.set("jobTitle", options.jobTitle.trim())
-  if (options?.city?.trim()) params.set("city", options.city.trim())
-  appendStringList("personalityTypes", options?.personalityTypes)
-  if (options?.source != null) params.set("source", String(options.source))
-  if (options?.currentSalaryMin != null) params.set("currentSalaryMin", String(options.currentSalaryMin))
-  if (options?.currentSalaryMax != null) params.set("currentSalaryMax", String(options.currentSalaryMax))
-  if (options?.expectedSalaryMin != null) params.set("expectedSalaryMin", String(options.expectedSalaryMin))
-  if (options?.expectedSalaryMax != null) params.set("expectedSalaryMax", String(options.expectedSalaryMax))
+  if (listOptions?.name?.trim()) params.set("name", listOptions.name.trim())
+  if (listOptions?.postingTitle?.trim()) params.set("postingTitle", listOptions.postingTitle.trim())
+  if (listOptions?.jobTitle?.trim()) params.set("jobTitle", listOptions.jobTitle.trim())
+  if (listOptions?.city?.trim()) params.set("city", listOptions.city.trim())
+  appendStringList("personalityTypes", listOptions?.personalityTypes)
+  if (listOptions?.source != null) params.set("source", String(listOptions.source))
+  if (listOptions?.currentSalaryMin != null) params.set("currentSalaryMin", String(listOptions.currentSalaryMin))
+  if (listOptions?.currentSalaryMax != null) params.set("currentSalaryMax", String(listOptions.currentSalaryMax))
+  if (listOptions?.expectedSalaryMin != null) params.set("expectedSalaryMin", String(listOptions.expectedSalaryMin))
+  if (listOptions?.expectedSalaryMax != null) params.set("expectedSalaryMax", String(listOptions.expectedSalaryMax))
   if (
-    options?.certificationId != null &&
-    Number.isFinite(options.certificationId) &&
-    options.certificationId > 0
+    listOptions?.certificationId != null &&
+    Number.isFinite(listOptions.certificationId) &&
+    listOptions.certificationId > 0
   ) {
-    params.set("certificationId", String(Math.floor(options.certificationId)))
+    params.set("certificationId", String(Math.floor(listOptions.certificationId)))
   }
-  appendNumberList("issuingBodyIds", options?.issuingBodyIds)
-  appendNumberList("certificationLevels", options?.certificationLevels)
-  appendNumberList("universityIds", options?.universityIds)
-  appendNumberList("degreeIds", options?.degreeIds)
-  appendNumberList("majorIds", options?.majorIds)
-  if (options?.isTopper != null) params.set("isTopper", String(options.isTopper))
-  appendNumberList("universityLocationIds", options?.universityLocationIds)
-  if (options?.isMainCheetah != null) params.set("isMainCheetah", String(options.isMainCheetah))
-  if (options?.graduateDateStart) params.set("graduateDateStart", options.graduateDateStart)
-  if (options?.graduateDateEnd) params.set("graduateDateEnd", options.graduateDateEnd)
+  appendNumberList("issuingBodyIds", listOptions?.issuingBodyIds)
+  appendNumberList("certificationLevels", listOptions?.certificationLevels)
+  appendNumberList("universityIds", listOptions?.universityIds)
+  appendNumberList("degreeIds", listOptions?.degreeIds)
+  appendNumberList("majorIds", listOptions?.majorIds)
+  if (listOptions?.isTopper != null) params.set("isTopper", String(listOptions.isTopper))
+  appendNumberList("universityLocationIds", listOptions?.universityLocationIds)
+  if (listOptions?.isMainCheetah != null) params.set("isMainCheetah", String(listOptions.isMainCheetah))
+  if (listOptions?.graduateDateStart) params.set("graduateDateStart", listOptions.graduateDateStart)
+  if (listOptions?.graduateDateEnd) params.set("graduateDateEnd", listOptions.graduateDateEnd)
 
-  appendNumberList("employerIds", options?.employerIds)
-  appendNumberList("employerLocationIds", options?.employerLocationIds)
-  appendNumberList("employerSalaryPolicies", options?.employerSalaryPolicies)
-  appendNumberList("employerTypes", options?.employerTypes)
-  appendNumberList("employerCountries", options?.employerCountries)
-  if (options?.employerCity?.trim()) params.set("employerCity", options.employerCity.trim())
-  if (options?.employerStatus != null) {
-    params.set("employerStatus", String(options.employerStatus))
+  appendNumberList("employerIds", listOptions?.employerIds)
+  appendNumberList("employerLocationIds", listOptions?.employerLocationIds)
+  appendNumberList("employerSalaryPolicies", listOptions?.employerSalaryPolicies)
+  appendNumberList("employerTypes", listOptions?.employerTypes)
+  appendNumberList("employerCountries", listOptions?.employerCountries)
+  if (listOptions?.employerCity?.trim()) params.set("employerCity", listOptions.employerCity.trim())
+  if (listOptions?.employerStatus != null) {
+    params.set("employerStatus", String(listOptions.employerStatus))
   }
-  appendNumberList("employerRankings", options?.employerRankings)
-  if (options?.employerSizeMin != null) params.set("employerSizeMin", String(options.employerSizeMin))
-  if (options?.employerSizeMax != null) params.set("employerSizeMax", String(options.employerSizeMax))
+  appendNumberList("employerRankings", listOptions?.employerRankings)
+  if (listOptions?.employerSizeMin != null) params.set("employerSizeMin", String(listOptions.employerSizeMin))
+  if (listOptions?.employerSizeMax != null) params.set("employerSizeMax", String(listOptions.employerSizeMax))
 
-  appendNumberList("projectIds", options?.projectIds)
-  appendNumberList("technicalAspectTypeIds", options?.technicalAspectTypeIds)
-  appendNumberList("techStackIds", options?.techStackIds)
-  appendNumberList("verticalDomains", options?.verticalDomains)
-  appendNumberList("horizontalDomains", options?.horizontalDomains)
-  appendNumberList("technicalDomains", options?.technicalDomains)
-  appendNumberList("technicalAspects", options?.technicalAspects)
-  appendNumberList("clientLocations", options?.clientLocations)
-  appendNumberList("projectStatus", options?.projectStatus)
-  appendNumberList("projectTypes", options?.projectTypes)
-  appendNumberList("publishPlatforms", options?.publishPlatforms)
-  if (options?.isPublished != null) params.set("isPublished", String(options.isPublished))
-  if (options?.isMainContribution === true) params.set("isMainContribution", "true")
-  if (options?.minDownloadCount != null) params.set("minDownloadCount", String(options.minDownloadCount))
-  if (options?.averageTeamSizeMin != null) {
-    params.set("averageTeamSizeMin", String(options.averageTeamSizeMin))
+  appendNumberList("projectIds", listOptions?.projectIds)
+  appendNumberList("technicalAspectTypeIds", listOptions?.technicalAspectTypeIds)
+  appendNumberList("techStackIds", listOptions?.techStackIds)
+  appendNumberList("verticalDomains", listOptions?.verticalDomains)
+  appendNumberList("horizontalDomains", listOptions?.horizontalDomains)
+  appendNumberList("technicalDomains", listOptions?.technicalDomains)
+  appendNumberList("technicalAspects", listOptions?.technicalAspects)
+  appendNumberList("clientLocations", listOptions?.clientLocations)
+  appendNumberList("projectStatus", listOptions?.projectStatus)
+  appendNumberList("projectTypes", listOptions?.projectTypes)
+  appendNumberList("publishPlatforms", listOptions?.publishPlatforms)
+  if (listOptions?.isPublished != null) params.set("isPublished", String(listOptions.isPublished))
+  if (listOptions?.isMainContribution === true) params.set("isMainContribution", "true")
+  if (listOptions?.minDownloadCount != null) params.set("minDownloadCount", String(listOptions.minDownloadCount))
+  if (listOptions?.averageTeamSizeMin != null) {
+    params.set("averageTeamSizeMin", String(listOptions.averageTeamSizeMin))
   }
-  if (options?.averageTeamSizeMax != null) {
-    params.set("averageTeamSizeMax", String(options.averageTeamSizeMax))
+  if (listOptions?.averageTeamSizeMax != null) {
+    params.set("averageTeamSizeMax", String(listOptions.averageTeamSizeMax))
   }
-  if (options?.projectStartFrom) params.set("projectStartFrom", options.projectStartFrom)
-  if (options?.projectStartTo) params.set("projectStartTo", options.projectStartTo)
+  if (listOptions?.projectStartFrom) params.set("projectStartFrom", listOptions.projectStartFrom)
+  if (listOptions?.projectStartTo) params.set("projectStartTo", listOptions.projectStartTo)
 
-  appendNumberList("achievementTypes", options?.achievementTypes)
-  if (options?.achievementName?.trim()) params.set("achievementName", options.achievementName.trim())
+  appendNumberList("achievementTypes", listOptions?.achievementTypes)
+  if (listOptions?.achievementName?.trim()) params.set("achievementName", listOptions.achievementName.trim())
   if (
-    options?.candidateId != null &&
-    Number.isFinite(options.candidateId) &&
-    options.candidateId > 0
+    listOptions?.candidateId != null &&
+    Number.isFinite(listOptions.candidateId) &&
+    listOptions.candidateId > 0
   ) {
-    params.set("candidateId", String(Math.floor(options.candidateId)))
+    params.set("candidateId", String(Math.floor(listOptions.candidateId)))
   }
-  appendNumberList("callStatus", options?.callStatus)
-  if (options?.minDataProgressPercentage != null) {
-    params.set("minDataProgressPercentage", String(options.minDataProgressPercentage))
+  appendNumberList("callStatus", listOptions?.callStatus)
+  if (listOptions?.minDataProgressPercentage != null) {
+    params.set("minDataProgressPercentage", String(listOptions.minDataProgressPercentage))
   }
-  if (options?.maxDataProgressPercentage != null) {
-    params.set("maxDataProgressPercentage", String(options.maxDataProgressPercentage))
+  if (listOptions?.maxDataProgressPercentage != null) {
+    params.set("maxDataProgressPercentage", String(listOptions.maxDataProgressPercentage))
   }
-  if (options?.minExperienceYears != null) {
-    params.set("minExperienceYears", String(options.minExperienceYears))
+  if (listOptions?.minExperienceYears != null) {
+    params.set("minExperienceYears", String(listOptions.minExperienceYears))
   }
-  if (options?.maxExperienceYears != null) {
-    params.set("maxExperienceYears", String(options.maxExperienceYears))
+  if (listOptions?.maxExperienceYears != null) {
+    params.set("maxExperienceYears", String(listOptions.maxExperienceYears))
   }
 
-  appendNumberList("shiftTypes", options?.shiftTypes)
-  appendNumberList("workModes", options?.workModes)
-  appendNumberList("workExperienceSalaryPolicies", options?.workExperienceSalaryPolicies)
-  appendNumberList("timeSupportZoneIds", options?.timeSupportZoneIds)
-  appendNumberList("workExperienceTechStackIds", options?.workExperienceTechStackIds)
-  appendNumberList("workExperienceBenefitIds", options?.workExperienceBenefitIds)
+  appendNumberList("shiftTypes", listOptions?.shiftTypes)
+  appendNumberList("workModes", listOptions?.workModes)
+  appendNumberList("workExperienceSalaryPolicies", listOptions?.workExperienceSalaryPolicies)
+  appendNumberList("timeSupportZoneIds", listOptions?.timeSupportZoneIds)
+  appendNumberList("workExperienceTechStackIds", listOptions?.workExperienceTechStackIds)
+  appendNumberList("workExperienceBenefitIds", listOptions?.workExperienceBenefitIds)
 
   const path = `/api/candidates?${params.toString()}`
   const res = await apiFetch(path, { signal })
@@ -1527,12 +1531,16 @@ export async function fetchCandidateById(id: number, signal?: AbortSignal): Prom
   return mapCandidateDtoToCandidate(data)
 }
 
-export async function createCandidate(body: CreateCandidateDto): Promise<Candidate> {
+export async function createCandidate(
+  body: CreateCandidateDto,
+  actorRole?: UserRole | null,
+): Promise<Candidate> {
+  const payload = stripRecruiterCompensationFromCreateDto(body, actorRole)
   const path = `/api/candidates`
   const res = await apiFetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const text = await res.text()

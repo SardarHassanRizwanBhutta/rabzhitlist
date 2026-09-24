@@ -49,6 +49,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import type { AppUser } from "@/lib/types/app-user"
+import { userRoleLabel } from "@/lib/types/user-role"
 
 interface UsersTableProps {
   users: AppUser[]
@@ -67,7 +68,7 @@ interface UsersTableProps {
   hasActiveFilters?: boolean
 }
 
-type SortKey = "fullName" | "email" | "createdAt"
+type SortKey = "fullName" | "email" | "role" | "createdAt"
 type SortDirection = "asc" | "desc"
 
 const ITEMS_PER_PAGE_OPTIONS = [10, 20, 50, 100]
@@ -80,6 +81,7 @@ function formatUserCreatedAt(iso: string): string {
 }
 
 function sortValue(user: AppUser, key: SortKey): string | number {
+  if (key === "role") return user.role
   if (key === "createdAt") {
     const t = new Date(user.createdAt).getTime()
     return Number.isNaN(t) ? 0 : t
@@ -204,6 +206,9 @@ export function UsersTable({
                 <SortButton column="email">Email</SortButton>
               </TableHead>
               <TableHead>
+                <SortButton column="role">Role</SortButton>
+              </TableHead>
+              <TableHead>
                 <SortButton column="createdAt">Created At</SortButton>
               </TableHead>
               <TableHead className="w-[70px]">Actions</TableHead>
@@ -217,6 +222,7 @@ export function UsersTable({
                 </TableCell>
                 <TableCell className="font-medium">{user.fullName}</TableCell>
                 <TableCell>{user.email}</TableCell>
+                <TableCell>{userRoleLabel(user.role)}</TableCell>
                 <TableCell>{formatUserCreatedAt(user.createdAt)}</TableCell>
                 <TableCell>
                   <DropdownMenu>

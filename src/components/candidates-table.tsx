@@ -107,6 +107,10 @@ interface CandidatesTableProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Called after create/update/delete so the list can refetch from the server. */
   onCandidatesListChanged?: () => void
+  /** Recruiter: view-only detail; hide row edit/delete. */
+  readOnly?: boolean
+  /** Hide expected salary column (Recruiter). */
+  showSalaryColumn?: boolean
 }
 
 type SortDirection = "asc" | "desc" | null
@@ -274,6 +278,8 @@ export function CandidatesTable({
   onCreateDegree,
   onCreateMajor,
   onCandidatesListChanged,
+  readOnly: candidateReadOnly = false,
+  showSalaryColumn = true,
 }: CandidatesTableProps) {
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [sortColumn, setSortColumn] = React.useState<SortableColumn | null>(null)
@@ -291,6 +297,7 @@ export function CandidatesTable({
   const hasAvgTenureFilter = !!(filters?.avgJobTenureMin || filters?.avgJobTenureMax)
 
   const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
+    if (candidateReadOnly) return
     e.stopPropagation()
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -359,6 +366,7 @@ export function CandidatesTable({
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
+    if (candidateReadOnly) return
     e.stopPropagation()
     setCandidateToDelete(candidate)
     setDeleteDialogOpen(true)
@@ -621,10 +629,12 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 </SortableHeader>
               )}
               
-              {/* Expected Salary - Always visible */}
+              {/* Expected Salary - Admin/SuperAdmin only */}
+              {showSalaryColumn ? (
               <SortableHeader column="expectedSalary">
                 Expected Salary
               </SortableHeader>
+              ) : null}
               
               {/* City - Hidden on mobile */}
               <SortableHeader column="city" className="hidden md:table-cell">
@@ -749,12 +759,14 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                   )}
                   
                   {/* Expected Salary */}
+                  {showSalaryColumn ? (
                   <TableCell 
                     className="font-medium"
                     onClick={() => setSelectedCandidate(candidate)}
                   >
                     {candidate.expectedSalary !== null ? formatSalaryDisplayValue(candidate.expectedSalary) : "N/A"}
                   </TableCell>
+                  ) : null}
                   
                   {/* City - Hidden on mobile */}
                   <TableCell 
@@ -879,6 +891,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                         className="shrink-0"
                       />
 
+                      {!candidateReadOnly ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -916,6 +929,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1041,8 +1055,11 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
           }
         }}
         onCandidateUpdated={onCandidatesListChanged}
+        readOnly={candidateReadOnly}
       />
 
+      {!candidateReadOnly ? (
+      <>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -1085,6 +1102,8 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
         benefitsLoading={lookupsLoading}
         degreesMajorsLoading={lookupsLoading}
       />
+      </>
+      ) : null}
     </>
   )
 }

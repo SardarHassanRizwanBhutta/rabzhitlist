@@ -12,6 +12,9 @@ import {
   fetchUsersPage,
   updateUser,
 } from "@/lib/services/users-api"
+import { useAuth } from "@/contexts/auth-context"
+import { canAccessUsersAdmin } from "@/lib/auth/roles"
+import { ApiHttpError } from "@/lib/utils/api-error-message"
 
 const DEFAULT_PAGE_SIZE = 20
 
@@ -21,6 +24,8 @@ const initialFilters: UserFilters = {
 }
 
 export function UsersPageClient() {
+  const { user: authUser, isLoading: authLoading } = useAuth()
+  const canManageUsers = canAccessUsersAdmin(authUser?.role)
   const [filters, setFilters] = useState<UserFilters>(initialFilters)
   const [items, setItems] = useState<AppUser[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -39,6 +44,10 @@ export function UsersPageClient() {
 
   const loadUsers = useCallback(
     async (page: number, size: number) => {
+      if (!canManageUsers) {
+        setLoading(false)
+        return
+      }
       try {
         setLoading(true)
         const data = await fetchUsersPage({
@@ -55,6 +64,10 @@ export function UsersPageClient() {
         setHasPrevious(data.hasPrevious)
         setHasNext(data.hasNext)
       } catch (error) {
+        if (error instanceof ApiHttpError && error.status === 403) {
+          setLoading(false)
+          return
+        }
         console.error("Failed to fetch users:", error)
         const message = error instanceof Error ? error.message : "Failed to load users."
         toast.error(message)
@@ -62,12 +75,17 @@ export function UsersPageClient() {
         setLoading(false)
       }
     },
-    [filters.fullNameSearch, filters.emailSearch],
+    [canManageUsers, filters.fullNameSearch, filters.emailSearch],
   )
 
   useEffect(() => {
+    if (authLoading) return
+    if (!canManageUsers) {
+      setLoading(false)
+      return
+    }
     loadUsers(pageNumber, pageSize)
-  }, [loadUsers, pageNumber, pageSize])
+  }, [authLoading, canManageUsers, loadUsers, pageNumber, pageSize])
 
   const handleFiltersChange = (next: UserFilters) => {
     setFilters(next)
@@ -91,12 +109,17 @@ export function UsersPageClient() {
   const handleCreateOrUpdate = async (data: UserFormData, mode: "create" | "edit") => {
     try {
       if (mode === "edit" && userToEdit) {
+        const roleChanged = data.role !== userToEdit.role
         await updateUser(userToEdit.id, {
           fullName: data.fullName,
           email: data.email,
+          role: data.role,
           ...(data.password.trim() ? { password: data.password } : {}),
         })
         toast.success(`User "${data.fullName}" has been updated.`)
+        if (roleChanged) {
+          toast.message("User must log in again for role changes to apply.")
+        }
         setEditOpen(false)
         setUserToEdit(null)
       } else {
@@ -104,6 +127,7 @@ export function UsersPageClient() {
           fullName: data.fullName,
           email: data.email,
           password: data.password,
+          role: data.role,
         })
         toast.success(`User "${data.fullName}" has been created.`)
       }
@@ -142,6 +166,10 @@ export function UsersPageClient() {
     }
   }
 
+  if (authLoading || !canManageUsers || !authUser) {
+    return null
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -152,7 +180,7 @@ export function UsersPageClient() {
             onFiltersChange={handleFiltersChange}
             onClearFilters={handleClearFilters}
           />
-          <UserFormDialog onSubmit={handleCreateOrUpdate} />
+          <UserFormDialog actorRole={authUser.role} onSubmit={handleCreateOrUpdate} />
         </div>
       </div>
 
@@ -176,6 +204,7 @@ export function UsersPageClient() {
         <UserFormDialog
           mode="edit"
           user={userToEdit}
+          actorRole={authUser.role}
           open={editOpen}
           onOpenChange={(open) => {
             setEditOpen(open)

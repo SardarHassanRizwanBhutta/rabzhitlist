@@ -159,6 +159,7 @@ interface CandidatesCardsViewProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Called after update/delete so the list can refetch from the server. */
   onCandidatesListChanged?: () => void
+  readOnly?: boolean
 }
 
 // Backend-derived latest job title; no frontend calculation from work experiences.
@@ -560,6 +561,7 @@ export function CandidatesCardsView({
   onCreateDegree,
   onCreateMajor,
   onCandidatesListChanged,
+  readOnly: candidateReadOnly = false,
 }: CandidatesCardsViewProps) {
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
@@ -596,6 +598,7 @@ export function CandidatesCardsView({
   }, [candidates, filters, activeFilters, employerOnlyFilter])
 
   const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
+    if (candidateReadOnly) return
     e.stopPropagation()
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -664,6 +667,7 @@ export function CandidatesCardsView({
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
+    if (candidateReadOnly) return
     e.stopPropagation()
     setCandidateToDelete(candidate)
     setDeleteDialogOpen(true)
@@ -764,6 +768,8 @@ export function CandidatesCardsView({
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
+                            {!candidateReadOnly ? (
+                            <>
                             <DropdownMenuItem
                               disabled={editFetchLoading}
                               onClick={(e) => {
@@ -781,6 +787,8 @@ export function CandidatesCardsView({
                               <Trash2 className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>
+                            </>
+                            ) : null}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -976,8 +984,11 @@ export function CandidatesCardsView({
           }
         }}
         onCandidateUpdated={onCandidatesListChanged}
+        readOnly={candidateReadOnly}
       />
 
+      {!candidateReadOnly ? (
+      <>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -1028,6 +1039,8 @@ export function CandidatesCardsView({
         benefitsLoading={lookupsLoading}
         degreesMajorsLoading={lookupsLoading}
       />
+      </>
+      ) : null}
     </>
     </TooltipProvider>
   )

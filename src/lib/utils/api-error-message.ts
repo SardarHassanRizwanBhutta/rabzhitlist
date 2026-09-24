@@ -19,6 +19,9 @@ export function extractApiErrorMessage(text: string, status: number): string {
 
     if (parsed != null && typeof parsed === "object" && !Array.isArray(parsed)) {
       const obj = parsed as Record<string, unknown>
+      if (status === 403 && typeof obj.status === "number" && obj.status === 403) {
+        if (typeof obj.message === "string" && obj.message.trim()) return obj.message.trim()
+      }
       if (typeof obj.detail === "string" && obj.detail.trim()) return obj.detail.trim()
       if (typeof obj.message === "string" && obj.message.trim()) return obj.message.trim()
       if (typeof obj.title === "string" && obj.title.trim()) return obj.title.trim()
@@ -29,6 +32,26 @@ export function extractApiErrorMessage(text: string, status: number): string {
 
   if (trimmed.length <= 600 && !trimmed.startsWith("<")) return trimmed
   return `Request failed (${status})`
+}
+
+export type ApiForbiddenBody = {
+  status: 403
+  message: string
+}
+
+/** Thrown by service layers when `apiFetch` returns a non-OK status. */
+export class ApiHttpError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiHttpError"
+    this.status = status
+  }
+}
+
+export function apiHttpErrorFromResponse(text: string, status: number): ApiHttpError {
+  return new ApiHttpError(extractApiErrorMessage(text, status), status)
 }
 
 /** Backend ValidationException messages (employer / university name uniqueness). */

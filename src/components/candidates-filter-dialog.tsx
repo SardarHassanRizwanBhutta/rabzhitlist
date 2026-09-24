@@ -223,6 +223,8 @@ interface CandidatesFilterDialogProps {
   technicalDomains?: MultiSelectOption[]
   /** From GET /api/TechnicalAspects. */
   technicalAspects?: MultiSelectOption[]
+  /** Recruiter: hide salary / WE compensation filter controls. */
+  hideCompensationFilters?: boolean
 }
 
 // Mock data for filter options (removed unused statusOptions)
@@ -565,6 +567,7 @@ export function CandidatesFilterDialog({
   horizontalDomains = [],
   technicalDomains: technicalDomainCatalogOptions = [],
   technicalAspects: technicalAspectCatalogOptions = [],
+  hideCompensationFilters = false,
 }: CandidatesFilterDialogProps) {
   const [open, setOpen] = useState(false)
   const [tempFilters, setTempFilters] = useState<CandidateFilters>(filters)
@@ -1702,6 +1705,8 @@ export function CandidatesFilterDialog({
               </div>
 
               {/* Current Salary Filter */}
+            {!hideCompensationFilters ? (
+            <>
             <div className="space-y-3">
               <Label className="text-sm font-semibold">Current Salary Range</Label>
               <div className="grid grid-cols-2 gap-3">
@@ -1806,6 +1811,8 @@ export function CandidatesFilterDialog({
                 </div>
               </div>
             </div>
+            </>
+            ) : null}
             </section>
 
             {/* Experience Section */}
@@ -1891,6 +1898,7 @@ export function CandidatesFilterDialog({
                   />
                 </div>
                 <div className="min-w-0">
+                  {!hideCompensationFilters ? (
                   <MultiSelect
                     items={workExperienceBenefitFilterOptions}
                     selected={tempFilters.workExperienceBenefits}
@@ -1900,6 +1908,7 @@ export function CandidatesFilterDialog({
                     searchPlaceholder="Search benefits..."
                     maxDisplay={4}
                   />
+                  ) : null}
                 </div>
               </div>
 
@@ -1930,6 +1939,7 @@ export function CandidatesFilterDialog({
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {!hideCompensationFilters ? (
                 <div className="min-w-0 space-y-2">
                     <MultiSelect
                     items={workExperienceSalaryPolicyOptions}
@@ -1943,6 +1953,7 @@ export function CandidatesFilterDialog({
                       maxDisplay={3}
                     />
                   </div>
+                ) : null}
                   
                 <div className="min-w-0 space-y-2">
               <MultiSelect
@@ -2764,6 +2775,7 @@ export function CandidatesFilterDialog({
               </div>
 
                 <div className="min-w-0">
+              {!hideCompensationFilters ? (
               <MultiSelect
                 items={employerSalaryPolicyOptions}
                 selected={tempFilters.employerSalaryPolicies}
@@ -2772,6 +2784,7 @@ export function CandidatesFilterDialog({
                     label="Salary Policy"
                 maxDisplay={3}
               />
+              ) : null}
                 </div>
               </div>
             </section>

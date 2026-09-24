@@ -1,9 +1,10 @@
 # Users admin — backend handoff
 
-**Status:** Implemented in `MyApp.API`.  
+**Status:** Implemented in `MyApp.API` (includes **RBAC v1** on `/api/users`).  
 **Audience:** Backend team.  
 **Frontend integration:** [`USERS_ADMIN_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_FRONTEND_INTEGRATION.md)  
-**Related:** [`AUTH_LOGIN_BACKEND_HANDOFF.md`](./AUTH_LOGIN_BACKEND_HANDOFF.md) (`users` table, Identity password hashing)
+**RBAC (roles, candidates, dashboard):** [`RBAC_BACKEND_HANDOFF.md`](./RBAC_BACKEND_HANDOFF.md)  
+**Related:** [`AUTH_LOGIN_BACKEND_HANDOFF.md`](./AUTH_LOGIN_BACKEND_HANDOFF.md) (`users` table, JWT, Identity password hashing)
 
 ---
 
@@ -11,49 +12,113 @@
 
 | Item | Detail |
 |------|--------|
-| **Goal** | Authenticated admins manage application users (list, create, update, soft-delete). |
-| **Auth** | All routes require **JWT Bearer** (same as other `/api/**` routes). |
-| **Authorization** | **No roles yet** — any signed-in user may call these endpoints (match current auth model). |
+| **Goal** | **SuperAdmin** and **Admin** manage application users (list, create, update, soft-delete). |
+| **Auth** | All routes require **JWT Bearer** (global fallback on `/api/**`). |
+| **Authorization** | **`[AdminOnly]`** on `UsersController` — **Recruiter (`role` 2) → 403** on all methods. SuperAdmin vs Admin **scope** enforced in `UserAdminService` + `UserRoleAdminRules`. |
 | **Soft delete** | Set `deleted_at`; excluded from list and from login (`GET /api/auth/me`). |
 | **Password** | ASP.NET Identity hasher (same as login / seed / `UserPasswordHashGen`). |
+| **`role`** | Required on create/update; returned on list/create/update DTOs. |
 
 ---
 
-## 2. Data model (existing)
+## 2. Data model
 
-Table `users` (see auth handoff):
+Table `users`:
 
 | Column | Notes |
 |--------|--------|
 | `full_name` | Display name |
 | `email` | `citext`, unique among rows where `deleted_at IS NULL` |
 | `password` | Identity hash |
+| `role` | PostgreSQL enum `user_role`: `super_admin` (0), `admin` (1), `recruiter` (2) — see §2.1 |
 | `created_at`, `updated_at`, `deleted_at` | Timestamps |
 
 List/detail DTOs must **not** expose `password`.
 
+**Migration:** `20260923212300_AddUserRole` — adds `role` column; seeds SuperAdmins (Rabiah, Syed, Hassan, Ahmed) and Admin (Reyyan). Default for new column: Recruiter.
+
+### 2.1 Role enum (API JSON)
+
+| Value | `UserRole` | PG label |
+|------:|------------|----------|
+| **0** | SuperAdmin | `super_admin` |
+| **1** | Admin | `admin` |
+| **2** | Recruiter | `recruiter` |
+
+JWT claim **`role`** = string `"0"` \| `"1"` \| `"2"` (see auth handoff). Login / `me` return numeric `role`.
+
 ---
 
-## 3. Endpoints
+## 3. Authorization rules
 
-Base path: **`/api/users`**
+Implemented in `MyApp.Application/Users/UserRoleAdminRules.cs` and `UserAdminService`.
 
-### 3.1 `GET /api/users` — paged list
+### 3.1 Who may call `/api/users`
+
+| Caller role | Access |
+|-------------|--------|
+| **Recruiter** | **403** — `ForbiddenException` (default message or filter JSON — see §3.5) |
+| **Admin** | List/create/update/delete **Recruiter** users only |
+| **SuperAdmin** | List/create/update/delete **Admin + Recruiter** only (never SuperAdmin rows in list; cannot assign SuperAdmin) |
+
+### 3.2 List visibility
+
+- Filter `users.role` to roles in `VisibleRolesForList(viewer)`:
+  - SuperAdmin → Admin, Recruiter
+  - Admin → Recruiter only
+- **Exclude** authenticated user id from list (unchanged from pre-RBAC).
+- SuperAdmin users **do not appear** in the list for any viewer (including other SuperAdmins).
+
+### 3.3 Create — assignable roles
+
+| Viewer | May set `role` to |
+|--------|-------------------|
+| SuperAdmin | **1** Admin or **2** Recruiter |
+| Admin | **2** Recruiter only |
+
+**403** if SuperAdmin sends `role: 0` (`CannotAssignSuperAdminMessage`).
+
+### 3.4 Update / delete guards
+
+- Cannot manage a user whose `role` is outside the viewer’s visible set → **403**.
+- Cannot demote or delete the **last active SuperAdmin** → **403** (`LastSuperAdminMessage`).
+- Cannot delete self → **400** (`You cannot delete your own account.`).
+
+### 3.5 Error shapes
+
+| Status | When | Body |
+|--------|------|------|
+| **403** | Recruiter, forbidden role assignment, out-of-scope target, last SuperAdmin | `{ "status": 403, "message": "..." }` via `ForbiddenExceptionFilter` |
+| **400** | Validation, self-delete, missing `role` | JSON string (e.g. `"Role is required."`) via `ValidationExceptionFilter` |
+| **409** | Duplicate email | Via `ConflictExceptionFilter` |
+
+**403 message constants:**
+
+| Message | When |
+|---------|------|
+| `You do not have permission to perform this action.` | Default / Recruiter on users API |
+| `You cannot assign the SuperAdmin role.` | SuperAdmin tries `role: 0` on create/update |
+| `Admins can only manage Recruiter accounts.` | Admin assigns non-Recruiter |
+| `At least one SuperAdmin must remain in the system.` | Last SuperAdmin demotion/delete |
+
+---
+
+## 4. Endpoints
+
+Base path: **`/api/users`** — controller: `UsersController` (`[AdminOnly]`).
+
+### 4.1 `GET /api/users` — paged list
 
 **Query parameters:**
 
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
 | `pageNumber` | int | no | Default `1`, min `1` |
-| `pageSize` | int | no | Default `20`, max e.g. `100` |
-| `fullName` | string | no | Case-insensitive **contains** filter on `full_name` |
-| `email` | string | no | Case-insensitive **contains** filter on `email` |
+| `pageSize` | int | no | Default `20`, max `100` |
+| `fullName` | string | no | Case-insensitive **contains** on `full_name` |
+| `email` | string | no | Case-insensitive **contains** on `email` |
 
-**Rules:**
-
-- Only rows with **`deleted_at IS NULL`**.
-- **Exclude** the **currently authenticated** user (by JWT `sub` / user id).
-- Order by **`created_at` DESC** (recommended; FE also sorts current page client-side).
+**Rules:** active users only; role filter per §3.2; exclude current user; `created_at` DESC.
 
 **200 response:**
 
@@ -61,26 +126,25 @@ Base path: **`/api/users`**
 {
   "items": [
     {
-      "id": 1,
-      "fullName": "Rabiah Zareen",
-      "email": "rabiah.z@dplit.com",
-      "createdAt": "2026-09-21T11:31:07Z"
+      "id": 2,
+      "fullName": "Muhammad Reyyan",
+      "email": "reyyan.m@dplit.com",
+      "role": 1,
+      "createdAt": "2026-09-21T11:57:26Z"
     }
   ],
   "pageNumber": 1,
   "pageSize": 20,
-  "totalCount": 3,
+  "totalCount": 2,
   "totalPages": 1,
   "hasPrevious": false,
   "hasNext": false
 }
 ```
 
-Shape matches other paged APIs in this solution (e.g. certifications).
-
 ---
 
-### 3.2 `POST /api/users` — create
+### 4.2 `POST /api/users` — create
 
 **Request:**
 
@@ -88,24 +152,27 @@ Shape matches other paged APIs in this solution (e.g. certifications).
 {
   "fullName": "Jane Doe",
   "email": "jane.d@dplit.com",
-  "password": "initial-secret"
+  "password": "initial-secret",
+  "role": 2
 }
 ```
 
 | Field | Validation |
 |-------|------------|
-| `fullName` | **Required** on create; trimmed, reasonable max length |
-| `email` | **Required** on create; valid email, unique among non-deleted users |
-| `password` | **Required** on create; min **8** characters (same rule as change-password) |
+| `fullName` | **Required**; trimmed; max length enforced in service |
+| `email` | **Required**; valid email; unique among non-deleted |
+| `password` | **Required**; min **8** characters |
+| `role` | **Required** (`null`/omitted → **400** `"Role is required."`); must be assignable per §3.3 |
 
-**201:** Created user DTO (same fields as list item).
+**201:** `UserListItemDto` (includes `role`).
 
-**400:** Validation errors.  
-**409:** Email already in use (non-deleted).
+**400:** Validation.  
+**403:** Role rules (§3).  
+**409:** Email already in use.
 
 ---
 
-### 3.3 `PUT /api/users/{id}` — update
+### 4.3 `PUT /api/users/{id}` — update
 
 **Request:**
 
@@ -113,66 +180,77 @@ Shape matches other paged APIs in this solution (e.g. certifications).
 {
   "fullName": "Jane Doe",
   "email": "jane.d@dplit.com",
-  "password": "optional-new-password"
+  "password": "optional-new-password",
+  "role": 2
 }
 ```
 
 | Field | Validation |
 |-------|------------|
 | `fullName` | Required |
-| `email` | Required, unique among non-deleted (exclude current id) |
-| `password` | Optional; if omitted or empty, **do not** change hash; if provided, min 8 chars and re-hash |
+| `email` | Required; unique among non-deleted (exclude current id) |
+| `password` | Optional; empty/omitted → hash unchanged; if set, min 8 chars |
+| `role` | **Required**; assignable per §3.3; last-SuperAdmin rules §3.4 |
 
-**200:** Updated user DTO.
+**200:** Updated `UserListItemDto`.
 
-**404:** Unknown id or soft-deleted user.  
-**400 / 409:** Same as create.
-
----
-
-### 3.4 `DELETE /api/users/{id}` — soft delete
-
-**204** No Content on success.
-
-**404:** Unknown id or already deleted.
-
-**400 (recommended):** Cannot delete the **currently authenticated** user (prevent self-lockout). Message e.g. `"You cannot delete your own account."`
-
-Implementation: set `deleted_at` and `updated_at`; do not remove row.
+**404:** Unknown or soft-deleted id.  
+**400 / 403 / 409:** As above.
 
 ---
 
-## 4. Implementation (shipped)
+### 4.4 `DELETE /api/users/{id}` — soft delete
+
+**204** on success.
+
+**404:** Unknown or already deleted.  
+**400:** Self-delete.  
+**403:** Out-of-scope target or last SuperAdmin.
+
+---
+
+## 5. Implementation (shipped)
 
 | Area | Path / detail |
 |------|----------------|
-| DTOs | `UserFilterRequest`, `UserListItemDto`, `CreateUserRequest`, `UpdateUserRequest` |
-| Service | `UserAdminService` |
-| Repository | `UserRepository` / `IUserRepository` (list filters, soft delete) |
-| API | `UsersController` at `/api/users` |
-| Errors | `ConflictException` + `ConflictExceptionFilter` (duplicate email → **409**) |
-
-**Migration:** None — uses existing `users` table.
-
----
-
-## 5. Frontend expectations
-
-- Route: **`/users`**, table columns **Full name**, **Email**, **Created At**; create / edit / delete wired to the endpoints above.
-- `createdAt` displayed with `Date#toLocaleDateString()` (same as candidates table).
-- FE client: `src/lib/services/users-api.ts` (Bearer via shared `apiFetch`).
-- **`GET /api/users` never includes the signed-in user** — see [`USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md).
+| Enum | `MyApp.Domain/Enums/UserRole.cs` |
+| Entity | `User.Role` on `MyApp.Domain/Entities/User.cs` |
+| DTOs | `UserListItemDto` (+ `role`), `CreateUserRequest`, `UpdateUserRequest` (+ `UserRole? Role`) |
+| Rules | `MyApp.Application/Users/UserRoleAdminRules.cs` |
+| Service | `UserAdminService` (viewer role from controller) |
+| Repository | `UserRepository` — `allowedRoles` on paged list, `CountActiveSuperAdminsAsync`, `UpdateAsync` includes role |
+| API | `UsersController` — `[AdminOnly]`; passes `ICurrentUserAccessor` role into service |
+| Auth attribute | `AdminOnlyAttribute` → policy `ExcludeRecruiter` |
+| Errors | `ForbiddenException` + `ForbiddenExceptionFilter`; `ConflictException` → **409** |
 
 ---
 
-## 6. Test checklist (backend)
+## 6. Frontend expectations
+
+See [`USERS_ADMIN_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_FRONTEND_INTEGRATION.md): **`/users`** only for Admin/SuperAdmin; **Role** column and required on create/edit; Recruiter must not see nav or call API.
+
+---
+
+## 7. Test checklist (backend)
+
+### Pre-RBAC (still valid)
 
 - [x] List excludes soft-deleted users
-- [x] List excludes authenticated caller (`GET /api/users`)
-- [x] Filters `fullName` / `email` work case-insensitively (ILIKE)
-- [x] Create with duplicate email → 409
-- [x] Update email to existing → 409
+- [x] Filters `fullName` / `email` (ILIKE)
+- [x] Create duplicate email → 409
+- [x] Update email conflict → 409
 - [x] Update without password leaves hash unchanged
 - [x] Delete sets `deleted_at`; user cannot login
-- [x] Delete self → 400 (`You cannot delete your own account.`)
-- [x] All routes require valid Bearer token
+- [x] Delete self → 400
+- [x] Valid Bearer required
+
+### RBAC v1
+
+- [ ] Recruiter token → **403** on GET/POST/PUT/DELETE `/api/users`
+- [ ] SuperAdmin list: only Admin + Recruiter; no self; no SuperAdmin rows
+- [ ] Admin list: only Recruiter
+- [ ] SuperAdmin create `role: 2` and `role: 1` → 201; `role: 0` → 403
+- [ ] Admin create `role: 2` → 201; `role: 1` → 403
+- [ ] Create/update without `role` → 400
+- [ ] Demote/delete last SuperAdmin → 403
+- [ ] Response includes `role` on all user DTOs
