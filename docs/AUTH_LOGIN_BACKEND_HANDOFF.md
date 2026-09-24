@@ -1,7 +1,8 @@
 # Auth login — backend handoff
 
-**Status:** Implemented (users table + seed migration; local DB seeded).  
-**Audience:** Backend + frontend.
+**Status:** Implemented (users table + seed migration; **RBAC v1** `role` on users/JWT).  
+**Audience:** Backend + frontend.  
+**RBAC:** [`RBAC_BACKEND_HANDOFF.md`](./RBAC_BACKEND_HANDOFF.md) · **FE:** [`AUTH_LOGIN_FRONTEND_INTEGRATION.md`](./AUTH_LOGIN_FRONTEND_INTEGRATION.md)
 
 ---
 
@@ -11,7 +12,8 @@
 |------|--------|
 | Auth | JWT Bearer, 7-day access token (no refresh token) |
 | Login | `email` + `password` |
-| Users | `users` table: `full_name`, `email` (citext), `password` (Identity hash), `created_at`, `updated_at`, `deleted_at` |
+| Users | `users` table: `full_name`, `email` (citext), `password` (Identity hash), **`role`** (`user_role` enum), `created_at`, `updated_at`, `deleted_at` |
+| Roles | `0` SuperAdmin, `1` Admin, `2` Recruiter — on login/`me` and JWT claim `role` (`"0"`\|`"1"`\|`"2"`) |
 | Protection | Fallback policy: all `/api/**` require auth except anonymous auth routes and `GET /api/health` |
 | Config | `Jwt` section in `appsettings.json` (same key all environments) |
 
@@ -29,7 +31,7 @@
 {
   "accessToken": "eyJ...",
   "expiresAt": "2026-09-28T12:00:00Z",
-  "user": { "id": 1, "fullName": "...", "email": "..." }
+  "user": { "id": 1, "fullName": "...", "email": "...", "role": 0 }
 }
 ```
 
@@ -43,8 +45,8 @@
 
 ### `GET /api/auth/me` — Bearer
 
-**200:** `{ "id", "fullName", "email", "createdAt" }`  
-**401:** invalid/expired token or soft-deleted user.
+**200:** `{ "id", "fullName", "email", "role", "createdAt" }` — `role` is **0 \| 1 \| 2**  
+**401:** invalid/expired token, soft-deleted user, or **JWT `role` claim missing/mismatch** with DB (`Session outdated. Please sign in again.` in `ActiveUserJwtBearerEvents`).
 
 ### `POST /api/auth/change-password` — Bearer
 
@@ -82,6 +84,8 @@
 | Rabiah Zareen | rabiah.z@dplit.com |
 | Muhammad Reyyan | reyyan.m@dplit.com |
 | Muhammad Ahmed | ahmed.m@dplit.com |
+| Syed Ahmad | syed@dplit.com |
+| Sardar Hassan Rizwan Bhutta | hassan.b@dplit.com |
 
 ---
 
@@ -89,6 +93,8 @@
 
 - `20260921113107_AddUsersTable` — creates `users` + `idx_users_email_unique` (`deleted_at IS NULL`).
 - `20260921115726_SeedInitialUsers` — inserts the three users (hashes must be pasted into the migration file before apply).
+- `20260922100428_SeedAdditionalUsers` — inserts Syed Ahmad and Sardar Hassan Rizwan Bhutta.
+- `20260923212300_AddUserRole` — adds `users.role`; seeds SuperAdmins (Rabiah, Syed, Hassan, Ahmed) and Admin (Reyyan). **Required for RBAC v1.**
 
 ---
 

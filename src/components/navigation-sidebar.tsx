@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { Users, UserCog, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 import { AuthUserMenu } from "@/components/auth-user-menu"
+import { useNavigationAccess } from "@/components/role-route-guard"
 
 import {
   Sidebar,
@@ -129,6 +130,8 @@ function isNavItemActive(pathname: string, url: string): boolean {
 
 function AppSidebar() {
   const pathname = usePathname()
+  const { canShowNavItem } = useNavigationAccess()
+  const visibleItems = navigationItems.filter((item) => canShowNavItem(item.url))
 
   return (
     <Sidebar>
@@ -147,7 +150,7 @@ function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu className="p-2">
-          {navigationItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = isNavItemActive(pathname, item.url)
 
             return (

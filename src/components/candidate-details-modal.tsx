@@ -207,6 +207,8 @@ import { formatYearsOfExperience, getTotalExperienceYears } from "@/lib/utils/ca
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/contexts/auth-context"
+import { isRecruiter } from "@/lib/auth/roles"
 import { QG_LIST_VALUE_BADGE_CLASS } from "@/lib/utils/qg-list-value-badges"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -516,6 +518,14 @@ interface CandidateDetailsModalProps {
   onOpenChange: (open: boolean) => void
   /** Refetch candidates list after mutations so table progress stays in sync. */
   onCandidateUpdated?: () => void
+  /** View-only (Recruiter): hide edit/compensation UI. */
+  readOnly?: boolean
+}
+
+const CandidateDetailsReadOnlyContext = React.createContext(false)
+
+function useCandidateDetailsReadOnly(): boolean {
+  return React.useContext(CandidateDetailsReadOnlyContext)
 }
 
 function teamSizeLabelForDomainBadges(
@@ -4170,8 +4180,11 @@ export function CandidateDetailsModal({
   open, 
   onOpenChange,
   onCandidateUpdated,
+  readOnly = false,
 }: CandidateDetailsModalProps) {
   const router = useRouter()
+  const { user: authUser } = useAuth()
+  const viewOnly = readOnly || isRecruiter(authUser?.role)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -4478,11 +4491,12 @@ export function CandidateDetailsModal({
 
   const handleCallNotesExtractApplyComplete = useCallback(
     (result: ApplyCallNotesExtractionsResult) => {
+      if (viewOnly) return
       if (result.applied.length === 0) return
       setEditFormBootstrap(result.formData)
       setEditDialogOpen(true)
     },
-    [],
+    [viewOnly],
   )
 
   // Lookups for the edit dialog (loaded lazily when edit dialog opens)
@@ -5851,6 +5865,7 @@ export function CandidateDetailsModal({
     formData: CandidateFormData,
     options?: CandidateSubmitOptions,
   ): Promise<CandidateCreateSubmitResult | void> => {
+    if (viewOnly) return
     if (!candidate) return
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -6268,8 +6283,12 @@ export function CandidateDetailsModal({
   })) || []
 
   return (
+    <CandidateDetailsReadOnlyContext.Provider value={viewOnly}>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-[95vw] sm:!max-w-6xl lg:!max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0">
+      <DialogContent className={cn(
+        "!max-w-[95vw] sm:!max-w-6xl lg:!max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0",
+        viewOnly && "[&_button[title='Edit field']]:hidden [&_button[title='Edit contribution']]:hidden [&_button[title='Edit resume']]:hidden [&_button[title='Edit university']]:hidden [&_button[title='Edit employer']]:hidden [&_button[title='Edit certification']]:hidden [&_button[title='Edit project']]:hidden [&_button[title='Delete']]:hidden [&_button[title='Add']]:hidden",
+      )}>
         <DialogHeader className="px-8 pt-8 pb-6 border-b border-border">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
@@ -6292,7 +6311,7 @@ export function CandidateDetailsModal({
               </div>
             </div>
             <div className="flex gap-2 mr-12">
-              {/* Edit & Verify Button (includes verification) */}
+              {!viewOnly ? (
               <Button 
                 variant="default" 
                 size="sm" 
@@ -6302,6 +6321,7 @@ export function CandidateDetailsModal({
                 <ShieldCheck className="size-4" />
                 Edit & Verify
               </Button>
+              ) : null}
               
               {/* Interaction Mode Selector */}
               <Select 
@@ -6534,6 +6554,8 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="postingTitle" />}
                       getFieldVerification={getFieldVerification}
                     />
+                    {!viewOnly ? (
+                    <>
                     <InlineEditableField 
                       label="Current Salary" 
                       value={viewCandidate.currentSalary} 
@@ -6556,6 +6578,8 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="expectedSalary" />}
                       getFieldVerification={getFieldVerification}
                     />
+                    </>
+                    ) : null}
                     <InlineEditableSelect
                       label="Source"
                       value={viewCandidate.source}
@@ -6800,6 +6824,7 @@ export function CandidateDetailsModal({
                               }
                                 getFieldVerification={getFieldVerification}
                               />
+                            {!viewOnly ? (
                             <div className="min-w-0">
                             <InlineEditableSelect
                               label="Salary Policy"
@@ -6823,6 +6848,7 @@ export function CandidateDetailsModal({
                               getFieldVerification={getFieldVerification}
                             />
                           </div>
+                            ) : null}
                             <div className="min-w-0">
                             <InlineEditableMultiSelect
                               label="Time Support Zones"
@@ -6915,6 +6941,7 @@ export function CandidateDetailsModal({
                               }}
                             />
                           </div>
+                            {!viewOnly ? (
                             <div className="min-w-0">
                             <InlineEditableBenefits
                               label="Benefits"
@@ -6931,6 +6958,7 @@ export function CandidateDetailsModal({
                               maxDisplay={4}
                             />
                             </div>
+                            ) : null}
                           </div>
 
                           {/* Projects within Work Experience */}
@@ -7619,7 +7647,7 @@ export function CandidateDetailsModal({
       </DialogContent>
       
       {/* Edit & Verify Dialog (verification is always enabled in edit mode) */}
-      {candidate && (
+      {!viewOnly && candidate && (
         <CandidateCreationDialog
           mode="edit"
           candidateData={viewCandidate}
@@ -7722,5 +7750,6 @@ export function CandidateDetailsModal({
         </AlertDialogContent>
       </AlertDialog>
     </Dialog>
+    </CandidateDetailsReadOnlyContext.Provider>
   )
 }

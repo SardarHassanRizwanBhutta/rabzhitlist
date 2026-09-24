@@ -1,6 +1,7 @@
 import { apiFetch } from "@/lib/api-client"
-import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { apiHttpErrorFromResponse } from "@/lib/utils/api-error-message"
 import type { AppUser } from "@/lib/types/app-user"
+import { parseUserRole, type UserRole } from "@/lib/types/user-role"
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined
@@ -20,10 +21,14 @@ export function mapAppUserDto(raw: Record<string, unknown>): AppUser {
   const fullName = asString(raw.fullName) ?? ""
   const email = asString(raw.email) ?? ""
   const createdAt = asString(raw.createdAt) ?? ""
+  const role = parseUserRole(raw.role)
   if (id == null) {
     throw new Error("Invalid user payload: missing id")
   }
-  return { id, fullName, email, createdAt }
+  if (role == null) {
+    throw new Error("Invalid user payload: missing role")
+  }
+  return { id, fullName, email, createdAt, role }
 }
 
 export interface UsersPageResponse {
@@ -44,7 +49,6 @@ export interface FetchUsersParams {
 }
 
 export async function fetchUsersPage(params: FetchUsersParams = {}): Promise<UsersPageResponse> {
-  // Caller is excluded server-side (JWT sub); totalCount is other active users only.
   const { fullName = "", email = "", pageNumber = 1, pageSize = 20 } = params
   const search = new URLSearchParams()
   if (fullName.trim()) search.set("fullName", fullName.trim())
@@ -57,7 +61,7 @@ export async function fetchUsersPage(params: FetchUsersParams = {}): Promise<Use
   const response = await apiFetch(url)
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(extractApiErrorMessage(text, response.status))
+    throw apiHttpErrorFromResponse(text, response.status)
   }
 
   const data = (await response.json()) as UsersPageResponse
@@ -73,6 +77,7 @@ export interface CreateUserRequest {
   fullName: string
   email: string
   password: string
+  role: UserRole
 }
 
 export async function createUser(body: CreateUserRequest): Promise<AppUser> {
@@ -82,7 +87,7 @@ export async function createUser(body: CreateUserRequest): Promise<AppUser> {
   })
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(extractApiErrorMessage(text, response.status))
+    throw apiHttpErrorFromResponse(text, response.status)
   }
   const payload = (await response.json()) as Record<string, unknown>
   return mapAppUserDto(payload)
@@ -91,6 +96,7 @@ export async function createUser(body: CreateUserRequest): Promise<AppUser> {
 export interface UpdateUserRequest {
   fullName: string
   email: string
+  role: UserRole
   /** Omit or empty to leave password unchanged. */
   password?: string
 }
@@ -105,7 +111,7 @@ export async function updateUser(id: number, body: UpdateUserRequest): Promise<A
   }
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(extractApiErrorMessage(text, response.status))
+    throw apiHttpErrorFromResponse(text, response.status)
   }
   const payload = (await response.json()) as Record<string, unknown>
   return mapAppUserDto(payload)
@@ -120,6 +126,6 @@ export async function deleteUser(id: number): Promise<void> {
   }
   if (!response.ok) {
     const text = await response.text()
-    throw new Error(extractApiErrorMessage(text, response.status))
+    throw apiHttpErrorFromResponse(text, response.status)
   }
 }

@@ -1,7 +1,10 @@
+import type { UserRole } from "@/lib/types/user-role"
+
 export type AuthUser = {
   id: number
   fullName: string
   email: string
+  role: UserRole
 }
 
 export type LoginResponse = {

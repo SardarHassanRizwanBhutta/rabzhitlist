@@ -6,6 +6,8 @@ import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
+import { defaultHomePathForRole, isRecruiter } from "@/lib/auth/roles"
+import type { UserRole } from "@/lib/types/user-role"
 import { Button } from "@/components/ui/button"
 import {
   Field,
@@ -20,7 +22,7 @@ export function LoginForm({
 }: React.ComponentProps<"div">) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { login, isAuthenticated, isLoading } = useAuth()
+  const { login, isAuthenticated, isLoading, user } = useAuth()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
@@ -33,19 +35,37 @@ export function LoginForm({
   }, [searchParams])
 
   React.useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.replace(searchParams.get("callbackUrl") || "/")
+    if (!isLoading && isAuthenticated && user) {
+      const callback = searchParams.get("callbackUrl")
+      const home = defaultHomePathForRole(user.role)
+      router.replace(
+        callback && callback.startsWith("/") && !isRecruiterBlockedCallback(callback, user.role)
+          ? callback
+          : home,
+      )
     }
-  }, [isLoading, isAuthenticated, router, searchParams])
+  }, [isLoading, isAuthenticated, user, router, searchParams])
+
+  function isRecruiterBlockedCallback(path: string, role: UserRole): boolean {
+    if (!isRecruiter(role)) return false
+    return path === "/" || path.startsWith("/users")
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
     try {
-      await login(email, password)
+      const loggedIn = await login(email, password)
       const callback = searchParams.get("callbackUrl")
-      router.replace(callback && callback.startsWith("/") ? callback : "/")
+      const home = defaultHomePathForRole(loggedIn.role)
+      router.replace(
+        callback &&
+          callback.startsWith("/") &&
+          !isRecruiterBlockedCallback(callback, loggedIn.role)
+          ? callback
+          : home,
+      )
     } catch (err) {
       const message = err instanceof Error ? err.message : "Sign in failed"
       setError(message)

@@ -10,23 +10,39 @@ import {
 } from "@/lib/services/auth-api"
 import {
   clearAuthSession,
-  getStoredUser,
+  getAccessToken,
+  getExpiresAt,
   hasAuthSession,
   saveAuthSession,
 } from "@/lib/auth/auth-storage"
+import { mapApiUserToAuthUser, mapCurrentUserToAuthUser } from "@/lib/auth/map-auth-user"
 import type { AuthUser, CurrentUser } from "@/lib/types/auth"
 
 type AuthContextValue = {
   user: AuthUser | null
   isLoading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthUser>
   logout: () => Promise<void>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   refreshUser: () => Promise<void>
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null)
+
+function persistUserFromMe(me: CurrentUser): AuthUser | null {
+  const mapped = mapCurrentUserToAuthUser(me)
+  if (!mapped) {
+    clearAuthSession()
+    return null
+  }
+  const accessToken = getAccessToken()
+  const expires = getExpiresAt()
+  if (accessToken && expires) {
+    saveAuthSession(accessToken, expires, mapped)
+  }
+  return mapped
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<AuthUser | null>(null)
@@ -40,7 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const me = await getCurrentUser()
-      setUser({ id: me.id, fullName: me.fullName, email: me.email })
+      const mapped = persistUserFromMe(me)
+      setUser(mapped)
     } catch {
       clearAuthSession()
       setUser(null)
@@ -50,7 +67,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   React.useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const stored = getStoredUser()
       if (!hasAuthSession()) {
         clearAuthSession()
         if (!cancelled) {
@@ -59,11 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         return
       }
-      if (stored && !cancelled) setUser(stored)
       try {
         const me = await getCurrentUser()
         if (!cancelled) {
-          setUser({ id: me.id, fullName: me.fullName, email: me.email })
+          setUser(persistUserFromMe(me))
         }
       } catch {
         if (!cancelled) {
@@ -81,8 +96,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = React.useCallback(async (email: string, password: string) => {
     const res = await loginApi(email, password)
-    saveAuthSession(res.accessToken, res.expiresAt, res.user)
-    setUser(res.user)
+    const mapped = mapApiUserToAuthUser(res.user)
+    if (!mapped) {
+      clearAuthSession()
+      throw new Error("Please sign in again.")
+    }
+    saveAuthSession(res.accessToken, res.expiresAt, mapped)
+    setUser(mapped)
+    return mapped
   }, [])
 
   const logout = React.useCallback(async () => {

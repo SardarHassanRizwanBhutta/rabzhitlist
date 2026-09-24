@@ -68,6 +68,8 @@ import type { CertificationIssuer } from "@/lib/types/certification"
 import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
 import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidates-filter-dialog"
+import { useAuth } from "@/contexts/auth-context"
+import { canMutateCandidate, canUseCandidateSalaryUi } from "@/lib/auth/roles"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
@@ -179,6 +181,9 @@ const initialFilters: CandidateFilters = {
 export function CandidatesPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { user: authUser } = useAuth()
+  const candidateReadOnly = !canMutateCandidate(authUser?.role)
+  const showSalaryUi = canUseCandidateSalaryUi(authUser?.role)
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
 
   /** Numeric certification id from URL for server-side list filtering (GET /api/candidates?certificationId=). */
@@ -730,7 +735,13 @@ export function CandidatesPageClient() {
       setListLoading(true)
       setListError(null)
       try {
-        const res = await fetchCandidatesPage(pageNumber, pageSize, ac.signal, backendListOptions)
+        const res = await fetchCandidatesPage(
+          pageNumber,
+          pageSize,
+          ac.signal,
+          backendListOptions,
+          authUser?.role,
+        )
         if (ignore) return
         setCandidates(res.items.map((row) => candidateListItemDtoToCandidate(row)))
         setTotalCount(res.totalCount)
@@ -753,7 +764,7 @@ export function CandidatesPageClient() {
       ignore = true
       ac.abort()
     }
-  }, [pageNumber, pageSize, reloadToken, backendListOptions])
+  }, [pageNumber, pageSize, reloadToken, backendListOptions, authUser?.role])
 
   const handleCreateClientLocation = useCallback(async (name: string) => {
     try {
@@ -1101,7 +1112,7 @@ export function CandidatesPageClient() {
       if (callNotes) {
         createBody.callNotes = callNotes
       }
-      const candidate = await createCandidate(createBody)
+      const candidate = await createCandidate(createBody, authUser?.role)
 
       // Create succeeded (notes already on candidate if sent). Drop draft session.
       if (draftColdCallerSession || pendingCreateCallNotes != null) {
@@ -1313,6 +1324,7 @@ export function CandidatesPageClient() {
             horizontalDomains={horizontalDomainSelectOptions}
             technicalDomains={technicalDomainSelectOptions}
             technicalAspects={technicalAspectSelectOptions}
+            hideCompensationFilters={!showSalaryUi}
           />
           <ResumeParserDialog
             onApplyToCreateCandidate={handleApplyResumeParse}
@@ -1362,6 +1374,7 @@ export function CandidatesPageClient() {
             degreesMajorsLoading={lookupsLoading}
             certificationIssuersLoading={lookupsLoading}
             nestedEmployerCreation={nestedEmployerCreation}
+            hideCompensationFields={!showSalaryUi}
             nestedProjectCreation={nestedProjectCreation}
           />
           {draftColdCallerSession ? (
@@ -1517,6 +1530,7 @@ export function CandidatesPageClient() {
               onCreateDegree={handleCreateDegree}
               onCreateMajor={handleCreateMajor}
               onCandidatesListChanged={refetchCandidates}
+              readOnly={candidateReadOnly}
             />
           ) : (
             <CandidatesTable
@@ -1538,6 +1552,8 @@ export function CandidatesPageClient() {
               onCreateDegree={handleCreateDegree}
               onCreateMajor={handleCreateMajor}
               onCandidatesListChanged={refetchCandidates}
+              readOnly={candidateReadOnly}
+              showSalaryColumn={showSalaryUi}
             />
           )}
 
