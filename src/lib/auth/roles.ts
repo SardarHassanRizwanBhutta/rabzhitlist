@@ -42,3 +42,5 @@ export function assignableRolesForActor(actor: UserRoleType | undefined | null):
 export function defaultHomePathForRole(role: UserRoleType | undefined | null): string {
   return isRecruiter(role) ? "/candidates" : "/"
 }
+
+export { canViewContributionsForTarget } from "@/lib/utils/user-contributions-access"

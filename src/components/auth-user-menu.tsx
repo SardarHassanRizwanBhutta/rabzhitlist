@@ -6,7 +6,7 @@ import { KeyRound, LogOut, MoreVertical } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAuth } from "@/contexts/auth-context"
-import { cn } from "@/lib/utils"
+import { UserAvatar } from "@/components/user-avatar"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,30 +31,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-
-function userInitials(fullName: string, email: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return `${parts[0]![0] ?? ""}${parts[parts.length - 1]![0] ?? ""}`.toUpperCase()
-  }
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
-  return email.slice(0, 2).toUpperCase()
-}
-
-function UserAvatar({ name, email, className }: { name: string; email: string; className?: string }) {
-  const initials = userInitials(name, email)
-  return (
-    <div
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-medium text-sidebar-primary-foreground",
-        className,
-      )}
-      aria-hidden
-    >
-      {initials}
-    </div>
-  )
-}
 
 export function AuthUserMenu() {
   const router = useRouter()

@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { UsersTable } from "@/components/users-table"
 import { UsersFilterDialog, type UserFilters } from "@/components/users-filter-dialog"
@@ -15,6 +16,7 @@ import {
 import { useAuth } from "@/contexts/auth-context"
 import { canAccessUsersAdmin } from "@/lib/auth/roles"
 import { ApiHttpError } from "@/lib/utils/api-error-message"
+import { writeUserProfilePreview } from "@/lib/utils/user-initials"
 
 const DEFAULT_PAGE_SIZE = 20
 
@@ -24,6 +26,7 @@ const initialFilters: UserFilters = {
 }
 
 export function UsersPageClient() {
+  const router = useRouter()
   const { user: authUser, isLoading: authLoading } = useAuth()
   const canManageUsers = canAccessUsersAdmin(authUser?.role)
   const [filters, setFilters] = useState<UserFilters>(initialFilters)
@@ -145,6 +148,15 @@ export function UsersPageClient() {
     }
   }
 
+  const handleViewProfile = (user: AppUser) => {
+    writeUserProfilePreview(user.id, {
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+    })
+    router.push(`/users/${user.id}`)
+  }
+
   const handleEdit = (user: AppUser) => {
     setUserToEdit(user)
     setEditOpen(true)
@@ -195,6 +207,7 @@ export function UsersPageClient() {
         hasNext={hasNext}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
+        onViewProfile={handleViewProfile}
         onEdit={handleEdit}
         onDelete={handleDelete}
         hasActiveFilters={hasActiveFilters}
