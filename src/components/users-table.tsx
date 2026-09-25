@@ -62,6 +62,7 @@ interface UsersTableProps {
   hasNext: boolean
   onPageChange: (page: number) => void
   onPageSizeChange: (pageSize: number) => void
+  onViewProfile?: (user: AppUser) => void
   onEdit?: (user: AppUser) => void
   onDelete?: (user: AppUser) => void | Promise<void>
   /** When true, empty state uses filter-specific copy. */
@@ -100,6 +101,7 @@ export function UsersTable({
   hasNext,
   onPageChange,
   onPageSizeChange,
+  onViewProfile,
   onEdit,
   onDelete,
   hasActiveFilters = false,
@@ -216,7 +218,11 @@ export function UsersTable({
           </TableHeader>
           <TableBody>
             {sortedUsers.map((user, index) => (
-              <TableRow key={user.id}>
+              <TableRow
+                key={user.id}
+                className={onViewProfile ? "cursor-pointer" : undefined}
+                onClick={() => onViewProfile?.(user)}
+              >
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {(pageNumber - 1) * pageSize + index + 1}
                 </TableCell>
@@ -224,7 +230,7 @@ export function UsersTable({
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{userRoleLabel(user.role)}</TableCell>
                 <TableCell>{formatUserCreatedAt(user.createdAt)}</TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="h-8 w-8 p-0">

@@ -7,6 +7,10 @@ import { Users, UserCog, FolderOpen, Building2, Award, GraduationCap, LayoutDash
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 import { AuthUserMenu } from "@/components/auth-user-menu"
 import { useNavigationAccess } from "@/components/role-route-guard"
+import {
+  PageHeaderProvider,
+  usePageHeaderTitle,
+} from "@/contexts/page-header-context"
 
 import {
   Sidebar,
@@ -105,21 +109,30 @@ export function NavigationSidebar({
 }: NavigationSidebarProps) {
   return (
     <SidebarProvider defaultOpen={defaultOpen} className={className}>
-      <AppSidebar />
-      <main className="flex-1 overflow-auto">
-        <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <SidebarTrigger />
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">Rabz Hit List</h1>
-          </div>
-          <GlobalFilterDialog />
-        </header>
-        <div className="flex-1 space-y-4 p-6">
-          {children}
-        </div>  
-      </main>
-      <SidebarRail />
+      <PageHeaderProvider>
+        <AppSidebar />
+        <main className="flex-1 overflow-auto">
+          <AppTopBar />
+          <div className="flex-1 space-y-4 p-6">{children}</div>
+        </main>
+        <SidebarRail />
+      </PageHeaderProvider>
     </SidebarProvider>
+  )
+}
+
+function AppTopBar() {
+  const pageTitle = usePageHeaderTitle()
+  return (
+    <header className="flex h-14 items-center gap-4 border-b bg-background/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <SidebarTrigger />
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-lg font-bold tracking-tight">
+          {pageTitle ?? "Rabz Hit List"}
+        </h1>
+      </div>
+      <GlobalFilterDialog />
+    </header>
   )
 }
 
