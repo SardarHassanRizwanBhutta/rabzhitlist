@@ -1,21 +1,13 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ComponentType } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import {
-  Award,
-  Building2,
-  ChevronRight,
-  FolderOpen,
-  GraduationCap,
-  Mail,
-  Users,
-} from "lucide-react"
+import { ChevronRight, Mail } from "lucide-react"
 import { toast } from "sonner"
 import { UserFormDialog, type UserFormData } from "@/components/user-form-dialog"
 import { UserAvatar } from "@/components/user-avatar"
-import { DashboardKpiCard } from "@/components/dashboard/dashboard-kpi-card"
+import { UserProfileContributionsSection } from "@/components/users/user-profile-contributions-section"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -25,7 +17,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { canAccessUsersAdmin } from "@/lib/auth/roles"
 import type { AppUser } from "@/lib/types/app-user"
 import { userRoleLabel } from "@/lib/types/user-role"
-import type { UserContributionCounts, UserContributions } from "@/lib/types/user-contributions"
+import type { UserContributions } from "@/lib/types/user-contributions"
 import { updateUser } from "@/lib/services/users-api"
 import {
   readUserProfilePreview,
@@ -33,18 +25,6 @@ import {
   type UserProfilePreview,
 } from "@/lib/utils/user-initials"
 import { useUserContributions } from "@/hooks/useUserContributions"
-
-const MODULE_CARDS: {
-  key: keyof UserContributionCounts
-  title: string
-  icon: ComponentType<{ className?: string }>
-}[] = [
-  { key: "candidates", title: "Candidates", icon: Users },
-  { key: "employers", title: "Employers", icon: Building2 },
-  { key: "projects", title: "Projects", icon: FolderOpen },
-  { key: "universities", title: "Universities", icon: GraduationCap },
-  { key: "certifications", title: "Certifications", icon: Award },
-]
 
 export type UserProfilePageClientProps = {
   userId: number
@@ -100,11 +80,15 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
   }, [error])
 
   useEffect(() => {
-    if (authLoading) return
+    if (authLoading || !authUser) return
+    if (userId === authUser.id) {
+      router.replace("/profile")
+      return
+    }
     if (!canManageUsers) {
       router.replace("/candidates")
     }
-  }, [authLoading, canManageUsers, router])
+  }, [authLoading, authUser, canManageUsers, router, userId])
 
   const counts = useMemo(() => data?.counts ?? null, [data])
 
@@ -140,7 +124,7 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
     }
   }
 
-  if (authLoading || !canManageUsers || !authUser) {
+  if (authLoading || !canManageUsers || !authUser || userId === authUser.id) {
     return null
   }
 
@@ -216,34 +200,7 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
         />
       ) : null}
 
-      <section className="mt-8 space-y-4" aria-labelledby="contributions-heading">
-        <h3 id="contributions-heading" className="text-lg font-semibold tracking-tight">
-          Contributions
-        </h3>
-
-        {error ? (
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardContent className="pt-6">
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {MODULE_CARDS.map(({ key, title, icon }) => (
-            <DashboardKpiCard
-              key={key}
-              title={title}
-              icon={icon}
-              loading={loading}
-              value={counts ? counts[key] : undefined}
-              hint="Records created"
-            />
-          ))}
-        </div>
-      </section>
+      <UserProfileContributionsSection loading={loading} error={error} counts={counts} />
     </>
   )
 }

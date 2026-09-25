@@ -15,10 +15,10 @@
 
 | Item | Detail |
 |------|--------|
-| **Feature** | Show **how many active records** a managed user **created** in five areas: candidates, employers, projects, universities, certifications. |
-| **API** | Single read: **`GET /api/users/{id}/contributions`** |
-| **Who sees UI** | **SuperAdmin** and **Admin** only (same gate as `/users`) |
-| **Who can be viewed** | Same users as in **`GET /api/users`** list scope (backend visibility **Option A**) — if the row is in the table, the contributions call should **200** |
+| **Feature** | Show **how many active records** a user **created** in five areas: candidates, employers, projects, universities, certifications. |
+| **APIs** | **Self:** `GET /api/auth/me/contributions` (all roles). **Others:** `GET /api/users/{id}/contributions` (Admin/SuperAdmin only; users-admin scope). |
+| **Who sees “my” UI** | **Any signed-in role** (SuperAdmin, Admin, Recruiter) — placement is FE-owned |
+| **Who sees “others” UI** | **SuperAdmin** and **Admin** on `/users` — targets from **`GET /api/users`** list scope (backend **Option A**) |
 | **v1 limits** | **Counts only** — no lists, no links to filtered entity pages, no `createdBy` on candidate/employer/etc. DTOs |
 | **Data caveat** | Rows created **before** migration `20260924173606_AddCreatedByUserId` have **no** creator → counts stay **0** until that user creates **new** rows after deploy |
 
@@ -28,10 +28,10 @@
 
 ### 2.1 In scope (v1)
 
-- Fetch contribution counts for a **user id** that is in scope for the signed-in Admin/SuperAdmin (typically an id from **`GET /api/users`**).
+- **Self:** `GET /api/auth/me/contributions` for the signed-in user (all roles).
+- **Others (admin):** `GET /api/users/{id}/contributions` for ids from the users list (Admin/SuperAdmin only).
 - Display five non-negative integers with clear labels.
-- Loading and error handling consistent with the rest of the Users admin module.
-- **Read-only** — no mutations; no new **API** routes (FE may add routes or not — **UX is entirely a frontend decision**).
+- **Read-only** — no mutations; **UX/routes** are frontend-owned.
 
 ### 2.2 Out of scope (v1) — do **not** implement
 
@@ -39,8 +39,8 @@
 |------|--------|
 | Drill-down to filtered candidate/employer/etc. lists | Backend does not expose list-by-creator APIs |
 | `createdBy` column on entity tables | Not on entity DTOs |
-| Recruiter “my contributions” / profile | Not in API scope; Recruiter gets **403** on `/api/users/**` |
-| SuperAdmin / self contribution views | Targets outside list scope → **403**; self not in list |
+| Viewing **another** user via `/api/users/{id}/contributions` as Recruiter | **403** — use **`/api/auth/me/contributions`** for self only |
+| Viewing **own** counts via `/api/users/{ownId}/contributions` | **403** — use **`/api/auth/me/contributions`** |
 | Caching counts across sessions | Optional; no backend cache — refetch on open is fine |
 
 ### 2.3 UX and layout (frontend-owned)
@@ -55,8 +55,8 @@ The API does **not** specify screens, components, routes, or interaction pattern
 
 | Requirement | Detail |
 |-------------|--------|
-| **Gate** | Only **SuperAdmin** and **Admin** see or trigger this feature (same as `/users`) |
-| **Target id** | Call `GET /api/users/{id}/contributions` only for users the viewer is allowed to manage (see §3.2) |
+| **Self** | Any authenticated user may call `GET /api/auth/me/contributions` |
+| **Others** | Only **SuperAdmin** and **Admin** call `GET /api/users/{id}/contributions` for in-scope ids (see §3.2) |
 | **Create-user flow** | No `id` until after `POST /api/users` — do not call contributions during create unless FE explicitly loads after **201** (unusual; not required by backend) |
 | **Data shown** | All five keys under `counts` on **200**; treat **0** as valid |
 | **No scope creep** | No drill-down lists, no entity-module changes (§2.2) |
@@ -67,27 +67,35 @@ The API does **not** specify screens, components, routes, or interaction pattern
 
 ## 3. Access control
 
-### 3.1 Viewer (signed-in user)
+### 3.1 Self (`GET /api/auth/me/contributions`)
 
-| `user.role` | Show contributions UI? | Call `GET /api/users/{id}/contributions`? |
-|-------------|--------------------------|-------------------------------------------|
-| **0** SuperAdmin | Yes (on `/users`) | Yes |
-| **1** Admin | Yes (on `/users`) | Yes |
-| **2** Recruiter | **No** — hide nav/route (already) | **403** on all `/api/users` |
+| `user.role` | May call API? | Typical UI |
+|-------------|---------------|------------|
+| **0** SuperAdmin | Yes | Account/profile area (FE-owned) |
+| **1** Admin | Yes | Same |
+| **2** Recruiter | Yes | Same |
 
-Use the same guard as Users admin:
+Requires valid Bearer token. Response shape identical to the users-admin contributions DTO (§4).
+
+### 3.2 Others (`GET /api/users/{id}/contributions`)
+
+| `user.role` | May call? |
+|-------------|-----------|
+| **0** SuperAdmin | Yes — for list rows (Admin + Recruiter ids) |
+| **1** Admin | Yes — for Recruiter ids only |
+| **2** Recruiter | **No** — **403** on all `/api/users/**` |
 
 ```typescript
 import { UserRole } from '@/lib/types/user-role' // match existing RBAC types
 
-export function canAccessUsersAdmin(role: UserRole): boolean {
+export function canViewOtherUsersContributions(role: UserRole): boolean {
   return role === UserRole.SuperAdmin || role === UserRole.Admin
 }
 ```
 
-Do **not** prefetch contributions for Recruiter (avoid noisy **403** in network tab).
+Do **not** call `/api/users/{id}/contributions` for Recruiter or for **own** id — use §3.1 instead.
 
-### 3.2 Target user (whose counts are shown)
+### 3.3 Target user (admin route — whose counts are shown)
 
 Visibility matches **user list / manage** rules (`UserRoleAdminRules.EnsureCanViewContributions` on API):
 
@@ -106,7 +114,23 @@ Visibility matches **user list / manage** rules (`UserRoleAdminRules.EnsureCanVi
 
 ## 4. API reference
 
-### 4.1 Request
+Use the same **authenticated fetch helper** as auth/users clients (Bearer + base URL from `NEXT_PUBLIC_API_URL` / project convention).
+
+### 4.1 Self — `GET /api/auth/me/contributions`
+
+```http
+GET /api/auth/me/contributions
+Authorization: Bearer <accessToken>
+```
+
+| Part | Detail |
+|------|--------|
+| Query params | **None** |
+| Body | **None** |
+
+**Errors:** **401** unauthenticated; **404** if user row missing (rare).
+
+### 4.2 Others — `GET /api/users/{id}/contributions`
 
 ```http
 GET /api/users/{id}/contributions
@@ -115,13 +139,13 @@ Authorization: Bearer <accessToken>
 
 | Part | Detail |
 |------|--------|
-| `{id}` | Target user id (`number` / `long`) |
+| `{id}` | Target user id (`number` / `long`) — not your own id |
 | Query params | **None** |
 | Body | **None** |
 
-Use the same **authenticated fetch helper** as `users-api.ts` (Bearer + base URL from `NEXT_PUBLIC_API_URL` / project convention).
+**Errors:** **401**; **403** Recruiter or out-of-scope target; **404** unknown/deleted user.
 
-### 4.2 Success `200`
+### 4.3 Success `200` (both routes)
 
 **JSON (camelCase):**
 
@@ -159,7 +183,7 @@ Use the same **authenticated fetch helper** as `users-api.ts` (Bearer + base URL
 - Updates do **not** change creator; only **creates** after migration increment counts.
 - Linking **existing** catalog ids on candidate create does **not** attribute those catalogs to the user — only the **candidate** row (and any **new** catalog row created via that module’s POST) counts.
 
-### 4.3 Errors
+### 4.4 Errors (admin route — §4.2)
 
 | Status | When | FE action |
 |--------|------|-----------|
@@ -235,26 +259,31 @@ Reuse sidebar/module naming/icons from the app if they exist — do not invent n
 
 ## 6. API client
 
-Extend the users service file (illustrative path: `src/lib/services/users-api.ts`):
+**Self** — e.g. `src/lib/services/auth-api.ts` or shared API module:
 
 ```typescript
-import type { UserContributions } from '@/lib/types/user-contributions'
-import { authenticatedFetch } from '@/lib/services/api-client' // match FE repo
+export async function fetchMyContributions(): Promise<UserContributions> {
+  const response = await authenticatedFetch('/api/auth/me/contributions')
+  if (!response.ok) throw await toApiError(response)
+  return response.json() as Promise<UserContributions>
+}
+```
 
+**Others (admin)** — `src/lib/services/users-api.ts`:
+
+```typescript
 export async function fetchUserContributions(userId: number): Promise<UserContributions> {
   const response = await authenticatedFetch(`/api/users/${userId}/contributions`)
-  if (!response.ok) {
-    throw await toApiError(response) // use existing helper that calls extractApiErrorMessage
-  }
+  if (!response.ok) throw await toApiError(response)
   return response.json() as Promise<UserContributions>
 }
 ```
 
 **Rules:**
 
-- No query params.
-- Do not send `userId` in body.
-- Throw on non-OK so the UI layer can toast (same as `deleteUser`, `createUser`, etc.).
+- No query params; no body.
+- Throw on non-OK so the UI layer can toast.
+- For **own** stats, always use `fetchMyContributions()` — not `fetchUserContributions(session.user.id)`.
 
 ---
 
@@ -264,7 +293,8 @@ export async function fetchUserContributions(userId: number): Promise<UserContri
 
 | Event | Action |
 |-------|--------|
-| Open contributions UI for user `id` | `fetchUserContributions(id)` |
+| Open **my** contributions UI | `fetchMyContributions()` |
+| Open **another user’s** UI (admin) | `fetchUserContributions(id)` |
 | Close dialog/drawer | Cancel in-flight request if using AbortController (optional; match Users module) |
 | Successful user **delete** | Do not refetch; close contributions UI |
 | User **updated** (name/email/role) | Optional refetch contributions (counts unchanged); at minimum refresh header from edit form or refetch contributions for updated `fullName`/`email` |
@@ -306,9 +336,9 @@ Illustrative targets from Users admin doc — **verify paths** before editing:
 | Area | Likely file | Change |
 |------|-------------|--------|
 | Types | `src/lib/types/user-contributions.ts` (new) or `app-user.ts` | Add §5 types |
-| API | `src/lib/services/users-api.ts` | Add `fetchUserContributions` |
-| UI | Users module components (paths vary) | Integrate fetch + display per §2.3 |
-| Guards | Existing Users route guard | No change if Recruiter already blocked |
+| API | `auth-api.ts` / `users-api.ts` | `fetchMyContributions`, `fetchUserContributions` |
+| UI | Profile/account + Users module (paths vary) | Integrate per §2.3 |
+| Guards | `canViewOtherUsersContributions` for admin-only UI | Self UI: any authenticated user |
 
 ---
 
@@ -319,13 +349,13 @@ Work in order; reference in PR description.
 ### 9.1 Types & client
 
 - [ ] Add `UserContributions` + `UserContributionCounts` types
-- [ ] Add `fetchUserContributions(userId)` using authenticated fetch
+- [ ] Add `fetchMyContributions()` and `fetchUserContributions(userId)`
 - [ ] Reuse existing API error helper for **401** / **403** / **404**
 
 ### 9.2 UI
 
-- [ ] Gate feature with `canAccessUsersAdmin(session.user.role)`
-- [ ] Integrate fetch + UI per frontend UX choice (§2.3); only for in-scope user ids (§3.2)
+- [ ] **Self:** contributions entry for all roles → `fetchMyContributions()`
+- [ ] **Others:** gate with `canViewOtherUsersContributions`; in-scope ids only (§3.3)
 - [ ] Loading + error + success states
 - [ ] Header shows `fullName`, `email`, role label from response (or from list row before load)
 
@@ -350,14 +380,20 @@ Prerequisites: API with migration **`20260924173606_AddCreatedByUserId`** applie
 
 **Recruiter**
 
-6. `/users` not reachable; no contributions UI.
-7. `GET /api/users/5/contributions` → **403**.
+6. `/users` not reachable; no **other-user** contributions UI.
+7. `GET /api/auth/me/contributions` → **200** (own counts).
+8. `GET /api/users/5/contributions` → **403**.
+
+**Self (all roles)**
+
+9. `GET /api/auth/me/contributions` → **200**; `id` matches `GET /api/auth/me`.
+10. `GET /api/users/{ownId}/contributions` as Admin/SuperAdmin → **403** (use me route).
 
 **Edge cases**
 
-8. Invalid id `GET /api/users/999999/contributions` → **404**.
-9. Delete user while contributions panel open → **404** on refetch or refresh list.
-10. All zeros after fresh deploy → still **200**; UI shows zeros without error.
+11. Invalid id `GET /api/users/999999/contributions` → **404**.
+12. Delete user while admin contributions panel open → **404** on refetch or refresh list.
+13. All zeros after fresh deploy → still **200**; UI shows zeros without error.
 
 ---
 
@@ -365,7 +401,7 @@ Prerequisites: API with migration **`20260924173606_AddCreatedByUserId`** applie
 
 | Component | Requirement |
 |-----------|-------------|
-| API | Shipped with `UsersController.GetContributions` |
+| API | `AuthController.GetMyContributions`, `UsersController.GetContributions` |
 | Database | Migration **`20260924173606_AddCreatedByUserId`** on each environment |
 | FE | Can ship **before** or **after** migration; until migration, endpoint works but counts stay **0** for new creates until column exists |
 
@@ -376,7 +412,6 @@ Order for meaningful QA: **migrate DB → deploy API → deploy FE**.
 ## 11. v2 (backend not implemented — do not FE-scope)
 
 - Per-entity contribution **lists** with paging  
-- Self-service profile contributions  
 - `createdBy` on entity DTOs  
 - Backfilled historical attribution  
 
@@ -386,7 +421,7 @@ Order for meaningful QA: **migrate DB → deploy API → deploy FE**.
 
 | Topic | Rule |
 |-------|------|
-| **Self** | Signed-in user is excluded from `GET /api/users` — there is **no** v1 API path for “my contributions” via users admin |
+| **Self** | Use **`GET /api/auth/me/contributions`** (all roles). Do **not** use `GET /api/users/{ownId}/contributions` — **403** |
 | **SuperAdmin targets** | Not in list scope → **403** if contributions API is called for their id |
 | **Recruiter viewer** | **403** on all `/api/users/**` — do not expose UI |
 | **Historical data** | Pre-migration rows have NULL creator → counts may be **0** even when the user “owns” data in a business sense |
