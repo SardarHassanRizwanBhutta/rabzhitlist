@@ -1,5 +1,6 @@
 import { apiFetch, apiGet, apiPost } from "@/lib/api-client"
-import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { apiHttpErrorFromResponse, extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { mapUserContributionsDto } from "@/lib/services/users-api"
 import type {
   ChangePasswordRequest,
   ChangePasswordResponse,
@@ -7,6 +8,7 @@ import type {
   LoginRequest,
   LoginResponse,
 } from "@/lib/types/auth"
+import type { UserContributions } from "@/lib/types/user-contributions"
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const body: LoginRequest = { email: email.trim(), password }
@@ -38,4 +40,17 @@ export async function changePassword(
   return apiPost<ChangePasswordResponse>("/api/auth/change-password", body, undefined, {
     skipUnauthorizedHandler: true,
   })
+}
+
+export async function fetchMyContributions(): Promise<UserContributions> {
+  const response = await apiFetch("/api/auth/me/contributions")
+  if (response.status === 404) {
+    throw new Error("Not found")
+  }
+  if (!response.ok) {
+    const text = await response.text()
+    throw apiHttpErrorFromResponse(text, response.status)
+  }
+  const payload = (await response.json()) as Record<string, unknown>
+  return mapUserContributionsDto(payload)
 }

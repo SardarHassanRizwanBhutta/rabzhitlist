@@ -11,11 +11,11 @@
 
 | Item | Detail |
 |------|--------|
-| **Goal** | Record **who created** certain catalog/entity rows; expose **active counts per user** to Admin/SuperAdmin via a dedicated read API. |
+| **Goal** | Record **who created** certain catalog/entity rows; expose **active counts** via read APIs (self + admin viewing others). |
 | **v1 scope** | Column `created_by_user_id` (nullable FK → `users.id`) on **candidates**, **employers**, **projects**, **universities**, **certifications** only. |
 | **Out of scope v1** | Issuers, university locations, degrees, `updated_by`, backfill of historical rows, `createdBy` on entity list/detail DTOs, contribution **lists** (counts only). |
 | **Auth** | JWT Bearer on all routes. |
-| **Read API** | `GET /api/users/{id}/contributions` — `[AdminOnly]`; visibility **Option A** (same as user list/manage scope). |
+| **Read APIs** | **`GET /api/auth/me/contributions`** — any authenticated role (own counts). **`GET /api/users/{id}/contributions`** — `[AdminOnly]`; visibility **Option A** (others in users-admin scope). |
 
 ---
 
@@ -52,27 +52,54 @@ Contribution counts include only rows where:
 
 ---
 
-## 3. Authorization (`GET /api/users/{id}/contributions`)
+## 3. Authorization
+
+### 3.1 `GET /api/auth/me/contributions` (self)
+
+| Caller | Access |
+|--------|--------|
+| **SuperAdmin, Admin, Recruiter** | **200** — counts for the **JWT user** (`sub` = user id) |
+| Unauthenticated | **401** |
+
+No role-based restriction beyond a valid active user. Same count semantics as §2.3.
+
+**404:** Caller id not found or user soft-deleted (unusual with a valid session).
+
+### 3.2 `GET /api/users/{id}/contributions` (admin view others)
 
 Uses `UserRoleAdminRules.EnsureCanViewContributions` — identical to **manage/list target visibility** (Option A).
 
 | Viewer | May load contributions for |
 |--------|----------------------------|
-| **Recruiter** | **403** (controller is `[AdminOnly]`) |
+| **Recruiter** | **403** (`UsersController` is `[AdminOnly]`) |
 | **Admin** | Active **Recruiter** users only |
 | **SuperAdmin** | Active **Admin** and **Recruiter** users only |
 
-**Not allowed (403):** SuperAdmin/Admin targets, users outside list scope, self (Admin/SuperAdmin are excluded from list scope by role filter).
+**Not allowed (403):** SuperAdmin/Admin targets, users outside list scope, **viewing own id via this route** (use §3.1 instead).
 
 **404:** Target user id unknown or soft-deleted.
 
 ---
 
-## 4. Endpoint
+## 4. Endpoints
+
+### 4.1 `GET /api/auth/me/contributions`
+
+**Controller:** `AuthController` — `[Authorize]` only (not `[AdminOnly]`).
+
+**Headers:** `Authorization: Bearer <accessToken>`
+
+**200 response:** Same `UserContributionsDto` shape as §4.2 (identity fields reflect the signed-in user).
+
+**401:** Missing/invalid JWT.
+
+**404:** Active user row not found.
+
+---
+
+### 4.2 `GET /api/users/{id}/contributions`
 
 Base: **`/api/users`** — `UsersController` (`[AdminOnly]`).
-
-### `GET /api/users/{id}/contributions`
 
 **200 response:**
 
@@ -113,9 +140,9 @@ Base: **`/api/users`** — `UsersController` (`[AdminOnly]`).
 | Writes | `CandidateService.CreateAsync`, `EmployerService.CreateAsync`, `ProjectService.CreateAsync`, `UniversityService.CreateAsync`, `CertificationService.CreateAsync` |
 | Counts | `IUserRepository.GetActiveContributionCountsByUserIdAsync` → `UserRepository` |
 | DTOs | `UserContributionsDto`, `UserContributionCountsDto` |
-| Service | `UserAdminService.GetContributionsAsync` |
-| Rules | `UserRoleAdminRules.EnsureCanViewContributions` |
-| API | `UsersController.GetContributions` |
+| Service | `UserAdminService.GetContributionsAsync`, `GetMyContributionsAsync` |
+| Rules | `UserRoleAdminRules.EnsureCanViewContributions` (admin route only) |
+| API | `AuthController.GetMyContributions`, `UsersController.GetContributions` |
 
 Entity list/detail APIs **do not** expose `createdByUserId` in v1.
 
@@ -141,10 +168,11 @@ Apply on EC2 against prod DB before or with API deploy. No data backfill require
 - [ ] POST employer/project/university/certification → creator set
 - [ ] PUT update on those entities → `created_by_user_id` unchanged
 - [ ] Soft-deleted entity excluded from counts
-- [ ] Recruiter → **403** on contributions endpoint
-- [ ] Admin → **200** for Recruiter target; **403** for Admin/SuperAdmin target
-- [ ] SuperAdmin → **200** for Admin/Recruiter; **403** for SuperAdmin target
-- [ ] Unknown user id → **404**
+- [ ] **SuperAdmin / Admin / Recruiter** → **200** on `GET /api/auth/me/contributions` for self
+- [ ] Recruiter → **403** on `GET /api/users/{id}/contributions`
+- [ ] Admin → **200** for Recruiter target on users route; **403** for Admin/SuperAdmin/self id
+- [ ] SuperAdmin → **200** for Admin/Recruiter on users route; **403** for SuperAdmin/self id
+- [ ] Unknown user id on users route → **404**
 
 ---
 
@@ -153,5 +181,5 @@ Apply on EC2 against prod DB before or with API deploy. No data backfill require
 - Backfill `created_by_user_id` where inferable  
 - `updated_by_user_id` on updates  
 - `createdBy` on entity DTOs  
-- Contribution **lists** and profile self-service  
+- Contribution **lists** (paginated drill-down)  
 - Additional tables (issuers, locations, etc.)

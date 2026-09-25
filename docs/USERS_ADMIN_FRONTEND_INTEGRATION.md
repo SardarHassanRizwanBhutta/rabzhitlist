@@ -4,7 +4,8 @@
 **Backend contract:** [`USERS_ADMIN_BACKEND_HANDOFF.md`](./USERS_ADMIN_BACKEND_HANDOFF.md)  
 **RBAC (guards, role assignment rules, 403 messages):** [`RBAC_FRONTEND_INTEGRATION.md`](./RBAC_FRONTEND_INTEGRATION.md) §7  
 **Auth (`role` on session):** [`AUTH_LOGIN_FRONTEND_INTEGRATION.md`](./AUTH_LOGIN_FRONTEND_INTEGRATION.md)  
-**List excludes signed-in user:** [`USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md)
+**List excludes signed-in user:** [`USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_LIST_EXCLUDE_CURRENT_USER_FRONTEND_INTEGRATION.md)  
+**Contribution counts (v1):** [`USER_CONTRIBUTIONS_FRONTEND_INTEGRATION.md`](./USER_CONTRIBUTIONS_FRONTEND_INTEGRATION.md)
 
 ---
 
@@ -28,8 +29,9 @@
 | `POST` | `/api/users` | **201** + user DTO; **`role` required**; duplicate email **409** |
 | `PUT` | `/api/users/{id}` | **`role` required**; optional `password` (blank/omitted = unchanged); **404** / **409** / **403** |
 | `DELETE` | `/api/users/{id}` | Soft delete **204**; self-delete **400** — `You cannot delete your own account.` |
+| `GET` | `/api/users/{id}/contributions` | **Other users’** contribution counts (Admin/SuperAdmin); not self — see contributions doc |
 
-**Deploy:** API image + DB migration **`20260923212300_AddUserRole`** on prod (`dotnet ef database update`).
+**Deploy:** API image + DB migrations on prod (`dotnet ef database update`) — at minimum **`20260923212300_AddUserRole`**; contributions require **`20260924173606_AddCreatedByUserId`**.
 
 **List item shape (`200` / `201`):**
 

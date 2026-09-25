@@ -4,6 +4,7 @@
 **Audience:** Backend team.  
 **Frontend integration:** [`USERS_ADMIN_FRONTEND_INTEGRATION.md`](./USERS_ADMIN_FRONTEND_INTEGRATION.md)  
 **RBAC (roles, candidates, dashboard):** [`RBAC_BACKEND_HANDOFF.md`](./RBAC_BACKEND_HANDOFF.md)  
+**User contributions (counts):** [`USER_CONTRIBUTIONS_BACKEND_HANDOFF.md`](./USER_CONTRIBUTIONS_BACKEND_HANDOFF.md)  
 **Related:** [`AUTH_LOGIN_BACKEND_HANDOFF.md`](./AUTH_LOGIN_BACKEND_HANDOFF.md) (`users` table, JWT, Identity password hashing)
 
 ---
@@ -209,6 +210,22 @@ Base path: **`/api/users`** — controller: `UsersController` (`[AdminOnly]`).
 
 ---
 
+### 4.5 Contribution counts (v1)
+
+| Route | Who |
+|-------|-----|
+| `GET /api/auth/me/contributions` | **Any** authenticated role — **own** counts |
+| `GET /api/users/{id}/contributions` | **Admin/SuperAdmin** — **other** users in list scope (not self) |
+
+See [`USER_CONTRIBUTIONS_BACKEND_HANDOFF.md`](./USER_CONTRIBUTIONS_BACKEND_HANDOFF.md) for full rules.
+
+**200:** `UserContributionsDto` — user header + `counts` for candidates, employers, projects, universities, certifications (active rows only).
+
+**403:** Recruiter or target outside list/manage scope.  
+**404:** Unknown or soft-deleted user.
+
+---
+
 ## 5. Implementation (shipped)
 
 | Area | Path / detail |
@@ -219,7 +236,8 @@ Base path: **`/api/users`** — controller: `UsersController` (`[AdminOnly]`).
 | Rules | `MyApp.Application/Users/UserRoleAdminRules.cs` |
 | Service | `UserAdminService` (viewer role from controller) |
 | Repository | `UserRepository` — `allowedRoles` on paged list, `CountActiveSuperAdminsAsync`, `UpdateAsync` includes role |
-| API | `UsersController` — `[AdminOnly]`; passes `ICurrentUserAccessor` role into service |
+| API | `UsersController` — `[AdminOnly]`; passes `ICurrentUserAccessor` role into service; `GET {id}/contributions` → `UserAdminService.GetContributionsAsync` |
+| Contributions | `USER_CONTRIBUTIONS_BACKEND_HANDOFF.md`; migration `20260924173606_AddCreatedByUserId` |
 | Auth attribute | `AdminOnlyAttribute` → policy `ExcludeRecruiter` |
 | Errors | `ForbiddenException` + `ForbiddenExceptionFilter`; `ConflictException` → **409** |
 

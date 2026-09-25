@@ -48,6 +48,11 @@
 **200:** `{ "id", "fullName", "email", "role", "createdAt" }` — `role` is **0 \| 1 \| 2**  
 **401:** invalid/expired token, soft-deleted user, or **JWT `role` claim missing/mismatch** with DB (`Session outdated. Please sign in again.` in `ActiveUserJwtBearerEvents`).
 
+### `GET /api/auth/me/contributions` — Bearer
+
+**200:** `UserContributionsDto` — active contribution **counts** for the signed-in user (all roles). See [`USER_CONTRIBUTIONS_BACKEND_HANDOFF.md`](./USER_CONTRIBUTIONS_BACKEND_HANDOFF.md) §4.1.  
+**401** / **404:** same patterns as other authenticated auth routes.
+
 ### `POST /api/auth/change-password` — Bearer
 
 **Request:** `{ "currentPassword", "newPassword" }`  
