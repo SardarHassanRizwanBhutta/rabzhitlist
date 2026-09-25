@@ -728,10 +728,31 @@ import {
   generateQuestionsEmployerOfficeSlotCount,
 } from "../src/lib/utils/qg-field-weights"
 import { buildMissingOnlyQuestionRequest } from "../src/lib/utils/missing-only-question-request"
+import {
+  filterRecruiterQgFieldsToGenerate,
+} from "../src/lib/utils/recruiter-candidate-access"
+import { UserRole } from "../src/lib/types/user-role"
 
 assert(generateQuestionsEmployerOfficeSlotCount(0) === 1, "generate-questions: synthetic office_0 when empty")
 assert(generateQuestionsEmployerOfficeSlotCount(2) === 2, "generate-questions: two existing offices")
 assert(generateQuestionsEmployerOfficeSlotCount(7) === 7, "generate-questions: keep all existing offices")
+
+const compensationQgFields = [
+  "currentSalary",
+  "expectedSalary",
+  "work_experience_0_salaryPolicy",
+  "work_experience_0_benefits",
+  "resume",
+]
+assert(
+  filterRecruiterQgFieldsToGenerate(UserRole.Recruiter, compensationQgFields).join(",") === "resume",
+  "recruiter generate-questions omits compensation fields",
+)
+assert(
+  filterRecruiterQgFieldsToGenerate(UserRole.Admin, compensationQgFields).length ===
+    compensationQgFields.length,
+  "admin generate-questions keeps compensation fields",
+)
 
 assert(callNotesExtractEmployerOfficeSlotCount(0) === 5, "call-notes-extract: pad empty to five slots")
 assert(callNotesExtractEmployerOfficeSlotCount(2) === 5, "call-notes-extract: pad partial list to five slots")

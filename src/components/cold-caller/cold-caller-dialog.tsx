@@ -93,6 +93,14 @@ import {
 } from "@/lib/utils/call-notes-apply-extractions"
 import { getCandidateResumeOpenUrl } from "@/lib/services/candidate-resume-api"
 import { openUrlInNewTabAfterFetch } from "@/lib/utils/open-url-in-new-tab"
+import { useAuth } from "@/contexts/auth-context"
+import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
+import { stripRecruiterCompensationFromCandidate } from "@/lib/utils/recruiter-candidate-access"
+import {
+  applyRecruiterColdCallerQuestionState,
+  filterRecruiterCallNotesSections,
+  filterRecruiterColdCallerEmptyFields,
+} from "@/lib/utils/recruiter-cold-caller-ui"
 
 interface ColdCallerDialogProps {
   open: boolean
@@ -132,6 +140,8 @@ export function ColdCallerDialog({
   applyFormBase,
   onApplyExtractComplete,
 }: ColdCallerDialogProps) {
+  const { user: authUser } = useAuth()
+  const hideCompensationUi = !canUseCandidateSalaryUi(authUser?.role)
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([])
   const [questionSections, setQuestionSections] = useState<ColdCallerSectionQuestions[] | null>(
     null,
@@ -237,6 +247,14 @@ export function ColdCallerDialog({
     [candidate, enrichedWorkExperiences],
   )
 
+  const candidateForColdCallerUi = useMemo(
+    () =>
+      hideCompensationUi
+        ? stripRecruiterCompensationFromCandidate(candidateWithCatalog)
+        : candidateWithCatalog,
+    [candidateWithCatalog, hideCompensationUi],
+  )
+
   useEffect(() => {
     if (!open) {
       setCallNotesLoadState("idle")
@@ -322,8 +340,9 @@ export function ColdCallerDialog({
     () =>
       buildCallNotesAllowedEmptyFields(candidateWithCatalog, {
         hasResume: candidate.hasResume === true,
+        actorRole: authUser?.role,
       }),
-    [candidateWithCatalog, candidate.hasResume],
+    [authUser?.role, candidateWithCatalog, candidate.hasResume],
   )
 
   const callNotesAnalyzeDisabledReason = useMemo(
@@ -431,8 +450,13 @@ export function ColdCallerDialog({
     const allFields = [...baseEmptyFields, ...manuallyAddedFields].filter(
       (field) => field.section !== "techStacks" && field.section !== "education",
     )
-    return Array.from(new Map(allFields.map((field) => [field.fieldPath, field])).values())
-  }, [baseEmptyFields, manuallyAddedFields])
+    const deduped = Array.from(
+      new Map(allFields.map((field) => [field.fieldPath, field])).values(),
+    )
+    return hideCompensationUi
+      ? filterRecruiterColdCallerEmptyFields(deduped)
+      : deduped
+  }, [baseEmptyFields, manuallyAddedFields, hideCompensationUi])
   const groupedFields = useMemo(() => groupEmptyFieldsBySection(emptyFields), [emptyFields])
   
   const sectionsWithFields = useMemo(() => {
@@ -463,10 +487,14 @@ export function ColdCallerDialog({
     const allSections = new Set([...sectionsWithEmptyFields, ...sectionsWithData])
     allSections.delete("techStacks")
     allSections.delete("education")
-    return Array.from(allSections).sort(
+    if (hideCompensationUi) {
+      allSections.delete("preferences")
+    }
+    const ordered = Array.from(allSections).sort(
       (a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b),
     )
-  }, [groupedFields, candidate])
+    return hideCompensationUi ? filterRecruiterCallNotesSections(ordered) : ordered
+  }, [groupedFields, candidate, hideCompensationUi])
   
   const prevCandidateIdRef = React.useRef<string | undefined>(undefined)
   const prevOpenRef = React.useRef<boolean>(false)
@@ -536,12 +564,15 @@ export function ColdCallerDialog({
 
   const applyQuestionsFromResponse = useCallback(
     (sections: ColdCallerSectionQuestions[], flatQuestions: GeneratedQuestion[]) => {
-      questionSectionsRef.current = sections
-      questionsRef.current = flatQuestions
-      setQuestionSections(sections)
-      setQuestions(flatQuestions)
+      const next = hideCompensationUi
+        ? applyRecruiterColdCallerQuestionState(sections, flatQuestions)
+        : { sections, flat: flatQuestions }
+      questionSectionsRef.current = next.sections
+      questionsRef.current = next.flat
+      setQuestionSections(next.sections)
+      setQuestions(next.flat)
     },
-    [],
+    [hideCompensationUi],
   )
 
   const runSessionQg = useCallback(
@@ -565,6 +596,7 @@ export function ColdCallerDialog({
           candidateForQg,
           mode === "coldCaller" ? "cold_call" : mode,
           {
+            actorRole: authUser?.role,
             fieldsToGenerateFilter: (fields) => filterFieldsToGenerateForScope(fields, scope),
           },
         )
@@ -592,7 +624,7 @@ export function ColdCallerDialog({
         setSessionQgLoadingKey(null)
       }
     },
-    [applyQuestionsFromResponse, candidate.id, candidateWithCatalog, isCatalogEnriching, mode],
+    [applyQuestionsFromResponse, authUser?.role, candidate.id, candidateWithCatalog, isCatalogEnriching, mode],
   )
 
   const handleGenerateQuestions = useCallback(async () => {
@@ -610,6 +642,7 @@ export function ColdCallerDialog({
         candidate.id,
         candidateForQg,
         mode === "coldCaller" ? "cold_call" : mode,
+        { actorRole: authUser?.role },
       )
       const sections = mapGenerateQuestionsResponse(response).filter(
         (section) => section.section !== "techStacks",
@@ -630,6 +663,7 @@ export function ColdCallerDialog({
     }
   }, [
     applyQuestionsFromResponse,
+    authUser?.role,
     candidate.id,
     candidateWithCatalog,
     isCatalogEnriching,
@@ -919,15 +953,20 @@ export function ColdCallerDialog({
               resumeVisible={resumeVisible}
               onResumeVisibleChange={setResumeVisible}
               emptyFields={emptyFields}
-              workExperiences={candidateWithCatalog.workExperiences ?? undefined}
+              workExperiences={candidateForColdCallerUi.workExperiences ?? undefined}
               certifications={candidate.certifications ?? undefined}
               achievements={candidate.achievements ?? undefined}
               linkedinUrl={candidate.linkedinUrl}
-              currentSalary={candidate.currentSalary}
-              expectedSalary={candidate.expectedSalary}
+              currentSalary={
+                hideCompensationUi ? null : candidateForColdCallerUi.currentSalary
+              }
+              expectedSalary={
+                hideCompensationUi ? null : candidateForColdCallerUi.expectedSalary
+              }
               techStacks={candidate.techStacks}
               groupedFields={groupedFields}
               sectionsWithFields={sectionsWithFields}
+              hideCompensationUi={hideCompensationUi}
               rawNotesDraft={rawNotesDraft}
               onDraftChange={setRawNotesDraft}
               showDraftSavedHint={showDraftSavedHint}

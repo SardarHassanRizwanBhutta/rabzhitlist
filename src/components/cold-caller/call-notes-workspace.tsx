@@ -78,6 +78,7 @@ interface CallNotesWorkspaceProps {
   onRetrySessionQgEntry?: (scopeKey: string) => void
   isCatalogEnriching?: boolean
   notesFocusSignal?: number
+  hideCompensationUi?: boolean
 }
 
 export function CallNotesWorkspace({
@@ -139,6 +140,7 @@ export function CallNotesWorkspace({
   onRetrySessionQgEntry,
   isCatalogEnriching,
   notesFocusSignal = 0,
+  hideCompensationUi = false,
 }: CallNotesWorkspaceProps) {
   const {
     containerRef: outerContainerRef,
@@ -264,6 +266,7 @@ export function CallNotesWorkspace({
             sessionQgErrorsByKey={sessionQgErrorsByKey}
             onRetrySessionQgEntry={onRetrySessionQgEntry}
             isCatalogEnriching={isCatalogEnriching}
+            hideCompensationUi={hideCompensationUi}
             className="h-full w-full min-w-0"
           />
         </div>

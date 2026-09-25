@@ -18,6 +18,7 @@ import {
   CALL_NOTES_DISPLAY_SECTIONS,
   isPreferencesApiFieldName,
 } from "@/lib/utils/preferences-section"
+import { filterRecruiterCallNotesSections } from "@/lib/utils/recruiter-cold-caller-ui"
 import { COLD_CALLER_SECTION_ICONS } from "./cold-caller-section-icons"
 import { CallNotesWorkspace } from "./call-notes-workspace"
 import { isSectionComplete } from "@/lib/utils/question-generation-response"
@@ -89,6 +90,8 @@ interface ColdCallerCallNotesViewProps {
   isCatalogEnriching?: boolean
   /** Bumps when the notes textarea should reclaim focus. */
   notesFocusSignal?: number
+  /** Recruiter: hide Preferences + WE compensation in sidebar. */
+  hideCompensationUi?: boolean
 }
 
 function getSectionQuestionCount(
@@ -160,17 +163,22 @@ export function ColdCallerCallNotesView({
   onRetrySessionQgEntry,
   isCatalogEnriching,
   notesFocusSignal = 0,
+  hideCompensationUi = false,
 }: ColdCallerCallNotesViewProps) {
   const [activeTab, setActiveTab] = useState<FieldSection | null>(null)
   const [activeQuestionField, setActiveQuestionField] = useState<string | null>(null)
 
-  const displaySections =
-    questionSections != null
-      ? CALL_NOTES_DISPLAY_SECTIONS
-      : CALL_NOTES_DISPLAY_SECTIONS.filter(
-          (section) =>
-            sectionsWithFields.includes(section) || section === "preferences",
-        )
+  const displaySections = useMemo(() => {
+    const base =
+      questionSections != null
+        ? CALL_NOTES_DISPLAY_SECTIONS
+        : CALL_NOTES_DISPLAY_SECTIONS.filter(
+            (section) =>
+              sectionsWithFields.includes(section) ||
+              (!hideCompensationUi && section === "preferences"),
+          )
+    return hideCompensationUi ? filterRecruiterCallNotesSections(base) : base
+  }, [hideCompensationUi, questionSections, sectionsWithFields])
 
   const sectionResultsByField = useMemo(() => {
     if (!questionSections) return new Map<FieldSection, ColdCallerSectionQuestions>()
@@ -286,6 +294,7 @@ export function ColdCallerCallNotesView({
     onRetrySessionQgEntry,
     isCatalogEnriching,
     notesFocusSignal,
+    hideCompensationUi,
   }
 
   if (displaySections.length === 0) {
