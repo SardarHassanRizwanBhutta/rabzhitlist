@@ -1,6 +1,5 @@
 # Resume Parser API — Documentation
 
-
 HTTP API for uploading a resume file, extracting text, structuring it with OpenAI, and optionally syncing to Microsoft Excel / SharePoint.
 
 **Base URL:** Configure per environment (e.g. `http://localhost:5000` in development, or your deployed host).
