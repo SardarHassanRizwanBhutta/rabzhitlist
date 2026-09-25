@@ -113,6 +113,8 @@ import {
   workExperienceLayoffGroupLabel,
   workExperienceOfficeGroupLabel,
 } from "@/lib/utils/work-experience-questions"
+import { workExperienceFieldOrdersForCompensationUi } from "@/lib/utils/recruiter-cold-caller-ui"
+import type { WeCompensationFieldOrders } from "@/lib/utils/recruiter-cold-caller-ui"
 
 interface CallNotesQuestionsSidebarProps {
   questions: GeneratedQuestion[]
@@ -153,6 +155,7 @@ interface CallNotesQuestionsSidebarProps {
   onRetrySessionQgEntry?: (scopeKey: string) => void
   isCatalogEnriching?: boolean
   className?: string
+  hideCompensationUi?: boolean
 }
 
 type WorkExperienceRoleBlock = Extract<QuestionDisplayBlock, { type: "role-block" }>
@@ -192,12 +195,13 @@ function countSessionWorkExperienceMissing(
   roleIndex: number,
   sessionProjectIndices: number[],
   workExperience?: WorkExperience,
+  weFieldOrders?: WeCompensationFieldOrders,
 ): number {
-  const roleMissing = WORK_EXPERIENCE_ROLE_FIELD_ORDER.length
+  const roleOrder = weFieldOrders?.role ?? WORK_EXPERIENCE_ROLE_FIELD_ORDER
+  const employerOrder = weFieldOrders?.employer ?? WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER
+  const roleMissing = roleOrder.length
   const employerMissing =
-    WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.length +
-    OFFICE_FIELD_ORDER.length +
-    LAYOFF_FIELD_ORDER.length
+    employerOrder.length + OFFICE_FIELD_ORDER.length + LAYOFF_FIELD_ORDER.length
   const includeProjectEmployerFields = !isWorkExperienceEmployerPresent(workExperience)
   const projectFieldCount = coldCallerQgProjectFieldDefs(includeProjectEmployerFields).length
   const projectIndices =
@@ -216,8 +220,13 @@ function countSessionCertificationMissing(): number {
 function buildWorkExperienceSectionUnits(
   block: WorkExperienceRoleBlock,
   workExperiences?: WorkExperience[],
-  options?: { forceRoleAndEmployer?: boolean },
+  options?: {
+    forceRoleAndEmployer?: boolean
+    weFieldOrders?: WeCompensationFieldOrders
+  },
 ): WorkExperienceSectionUnit[] {
+  const roleOrder = options?.weFieldOrders?.role ?? WORK_EXPERIENCE_ROLE_FIELD_ORDER
+  const employerOrder = options?.weFieldOrders?.employer ?? WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER
   let order = 0
   const units: WorkExperienceSectionUnit[] = []
   const we = workExperiences?.[block.roleIndex]
@@ -229,7 +238,7 @@ function buildWorkExperienceSectionUnits(
     ...block.layoffGroups.flatMap((group) => group.questions),
   ]
   const employerHasPopulated =
-    WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.some((key) => {
+    employerOrder.some((key) => {
       return !isQgValueMissing(readWorkExperienceField(we, key))
     }) ||
     (we?.locations ?? []).some((office) =>
@@ -244,7 +253,7 @@ function buildWorkExperienceSectionUnits(
       id: `employer-${block.roleIndex}`,
       priority: Math.max(
         ...employerQuestions.map((question) => question.priority),
-        ...WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => {
+        ...employerOrder.map((key) => {
           const value = readWorkExperienceField(we, key)
           return !isQgValueMissing(value) ? WORK_EXPERIENCE_EMPLOYER_PRIORITIES[key] : 0
         }),
@@ -255,7 +264,7 @@ function buildWorkExperienceSectionUnits(
   }
 
   const roleQuestions = block.linkQuestions
-  const roleHasPopulated = WORK_EXPERIENCE_ROLE_FIELD_ORDER.some((key) => {
+  const roleHasPopulated = roleOrder.some((key) => {
     return !isQgValueMissing(readWorkExperienceField(we, key))
   })
   if (forceRoleAndEmployer || roleQuestions.length > 0 || roleHasPopulated) {
@@ -264,7 +273,7 @@ function buildWorkExperienceSectionUnits(
       id: `role-${block.roleIndex}`,
       priority: Math.max(
         ...roleQuestions.map((question) => question.priority),
-        ...WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
+        ...roleOrder.map((key) => {
           const value = readWorkExperienceField(we, key)
           return !isQgValueMissing(value) ? WORK_EXPERIENCE_ROLE_PRIORITIES[key] : 0
         }),
@@ -584,7 +593,13 @@ export function CallNotesQuestionsSidebar({
   onRetrySessionQgEntry,
   isCatalogEnriching = false,
   className,
+  hideCompensationUi = false,
 }: CallNotesQuestionsSidebarProps) {
+  const weFieldOrders = useMemo(
+    () => workExperienceFieldOrdersForCompensationUi(hideCompensationUi),
+    [hideCompensationUi],
+  )
+  const { role: roleFieldOrder, employer: employerFieldOrder } = weFieldOrders
   const sessionQgActionsDisabled =
     isCatalogEnriching || sessionQgLoadingKey != null
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -886,6 +901,7 @@ export function CallNotesQuestionsSidebar({
             index,
             sessionProjectsByRole[index] ?? [],
             workExperiences?.[index],
+            weFieldOrders,
           )
         }
         const sessionExtra = (sessionProjectsByRole[index] ?? []).reduce((sum) => {
@@ -981,8 +997,9 @@ export function CallNotesQuestionsSidebar({
     if (!roleBlock) return []
     return buildWorkExperienceSectionUnits(roleBlock, workExperiences, {
       forceRoleAndEmployer: sessionWorkExperienceIndices.includes(roleBlock.roleIndex),
+      weFieldOrders,
     })
-  }, [section, visibleBlocks, workExperiences, sessionWorkExperienceIndices])
+  }, [section, visibleBlocks, workExperiences, sessionWorkExperienceIndices, weFieldOrders])
 
   useEffect(() => {
     const sectionIds = activeWorkExperienceSections.map((unit) => unit.id)
@@ -1127,6 +1144,7 @@ export function CallNotesQuestionsSidebar({
               block.roleIndex,
               sessionProjectsByRole[block.roleIndex] ?? [],
               weForRole,
+              weFieldOrders,
             )
           : (section === "workExperience" && uniqueMissingFields
               ? countMissingFieldsForWorkExperienceCard(
@@ -1141,14 +1159,15 @@ export function CallNotesQuestionsSidebar({
 
         const roleUnits = buildWorkExperienceSectionUnits(block, workExperiences, {
           forceRoleAndEmployer: isSessionWorkExperience,
+          weFieldOrders,
         })
         const missingFieldSet = new Set(uniqueMissingFields ?? [])
         const countUnitMissing = (unit: WorkExperienceSectionUnit): number => {
           if (unit.type === "role") {
             if (isSessionWorkExperience) {
-              return WORK_EXPERIENCE_ROLE_FIELD_ORDER.length
+              return roleFieldOrder.length
             }
-            return WORK_EXPERIENCE_ROLE_FIELD_ORDER.filter((key) =>
+            return roleFieldOrder.filter((key) =>
               missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
             ).length
           }
@@ -1166,12 +1185,12 @@ export function CallNotesQuestionsSidebar({
           }
           if (isSessionWorkExperience) {
             return (
-              WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.length +
+              employerFieldOrder.length +
               block.officeGroups.length * OFFICE_FIELD_ORDER.length +
               block.layoffGroups.length * LAYOFF_FIELD_ORDER.length
             )
           }
-          const employerScalarMissing = WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.filter((key) =>
+          const employerScalarMissing = employerFieldOrder.filter((key) =>
             missingFieldSet.has(`work_experience_${block.roleIndex}_${key}`),
           ).length
           const officeMissing = block.officeGroups.reduce((sum, group) => {
@@ -1212,7 +1231,7 @@ export function CallNotesQuestionsSidebar({
               unit.questions.map((question) => [question.field, question]),
             )
             const roleCards = mergeValueAndQuestionCards(
-              WORK_EXPERIENCE_ROLE_FIELD_ORDER.map((key) => {
+              roleFieldOrder.map((key) => {
                 const value = readWorkExperienceField(we, key)
                 const formatValue =
                   key === "shiftType"
@@ -1407,7 +1426,7 @@ export function CallNotesQuestionsSidebar({
             block.catalogQuestions.map((question) => [question.field, question]),
           )
           const employerScalarCards = mergeValueAndQuestionCards(
-            WORK_EXPERIENCE_EMPLOYER_FIELD_ORDER.map((key) => {
+            employerFieldOrder.map((key) => {
               const value = readWorkExperienceField(we, key)
               const formatValue =
                 key === "salaryPolicy"
@@ -2144,6 +2163,8 @@ export function CallNotesQuestionsSidebar({
                     questionByField,
                     "basic",
                   )
+                } else if (section === "preferences" && hideCompensationUi) {
+                  flatCards = []
                 } else if (section === "preferences") {
                   const preferenceLabels: Record<
                     (typeof PREFERENCES_FIELD_ORDER)[number],

@@ -9,6 +9,12 @@ import type {
 } from "@/types/question-generation"
 import { mapMainAppCandidateToQuestionService } from "@/lib/utils/map-candidate-for-question-service"
 import { buildMissingOnlyQuestionRequest } from "@/lib/utils/missing-only-question-request"
+import {
+  filterRecruiterQgFieldsToGenerate,
+  stripRecruiterCompensationFromQgCandidateData,
+} from "@/lib/utils/recruiter-candidate-access"
+import { isRecruiter } from "@/lib/auth/roles"
+import type { UserRole } from "@/lib/types/user-role"
 
 function questionsApiBaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_QUESTIONS_API_URL?.trim()
@@ -22,6 +28,8 @@ export interface GenerateQuestionsOptions {
    * Return value must be non-empty or the request is rejected client-side.
    */
   fieldsToGenerateFilter?: (fields: string[]) => string[]
+  /** When Recruiter, omits salary / WE compensation from QG request. */
+  actorRole?: UserRole | null
 }
 
 /**
@@ -39,15 +47,23 @@ export async function generateQuestions(
 ): Promise<GenerateQuestionsResponse> {
   const mappedCandidateData = mapMainAppCandidateToQuestionService(candidate)
   const built = buildMissingOnlyQuestionRequest(mappedCandidateData)
-  const fieldsToGenerate = options?.fieldsToGenerateFilter
-    ? options.fieldsToGenerateFilter(built.fieldsToGenerate)
-    : built.fieldsToGenerate
+  let fieldsToGenerate = filterRecruiterQgFieldsToGenerate(
+    options?.actorRole,
+    built.fieldsToGenerate,
+  )
+  if (options?.fieldsToGenerateFilter) {
+    fieldsToGenerate = options.fieldsToGenerateFilter(fieldsToGenerate)
+  }
   if (fieldsToGenerate.length === 0) {
     throw new Error("Generate questions: no fields_to_generate after filter")
   }
+  let candidateData = built.candidateData
+  if (isRecruiter(options?.actorRole)) {
+    candidateData = stripRecruiterCompensationFromQgCandidateData(candidateData)
+  }
   const request: GenerateQuestionsRequest = {
     candidate_id: candidateId,
-    candidate_data: built.candidateData,
+    candidate_data: candidateData,
     fields_to_generate: fieldsToGenerate,
     conversation_context: conversationContext,
   }

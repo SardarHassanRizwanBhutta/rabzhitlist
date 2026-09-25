@@ -14,10 +14,16 @@ import {
   isWeTechStacksApiField,
 } from "@/lib/utils/call-notes-extract-catalog"
 import { isCallNotesExtractApiFieldAllowed } from "@/lib/utils/question-field-allowlist"
+import type { UserRole } from "@/lib/types/user-role"
+import {
+  filterRecruiterAllowedExtractFields,
+} from "@/lib/utils/recruiter-cold-caller-ui"
+import { isRecruiter } from "@/lib/auth/roles"
 import { isQgValueMissing } from "@/lib/utils/qg-value"
 
 export interface BuildCallNotesAllowedEmptyFieldsOptions {
   hasResume?: boolean
+  actorRole?: UserRole | null
 }
 
 function stableCollectionId(
@@ -243,7 +249,9 @@ export function buildCallNotesAllowedEmptyFields(
     result.push(allowed)
   }
 
-  return appendExtractOnlyProjectFields(candidate, result)
+  return isRecruiter(options.actorRole)
+    ? filterRecruiterAllowedExtractFields(appendExtractOnlyProjectFields(candidate, result))
+    : appendExtractOnlyProjectFields(candidate, result)
 }
 
 export function getCallNotesExtractAnalyzeDisabledReason(
