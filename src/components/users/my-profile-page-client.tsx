@@ -11,7 +11,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { SetPageHeader } from "@/contexts/page-header-context"
 import { useAuth } from "@/contexts/auth-context"
 import { userRoleLabel } from "@/lib/types/user-role"
 import { useMyContributions } from "@/hooks/useMyContributions"
@@ -49,8 +48,6 @@ export function MyProfilePageClient() {
 
   return (
     <>
-      <SetPageHeader title={PAGE_TITLE} />
-
       <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
         <span className="font-medium text-foreground" aria-current="page">
           {PAGE_TITLE}
