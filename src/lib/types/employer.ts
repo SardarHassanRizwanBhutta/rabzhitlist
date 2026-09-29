@@ -1,3 +1,5 @@
+import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+
 export interface EmployerLocation {
   id: string
   employerId: string
@@ -101,6 +103,10 @@ export interface Employer {
   layoffs?: Layoff[]  // One-to-many relationship with Layoffs
   /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). Always a number from list API. */
   dataProgressPercentage: number
+  /** Detail GET/POST/PUT only. Absent on list rows. */
+  createdBy?: EntityAuditUser | null
+  /** Detail GET/POST/PUT only. Absent on list rows. */
+  updatedBy?: EntityAuditUser | null
   createdAt: Date
   updatedAt: Date
 }

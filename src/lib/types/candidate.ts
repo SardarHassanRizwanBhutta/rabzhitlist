@@ -1,5 +1,6 @@
 import { EmployerBenefit } from "./benefits"
 import { CertificationLevel } from "./certification"
+import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
 
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
 export type WorkMode = "Remote" | "Onsite" | "Hybrid"
@@ -323,6 +324,8 @@ export interface Candidate {
   status: CandidateStatus
   /** Call Status enum from API `callStatus` (0 Pending, 1 Done, 2 Follow-up). */
   callStatus?: import("@/lib/constants/candidate-enums").CallStatusDb | null
+  /** Latest information-gathering call, `yyyy-MM-dd`. Null when never set. */
+  callDate?: string | null
   /** @deprecated Legacy field — use `hasResume` and resume metadata instead. */
   resume?: string | null
   hasResume?: boolean
@@ -337,7 +340,13 @@ export interface Candidate {
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
   achievements?: Achievement[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms, Open Source contributions, Awards, Medals)
+  /** Detail GET/POST/PUT. Remarks after a call or profile review. Blank is null. */
+  finalRemarks?: string | null
   competitions?: Competition[] // DEPRECATED: Use achievements instead. Kept for backward compatibility during migration
+  /** Detail GET/POST/PUT only. Absent on list rows. */
+  createdBy?: EntityAuditUser | null
+  /** Detail GET/POST/PUT only. Absent on list rows. */
+  updatedBy?: EntityAuditUser | null
   createdAt: Date
   updatedAt: Date
   /** From API list/detail (`totalExperienceYears`). */

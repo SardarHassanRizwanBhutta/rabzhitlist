@@ -12,6 +12,22 @@ export function formatLocalDateForApi(d: Date | undefined): string | null {
   return toLocalDateOnlyKey(d)
 }
 
+/** `yyyy-MM-dd` from an API date-only string, or null when missing or invalid. */
+export function normalizeApiDateOnly(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value.trim())
+  if (!match) return null
+  return parseLocalDateFromApi(match[1]) ? match[1] : null
+}
+
+/** Local short date for a stored `yyyy-MM-dd`, or `N/A` when empty. */
+export function formatApiDateOnlyLabel(value: string | null | undefined): string {
+  const normalized = normalizeApiDateOnly(value)
+  if (!normalized) return "N/A"
+  const date = parseLocalDateFromApi(normalized)
+  return date ? date.toLocaleDateString() : "N/A"
+}
+
 /** Parse API DateOnly (`yyyy-MM-dd`) as local calendar midnight (not UTC). */
 export function parseLocalDateFromApi(value: string): Date | undefined {
   const trimmed = value.trim()

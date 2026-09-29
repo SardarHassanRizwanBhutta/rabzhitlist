@@ -51,6 +51,7 @@ import {
 import type { Country } from "@/lib/types/country"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { fetchEmployerById, employerDtoToEmployer, updateEmployer, buildUpdateEmployerDto } from "@/lib/services/employers-api"
+import { EntityAuditFields } from "@/components/entity-audit-fields"
 import type { EmployerLookups } from "@/components/employer-creation-dialog"
 import { employerToFormData, type EmployerFormData } from "@/components/employer-creation-dialog"
 import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select"
@@ -1799,7 +1800,12 @@ export function EmployerDetailsModal({
         timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
         awardsLookup: lookups?.awards ?? [],
       })
-      await updateEmployer(Number(localEmployer.id), dto)
+      const saved = employerDtoToEmployer(await updateEmployer(Number(localEmployer.id), dto))
+      setLocalEmployer((prev) => ({
+        ...prev,
+        createdBy: saved.createdBy ?? null,
+        updatedBy: saved.updatedBy ?? null,
+      }))
       toast.success(`Awards updated${verify ? " and verified" : ""}`)
     } catch (error) {
       setLocalEmployer(previous)
@@ -1854,7 +1860,12 @@ export function EmployerDetailsModal({
         timeSupportZonesLookup: lookups?.timeSupportZones ?? [],
         awardsLookup: lookups?.awards ?? [],
       })
-      await updateEmployer(Number(localEmployer.id), dto)
+      const saved = employerDtoToEmployer(await updateEmployer(Number(localEmployer.id), dto))
+      setLocalEmployer((prev) => ({
+        ...prev,
+        createdBy: saved.createdBy ?? null,
+        updatedBy: saved.updatedBy ?? null,
+      }))
       toast.success(`${successLabel} updated${verify ? " and verified" : ""}`)
     } catch (error) {
       setLocalEmployer(previous)
@@ -2324,6 +2335,10 @@ export function EmployerDetailsModal({
                       fieldName="isDPLCompetitive"
                       onSave={handleFieldSave}
                       getFieldVerification={getFieldVerification}
+                    />
+                    <EntityAuditFields
+                      createdBy={localEmployer.createdBy}
+                      updatedBy={localEmployer.updatedBy}
                     />
                   </div>
                 </CardContent>

@@ -215,7 +215,7 @@ Base path: **`/api/users`** — controller: `UsersController` (`[AdminOnly]`).
 | Route | Who |
 |-------|-----|
 | `GET /api/auth/me/contributions` | **Any** authenticated role — **own** counts |
-| `GET /api/users/{id}/contributions` | **Admin/SuperAdmin** — **other** users in list scope (not self) |
+| `GET /api/users/{id}/contributions` | **Admin/SuperAdmin** — **other** users in list scope (not self). Response includes `createdByFullName` (`string` or `null`). |
 
 See [`USER_CONTRIBUTIONS_BACKEND_HANDOFF.md`](./USER_CONTRIBUTIONS_BACKEND_HANDOFF.md) for full rules.
 

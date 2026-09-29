@@ -100,7 +100,12 @@ export function MyProfilePageClient() {
 
       <UserEditProfilePasswordDialog open={editOpen} onOpenChange={setEditOpen} />
 
-      <UserProfileContributionsSection loading={loading} error={error} counts={counts} />
+      <UserProfileContributionsSection
+        loading={loading}
+        error={error}
+        counts={counts}
+        createdByUserId={data?.id ?? authUser.id}
+      />
     </>
   )
 }

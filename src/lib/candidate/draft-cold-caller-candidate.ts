@@ -25,6 +25,7 @@ const EMPTY_FORM: CandidateFormData = {
   githubUrl: "",
   source: "",
   callStatus: "",
+  callDate: undefined,
   workExperiences: [],
   certifications: [],
   educations: [],
@@ -32,6 +33,7 @@ const EMPTY_FORM: CandidateFormData = {
   personalityType: "",
   achievements: [],
   competitions: [],
+  finalRemarks: "",
 }
 
 function parseOptionalNumber(raw: string | undefined): number | null {

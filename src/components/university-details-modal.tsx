@@ -32,6 +32,7 @@ import {
   type PatchUniversityLocationDto,
 } from "@/lib/services/universities-api"
 import { universityNameFieldErrorFromApi } from "@/lib/utils/api-error-message"
+import { EntityAuditFields } from "@/components/entity-audit-fields"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -1514,6 +1515,10 @@ export function UniversityDetailsModal({
                         </Button>
                       )}
                     </div>
+                    <EntityAuditFields
+                      createdBy={localUniversity.createdBy}
+                      updatedBy={localUniversity.updatedBy}
+                    />
                   </div>
                 </CardContent>
               </CollapsibleContent>

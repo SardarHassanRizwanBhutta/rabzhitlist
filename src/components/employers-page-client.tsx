@@ -10,6 +10,7 @@ import { EmployersTable } from "@/components/employers-table"
 import { EmployerCreationDialog, EmployerFormData, EmployerVerificationState } from "@/components/employer-creation-dialog"
 import { EmployersFilterDialog, EmployerFilters } from "@/components/employers-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
+import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Employer, EmployerRanking, ShiftTypeDb, WorkModeDb } from "@/lib/types/employer"
 import {
@@ -175,6 +176,8 @@ const initialFilters: EmployerFilters = {
 export function EmployersPageClient({ employers: initialEmployers = [] }: EmployersPageClientProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
+    useCreatedByUserIdListFilter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<EmployerFilters>(initialFilters)
 
@@ -342,8 +345,9 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
       ...(maxDataProgress != null && !Number.isNaN(maxDataProgress)
         ? { maxDataProgressPercentage: maxDataProgress }
         : {}),
+      ...(createdByUserId != null ? { createdByUserId } : {}),
     }
-  }, [pageNumber, pageSize, combinedFilters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup])
+  }, [pageNumber, pageSize, combinedFilters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup, createdByUserId])
 
   const timeSupportZoneFilterOptions = useMemo(
     () => timeSupportZonesLookup.map((z) => ({ value: z.name, label: z.name })),
@@ -538,14 +542,16 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   )
 
   const handleFiltersChange = useCallback((newFilters: EmployerFilters) => {
+    dismissCreatedByUserId()
     setFilters(newFilters)
     setPageNumber(1)
-  }, [])
+  }, [dismissCreatedByUserId])
 
   const handleClearFilters = useCallback(() => {
+    dismissCreatedByUserId()
     setFilters(initialFilters)
     setPageNumber(1)
-  }, [])
+  }, [dismissCreatedByUserId])
 
   const handlePageChange = useCallback((page: number) => {
     setPageNumber(page)
@@ -557,8 +563,9 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   }, [])
 
   const handleClearEmployerFilter = useCallback(() => {
+    markCreatedByUserIdDismissed()
     router.push("/employers")
-  }, [router])
+  }, [markCreatedByUserIdDismissed, router])
 
   const visibleEmployers = useMemo(() => {
     if (employerIdFromUrl == null) return employers

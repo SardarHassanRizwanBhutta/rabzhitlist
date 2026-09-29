@@ -11,6 +11,7 @@ import {
 import { DashboardKpiCard } from "@/components/dashboard/dashboard-kpi-card"
 import { Card, CardContent } from "@/components/ui/card"
 import type { UserContributionCounts } from "@/lib/types/user-contributions"
+import { contributionListHref, type ContributionListModule } from "@/lib/utils/created-by-user-id"
 
 export const USER_PROFILE_MODULE_CARDS: {
   key: keyof UserContributionCounts
@@ -28,13 +29,21 @@ export type UserProfileContributionsSectionProps = {
   loading: boolean
   error: string | null
   counts: UserContributionCounts | null
+  /** When set, each card links to that module's list filtered by this creator. */
+  createdByUserId?: number | null
 }
 
 export function UserProfileContributionsSection({
   loading,
   error,
   counts,
+  createdByUserId,
 }: UserProfileContributionsSectionProps) {
+  const listUserId =
+    createdByUserId != null && Number.isInteger(createdByUserId) && createdByUserId > 0
+      ? createdByUserId
+      : null
+
   return (
     <section className="mt-8 space-y-4" aria-labelledby="contributions-heading">
       <h3 id="contributions-heading" className="text-lg font-semibold tracking-tight">
@@ -60,6 +69,11 @@ export function UserProfileContributionsSection({
             loading={loading}
             value={counts ? counts[key] : undefined}
             hint="Records created"
+            href={
+              listUserId != null
+                ? contributionListHref(key as ContributionListModule, listUserId)
+                : undefined
+            }
           />
         ))}
       </div>

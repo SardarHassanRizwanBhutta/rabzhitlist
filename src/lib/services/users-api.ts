@@ -63,7 +63,21 @@ export function mapUserContributionsDto(raw: Record<string, unknown>): UserContr
     universities: asNonNegativeInt(countsObj.universities, "counts.universities"),
     certifications: asNonNegativeInt(countsObj.certifications, "counts.certifications"),
   }
-  return { id, fullName, email, role, counts }
+  return {
+    id,
+    fullName,
+    email,
+    role,
+    createdByFullName: mapCreatedByFullName(raw.createdByFullName),
+    counts,
+  }
+}
+
+/** Admin contributions only. Missing, null, or blank stays null so the profile hides the line. */
+function mapCreatedByFullName(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 export async function fetchUserContributions(userId: number): Promise<UserContributions> {

@@ -85,6 +85,7 @@ import {
   prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
 import { CALL_STATUS_BADGE_CLASSES, CALL_STATUS_LABELS } from "@/lib/constants/candidate-enums"
+import { formatApiDateOnlyLabel } from "@/lib/utils/work-experience-dates"
 
 interface CandidatesTableProps {
   candidates: Candidate[]
@@ -645,6 +646,10 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                 Call Status
               </TableHead>
 
+              <TableHead className="hidden lg:table-cell whitespace-nowrap">
+                Call Date
+              </TableHead>
+
               {/* Data Progress - Hidden on mobile */}
               <TableHead className="hidden lg:table-cell w-[80px]">
                 Data Progress
@@ -797,6 +802,24 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                     ) : (
                       <span className="text-muted-foreground text-sm">—</span>
                     )}
+                  </TableCell>
+
+                  <TableCell
+                    className="hidden lg:table-cell whitespace-nowrap"
+                    onClick={() => setSelectedCandidate(candidate)}
+                  >
+                    {(() => {
+                      const callDateLabel = formatApiDateOnlyLabel(candidate.callDate)
+                      return (
+                        <span
+                          className={cn(
+                            callDateLabel === "N/A" && "text-muted-foreground italic"
+                          )}
+                        >
+                          {callDateLabel}
+                        </span>
+                      )
+                    })()}
                   </TableCell>
 
                   {/* Data Progress - Hidden on mobile */}

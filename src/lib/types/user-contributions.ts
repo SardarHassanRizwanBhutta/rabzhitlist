@@ -13,6 +13,11 @@ export type UserContributions = {
   fullName: string
   email: string
   role: UserRole
+  /**
+   * Present on `GET /api/users/{id}/contributions`.
+   * `null` when that user has no creator. Omitted on the self route, which maps to `null`.
+   */
+  createdByFullName: string | null
   counts: UserContributionCounts
 }
 

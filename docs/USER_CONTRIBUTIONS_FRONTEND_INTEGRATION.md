@@ -19,7 +19,7 @@
 | **APIs** | **Self:** `GET /api/auth/me/contributions` (all roles). **Others:** `GET /api/users/{id}/contributions` (Admin/SuperAdmin only; users-admin scope). |
 | **Who sees “my” UI** | **Any signed-in role** (SuperAdmin, Admin, Recruiter) — placement is FE-owned |
 | **Who sees “others” UI** | **SuperAdmin** and **Admin** on `/users` — targets from **`GET /api/users`** list scope (backend **Option A**) |
-| **v1 limits** | **Counts only** — no lists, no links to filtered entity pages, no `createdBy` on candidate/employer/etc. DTOs |
+| **v1 limits** | **Counts only.** Detail `createdBy` / `updatedBy` on the five parent records is a separate contract: [`ENTITY_DETAIL_CREATED_BY_UPDATED_BY_FRONTEND_INTEGRATION.md`](./ENTITY_DETAIL_CREATED_BY_UPDATED_BY_FRONTEND_INTEGRATION.md). List `createdByUserId` is [`CONTRIBUTION_LIST_FILTER_BACKEND_HANDOFF.md`](./CONTRIBUTION_LIST_FILTER_BACKEND_HANDOFF.md). |
 | **Data caveat** | Rows created **before** migration `20260924173606_AddCreatedByUserId` have **no** creator → counts stay **0** until that user creates **new** rows after deploy |
 
 ---
@@ -38,7 +38,7 @@
 | Item | Reason |
 |------|--------|
 | Drill-down to filtered candidate/employer/etc. lists | Backend does not expose list-by-creator APIs |
-| `createdBy` column on entity tables | Not on entity DTOs |
+| `createdBy` on entity **list** rows | Still absent. Detail APIs are covered by [`ENTITY_DETAIL_CREATED_BY_UPDATED_BY_FRONTEND_INTEGRATION.md`](./ENTITY_DETAIL_CREATED_BY_UPDATED_BY_FRONTEND_INTEGRATION.md) |
 | Viewing **another** user via `/api/users/{id}/contributions` as Recruiter | **403** — use **`/api/auth/me/contributions`** for self only |
 | Viewing **own** counts via `/api/users/{ownId}/contributions` | **403** — use **`/api/auth/me/contributions`** |
 | Caching counts across sessions | Optional; no backend cache — refetch on open is fine |

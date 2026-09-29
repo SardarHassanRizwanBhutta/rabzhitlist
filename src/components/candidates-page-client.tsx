@@ -69,6 +69,8 @@ import { fetchCertificationIssuers } from "@/lib/services/certifications-api"
 import { toast } from "sonner"
 import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidates-filter-dialog"
 import { useAuth } from "@/contexts/auth-context"
+import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
+import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { canMutateCandidate, canUseCandidateSalaryUi } from "@/lib/auth/roles"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
@@ -181,6 +183,8 @@ const initialFilters: CandidateFilters = {
 export function CandidatesPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
+    useCreatedByUserIdListFilter()
   const { user: authUser } = useAuth()
   const candidateReadOnly = !canMutateCandidate(authUser?.role)
   const showSalaryUi = canUseCandidateSalaryUi(authUser?.role)
@@ -712,10 +716,12 @@ export function CandidatesPageClient() {
           : undefined,
       candidateId: candidateIdFromUrl ?? undefined,
       callStatus: callStatus.length > 0 ? callStatus : undefined,
+      createdByUserId: createdByUserId ?? undefined,
     }
   }, [
     combinedFiltersForBackend,
     candidateIdFromUrl,
+    createdByUserId,
     universityIdFromUrl,
     certificationIssuersLookup,
     degreesLookup,
@@ -1173,49 +1179,59 @@ export function CandidatesPageClient() {
   }
 
   const handleFiltersChange = (newFilters: CandidateFilters) => {
+    dismissCreatedByUserId()
     setFilters(newFilters)
     setPageNumber(1)
   }
 
   const handleClearFilters = () => {
+    dismissCreatedByUserId()
     setFilters(initialFilters)
     setPageNumber(1)
     setViewMode("table")
   }
 
   const handleClearProjectFilter = () => {
+    markCreatedByUserIdDismissed()
     setProjectFilter(null)
     router.push("/candidates")
   }
 
   const handleClearCertificationFilter = () => {
+    markCreatedByUserIdDismissed()
     setCertificationFilter(null)
     const params = new URLSearchParams(searchParams.toString())
     params.delete("certificationId")
     params.delete("certificationName")
     params.delete("certificationFilter")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/candidates?${q}` : "/candidates")
   }
 
   const handleClearUniversityFilter = () => {
+    markCreatedByUserIdDismissed()
     setUniversityFilter(null)
     const params = new URLSearchParams(searchParams.toString())
     params.delete("universityId")
     params.delete("universityName")
     params.delete("universityFilter")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/candidates?${q}` : "/candidates")
   }
 
   const handleClearEmployerFilter = () => {
+    markCreatedByUserIdDismissed()
     setEmployerFilter(null)
     router.push("/candidates")
   }
 
   const handleClearCandidateIdFilter = () => {
+    markCreatedByUserIdDismissed()
     const params = new URLSearchParams(searchParams.toString())
     params.delete("candidateId")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/candidates?${q}` : "/candidates")
   }

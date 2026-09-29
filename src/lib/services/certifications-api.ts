@@ -1,7 +1,9 @@
-import type { Certification, CertificationIssuer } from '@/lib/types/certification'
+import type { Certification, CertificationDetail, CertificationIssuer } from '@/lib/types/certification'
 import type { CertificationDataProgressResponse } from '@/lib/types/certification-data-progress'
 
 import { apiFetch } from "@/lib/api-client"
+import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
+import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
 
 function parseDataProgressPercentage(value: unknown): number | null {
   if (typeof value === "number") return value
@@ -16,6 +18,14 @@ function mapCertificationDto(data: Record<string, unknown>): Certification {
   return {
     ...(data as unknown as Certification),
     dataProgressPercentage: parseDataProgressPercentage(data.dataProgressPercentage),
+  }
+}
+
+function mapCertificationDetail(data: Record<string, unknown>): CertificationDetail {
+  return {
+    ...mapCertificationDto(data),
+    createdBy: mapEntityAuditUser(data.createdBy),
+    updatedBy: mapEntityAuditUser(data.updatedBy),
   }
 }
 
@@ -36,6 +46,8 @@ export interface FetchCertificationsParams {
   pageSize?: number
   minDataProgressPercentage?: number
   maxDataProgressPercentage?: number
+  /** Active rows whose `created_by_user_id` equals this user. */
+  createdByUserId?: number
 }
 
 export async function fetchCertificationsPage(params: FetchCertificationsParams = {}): Promise<CertificationsPageResponse> {
@@ -51,12 +63,16 @@ export async function fetchCertificationsPage(params: FetchCertificationsParams 
   if (params.maxDataProgressPercentage != null) {
     search.set('maxDataProgressPercentage', String(params.maxDataProgressPercentage))
   }
+  if (params.createdByUserId != null && params.createdByUserId > 0) {
+    search.set('createdByUserId', String(params.createdByUserId))
+  }
   const query = search.toString()
   const url = `/api/certifications${query ? `?${query}` : ''}`
 
   const response = await apiFetch(url)
 
   if (!response.ok) {
+    throwIfCreatedByUserNotFound(response.status, params.createdByUserId)
     const text = await response.text()
     throw new Error(`Failed to fetch certifications: ${response.status} — ${text}`)
   }
@@ -121,7 +137,7 @@ export interface UpdateCertificationRequest {
   issuerId: number | null
 }
 
-export async function updateCertification(id: number, body: UpdateCertificationRequest): Promise<Certification> {
+export async function updateCertification(id: number, body: UpdateCertificationRequest): Promise<CertificationDetail> {
   const response = await apiFetch(`/api/certifications/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -138,7 +154,23 @@ export async function updateCertification(id: number, body: UpdateCertificationR
   }
 
   const payload = await response.json()
-  return mapCertificationDto(payload as Record<string, unknown>)
+  return mapCertificationDetail(payload as Record<string, unknown>)
+}
+
+export async function fetchCertificationDetail(id: number): Promise<CertificationDetail> {
+  const response = await apiFetch(`/api/certifications/${id}`)
+
+  if (response.status === 404) {
+    throw new Error('Not found')
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.text()
+    throw new Error(`Failed to fetch certification: ${response.status} — ${errorBody}`)
+  }
+
+  const payload = await response.json()
+  return mapCertificationDetail(payload as Record<string, unknown>)
 }
 
 export async function fetchCertificationDataProgress(

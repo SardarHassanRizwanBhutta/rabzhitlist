@@ -73,6 +73,7 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
 
   const displayName = data?.fullName ?? preview?.fullName ?? ""
   const displayEmail = data?.email ?? preview?.email ?? ""
+  const createdByFullName = data?.createdByFullName ?? null
   const headerTitle = displayName.trim() || "User profile"
 
   useEffect(() => {
@@ -143,49 +144,57 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
       </nav>
 
       <Card className="mt-4 overflow-hidden">
-        <CardContent className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            {loading && !displayName ? (
-              <Skeleton className="size-20 shrink-0 rounded-full" />
-            ) : (
-              <UserAvatar
-                variant="profile"
-                name={displayName || " "}
-                email={displayEmail || " "}
-              />
-            )}
-            <div className="space-y-2">
+        <CardContent className="flex flex-col gap-4 p-6">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               {loading && !displayName ? (
-                <>
-                  <Skeleton className="h-8 w-48" />
-                  <Skeleton className="h-4 w-56" />
-                </>
+                <Skeleton className="size-20 shrink-0 rounded-full" />
               ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-bold tracking-tight">{displayName}</h2>
-                    {data ? (
-                      <Badge variant="secondary">{userRoleLabel(data.role)}</Badge>
-                    ) : null}
-                  </div>
-                  {displayEmail ? (
-                    <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="size-4 shrink-0" aria-hidden />
-                      <span>{displayEmail}</span>
-                    </p>
-                  ) : null}
-                </>
+                <UserAvatar
+                  variant="profile"
+                  name={displayName || " "}
+                  email={displayEmail || " "}
+                />
               )}
+              <div className="space-y-2">
+                {loading && !displayName ? (
+                  <>
+                    <Skeleton className="h-8 w-48" />
+                    <Skeleton className="h-4 w-56" />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-bold tracking-tight">{displayName}</h2>
+                      {data ? (
+                        <Badge variant="secondary">{userRoleLabel(data.role)}</Badge>
+                      ) : null}
+                    </div>
+                    {displayEmail ? (
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="size-4 shrink-0" aria-hidden />
+                        <span>{displayEmail}</span>
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
+            <Button
+              type="button"
+              className="shrink-0 cursor-pointer"
+              disabled={!userForEdit}
+              onClick={() => setEditOpen(true)}
+            >
+              Edit Profile
+            </Button>
           </div>
-          <Button
-            type="button"
-            className="shrink-0 cursor-pointer"
-            disabled={!userForEdit}
-            onClick={() => setEditOpen(true)}
-          >
-            Edit Profile
-          </Button>
+          {createdByFullName ? (
+            <p className="text-sm">
+              <span className="font-medium text-muted-foreground">Created By: </span>
+              <span>{createdByFullName}</span>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -200,7 +209,12 @@ export function UserProfilePageClient({ userId }: UserProfilePageClientProps) {
         />
       ) : null}
 
-      <UserProfileContributionsSection loading={loading} error={error} counts={counts} />
+      <UserProfileContributionsSection
+        loading={loading}
+        error={error}
+        counts={counts}
+        createdByUserId={userId}
+      />
     </>
   )
 }
