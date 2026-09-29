@@ -106,7 +106,12 @@ import {
   salaryPolicyDisplayLabel,
   salaryPolicyToSelectValue,
 } from "@/lib/utils/salary-policy-display"
-import { formatSalaryDisplayValue } from "@/lib/utils/qg-value"
+import {
+  formatSalaryDisplayValue,
+  parseOptionalWholeSalary,
+  salaryRangeOrderError,
+  wholeSalaryFieldError,
+} from "@/lib/utils/qg-value"
 import {
   SALARY_POLICY_DB_LABELS,
   SALARY_POLICY_DISPLAY_TO_DB,
@@ -4242,6 +4247,10 @@ export function CandidateDetailsModal({
   /** Full candidate from GET /api/candidates/{id} (list rows omit nested educations, etc.). */
   const [fullCandidate, setFullCandidate] = useState<Candidate | null>(null)
   const [fullCandidateLoading, setFullCandidateLoading] = useState(false)
+  /** Local-only work-experience salary drafts. Discarded when the modal closes. */
+  const [weSalaryDrafts, setWeSalaryDrafts] = useState<
+    Record<string, { minimumSalary: number | null; maximumSalary: number | null }>
+  >({})
   const resolvedCandidate = fullCandidate ?? candidate
 
   const degreeCatalogOptions = useMemo(
@@ -5898,6 +5907,7 @@ export function CandidateDetailsModal({
   }, [candidate?.id])
 
   useEffect(() => {
+    setWeSalaryDrafts({})
     if (!open || !candidate?.id) {
       setFullCandidate(null)
       setFullCandidateLoading(false)
@@ -6967,6 +6977,7 @@ export function CandidateDetailsModal({
                                 getFieldVerification={getFieldVerification}
                               />
                             {!viewOnly ? (
+                            <>
                             <div className="min-w-0">
                             <InlineEditableSelect
                               label="Salary Policy"
@@ -6990,6 +7001,93 @@ export function CandidateDetailsModal({
                               getFieldVerification={getFieldVerification}
                             />
                           </div>
+                            <InlineEditableField
+                              label="Minimum Salary"
+                              value={
+                                weSalaryDrafts[experience.id]
+                                  ? (weSalaryDrafts[experience.id].minimumSalary ?? "")
+                                  : (experience.minimumSalary ?? "")
+                              }
+                              fieldName={`workExperiences[${idx}].minimumSalary`}
+                              fieldType="text"
+                              validation={(value) => {
+                                const whole = wholeSalaryFieldError(value)
+                                if (whole) return whole
+                                const draft = weSalaryDrafts[experience.id]
+                                const other = draft
+                                  ? draft.maximumSalary
+                                  : (experience.maximumSalary ?? null)
+                                const order = salaryRangeOrderError(
+                                  value,
+                                  other == null ? "" : String(other),
+                                )
+                                return order
+                              }}
+                              onSave={async (_fieldName, newValue) => {
+                                const parsed = parseOptionalWholeSalary(newValue)
+                                setWeSalaryDrafts((prev) => {
+                                  const current = prev[experience.id] ?? {
+                                    minimumSalary: experience.minimumSalary ?? null,
+                                    maximumSalary: experience.maximumSalary ?? null,
+                                  }
+                                  return {
+                                    ...prev,
+                                    [experience.id]: { ...current, minimumSalary: parsed },
+                                  }
+                                })
+                              }}
+                              formatDisplay={(val) => formatSalaryDisplayValue(Number(val))}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].minimumSalary`}
+                                />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
+                            <InlineEditableField
+                              label="Maximum Salary"
+                              value={
+                                weSalaryDrafts[experience.id]
+                                  ? (weSalaryDrafts[experience.id].maximumSalary ?? "")
+                                  : (experience.maximumSalary ?? "")
+                              }
+                              fieldName={`workExperiences[${idx}].maximumSalary`}
+                              fieldType="text"
+                              validation={(value) => {
+                                const whole = wholeSalaryFieldError(value)
+                                if (whole) return whole
+                                const draft = weSalaryDrafts[experience.id]
+                                const other = draft
+                                  ? draft.minimumSalary
+                                  : (experience.minimumSalary ?? null)
+                                const order = salaryRangeOrderError(
+                                  other == null ? "" : String(other),
+                                  value,
+                                )
+                                return order
+                              }}
+                              onSave={async (_fieldName, newValue) => {
+                                const parsed = parseOptionalWholeSalary(newValue)
+                                setWeSalaryDrafts((prev) => {
+                                  const current = prev[experience.id] ?? {
+                                    minimumSalary: experience.minimumSalary ?? null,
+                                    maximumSalary: experience.maximumSalary ?? null,
+                                  }
+                                  return {
+                                    ...prev,
+                                    [experience.id]: { ...current, maximumSalary: parsed },
+                                  }
+                                })
+                              }}
+                              formatDisplay={(val) => formatSalaryDisplayValue(Number(val))}
+                              verificationIndicator={
+                                <VerificationIndicator
+                                  fieldName={`workExperiences[${idx}].maximumSalary`}
+                                />
+                              }
+                              getFieldVerification={getFieldVerification}
+                            />
+                            </>
                             ) : null}
                             <div className="min-w-0">
                             <InlineEditableMultiSelect

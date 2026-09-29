@@ -90,6 +90,8 @@ const defaultFilters: CandidateFilters = {
   shiftTypes: [],
   workModes: [],
   workExperienceSalaryPolicies: [],
+  workExperienceSalaryMin: "",
+  workExperienceSalaryMax: "",
   timeSupportZones: [],
   workExperienceBenefits: [],
   jobTitle: "",
@@ -264,6 +266,8 @@ const getCriterionColor = (type: string): string => {
     'city': 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700',
     'dataProgress': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700',
     'salaryPolicy': 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200 border-pink-300 dark:border-pink-700',
+    'minimumSalary': 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+    'maximumSalary': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700',
     'size': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200 border-fuchsia-300 dark:border-fuchsia-700',
     
     // Education Background

@@ -223,6 +223,8 @@ function mapWorkExperiences(raw: unknown): WorkExperience[] {
       shiftType: str(pick(o, ["shiftType", "shift_type"])),
       workMode: str(pick(o, ["workMode", "work_mode"])),
       salaryPolicy: "",
+      minimumSalary: "",
+      maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
     })
@@ -457,6 +459,8 @@ export function resumeJsonToPartialCandidateForm(raw: unknown): Partial<Candidat
       shiftType: "",
       workMode: "",
       salaryPolicy: "",
+      minimumSalary: "",
+      maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
     })

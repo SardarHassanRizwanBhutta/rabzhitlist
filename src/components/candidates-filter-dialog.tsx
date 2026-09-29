@@ -122,6 +122,12 @@ export interface CandidateFilters {
    * Independent of `employerSalaryPolicies`.
    */
   workExperienceSalaryPolicies: string[]
+  /**
+   * Overlap span for work-experience `minimumSalary`/`maximumSalary`.
+   * Query params `workExperienceSalaryMin` and `workExperienceSalaryMax`.
+   */
+  workExperienceSalaryMin: string
+  workExperienceSalaryMax: string
   /** Time support zone names from master data (same strings as work experience multi-select). */
   timeSupportZones: string[]
   /** Benefit names from GET /api/benefits → API `workExperienceBenefitIds`. */
@@ -391,6 +397,8 @@ const initialFilters: CandidateFilters = {
   // Candidate work experience work modes
   workModes: [],
   workExperienceSalaryPolicies: [],
+  workExperienceSalaryMin: "",
+  workExperienceSalaryMax: "",
   // Candidate work experience time support zones
   timeSupportZones: [],
   workExperienceBenefits: [],
@@ -481,6 +489,8 @@ function clearSectionFromFilters(
           updated.shiftTypes = []
           updated.workModes = []
       updated.workExperienceSalaryPolicies = []
+          updated.workExperienceSalaryMin = ""
+          updated.workExperienceSalaryMax = ""
           updated.timeSupportZones = []
       updated.workExperienceBenefits = []
           updated.jobTitle = ""
@@ -1179,6 +1189,8 @@ export function CandidatesFilterDialog({
           tempFilters.shiftTypes.length +
           tempFilters.workModes.length +
           tempFilters.workExperienceSalaryPolicies.length +
+          (tempFilters.workExperienceSalaryMin ? 1 : 0) +
+          (tempFilters.workExperienceSalaryMax ? 1 : 0) +
           tempFilters.timeSupportZones.length +
           tempFilters.workExperienceBenefits.length +
           (tempFilters.jobTitle ? 1 : 0) +
@@ -1315,11 +1327,20 @@ export function CandidatesFilterDialog({
 
   const dateRangeError = validateDateRanges()
   const experienceYearsError = validateExperienceYears()
+  const workExperienceSalaryRangeError = (() => {
+    const min = tempFilters.workExperienceSalaryMin.trim()
+    const max = tempFilters.workExperienceSalaryMax.trim()
+    if (!min || !max) return null
+    if (Number(min) > Number(max)) {
+      return "Minimum salary must be less than or equal to maximum salary."
+    }
+    return null
+  })()
   const dataProgressError = validateDataProgressPercentage()
 
   const handleApplyFilters = () => {
     // Validate before applying
-    if (dateRangeError || experienceYearsError || dataProgressError) {
+    if (dateRangeError || experienceYearsError || dataProgressError || workExperienceSalaryRangeError) {
       return // Don't apply if there are validation errors
     }
     onFiltersChange(tempFilters)
@@ -1373,6 +1394,8 @@ export function CandidatesFilterDialog({
     tempFilters.shiftTypes.length > 0 ||
     tempFilters.workModes.length > 0 ||
     tempFilters.workExperienceSalaryPolicies.length > 0 ||
+    tempFilters.workExperienceSalaryMin ||
+    tempFilters.workExperienceSalaryMax ||
     tempFilters.timeSupportZones.length > 0 ||
     tempFilters.workExperienceBenefits.length > 0 ||
     tempFilters.jobTitle ||
@@ -1967,6 +1990,65 @@ export function CandidatesFilterDialog({
               />
                 </div>
               </div>
+
+              {!hideCompensationFilters ? (
+              <div className="space-y-3">
+                <Label className="text-sm font-semibold">Work Experience Salary Range</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="workExperienceSalaryMin" className="text-xs text-muted-foreground">
+                      Minimum Salary
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm">
+                        $
+                      </span>
+                      <Input
+                        id="workExperienceSalaryMin"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="100000"
+                        value={tempFilters.workExperienceSalaryMin}
+                        onChange={(e) =>
+                          handleFilterChange(
+                            "workExperienceSalaryMin",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                        className="pl-7"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="workExperienceSalaryMax" className="text-xs text-muted-foreground">
+                      Maximum Salary
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm">
+                        $
+                      </span>
+                      <Input
+                        id="workExperienceSalaryMax"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="200000"
+                        value={tempFilters.workExperienceSalaryMax}
+                        onChange={(e) =>
+                          handleFilterChange(
+                            "workExperienceSalaryMax",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                        className="pl-7"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {workExperienceSalaryRangeError && (
+                  <p className="text-xs text-red-500">{workExperienceSalaryRangeError}</p>
+                )}
+              </div>
+              ) : null}
 
               {SHOW_AVG_JOB_TENURE_FILTER && (
               <div className="space-y-3">

@@ -209,6 +209,8 @@ const defaultFilters: CandidateFilters = {
   shiftTypes: [],
   workModes: [],
   workExperienceSalaryPolicies: [],
+  workExperienceSalaryMin: "",
+  workExperienceSalaryMax: "",
   timeSupportZones: [],
   workExperienceBenefits: [],
   jobTitle: "",

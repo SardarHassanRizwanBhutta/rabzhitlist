@@ -64,6 +64,8 @@ const baseForm: CandidateFormData = {
       shiftType: "",
       workMode: "",
       salaryPolicy: "",
+      minimumSalary: "",
+      maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
     },

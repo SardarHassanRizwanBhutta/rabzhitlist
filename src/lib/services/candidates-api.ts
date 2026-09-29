@@ -22,6 +22,7 @@ import type {
 } from "@/lib/types/candidate"
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, normalizeApiDateOnly, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
+import { parseOptionalWholeSalary } from "@/lib/utils/qg-value"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
 import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
@@ -242,6 +243,9 @@ interface CreateCandidateWorkExperienceDto {
   workMode?: number | null
   /** WE-owned salary policy enum int; `null` clears on update. */
   salaryPolicy?: number | null
+  /** Whole-number PKR. `null` clears. */
+  minimumSalary?: number | null
+  maximumSalary?: number | null
   timeSupportZoneIds?: number[]
   techStackIds?: number[]
   benefits?: CreateCandidateWorkExperienceBenefitDto[]
@@ -419,6 +423,8 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
       ? (WORK_MODE_DB[raw.workMode] ?? "") as WorkExperience["workMode"]
       : (raw.workMode as WorkExperience["workMode"]) ?? "",
     salaryPolicy: salaryPolicyFromApi(raw.salaryPolicy),
+    minimumSalary: parseOptionalWholeSalary(raw.minimumSalary),
+    maximumSalary: parseOptionalWholeSalary(raw.maximumSalary),
     timeSupportZones,
     benefits,
   }
@@ -749,6 +755,8 @@ function mapMatchedWorkExperiences(raw: unknown): MatchedWorkExperienceDto[] {
       shiftType: mapMatchedDomain(item.shiftType),
       workMode: mapMatchedDomain(item.workMode),
       salaryPolicy: mapMatchedDomain(item.salaryPolicy),
+      minimumSalary: parseOptionalWholeSalary(item.minimumSalary),
+      maximumSalary: parseOptionalWholeSalary(item.maximumSalary),
       timeSupportZones: mapMatchedDomains(item.timeSupportZones),
       techStacks: mapMatchedDomains(item.techStacks),
       benefits: mapMatchedDomains(item.benefits),
@@ -1211,6 +1219,8 @@ export function candidateFormDataToCreateDto(
         !!we.shiftType ||
         !!we.workMode ||
         !!we.salaryPolicy ||
+        !!we.minimumSalary?.trim() ||
+        !!we.maximumSalary?.trim() ||
         (we.timeSupportZones?.length ?? 0) > 0 ||
         (we.benefits?.length ?? 0) > 0
       return hasEmployer || hasJob || hasProjects || hasOther
@@ -1260,6 +1270,8 @@ export function candidateFormDataToCreateDto(
         shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
         workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
         salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
+        minimumSalary: parseOptionalWholeSalary(we.minimumSalary),
+        maximumSalary: parseOptionalWholeSalary(we.maximumSalary),
         timeSupportZoneIds: weTszIds.length > 0 ? weTszIds : undefined,
         techStackIds: weTechStackIds.length > 0 ? weTechStackIds : undefined,
         benefits: weBenefits.length > 0 ? weBenefits : undefined,
@@ -1403,6 +1415,12 @@ export async function fetchCandidatesPage(
     workModes?: number[]
     /** WE-owned `SalaryPolicy` enum ints — independent of `employerSalaryPolicies`. */
     workExperienceSalaryPolicies?: number[]
+    /**
+     * Overlap filter on each work experience `minimumSalary`/`maximumSalary`.
+     * A missing stored bound is unbounded on that side.
+     */
+    workExperienceSalaryMin?: number
+    workExperienceSalaryMax?: number
     /** Work experience time support zone catalog ids (OR within array). */
     timeSupportZoneIds?: number[]
     /** Work experience tech stack catalog ids — not project `techStackIds`. */
@@ -1442,6 +1460,12 @@ export async function fetchCandidatesPage(
   if (listOptions?.currentSalaryMax != null) params.set("currentSalaryMax", String(listOptions.currentSalaryMax))
   if (listOptions?.expectedSalaryMin != null) params.set("expectedSalaryMin", String(listOptions.expectedSalaryMin))
   if (listOptions?.expectedSalaryMax != null) params.set("expectedSalaryMax", String(listOptions.expectedSalaryMax))
+  if (listOptions?.workExperienceSalaryMin != null) {
+    params.set("workExperienceSalaryMin", String(listOptions.workExperienceSalaryMin))
+  }
+  if (listOptions?.workExperienceSalaryMax != null) {
+    params.set("workExperienceSalaryMax", String(listOptions.workExperienceSalaryMax))
+  }
   if (
     listOptions?.certificationId != null &&
     Number.isFinite(listOptions.certificationId) &&
@@ -1710,6 +1734,9 @@ interface CreateWorkExperienceBody {
   workMode?: number | null
   /** WE-owned; send `null` to clear. */
   salaryPolicy?: number | null
+  /** Whole-number PKR. `null` clears. */
+  minimumSalary?: number | null
+  maximumSalary?: number | null
 }
 
 export function createCandidateWorkExperience(candidateId: number, body: CreateWorkExperienceBody) {
@@ -1889,6 +1916,8 @@ export async function syncCandidateSubResources(
       !!we.shiftType ||
       !!we.workMode ||
       !!we.salaryPolicy ||
+      !!we.minimumSalary?.trim() ||
+      !!we.maximumSalary?.trim() ||
       (we.timeSupportZones?.length ?? 0) > 0 ||
       (we.benefits?.length ?? 0) > 0
     if (!hasEmployer && !hasJob && !hasProjects && !hasOther) continue
@@ -1904,6 +1933,8 @@ export async function syncCandidateSubResources(
       shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
       workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
       salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
+      minimumSalary: parseOptionalWholeSalary(we.minimumSalary),
+      maximumSalary: parseOptionalWholeSalary(we.maximumSalary),
     }
 
     const numId = Number(we.id)

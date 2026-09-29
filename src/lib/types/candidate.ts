@@ -87,6 +87,10 @@ export interface WorkExperience {
    * Display label or empty; API wire is enum int | null.
    */
   salaryPolicy?: string | null
+  /** Whole-number PKR minimum for this role. Null when unset. */
+  minimumSalary?: number | null
+  /** Whole-number PKR maximum for this role. Null when unset. */
+  maximumSalary?: number | null
   locations?: WorkExperienceOfficeLocation[]
   layoffs?: WorkExperienceLayoffRow[]
 }
@@ -240,6 +244,9 @@ export interface MatchedWorkExperienceDto {
   workMode: MatchedDomainDto | null
   /** When `workExperienceSalaryPolicies` filter active (WE column, not employer). */
   salaryPolicy: MatchedDomainDto | null
+  /** When `workExperienceSalaryMin` / `workExperienceSalaryMax` filter is active. */
+  minimumSalary: number | null
+  maximumSalary: number | null
   timeSupportZones: MatchedDomainDto[]
   techStacks: MatchedDomainDto[]
   /** Intersection with `workExperienceBenefitIds` filter (WE benefits only). */
