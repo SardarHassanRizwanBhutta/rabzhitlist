@@ -118,7 +118,9 @@ import {
   type SalaryPolicy,
   type SalaryPolicyDb,
 } from "@/lib/types/employer"
+
 import { SALARY_POLICY_TO_API } from "@/lib/services/employers-api"
+
 import { VerificationBadge } from "@/components/ui/verification-badge"
 import { FieldHistoryPopover } from "@/components/ui/field-history-popover"
 import { CandidateCreationDialog, CandidateFormData, VerificationState, candidateToFormData, type CandidateLookups, type CandidateSubmitOptions, type CandidateCreateSubmitResult } from "@/components/candidate-creation-dialog"
