@@ -9,6 +9,7 @@ import {
   PlusIcon,
   EditIcon,
   TrashIcon,
+  EyeIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronsLeftIcon,
@@ -52,9 +53,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-import {
-  Certification,
-} from "@/lib/types/certification"
+import { Certification } from "@/lib/types/certification"
+import { CertificationDetailsDialog } from "@/components/certification-details-dialog"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import {
@@ -126,6 +126,7 @@ export function CertificationsTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [certificationToDelete, setCertificationToDelete] = useState<Certification | null>(null)
+  const [selectedCertification, setSelectedCertification] = useState<Certification | null>(null)
   const getSortValue = (cert: Certification, key: SortKey): string | number => {
     if (key === "issuerName") return cert.issuer?.name ?? ""
     if (key === "dataProgressPercentage") {
@@ -246,12 +247,16 @@ export function CertificationsTable({
                 <SortButton column="dataProgressPercentage">Data Progress</SortButton>
               </TableHead>
               <TableHead className="w-[60px]" title="View Candidates">Candidates</TableHead>
-              <TableHead className="w-[70px]">Actions</TableHead>
+              <TableHead className="w-[96px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedCertifications.map((certification, index) => (
-              <TableRow key={certification.id}>
+              <TableRow
+                key={certification.id}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => setSelectedCertification(certification)}
+              >
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {(pageNumber - 1) * pageSize + index + 1}
                 </TableCell>
@@ -279,19 +284,38 @@ export function CertificationsTable({
                       href={`/candidates?certificationId=${certification.id}&certificationName=${encodeURIComponent(certification.name)}`}
                       title={`View candidates for ${certification.name}`}
                       aria-label={`View candidates with this certification: ${certification.name}`}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <UsersIcon className="h-4 w-4" aria-hidden />
                     </Link>
                   </Button>
                 </TableCell>
                 <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontalIcon className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCertification(certification)
+                      }}
+                      title={`View ${certification.name}`}
+                      aria-label={`View ${certification.name}`}
+                    >
+                      <EyeIcon className="h-4 w-4" />
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontalIcon className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuSeparator />
@@ -317,6 +341,7 @@ export function CertificationsTable({
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -417,6 +442,17 @@ export function CertificationsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedCertification ? (
+        <CertificationDetailsDialog
+          certification={selectedCertification}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelectedCertification(null)
+          }}
+          onEdit={onEdit}
+        />
+      ) : null}
     </div>
   )
 }

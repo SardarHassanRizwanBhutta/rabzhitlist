@@ -55,6 +55,7 @@ import {
   Award,
   GraduationCap,
   Trophy,
+  MessageSquare,
   FolderOpen,
   Check,
   ChevronsUpDown,
@@ -76,6 +77,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Candidate, Competition, Achievement, AchievementType } from "@/lib/types/candidate"
+import { parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import {
   SHIFT_TYPE_LABELS,
   WORK_MODE_LABELS,
@@ -301,6 +303,7 @@ export interface CandidateFormData {
   githubUrl: string
   source: string
   callStatus: CallStatusDb | ""
+  callDate: Date | undefined
   
   // Work Experience - dynamic array (includes orphan WE rows with nested projects)
   workExperiences: WorkExperience[]
@@ -319,6 +322,7 @@ export interface CandidateFormData {
   achievements: Achievement[]
   // Competitions - DEPRECATED: Use achievements instead. Kept for backward compatibility
   competitions: Competition[]
+  finalRemarks: string
 }
 
 // Option lists will be populated from backend APIs (employers, projects, tech stacks, etc.)
@@ -1065,6 +1069,7 @@ const initialFormData: CandidateFormData = {
   githubUrl: "",
   source: "",
   callStatus: "",
+  callDate: undefined,
   workExperiences: [],
   certifications: [],
   educations: [],
@@ -1072,6 +1077,7 @@ const initialFormData: CandidateFormData = {
   personalityType: "",
     achievements: [],
     competitions: [],
+  finalRemarks: "",
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -1089,6 +1095,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
     githubUrl: candidate.githubUrl || "",
     source: parseCandidateSource(candidate.source),
     callStatus: candidate.callStatus ?? "",
+    callDate: candidate.callDate ? parseLocalDateFromApi(candidate.callDate) : undefined,
     workExperiences: candidate.workExperiences?.map(we => ({
       id: we.id,
       employerId: we.employerId ?? null,
@@ -1214,6 +1221,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       year: comp.year,
       url: comp.url || "",
     })) || [],
+    finalRemarks: candidate.finalRemarks ?? "",
   }
 }
 
@@ -1301,12 +1309,14 @@ export function CandidateCreationDialog({
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
+    { id: "final-remarks", sectionId: "final-remarks", label: "Final Remarks", shortLabel: "Final Remarks" },
   ], [])
 
   const [workExperienceOpen, setWorkExperienceOpen] = useState(true)
   const [techStacksOpen, setTechStacksOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
+  const [finalRemarksOpen, setFinalRemarksOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
 
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
@@ -1470,7 +1480,7 @@ export function CandidateCreationDialog({
     if (!showVerification) return { total: 0, verified: 0, percentage: 0 }
     
     // Count all verifiable fields
-    const basicFields = ["name", "city", "currentSalary", "expectedSalary", "cnic", "contactNumber", "email", "linkedinUrl", "githubUrl", "personalityType"]
+    const basicFields = ["name", "city", "currentSalary", "expectedSalary", "cnic", "contactNumber", "email", "linkedinUrl", "githubUrl", "personalityType", "callDate"]
     let total = basicFields.length
     let verified = basicFields.filter(f => verifiedFields.has(f)).length
     
@@ -1523,7 +1533,9 @@ export function CandidateCreationDialog({
         if (verifiedFields.has(`achievements.${idx}.${f}`)) verified++
       })
     })
-    
+
+    total += 1
+    if (verifiedFields.has("finalRemarks")) verified++
     
     return { 
       total, 
@@ -1573,7 +1585,7 @@ export function CandidateCreationDialog({
   // Calculate section-specific progress
   const basicInfoProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
-    const basicFields = ["name", "city", "currentSalary", "expectedSalary", "cnic", "contactNumber", "email", "linkedinUrl", "githubUrl", "personalityType"]
+    const basicFields = ["name", "city", "currentSalary", "expectedSalary", "cnic", "contactNumber", "email", "linkedinUrl", "githubUrl", "personalityType", "callDate"]
     const total = basicFields.length
     const verified = basicFields.filter(f => verifiedFields.has(f)).length
     return { 
@@ -1676,6 +1688,16 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.achievements])
 
+  const finalRemarksProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    const verified = verifiedFields.has("finalRemarks") ? 1 : 0
+    return {
+      percentage: verified > 0 ? 100 : 0,
+      verified,
+      total: 1,
+    }
+  }, [showVerification, verifiedFields])
+
   const techStacksProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     const total = 1 // techStacks field
@@ -1702,6 +1724,8 @@ export function CandidateCreationDialog({
         return certificationsProgress
       case 'competitions':
         return achievementsProgress
+      case 'final-remarks':
+        return finalRemarksProgress
       default:
         return { percentage: 0, verified: 0, total: 0 }
     }
@@ -1799,6 +1823,9 @@ export function CandidateCreationDialog({
       } else if (sectionKey === "certifications" && !certificationsOpen) {
         setCertificationsOpen(true)
         needsExpansion = true
+      } else if (sectionKey === "final-remarks" && !finalRemarksOpen) {
+        setFinalRemarksOpen(true)
+        needsExpansion = true
       }
     }
     
@@ -1807,7 +1834,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, scrollToElement])
+  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, finalRemarksOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1859,7 +1886,7 @@ export function CandidateCreationDialog({
     
     switch (sectionId) {
       case 'basic-info':
-        fields.push('name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl')
+        fields.push('name', 'city', 'currentSalary', 'expectedSalary', 'cnic', 'contactNumber', 'email', 'linkedinUrl', 'githubUrl', 'callDate')
         break
       
       case 'work-experience':
@@ -1932,6 +1959,10 @@ export function CandidateCreationDialog({
             `achievements.${idx}.description`
           )
         })
+        break
+      
+      case 'final-remarks':
+        fields.push('finalRemarks')
         break
     }
     
@@ -2845,6 +2876,7 @@ export function CandidateCreationDialog({
         setTechStacksOpen(true)
         setCertificationsOpen(true)
         setEducationOpen(true)
+        setFinalRemarksOpen(true)
       }
       return
     }
@@ -2873,6 +2905,7 @@ export function CandidateCreationDialog({
         setTechStacksOpen(true)
         setCertificationsOpen(true)
         setEducationOpen(true)
+        setFinalRemarksOpen(true)
       }
     }
   }, [mode, candidateData, open, createPrefill, createPrefillResumeFile, editFormBootstrap])
@@ -2896,6 +2929,7 @@ export function CandidateCreationDialog({
     setTechStacksOpen(false)
     setCertificationsOpen(false)
     setEducationOpen(false)
+    setFinalRemarksOpen(false)
   }
 
   // Verification checkbox component
@@ -3272,6 +3306,35 @@ export function CandidateCreationDialog({
                 {errors.basic?.callStatus && (
                   <p className="text-sm text-red-500">{errors.basic.callStatus}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="callDate">Call Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      id="callDate"
+                      className="w-full justify-between font-normal"
+                    >
+                      {formData.callDate ? formData.callDate.toLocaleDateString() : "Select call date"}
+                      <CalendarIcon />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.callDate}
+                      captionLayout="dropdown"
+                      onSelect={(date) => {
+                        setFormData((prev) => ({ ...prev, callDate: date }))
+                        markFieldModified("callDate")
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <VerificationCheckbox fieldPath="callDate" />
               </div>
 
               <div className="space-y-2">
@@ -4691,6 +4754,70 @@ export function CandidateCreationDialog({
                   </Button>
                 </div>
               )}
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+
+          <div id="final-remarks">
+          <Collapsible open={finalRemarksOpen} onOpenChange={setFinalRemarksOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-medium">Final Remarks</span>
+                    <SectionProgressBadge
+                      percentage={finalRemarksProgress.percentage}
+                      verified={finalRemarksProgress.verified}
+                      total={finalRemarksProgress.total}
+                    />
+                  </div>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      finalRemarksOpen ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div
+                  className="flex items-center gap-2 px-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Checkbox
+                    id="verify-all-final-remarks"
+                    checked={isSectionFullyVerified("final-remarks")}
+                    onCheckedChange={(checked) => handleVerifyAllSection("final-remarks", !!checked)}
+                    aria-label="Verify all fields in Final Remarks section"
+                  />
+                  <Label
+                    htmlFor="verify-all-final-remarks"
+                    className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap"
+                  >
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="space-y-2">
+                {mode !== "create" ? (
+                  <Label htmlFor="finalRemarks">Final Remarks</Label>
+                ) : null}
+                <Textarea
+                  id="finalRemarks"
+                  placeholder="Enter remarks made after the call or after reviewing this profile…"
+                  value={formData.finalRemarks}
+                  onChange={(e) => handleInputChange("finalRemarks", e.target.value)}
+                  rows={4}
+                  aria-label={mode === "create" ? "Final Remarks" : undefined}
+                />
+                <VerificationCheckbox fieldPath="finalRemarks" />
+              </div>
             </CollapsibleContent>
           </Collapsible>
           </div>

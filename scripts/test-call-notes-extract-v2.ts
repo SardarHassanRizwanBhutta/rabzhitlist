@@ -41,6 +41,7 @@ const baseForm: CandidateFormData = {
   githubUrl: "",
   source: "",
   callStatus: "pending",
+  callDate: undefined,
   workExperiences: [
     {
       id: "we-1",
@@ -73,6 +74,7 @@ const baseForm: CandidateFormData = {
   personalityType: "",
   achievements: [],
   competitions: [],
+  finalRemarks: "",
 }
 
 const headcountMeta: AllowedEmptyField = {

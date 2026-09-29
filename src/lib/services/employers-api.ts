@@ -35,6 +35,8 @@ import {
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { apiFetch, apiGet, apiPost, apiPut, apiDelete } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
+import { mapEntityAuditUser, type EntityAuditUser } from "@/lib/types/entity-audit-user"
 
 // --- API enum values (backend uses 0-based integers) ---
 export const WORK_MODE_TO_API: Record<WorkModeDb, number> = {
@@ -466,6 +468,8 @@ export interface EmployerDto {
   status: number | null
   createdAt: string
   updatedAt: string
+  createdBy?: EntityAuditUser | null
+  updatedBy?: EntityAuditUser | null
   /** Company-wide headcount when API stores it on the employer. */
   headcount?: number | null
   /** Numeric SalaryPolicy enum values. */
@@ -636,6 +640,8 @@ export interface FetchEmployersParams {
   /** Stored completion filter 0–100 inclusive. */
   minDataProgressPercentage?: number
   maxDataProgressPercentage?: number
+  /** Active rows whose `created_by_user_id` equals this user. */
+  createdByUserId?: number
 }
 
 function appendStringList(q: URLSearchParams, key: string, values?: string[]) {
@@ -725,6 +731,9 @@ function buildQueryString(params: FetchEmployersParams): string {
   if (params.maxDataProgressPercentage != null) {
     q.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
   }
+  if (params.createdByUserId != null && params.createdByUserId > 0) {
+    q.set("createdByUserId", String(params.createdByUserId))
+  }
 
   return q.toString()
 }
@@ -742,7 +751,14 @@ function parseDataProgressPercentage(value: unknown): number {
 // --- API calls ---
 export async function fetchEmployers(params: FetchEmployersParams): Promise<PagedResult<EmployerListItemDto>> {
   const qs = buildQueryString(params)
-  const result = await apiGet<PagedResult<EmployerListItemDto>>(`/api/employers?${qs}`)
+  const path = `/api/employers?${qs}`
+  const res = await apiFetch(path)
+  if (!res.ok) {
+    throwIfCreatedByUserNotFound(res.status, params.createdByUserId)
+    const text = await res.text()
+    throw new Error(extractApiErrorMessage(text, res.status))
+  }
+  const result = (await res.json()) as PagedResult<EmployerListItemDto>
   return {
     ...result,
     items: result.items.map((item) => ({
@@ -1135,6 +1151,8 @@ export function employerDtoToEmployer(dto: EmployerDto): Employer {
     benefits,
     layoffs,
     dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
+    createdBy: mapEntityAuditUser(dto.createdBy),
+    updatedBy: mapEntityAuditUser(dto.updatedBy),
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
   }

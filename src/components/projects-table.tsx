@@ -107,8 +107,10 @@ import {
   PROJECT_STATUS_LABELS,
   PROJECT_TYPES,
   PUBLISH_PLATFORM_FILTER_OPTIONS,
+  type ProjectDetail,
   type ProjectStatus,
 } from "@/lib/types/project"
+import { EntityAuditFields } from "@/components/entity-audit-fields"
 import {
   fetchProjectById,
   projectDtoToProject,
@@ -2832,7 +2834,11 @@ function ProjectDetailDialog({
   onCreateTechStack,
   onCreateClientLocation,
 }: ProjectDetailDialogProps) {
-  const [localProject, setLocalProject] = useState<Project>(project)
+  const [localProject, setLocalProject] = useState<ProjectDetail>({
+    ...project,
+    createdBy: null,
+    updatedBy: null,
+  })
   const [detailLoading, setDetailLoading] = useState(false)
 
   useEffect(() => {
@@ -2841,7 +2847,11 @@ function ProjectDetailDialog({
       return
     }
 
-    setLocalProject(project)
+    setLocalProject({
+      ...project,
+      createdBy: null,
+      updatedBy: null,
+    })
 
     let cancelled = false
     setDetailLoading(true)
@@ -2956,7 +2966,11 @@ function ProjectDetailDialog({
       toast.success(`${fieldName} updated${verify ? ' and verified' : ''}`)
     } catch (error) {
       // Revert on error
-      setLocalProject(project)
+      setLocalProject((prev) => ({
+        ...project,
+        createdBy: prev.createdBy,
+        updatedBy: prev.updatedBy,
+      }))
       toast.error('Failed to save field')
       throw error
     }
@@ -2982,7 +2996,11 @@ function ProjectDetailDialog({
       // TODO: Wire inline save to PUT /api/projects/{id} via buildUpdateProjectDto when API inline saves are enabled.
       toast.success(`Employer updated${verify ? " and verified" : ""}`)
     } catch (error) {
-      setLocalProject(project)
+      setLocalProject((prev) => ({
+        ...project,
+        createdBy: prev.createdBy,
+        updatedBy: prev.updatedBy,
+      }))
       toast.error("Failed to save field")
       throw error
     }
@@ -3247,6 +3265,10 @@ function ProjectDetailDialog({
               onSave={handleFieldSave}
               placeholder="e.g., 100000"
               getFieldVerification={getFieldVerification}
+            />
+            <EntityAuditFields
+              createdBy={localProject.createdBy}
+              updatedBy={localProject.updatedBy}
             />
           </div>
 

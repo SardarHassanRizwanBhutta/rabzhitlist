@@ -1,3 +1,5 @@
+import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+
 export interface CertificationIssuer {
   id: number
   name: string
@@ -12,6 +14,12 @@ export interface Certification {
   dataProgressPercentage?: number | null
   createdAt: string
   updatedAt: string
+}
+
+/** GET/PUT `/api/certifications/{id}`. List rows stay {@link Certification} and omit these keys. */
+export interface CertificationDetail extends Certification {
+  createdBy: EntityAuditUser | null
+  updatedBy: EntityAuditUser | null
 }
 
 export type CertificationLevel = 

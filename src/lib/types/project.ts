@@ -1,3 +1,5 @@
+import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+
 export type PublishPlatform =
   | "App Store"
   | "Play Store"
@@ -64,6 +66,12 @@ export interface Project {
   dataProgressPercentage?: number | null
   createdAt: Date
   updatedAt: Date
+}
+
+/** GET/POST/PUT `/api/projects/{id}`. List rows stay {@link Project} and omit these keys. */
+export interface ProjectDetail extends Project {
+  createdBy: EntityAuditUser | null
+  updatedBy: EntityAuditUser | null
 }
 
 /** UI type; aligns with backend project_type enum (employer, freelance, independent). */

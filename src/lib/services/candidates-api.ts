@@ -21,9 +21,11 @@ import type {
   WorkExperience,
 } from "@/lib/types/candidate"
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
-import { formatLocalDateForApi, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
+import { formatLocalDateForApi, normalizeApiDateOnly, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
+import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
+import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
 import type { UserRole } from "@/lib/types/user-role"
 import { parseLinkedProjectCatalogFromApi } from "@/lib/utils/map-linked-project-for-service"
 import {
@@ -130,6 +132,8 @@ export interface CandidateListItemDto {
   status: string
   /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. */
   callStatus?: number | null
+  /** Latest information-gathering call (`yyyy-MM-dd`), or null. */
+  callDate?: string | null
   resumeUrl: string | null
   hasResume?: boolean
   resumeFileName?: string | null
@@ -169,10 +173,14 @@ export interface CreateCandidateDto {
   source?: number | null
   /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. Omit/null → Pending. */
   callStatus?: number | null
+  /** Blank is sent as null. `yyyy-MM-dd`. */
+  callDate?: string | null
   status?: string
   resumeUrl?: string | null
   /** Optional call notes on create (camelCase). Omit when blank. */
   callNotes?: string
+  /** Blank is sent as null. */
+  finalRemarks?: string | null
   techStackIds?: number[]
   educations?: CreateCandidateEducationDto[]
   certifications?: CreateCandidateCertificationDto[]
@@ -256,8 +264,12 @@ export interface UpdateCandidateDto {
   source: number | null
   /** CallStatus enum: 0=Pending, 1=Done, 2=Follow-up. */
   callStatus: number
+  /** Blank is sent as null. `yyyy-MM-dd`. */
+  callDate: string | null
   status: string
   resumeUrl: string | null
+  /** Blank is sent as null. */
+  finalRemarks: string | null
 }
 
 function mbtiIndexToLabel(index: number | null | undefined): string | null {
@@ -882,6 +894,7 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     source: parseCandidateSource(row.source),
     status: row.status as Candidate["status"],
     callStatus: parseCallStatus(row.callStatus),
+    callDate: normalizeApiDateOnly(row.callDate),
     ...mapResumeFieldsFromDto(row as unknown as Record<string, unknown>),
     totalExperienceYears: row.totalExperienceYears,
     totalExperienceMonths:
@@ -962,6 +975,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     source: parseCandidateSource(data.source as string | number | null),
     status: String(data.status ?? "sourced") as Candidate["status"],
     callStatus: parseCallStatus(data.callStatus),
+    callDate: normalizeApiDateOnly(data.callDate),
     ...mapResumeFieldsFromDto(data),
     totalExperienceYears:
       typeof data.totalExperienceYears === "number" ? data.totalExperienceYears : null,
@@ -974,6 +988,8 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
     personalityType: mbtiIndexToLabel(Number.isFinite(pt as number) ? (pt as number) : null),
     createdAt: parseIsoDate(data.createdAt) ?? new Date(),
     updatedAt: parseIsoDate(data.updatedAt) ?? new Date(),
+    createdBy: mapEntityAuditUser(data.createdBy),
+    updatedBy: mapEntityAuditUser(data.updatedBy),
     workExperiences,
     certifications,
     educations,
@@ -986,7 +1002,13 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
           : null,
     achievements,
     competitions: [],
+    finalRemarks: mapFinalRemarks(data.finalRemarks),
   }
+}
+
+function mapFinalRemarks(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  return value.trim() === "" ? null : value
 }
 
 function enumIndex<T extends string>(arr: readonly T[], val: string): number | null {
@@ -1260,6 +1282,7 @@ export function candidateFormDataToCreateDto(
     personalityType: mbtiLabelToIndex(data.personalityType),
     source: sourceFormToApi(data.source),
     callStatus: callStatusToApi(data.callStatus) ?? undefined,
+    callDate: formatDateForApi(data.callDate),
     status: "sourced",
     resumeUrl: null,
     techStackIds: techStackIds.length > 0 ? techStackIds : undefined,
@@ -1267,6 +1290,7 @@ export function candidateFormDataToCreateDto(
     certifications: certifications.length > 0 ? certifications : undefined,
     achievements: achievements.length > 0 ? achievements : undefined,
     workExperiences: workExperiences.length > 0 ? workExperiences : undefined,
+    finalRemarks: nullIfEmpty(data.finalRemarks),
   }
 }
 
@@ -1293,8 +1317,10 @@ export function candidateFormDataToUpdateDto(
     personalityType: base.personalityType ?? null,
     source: base.source ?? null,
     callStatus: callStatus ?? 0,
+    callDate: base.callDate ?? null,
     status: existing.status,
     resumeUrl: existing.resume ?? null,
+    finalRemarks: base.finalRemarks ?? null,
   }
 }
 
@@ -1383,6 +1409,8 @@ export async function fetchCandidatesPage(
     workExperienceTechStackIds?: number[]
     /** Work experience benefit catalog ids (`candidate_work_experience_benefits`). */
     workExperienceBenefitIds?: number[]
+    /** Active rows whose `created_by_user_id` equals this user. */
+    createdByUserId?: number
   },
   actorRole?: UserRole | null,
 ): Promise<PagedResult<CandidateListItemDto>> {
@@ -1497,10 +1525,14 @@ export async function fetchCandidatesPage(
   appendNumberList("timeSupportZoneIds", listOptions?.timeSupportZoneIds)
   appendNumberList("workExperienceTechStackIds", listOptions?.workExperienceTechStackIds)
   appendNumberList("workExperienceBenefitIds", listOptions?.workExperienceBenefitIds)
+  if (listOptions?.createdByUserId != null && listOptions.createdByUserId > 0) {
+    params.set("createdByUserId", String(listOptions.createdByUserId))
+  }
 
   const path = `/api/candidates?${params.toString()}`
   const res = await apiFetch(path, { signal })
   if (!res.ok) {
+    throwIfCreatedByUserNotFound(res.status, listOptions?.createdByUserId)
     const text = await res.text()
     throw new Error(`Candidates list ${path}: ${res.status} — ${text}`)
   }

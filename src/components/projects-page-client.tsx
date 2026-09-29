@@ -10,6 +10,8 @@ import { ProjectCreationDialog, ProjectFormData, ProjectVerificationState } from
 import { toast } from "sonner"
 import { ProjectsFilterDialog, ProjectFilters } from "@/components/projects-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
+import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
+import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Project } from "@/lib/types/project"
 import {
@@ -102,6 +104,8 @@ function parseProjectFilterFromSearchParams(
 export function ProjectsPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
+    useCreatedByUserIdListFilter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<ProjectFilters>(initialFilters)
 
@@ -287,7 +291,8 @@ export function ProjectsPageClient() {
       try {
         await ensureDomainCatalogsLoaded()
         if (cancelled) return
-        const params = buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
+        const params = {
+          ...buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
           techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
           verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
           horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
@@ -296,7 +301,9 @@ export function ProjectsPageClient() {
             ? filterIds.technicalAspectEnumValues
             : undefined,
           clientLocationIds: filterIds.clientLocationIds.length ? filterIds.clientLocationIds : undefined,
-        })
+        }),
+          ...(createdByUserId != null ? { createdByUserId } : {}),
+        }
         const result = await fetchProjectsFiltered(params)
         if (cancelled) return
         const items = result?.items ?? []
@@ -319,11 +326,12 @@ export function ProjectsPageClient() {
     return () => {
       cancelled = true
     }
-  }, [combinedFilters, pageNumber, pageSize, filterIds])
+  }, [combinedFilters, pageNumber, pageSize, filterIds, createdByUserId])
 
   const loadProjects = useCallback(async () => {
     await ensureDomainCatalogsLoaded()
-    const params = buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
+    const params = {
+      ...buildFetchProjectsParams(combinedFilters, pageNumber, pageSize, {
       techStackIds: filterIds.techStackIds.length ? filterIds.techStackIds : undefined,
       verticalDomains: filterIds.verticalDomains.length ? filterIds.verticalDomains : undefined,
       horizontalDomains: filterIds.horizontalDomains.length ? filterIds.horizontalDomains : undefined,
@@ -332,7 +340,9 @@ export function ProjectsPageClient() {
         ? filterIds.technicalAspectEnumValues
         : undefined,
       clientLocationIds: filterIds.clientLocationIds.length ? filterIds.clientLocationIds : undefined,
-    })
+    }),
+      ...(createdByUserId != null ? { createdByUserId } : {}),
+    }
     const result = await fetchProjectsFiltered(params)
     const items = result?.items ?? []
     setProjects(items.map(projectListItemDtoToProject))
@@ -340,7 +350,7 @@ export function ProjectsPageClient() {
     setTotalPages(result?.totalPages ?? 0)
     setHasNext(result?.hasNext ?? false)
     setHasPrevious(result?.hasPrevious ?? false)
-  }, [combinedFilters, pageNumber, pageSize, filterIds])
+  }, [combinedFilters, pageNumber, pageSize, filterIds, createdByUserId])
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -455,6 +465,7 @@ export function ProjectsPageClient() {
   }
 
   const handleFiltersChange = (newFilters: ProjectFilters) => {
+    dismissCreatedByUserId()
     setFilters(newFilters)
     setPageNumber(1)
   }
@@ -488,22 +499,27 @@ export function ProjectsPageClient() {
   }
 
   const handleClearEmployerFilter = () => {
+    markCreatedByUserIdDismissed()
     const params = new URLSearchParams(searchParams.toString())
     params.delete("employerFilter")
     params.delete("employerId")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/projects?${q}` : "/projects")
   }
 
   const handleClearProjectFilter = () => {
+    markCreatedByUserIdDismissed()
     const params = new URLSearchParams(searchParams.toString())
     params.delete("projectFilter")
     params.delete("projectId")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/projects?${q}` : "/projects")
   }
 
   const handleClearFilters = () => {
+    dismissCreatedByUserId()
     setFilters(initialFilters)
     setPageNumber(1)
   }

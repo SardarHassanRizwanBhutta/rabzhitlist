@@ -9,6 +9,8 @@ import { CertificationsTable } from "@/components/certifications-table"
 import { CertificationCreationDialog, CertificationFormData, CertificationVerificationState } from "@/components/certification-creation-dialog"
 import { CertificationsFilterDialog, CertificationFilters } from "@/components/certifications-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
+import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
+import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { Certification, CertificationIssuer } from "@/lib/types/certification"
 import { fetchCertificationsPage, fetchCertificationIssuers, createCertification, updateCertification, deleteCertification } from "@/lib/services/certifications-api"
@@ -37,6 +39,8 @@ function parseCertificationFilterFromSearchParams(
 export function CertificationsPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
+    useCreatedByUserIdListFilter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<CertificationFilters>(initialFilters)
 
@@ -107,6 +111,7 @@ export function CertificationsPageClient() {
           maxDataProgress != null && !Number.isNaN(maxDataProgress)
             ? maxDataProgress
             : undefined,
+        createdByUserId: createdByUserId ?? undefined,
       })
       setItems(data.items)
       setTotalCount(data.totalCount)
@@ -127,6 +132,7 @@ export function CertificationsPageClient() {
     combinedFilters.issuerIds,
     combinedFilters.dataProgressMin,
     combinedFilters.dataProgressMax,
+    createdByUserId,
   ])
 
   useEffect(() => {
@@ -157,6 +163,7 @@ export function CertificationsPageClient() {
   }, [items, certificationIdFromUrl])
 
   const handleFiltersChange = (newFilters: CertificationFilters) => {
+    dismissCreatedByUserId()
     setFilters(newFilters)
     setPageNumber(1)
   }
@@ -171,10 +178,12 @@ export function CertificationsPageClient() {
   }
 
   const handleClearCertificationFilter = () => {
+    markCreatedByUserIdDismissed()
     const params = new URLSearchParams(searchParams.toString())
     params.delete("certificationFilter")
     params.delete("certificationId")
     params.delete("certificationName")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/certifications?${q}` : "/certifications")
   }
@@ -235,6 +244,7 @@ export function CertificationsPageClient() {
   }
 
   const handleClearFilters = () => {
+    dismissCreatedByUserId()
     setFilters(initialFilters)
     setPageNumber(1)
   }

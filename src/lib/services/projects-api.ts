@@ -1,9 +1,11 @@
-import type { Project, ProjectStatus, ProjectType } from "@/lib/types/project"
+import type { Project, ProjectDetail, ProjectStatus, ProjectType } from "@/lib/types/project"
 import type { PublishPlatform } from "@/lib/types/project"
 import { PROJECT_TYPES } from "@/lib/types/project"
 import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progress"
 
 import { apiFetch } from "@/lib/api-client"
+import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
+import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
 import {
   ensureDomainCatalogsLoaded,
   fetchTechnicalDomains as fetchTechnicalDomainsLookup,
@@ -90,6 +92,8 @@ export interface ProjectDto {
   dataProgressPercentage?: number | null
   createdAt: string
   updatedAt: string
+  createdBy?: unknown
+  updatedBy?: unknown
 }
 
 export interface CreateProjectDto {
@@ -276,6 +280,8 @@ export interface FetchProjectsParams {
   activeWindowTo?: string
   minDataProgressPercentage?: number
   maxDataProgressPercentage?: number
+  /** Active rows whose `created_by_user_id` equals this user. */
+  createdByUserId?: number
 }
 
 function parseDataProgressPercentage(value: unknown): number | null {
@@ -448,7 +454,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
   }
 }
 
-export function projectDtoToProject(dto: ProjectDto): Project {
+export function projectDtoToProject(dto: ProjectDto): ProjectDetail {
   const statusStr = projectStatusFromApiNum(dto.status)
   const typeStr = projectTypeFromApiNum(dto.type)
   const clientLocations = dto.clientLocations ?? []
@@ -478,6 +484,8 @@ export function projectDtoToProject(dto: ProjectDto): Project {
     downloadCount: dto.downloadCount ?? undefined,
     createdAt: new Date(dto.createdAt),
     updatedAt: new Date(dto.updatedAt),
+    createdBy: mapEntityAuditUser(dto.createdBy),
+    updatedBy: mapEntityAuditUser(dto.updatedBy),
     employerId: dto.employerId ?? undefined,
     dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
   }
@@ -522,6 +530,9 @@ function buildListQuery(params: FetchProjectsParams): string {
   if (params.maxDataProgressPercentage != null) {
     search.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
   }
+  if (params.createdByUserId != null && params.createdByUserId > 0) {
+    search.set("createdByUserId", String(params.createdByUserId))
+  }
   return search.toString()
 }
 
@@ -534,6 +545,7 @@ export async function fetchProjectsFiltered(
   const url = `/api/projects?${query}`
   const response = await apiFetch(url)
   if (!response.ok) {
+    throwIfCreatedByUserNotFound(response.status, params.createdByUserId)
     const text = await response.text()
     throw new Error(`Failed to fetch projects: ${response.status} — ${text}`)
   }

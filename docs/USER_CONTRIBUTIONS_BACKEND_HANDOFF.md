@@ -89,7 +89,7 @@ Uses `UserRoleAdminRules.EnsureCanViewContributions` — identical to **manage/l
 
 **Headers:** `Authorization: Bearer <accessToken>`
 
-**200 response:** Same `UserContributionsDto` shape as §4.2 (identity fields reflect the signed-in user).
+**200 response:** `UserContributionsDto` only (identity fields reflect the signed-in user). **No** `createdByFullName`.
 
 **401:** Missing/invalid JWT.
 
@@ -109,6 +109,7 @@ Base: **`/api/users`** — `UsersController` (`[AdminOnly]`).
   "fullName": "Jane Recruiter",
   "email": "jane.r@dplit.com",
   "role": 2,
+  "createdByFullName": "Muhammad Reyyan",
   "counts": {
     "candidates": 12,
     "employers": 0,
@@ -122,6 +123,7 @@ Base: **`/api/users`** — `UsersController` (`[AdminOnly]`).
 | Field | Notes |
 |-------|--------|
 | `id`, `fullName`, `email`, `role` | Same meaning as user list DTO (`role` **0** SuperAdmin, **1** Admin, **2** Recruiter) |
+| `createdByFullName` | `string` or `null`. Current `full_name` of `users.created_by_user_id`, including soft-deleted creators and creators outside the viewer’s list. `null` when the column is NULL. Not present on `GET /api/auth/me/contributions`. See [`USER_CREATED_BY_BACKEND_HANDOFF.md`](./USER_CREATED_BY_BACKEND_HANDOFF.md). |
 | `counts.*` | Non-negative integers; active rows only (§2.3) |
 
 **401:** Missing/invalid JWT.  

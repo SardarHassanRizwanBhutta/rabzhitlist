@@ -4,6 +4,8 @@ import type { UniversityDataProgressResponse } from "@/lib/types/university-data
 
 import { apiFetch } from "@/lib/api-client"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
+import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
+import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
 
 function parseDataProgressPercentage(value: unknown): number | null {
   if (typeof value === "number") return value
@@ -18,6 +20,8 @@ function mapUniversityDto(data: Record<string, unknown>): University {
   return {
     ...(data as unknown as University),
     dataProgressPercentage: parseDataProgressPercentage(data.dataProgressPercentage),
+    createdBy: mapEntityAuditUser(data.createdBy),
+    updatedBy: mapEntityAuditUser(data.updatedBy),
   }
 }
 
@@ -72,6 +76,8 @@ export interface FetchUniversitiesParams {
   pageSize: number
   minDataProgressPercentage?: number
   maxDataProgressPercentage?: number
+  /** Active rows whose `created_by_user_id` equals this user. */
+  createdByUserId?: number
 }
 
 export interface CreateUniversityDto {
@@ -224,9 +230,13 @@ export async function fetchUniversitiesFiltered(
   if (params.maxDataProgressPercentage != null) {
     search.set("maxDataProgressPercentage", String(params.maxDataProgressPercentage))
   }
+  if (params.createdByUserId != null && params.createdByUserId > 0) {
+    search.set("createdByUserId", String(params.createdByUserId))
+  }
   const url = `/api/universities?${search.toString()}`
   const response = await apiFetch(url)
   if (!response.ok) {
+    throwIfCreatedByUserNotFound(response.status, params.createdByUserId)
     const text = await response.text()
     throw new Error(`Failed to fetch universities: ${response.status} — ${text}`)
   }

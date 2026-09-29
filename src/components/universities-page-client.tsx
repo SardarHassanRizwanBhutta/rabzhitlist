@@ -10,6 +10,8 @@ import { UniversitiesTable } from "@/components/universities-table"
 import { UniversityCreationDialog, UniversityFormData, UniversityVerificationState } from "@/components/university-creation-dialog"
 import { UniversitiesFilterDialog, UniversityFilters } from "@/components/universities-filter-dialog"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
+import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
+import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
 import type { University } from "@/lib/types/university"
 import type { Country } from "@/lib/types/country"
@@ -106,6 +108,8 @@ const initialFilters: UniversityFilters = {
 export function UniversitiesPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
+    useCreatedByUserIdListFilter()
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
   const [filters, setFilters] = useState<UniversityFilters>(initialFilters)
 
@@ -184,6 +188,7 @@ export function UniversitiesPageClient() {
           maxDataProgress != null && !Number.isNaN(maxDataProgress)
             ? maxDataProgress
             : undefined,
+        createdByUserId: createdByUserId ?? undefined,
       })
       setUniversities(res.items.map(mapListItemToUniversity))
     } catch (error) {
@@ -193,7 +198,7 @@ export function UniversitiesPageClient() {
     } finally {
       setUniversitiesLoading(false)
     }
-  }, [combinedFilters])
+  }, [combinedFilters, createdByUserId])
 
   useEffect(() => {
     loadUniversities()
@@ -228,10 +233,12 @@ export function UniversitiesPageClient() {
   }, [])
 
   const handleClearUniversityFilter = () => {
+    markCreatedByUserIdDismissed()
     const params = new URLSearchParams(searchParams.toString())
     params.delete("universityFilter")
     params.delete("universityId")
     params.delete("universityName")
+    deleteCreatedByUserIdParam(params)
     const q = params.toString()
     router.push(q ? `/universities?${q}` : "/universities")
   }
@@ -349,10 +356,12 @@ export function UniversitiesPageClient() {
   }, [])
 
   const handleFiltersChange = (newFilters: UniversityFilters) => {
+    dismissCreatedByUserId()
     setFilters(newFilters)
   }
 
   const handleClearFilters = () => {
+    dismissCreatedByUserId()
     setFilters(initialFilters)
   }
 

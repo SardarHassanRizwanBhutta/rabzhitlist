@@ -67,6 +67,7 @@ import type { Country } from "@/lib/types/country"
 import { fetchCountries, createCountry } from "@/lib/services/countries-api"
 import type { BuildCreateEmployerDtoOptions } from "@/lib/services/employers-api"
 import { fetchEmployerById } from "@/lib/services/employers-api"
+import { EntityAuditFields } from "@/components/entity-audit-fields"
 import type { ProjectLookups } from "@/components/project-creation-dialog"
 import { fetchCertificationById } from "@/lib/services/certifications-lookup-api"
 import { fetchProjectById } from "@/lib/services/projects-lookup-api"
@@ -163,6 +164,7 @@ import { toast } from "sonner"
 import { ProjectCreationDialog, ProjectFormData } from "@/components/project-creation-dialog"
 import { CertificationCreationDialog, CertificationFormData } from "@/components/certification-creation-dialog"
 import { ColdCallerDialog } from "@/components/cold-caller"
+import { fetchCandidateCallNotes } from "@/lib/services/candidate-call-notes-api"
 import type { ApplyCallNotesExtractionsResult } from "@/lib/utils/call-notes-apply-extractions"
 import type { InteractionMode } from "@/types/cold-caller"
 import { MODE_CONFIG } from "@/types/cold-caller"
@@ -204,6 +206,7 @@ import { sampleProjects } from "@/lib/sample-data/projects"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
 import { formatBenefitAmount } from "@/lib/utils/benefits"
 import { formatYearsOfExperience, getTotalExperienceYears } from "@/lib/utils/candidate-experience"
+import { formatApiDateOnlyLabel } from "@/lib/utils/work-experience-dates"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
@@ -511,6 +514,15 @@ function collectWorkExperienceTimeSupportZoneNames(
 
 // Base tech stack options
 const baseTechStackOptions: MultiSelectOption[] = extractUniqueTechStacks()
+
+const CALL_NOTES_SECTION_ID = "call-notes"
+const FINAL_REMARKS_SECTION_ID = "final-remarks"
+const CALL_NOTES_PLACEHOLDER = "Enter everything discussed during the call…"
+const FINAL_REMARKS_PLACEHOLDER = "Enter remarks made after the call or after reviewing this profile…"
+
+function isExclusiveCandidateSection(sectionId: string): boolean {
+  return sectionId === CALL_NOTES_SECTION_ID || sectionId === FINAL_REMARKS_SECTION_ID
+}
 
 interface CandidateDetailsModalProps {
   candidate: Candidate | null
@@ -4187,6 +4199,9 @@ export function CandidateDetailsModal({
   const viewOnly = readOnly || isRecruiter(authUser?.role)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
+  const [callNotes, setCallNotes] = useState("")
+  const [callNotesLoading, setCallNotesLoading] = useState(false)
+  const [finalRemarksDraft, setFinalRemarksDraft] = useState("")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const isScrollingRef = useRef(false)
   
@@ -4393,6 +4408,8 @@ export function CandidateDetailsModal({
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
+    { id: "call-notes", sectionId: CALL_NOTES_SECTION_ID, label: "Call Notes", shortLabel: "Call Notes" },
+    { id: "final-remarks", sectionId: FINAL_REMARKS_SECTION_ID, label: "Final Remarks", shortLabel: "Final Remarks" },
   ]
 
   // Scroll to section function
@@ -4456,7 +4473,16 @@ export function CandidateDetailsModal({
 
   // Handle tab change
   const handleTabChange = (value: string) => {
-    scrollToSection(value)
+    if (isExclusiveCandidateSection(value)) {
+      setActiveSection(value)
+      return
+    }
+
+    isScrollingRef.current = true
+    setActiveSection(value)
+    requestAnimationFrame(() => {
+      scrollToSection(value)
+    })
   }
 
   // Reset tab highlight and scroll when the modal opens or the candidate changes
@@ -4476,9 +4502,53 @@ export function CandidateDetailsModal({
     return () => cancelAnimationFrame(frame)
   }, [open, candidate?.id])
 
+  useEffect(() => {
+    if (!open || !candidate?.id) {
+      setCallNotes("")
+      setCallNotesLoading(false)
+      return
+    }
+
+    const candidateIdNum = Number(candidate.id)
+    if (!Number.isFinite(candidateIdNum) || candidateIdNum <= 0) {
+      setCallNotes("")
+      setCallNotesLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setCallNotesLoading(true)
+    setCallNotes("")
+
+    fetchCandidateCallNotes(candidateIdNum, controller.signal)
+      .then((dto) => {
+        setCallNotes(dto.call_notes ?? "")
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        setCallNotes("")
+        toast.error(error instanceof Error ? error.message : "Failed to load call notes.")
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCallNotesLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [open, candidate?.id])
+
+  useEffect(() => {
+    if (!open) {
+      setFinalRemarksDraft("")
+      return
+    }
+    setFinalRemarksDraft(resolvedCandidate?.finalRemarks ?? "")
+  }, [open, resolvedCandidate?.id, resolvedCandidate?.finalRemarks])
+
   useScrollSpySection(scrollContainerRef, {
-    enabled: Boolean(candidate && open),
-    sectionIds: sections.map((section) => section.sectionId),
+    enabled: Boolean(candidate && open) && !isExclusiveCandidateSection(activeSection),
+    sectionIds: sections
+      .filter((section) => !isExclusiveCandidateSection(section.sectionId))
+      .map((section) => section.sectionId),
     scrollOffset: 80,
     onActiveSectionChange: setActiveSection,
     isScrollingRef,
@@ -6287,6 +6357,9 @@ export function CandidateDetailsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
         "!max-w-[95vw] sm:!max-w-6xl lg:!max-w-4xl max-h-[95vh] overflow-hidden flex flex-col p-0",
+        activeSection === CALL_NOTES_SECTION_ID || activeSection === FINAL_REMARKS_SECTION_ID
+          ? "h-[95vh]"
+          : undefined,
         viewOnly && "[&_button[title='Edit field']]:hidden [&_button[title='Edit contribution']]:hidden [&_button[title='Edit resume']]:hidden [&_button[title='Edit university']]:hidden [&_button[title='Edit employer']]:hidden [&_button[title='Edit certification']]:hidden [&_button[title='Edit project']]:hidden [&_button[title='Delete']]:hidden [&_button[title='Add']]:hidden",
       )}>
         <DialogHeader className="px-8 pt-8 pb-6 border-b border-border">
@@ -6409,7 +6482,11 @@ export function CandidateDetailsModal({
                       "border-b-2 border-transparent",
                       "cursor-pointer flex items-center gap-2"
                     )}
-                    aria-label={`Jump to ${section.label} section - ${progress.percentage}% verified (${progress.verified}/${progress.total})`}
+                    aria-label={
+                      isExclusiveCandidateSection(section.sectionId)
+                        ? section.label
+                        : `Jump to ${section.label} section - ${progress.percentage}% verified (${progress.verified}/${progress.total})`
+                    }
                   >
                     <span className="hidden lg:inline">{section.label}</span>
                     <span className="lg:hidden">{section.shortLabel}</span>
@@ -6437,7 +6514,56 @@ export function CandidateDetailsModal({
           </Tabs>
               </div>
 
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
+        <div
+          ref={scrollContainerRef}
+          className={cn(
+            "flex-1 min-h-0 px-8 py-8",
+            activeSection === CALL_NOTES_SECTION_ID || activeSection === FINAL_REMARKS_SECTION_ID
+              ? "flex flex-col overflow-hidden"
+              : "overflow-y-auto space-y-6",
+          )}
+        >
+          {activeSection === CALL_NOTES_SECTION_ID ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              {callNotesLoading ? (
+                <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Loading call notes…
+                </div>
+              ) : (
+                <Textarea
+                  id="candidate-details-call-notes"
+                  value={callNotes}
+                  onChange={(event) => setCallNotes(event.target.value)}
+                  placeholder={CALL_NOTES_PLACEHOLDER}
+                  readOnly={viewOnly}
+                  aria-label="Call Notes"
+                  className={cn(
+                    "min-h-0 flex-1 field-sizing-fixed resize-none overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed",
+                    viewOnly && "bg-muted/40 cursor-default",
+                  )}
+                />
+              )}
+            </div>
+          ) : activeSection === FINAL_REMARKS_SECTION_ID ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <Label htmlFor="candidate-details-final-remarks" className="text-base font-semibold shrink-0">
+                Final Remarks
+              </Label>
+              <Textarea
+                id="candidate-details-final-remarks"
+                value={finalRemarksDraft}
+                onChange={(event) => setFinalRemarksDraft(event.target.value)}
+                placeholder={FINAL_REMARKS_PLACEHOLDER}
+                readOnly={viewOnly}
+                className={cn(
+                  "min-h-0 flex-1 field-sizing-fixed resize-none overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed",
+                  viewOnly && "bg-muted/40 cursor-default",
+                )}
+              />
+            </div>
+          ) : (
+          <>
           {/* <CandidateDataProgressPanel
             progress={dataProgress}
             loading={dataProgressLoading}
@@ -6600,6 +6726,18 @@ export function CandidateDetailsModal({
                       onSave={handleFieldSave}
                       showVerification={false}
                     />
+                    <div className="py-2 px-3">
+                      <span className="text-sm font-medium text-muted-foreground block mb-0.5">
+                        Call Date
+                      </span>
+                      {formatApiDateOnlyLabel(viewCandidate.callDate) === "N/A" ? (
+                        <span className="text-sm text-muted-foreground italic block">N/A</span>
+                      ) : (
+                        <span className="text-sm block">
+                          {formatApiDateOnlyLabel(viewCandidate.callDate)}
+                        </span>
+                      )}
+                    </div>
                     <InlineEditableCombobox
                       label="Personality Type"
                       value={personalityTypeToSelectValue(viewCandidate.personalityType)}
@@ -6611,6 +6749,10 @@ export function CandidateDetailsModal({
                       placeholder="Select personality type..."
                       searchPlaceholder="Search personality types..."
                       emptyMessage="No personality type found."
+                    />
+                    <EntityAuditFields
+                      createdBy={viewCandidate.createdBy}
+                      updatedBy={viewCandidate.updatedBy}
                     />
           </div>
 
@@ -7643,6 +7785,8 @@ export function CandidateDetailsModal({
             </div>
           </div>
 
+          </>
+          )}
         </div>
       </DialogContent>
       

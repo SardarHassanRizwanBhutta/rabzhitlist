@@ -1,3 +1,5 @@
+import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+
 /** API ranking enum (JSON): Tier1=0, Tier2=1, Tier3=2, DplFavourite=3 */
 export type Ranking = 0 | 1 | 2 | 3
 
@@ -20,6 +22,10 @@ export interface University {
   locations: UniversityLocation[]
   /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). */
   dataProgressPercentage?: number | null
+  /** Detail GET/PUT/PATCH only. Absent on list rows. */
+  createdBy?: EntityAuditUser | null
+  /** Detail GET/PUT/PATCH only. Absent on list rows. */
+  updatedBy?: EntityAuditUser | null
   createdAt: string
   updatedAt: string
 }
