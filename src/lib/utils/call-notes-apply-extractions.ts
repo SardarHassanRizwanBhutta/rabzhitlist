@@ -334,6 +334,8 @@ function ensureWorkExperience(form: CandidateFormData, id: string): number {
     shiftType: "",
     workMode: "",
     salaryPolicy: "",
+    minimumSalary: "",
+    maximumSalary: "",
     timeSupportZones: [],
     benefits: [],
   })

@@ -78,6 +78,7 @@ import {
 } from "@/components/ui/select"
 import { Candidate, Competition, Achievement, AchievementType } from "@/lib/types/candidate"
 import { parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
+import { salaryRangeOrderError, wholeSalaryFieldError } from "@/lib/utils/qg-value"
 import {
   SHIFT_TYPE_LABELS,
   WORK_MODE_LABELS,
@@ -246,6 +247,9 @@ export interface WorkExperience {
   workMode: string
   /** WE-owned salary policy display label (optional). */
   salaryPolicy: string
+  /** Whole-number PKR string. Empty when unset. */
+  minimumSalary: string
+  maximumSalary: string
   timeSupportZones: string[]
   benefits: WorkExperienceBenefit[]
   /** Employer catalog scalars (persisted via PATCH /api/employers/{id}). */
@@ -996,6 +1000,8 @@ const createEmptyWorkExperience = (): WorkExperience => ({
   shiftType: "",
   workMode: "",
   salaryPolicy: "",
+  minimumSalary: "",
+  maximumSalary: "",
   timeSupportZones: [],
   benefits: [],
 })
@@ -1136,6 +1142,8 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       shiftType: shiftTypeToSelectValue(we.shiftType || "") || "",
       workMode: workModeToSelectValue(we.workMode || "") || "",
       salaryPolicy: salaryPolicyToSelectValue(we.salaryPolicy),
+      minimumSalary: we.minimumSalary != null ? String(we.minimumSalary) : "",
+      maximumSalary: we.maximumSalary != null ? String(we.maximumSalary) : "",
       timeSupportZones: we.timeSupportZones || [],
       headcount: we.headcount != null ? String(we.headcount) : "",
       foundedYear: we.foundedYear != null ? String(we.foundedYear) : "",
@@ -1486,7 +1494,7 @@ export function CandidateCreationDialog({
     
     // Work experiences (includes nested projects)
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy']
+      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'minimumSalary', 'maximumSalary']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1601,7 +1609,7 @@ export function CandidateCreationDialog({
     let verified = 0
     
     formData.workExperiences.forEach((_, idx) => {
-      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'timeSupportZones']
+      const weFields = ['employerId', 'employerName', 'employerLocationId', 'jobTitle', 'startDate', 'endDate', 'techStacks', 'shiftType', 'workMode', 'salaryPolicy', 'minimumSalary', 'maximumSalary', 'timeSupportZones']
       weFields.forEach(f => {
         total++
         if (verifiedFields.has(`workExperiences.${idx}.${f}`)) verified++
@@ -1902,6 +1910,8 @@ export function CandidateCreationDialog({
             `workExperiences.${idx}.shiftType`,
             `workExperiences.${idx}.workMode`,
             `workExperiences.${idx}.salaryPolicy`,
+            `workExperiences.${idx}.minimumSalary`,
+            `workExperiences.${idx}.maximumSalary`,
             `workExperiences.${idx}.timeSupportZones`,
             `workExperiences.${idx}.benefits`
           )
@@ -2603,6 +2613,8 @@ export function CandidateCreationDialog({
         exp.shiftType ||
         exp.workMode ||
         exp.salaryPolicy ||
+        !!exp.minimumSalary.trim() ||
+        !!exp.maximumSalary.trim() ||
         exp.timeSupportZones.length > 0
 
       // Orphan WE rows may have empty employer/jobTitle when they hold nested projects
@@ -2618,6 +2630,18 @@ export function CandidateCreationDialog({
       )
       if (dateErrors.startDate) expErrors.startDate = dateErrors.startDate
       if (dateErrors.endDate) expErrors.endDate = dateErrors.endDate
+
+      if (!hideCompensationFields) {
+        const minError = wholeSalaryFieldError(exp.minimumSalary)
+        const maxError = wholeSalaryFieldError(exp.maximumSalary)
+        if (minError) expErrors.minimumSalary = minError
+        if (maxError) expErrors.maximumSalary = maxError
+        const orderError = salaryRangeOrderError(exp.minimumSalary, exp.maximumSalary)
+        if (orderError) {
+          if (!expErrors.minimumSalary) expErrors.minimumSalary = orderError
+          if (!expErrors.maximumSalary) expErrors.maximumSalary = orderError
+        }
+      }
 
       // Validate projects within each experience
       exp.projects.forEach((project, projectIndex) => {
@@ -3708,6 +3732,7 @@ export function CandidateCreationDialog({
                     </div>
 
                     {!hideCompensationFields ? (
+                    <>
                     <div className="min-w-0 space-y-2">
                       <Label htmlFor={`salaryPolicy-${index}`}>Salary Policy</Label>
                       <ReusableCombobox
@@ -3721,6 +3746,59 @@ export function CandidateCreationDialog({
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.salaryPolicy`} />
                     </div>
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor={`minimumSalary-${index}`}>Minimum Salary</Label>
+                      <Input
+                        id={`minimumSalary-${index}`}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="100000"
+                        value={experience.minimumSalary}
+                        onChange={(e) =>
+                          handleWorkExperienceChange(
+                            index,
+                            "minimumSalary",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                        className={
+                          errors.workExperiences?.[index]?.minimumSalary ? "border-red-500" : ""
+                        }
+                      />
+                      {errors.workExperiences?.[index]?.minimumSalary && (
+                        <p className="text-sm text-red-500">
+                          {errors.workExperiences[index].minimumSalary}
+                        </p>
+                      )}
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.minimumSalary`} />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <Label htmlFor={`maximumSalary-${index}`}>Maximum Salary</Label>
+                      <Input
+                        id={`maximumSalary-${index}`}
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="200000"
+                        value={experience.maximumSalary}
+                        onChange={(e) =>
+                          handleWorkExperienceChange(
+                            index,
+                            "maximumSalary",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                        className={
+                          errors.workExperiences?.[index]?.maximumSalary ? "border-red-500" : ""
+                        }
+                      />
+                      {errors.workExperiences?.[index]?.maximumSalary && (
+                        <p className="text-sm text-red-500">
+                          {errors.workExperiences[index].maximumSalary}
+                        </p>
+                      )}
+                      <VerificationCheckbox fieldPath={`workExperiences.${index}.maximumSalary`} />
+                    </div>
+                    </>
                     ) : null}
 
                     <div className="min-w-0 space-y-2">

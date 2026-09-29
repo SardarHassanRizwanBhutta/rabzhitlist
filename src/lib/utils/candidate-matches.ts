@@ -14,6 +14,11 @@ import { findMutualConnectionsWithDPL } from "@/lib/utils/mutual-connections"
 import { getTotalExperienceYears } from "@/lib/utils/candidate-experience"
 import { normalizeProgress } from "@/lib/utils/candidate-data-progress"
 import {
+  formatSalaryDisplayValue,
+  parseOptionalWholeSalary,
+  salaryRangesOverlap,
+} from "@/lib/utils/qg-value"
+import {
   PROJECT_STATUS_UI_TO_NUM,
   PUBLISH_PLATFORM_UI_TO_NUM,
 } from "@/lib/services/projects-api"
@@ -165,6 +170,8 @@ export function hasActiveFilters(filters: CandidateFilters): boolean {
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
+    filters.workExperienceSalaryMin ||
+    filters.workExperienceSalaryMax ||
     filters.timeSupportZones.length > 0 ||
     filters.jobTitle ||
     filters.yearsOfExperienceMin ||
@@ -233,6 +240,8 @@ export function isEmployerOnlyFilter(filters: CandidateFilters): boolean {
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
+    filters.workExperienceSalaryMin ||
+    filters.workExperienceSalaryMax ||
     filters.timeSupportZones.length > 0 ||
     filters.jobTitle ||
     filters.yearsOfExperienceMin ||
@@ -1035,12 +1044,42 @@ function formatWorkExperienceMatchItemName(
   return `${employerName} — ${jobTitle?.trim() || "N/A"}`
 }
 
+function workExperienceSalaryFilterActive(filters: CandidateFilters): boolean {
+  return Boolean(filters.workExperienceSalaryMin?.trim() || filters.workExperienceSalaryMax?.trim())
+}
+
+function appendSalaryRangeMatchCriteria(
+  matchedCriteria: MatchCriterion[],
+  minimumSalary: number | null | undefined,
+  maximumSalary: number | null | undefined,
+): boolean {
+  let added = false
+  if (minimumSalary != null) {
+    matchedCriteria.push({
+      type: "minimumSalary",
+      label: "Minimum Salary",
+      values: [formatSalaryDisplayValue(minimumSalary)],
+    })
+    added = true
+  }
+  if (maximumSalary != null) {
+    matchedCriteria.push({
+      type: "maximumSalary",
+      label: "Maximum Salary",
+      values: [formatSalaryDisplayValue(maximumSalary)],
+    })
+    added = true
+  }
+  return added
+}
+
 /** Active list filters that drive backend `matchedWorkExperiences`. */
 function hasBackendMatchedWorkExperienceFilterDrivers(filters: CandidateFilters): boolean {
   return (
     filters.shiftTypes.length > 0 ||
     filters.workModes.length > 0 ||
     filters.workExperienceSalaryPolicies.length > 0 ||
+    workExperienceSalaryFilterActive(filters) ||
     filters.timeSupportZones.length > 0 ||
     filters.candidateTechStacks.length > 0 ||
     filters.workExperienceBenefits.length > 0 ||
@@ -1093,6 +1132,10 @@ function appendBackendMatchedWorkExperienceItem(
       label: "WE Salary Policy",
       values: [resolveSalaryPolicyLabel(mwe.salaryPolicy)],
     })
+  }
+
+  if (workExperienceSalaryFilterActive(filters)) {
+    appendSalaryRangeMatchCriteria(matchedCriteria, mwe.minimumSalary, mwe.maximumSalary)
   }
 
   if (filters.timeSupportZones.length > 0 && mwe.timeSupportZones.length > 0) {
@@ -1856,6 +1899,29 @@ export function getCandidateMatchContext(
           hasMatch = true
         }
       }
+
+          if (workExperienceSalaryFilterActive(filters)) {
+            const filterMin = parseOptionalWholeSalary(filters.workExperienceSalaryMin)
+            const filterMax = parseOptionalWholeSalary(filters.workExperienceSalaryMax)
+            if (
+              salaryRangesOverlap(
+                we.minimumSalary,
+                we.maximumSalary,
+                filterMin,
+                filterMax,
+              )
+            ) {
+              if (
+                appendSalaryRangeMatchCriteria(
+                  matchedCriteria,
+                  we.minimumSalary,
+                  we.maximumSalary,
+                )
+              ) {
+                hasMatch = true
+              }
+            }
+          }
 
           if (
             filters.timeSupportZones.length > 0 &&

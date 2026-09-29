@@ -12,6 +12,8 @@ export type CandidateListQueryOptions = {
   employerSalaryPolicies?: number[]
   workExperienceSalaryPolicies?: number[]
   workExperienceBenefitIds?: number[]
+  workExperienceSalaryMin?: number
+  workExperienceSalaryMax?: number
 }
 
 /** Query params Recruiter must not send (403). */
@@ -28,6 +30,8 @@ export function stripRecruiterForbiddenListQueryOptions<T extends CandidateListQ
   delete next.employerSalaryPolicies
   delete next.workExperienceSalaryPolicies
   delete next.workExperienceBenefitIds
+  delete next.workExperienceSalaryMin
+  delete next.workExperienceSalaryMax
   return next
 }
 
@@ -38,7 +42,13 @@ export function stripRecruiterCompensationFromCreateDto(
   if (!isRecruiter(role)) return dto
   const { currentSalary: _c, expectedSalary: _e, workExperiences, ...rest } = dto
   const trimmedWe = workExperiences?.map((we) => {
-    const { salaryPolicy: _sp, benefits: _b, ...weRest } = we
+    const {
+      salaryPolicy: _sp,
+      benefits: _b,
+      minimumSalary: _min,
+      maximumSalary: _max,
+      ...weRest
+    } = we
     return weRest
   })
   return {
@@ -89,8 +99,20 @@ export function stripRecruiterCompensationFromCandidate(candidate: Candidate): C
     return base
   }
   const trimmedWe = workExperiences.map((we) => {
-    const { salaryPolicy: _sp, benefits: _b, ...weRest } = we
-    return { ...weRest, benefits: [], salaryPolicy: null }
+    const {
+      salaryPolicy: _sp,
+      benefits: _b,
+      minimumSalary: _min,
+      maximumSalary: _max,
+      ...weRest
+    } = we
+    return {
+      ...weRest,
+      benefits: [],
+      salaryPolicy: null,
+      minimumSalary: null,
+      maximumSalary: null,
+    }
   })
   return { ...base, workExperiences: trimmedWe }
 }
