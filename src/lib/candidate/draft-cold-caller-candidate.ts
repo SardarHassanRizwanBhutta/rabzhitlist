@@ -32,6 +32,7 @@ const EMPTY_FORM: CandidateFormData = {
   techStacks: [],
   personalityType: "",
   achievements: [],
+  mentors: [],
   competitions: [],
   finalRemarks: "",
 }

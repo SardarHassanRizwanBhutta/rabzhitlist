@@ -77,6 +77,7 @@ const baseForm: CandidateFormData = {
   achievements: [],
   competitions: [],
   finalRemarks: "",
+  mentors: [],
 }
 
 const headcountMeta: AllowedEmptyField = {

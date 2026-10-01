@@ -64,8 +64,11 @@ import {
   Code,
   Building2,
   ListTodo,
+  Users,
 } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
+import { MentorCombobox } from "@/components/mentor-combobox"
+import type { CandidateMentorFormRow } from "@/lib/types/mentor"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
 import type { EmployerBenefit } from "@/lib/types/benefits"
@@ -327,6 +330,7 @@ export interface CandidateFormData {
   // Competitions - DEPRECATED: Use achievements instead. Kept for backward compatibility
   competitions: Competition[]
   finalRemarks: string
+  mentors: CandidateMentorFormRow[]
 }
 
 // Option lists will be populated from backend APIs (employers, projects, tech stacks, etc.)
@@ -399,8 +403,8 @@ function ReusableCombobox({
     const searchLower = searchValue.trim().toLowerCase()
     const existsInSource = existenceSource.some(
       (option) =>
-        option.value.toLowerCase() === searchLower ||
-        option.label.toLowerCase() === searchLower
+      option.value.toLowerCase() === searchLower ||
+      option.label.toLowerCase() === searchLower
     )
     if (catalogOptions) return existsInSource
     return (
@@ -412,8 +416,8 @@ function ReusableCombobox({
   // Show create when query has no exact catalog match (degree/major); legacy comboboxes also require empty filter list
   const shouldShowCreate =
     creatable &&
-    searchValue.trim().length >= 2 &&
-    !searchValueExists &&
+    searchValue.trim().length >= 2 && 
+    !searchValueExists && 
     (catalogOptions != null || filteredOptions.length === 0)
 
   const [createInProgress, setCreateInProgress] = React.useState(false)
@@ -731,7 +735,7 @@ function WorkExperienceProjectCombobox({
 
   const createProjectPrefill = React.useMemo(
     () =>
-      project.projectId == null
+    project.projectId == null
         ? buildProjectCreatePrefillFromProjectExperience(project)
         : undefined,
     [project],
@@ -1084,6 +1088,7 @@ const initialFormData: CandidateFormData = {
     achievements: [],
     competitions: [],
   finalRemarks: "",
+  mentors: [],
 }
 
 // Convert Candidate to CandidateFormData for edit mode
@@ -1173,7 +1178,7 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
         amount: b.amount ?? null,
         unit: b.unit || null,
       })) || [],
-    })) || [],
+      })) || [],
     certifications:
       candidate.certifications?.map((cert) => ({
         id: cert.id,
@@ -1230,6 +1235,17 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
       url: comp.url || "",
     })) || [],
     finalRemarks: candidate.finalRemarks ?? "",
+    mentors: (candidate.mentors ?? []).map((link) => ({
+      id: link.id,
+      mentorId: link.mentorId,
+      createNew: false,
+      name: link.name,
+      designation: link.designation ?? "",
+      employerId: link.employerId,
+      employerName: link.employerName,
+      relationship: link.relationship ?? "",
+      reasoning: link.reasoning ?? "",
+    })),
   }
 }
 
@@ -1317,6 +1333,7 @@ export function CandidateCreationDialog({
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
+    { id: "mentors", sectionId: "mentors", label: "Mentors", shortLabel: "Mentors" },
     { id: "final-remarks", sectionId: "final-remarks", label: "Final Remarks", shortLabel: "Final Remarks" },
   ], [])
 
@@ -1324,9 +1341,10 @@ export function CandidateCreationDialog({
   const [techStacksOpen, setTechStacksOpen] = useState(true)
   const [certificationsOpen, setCertificationsOpen] = useState(true)
   const [competitionsOpen, setCompetitionsOpen] = useState(true)
+  const [mentorsOpen, setMentorsOpen] = useState(true)
   const [finalRemarksOpen, setFinalRemarksOpen] = useState(true)
   const [educationOpen, setEducationOpen] = useState(true)
-
+  
   const employerCreateLookups: BuildCreateEmployerDtoOptions = useMemo(
     () => ({
       timeSupportZonesLookup:
@@ -1444,7 +1462,8 @@ export function CandidateCreationDialog({
   )
 
   const [errors, setErrors] = useState<{
-    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, string>>
+    basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, string>>
+    mentors?: { [index: number]: Partial<Record<"name" | "employerId" | "mentorId", string>> }
     workExperiences?: { 
       [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
@@ -1539,6 +1558,16 @@ export function CandidateCreationDialog({
       achievementFields.forEach(f => {
         total++
         if (verifiedFields.has(`achievements.${idx}.${f}`)) verified++
+      })
+    })
+    
+    formData.mentors.forEach((row, idx) => {
+      const mentorFields = row.createNew
+        ? ["name", "designation", "employerId", "relationship", "reasoning"]
+        : ["mentorId", "relationship", "reasoning"]
+      mentorFields.forEach((field) => {
+        total++
+        if (verifiedFields.has(`mentors.${idx}.${field}`)) verified++
       })
     })
 
@@ -1696,6 +1725,26 @@ export function CandidateCreationDialog({
     }
   }, [showVerification, verifiedFields, formData.achievements])
 
+  const mentorsProgress = useMemo(() => {
+    if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
+    let total = 0
+    let verified = 0
+    formData.mentors.forEach((row, idx) => {
+      const mentorFields = row.createNew
+        ? ["name", "designation", "employerId", "relationship", "reasoning"]
+        : ["mentorId", "relationship", "reasoning"]
+      mentorFields.forEach((field) => {
+        total++
+        if (verifiedFields.has(`mentors.${idx}.${field}`)) verified++
+      })
+    })
+    return {
+      percentage: total > 0 ? Math.round((verified / total) * 100) : 0,
+      verified,
+      total,
+    }
+  }, [showVerification, verifiedFields, formData.mentors])
+
   const finalRemarksProgress = useMemo(() => {
     if (!showVerification) return { percentage: 0, verified: 0, total: 0 }
     const verified = verifiedFields.has("finalRemarks") ? 1 : 0
@@ -1831,6 +1880,9 @@ export function CandidateCreationDialog({
       } else if (sectionKey === "certifications" && !certificationsOpen) {
         setCertificationsOpen(true)
         needsExpansion = true
+      } else if (sectionKey === "mentors" && !mentorsOpen) {
+        setMentorsOpen(true)
+        needsExpansion = true
       } else if (sectionKey === "final-remarks" && !finalRemarksOpen) {
         setFinalRemarksOpen(true)
         needsExpansion = true
@@ -1842,7 +1894,7 @@ export function CandidateCreationDialog({
     setTimeout(() => {
       scrollToElement(element, container, yOffset, sectionId)
     }, delay)
-  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, finalRemarksOpen, scrollToElement])
+  }, [sections, workExperienceOpen, techStacksOpen, educationOpen, certificationsOpen, competitionsOpen, mentorsOpen, finalRemarksOpen, scrollToElement])
 
   // Handle tab change
   const handleTabChange = useCallback((value: string) => {
@@ -1971,6 +2023,15 @@ export function CandidateCreationDialog({
         })
         break
       
+      case 'mentors':
+        formData.mentors.forEach((row, idx) => {
+          const mentorFields = row.createNew
+            ? ["name", "designation", "employerId", "relationship", "reasoning"]
+            : ["mentorId", "relationship", "reasoning"]
+          mentorFields.forEach((field) => fields.push(`mentors.${idx}.${field}`))
+        })
+        break
+
       case 'final-remarks':
         fields.push('finalRemarks')
         break
@@ -2062,7 +2123,7 @@ export function CandidateCreationDialog({
     return 'Save & Verify'
   }
 
-  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions'>, value: string) => {
+  const handleInputChange = (field: keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     markFieldModified(field)
     // Clear error when user starts typing
@@ -2224,7 +2285,7 @@ export function CandidateCreationDialog({
       }
       return
     }
-
+    
     // Clear error when user starts typing
     if (errors.workExperiences?.[index]?.[field]) {
       setErrors(prev => ({
@@ -2452,6 +2513,40 @@ export function CandidateCreationDialog({
     }
   }
 
+  const createMentorRow = (createNew: boolean): CandidateMentorFormRow => ({
+    id: crypto.randomUUID(),
+    mentorId: null,
+    createNew,
+    name: "",
+    designation: "",
+    employerId: null,
+    employerName: "",
+    relationship: "",
+    reasoning: "",
+  })
+
+  const addCreateMentor = () => {
+    setFormData((prev) => ({ ...prev, mentors: [...prev.mentors, createMentorRow(true)] }))
+  }
+
+  const addLinkMentor = () => {
+    setFormData((prev) => ({ ...prev, mentors: [...prev.mentors, createMentorRow(false)] }))
+  }
+
+  const removeMentor = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      mentors: prev.mentors.filter((_, rowIndex) => rowIndex !== index),
+    }))
+  }
+
+  const updateMentorRow = (index: number, patch: Partial<CandidateMentorFormRow>) => {
+    setFormData((prev) => ({
+      ...prev,
+      mentors: prev.mentors.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)),
+    }))
+  }
+
   const addAchievement = () => {
     setFormData(prev => ({
       ...prev,
@@ -2560,7 +2655,7 @@ export function CandidateCreationDialog({
   }
 
   const validateForm = (): boolean => {
-    const basicErrors: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations'>, string>> = {}
+    const basicErrors: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, string>> = {}
     const workExperienceErrors: { 
       [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
@@ -2713,6 +2808,23 @@ export function CandidateCreationDialog({
       }
     })
 
+    const mentorErrors: { [index: number]: Partial<Record<"name" | "employerId" | "mentorId", string>> } = {}
+    const mentorIds = new Set<number>()
+    formData.mentors.forEach((row, index) => {
+      const rowErrors: Partial<Record<"name" | "employerId" | "mentorId", string>> = {}
+      if (row.createNew) {
+        if (!row.name.trim()) rowErrors.name = "Name is required"
+        if (row.employerId == null) rowErrors.employerId = "Organization is required"
+      } else if (row.mentorId == null) {
+        rowErrors.mentorId = "Select a mentor"
+      }
+      if (row.mentorId != null) {
+        if (mentorIds.has(row.mentorId)) rowErrors.mentorId = "This mentor is already linked"
+        mentorIds.add(row.mentorId)
+      }
+      if (Object.keys(rowErrors).length > 0) mentorErrors[index] = rowErrors
+    })
+
     // Achievements validation
     const achievementErrors: { [index: number]: Partial<Record<keyof Achievement, string>> } = {}
     formData.achievements.forEach((achievement, index) => {
@@ -2743,6 +2855,7 @@ export function CandidateCreationDialog({
       certifications: Object.keys(certificationErrors).length > 0 ? certificationErrors : undefined,
       educations: Object.keys(educationErrors).length > 0 ? educationErrors : undefined,
       achievements: Object.keys(achievementErrors).length > 0 ? achievementErrors : undefined,
+      mentors: Object.keys(mentorErrors).length > 0 ? mentorErrors : undefined,
     }
 
     setErrors(newErrors)
@@ -2751,7 +2864,8 @@ export function CandidateCreationDialog({
       !newErrors.workExperiences &&
       !newErrors.certifications &&
       !newErrors.educations &&
-      !newErrors.achievements
+      !newErrors.achievements &&
+      !newErrors.mentors
     if (!isValid) {
       showCandidateCreationValidationToast(newErrors as CandidateCreationValidationErrors)
     }
@@ -2884,22 +2998,22 @@ export function CandidateCreationDialog({
         appliedEditBootstrapSessionRef.current = true
         onEditFormBootstrapConsumedRef.current?.()
       } else if (justOpened && !appliedEditBootstrapSessionRef.current) {
-        const newFormData = candidateToFormData(candidateData)
-        setFormData(newFormData)
-        initialFormDataRef.current = newFormData
+      const newFormData = candidateToFormData(candidateData)
+      setFormData(newFormData)
+      initialFormDataRef.current = newFormData
       }
 
       if (justOpened || hadBootstrap) {
-        setErrors({})
-        setVerifiedFields(new Set())
-        setModifiedFields(new Set())
-        setResumeFile(null)
+      setErrors({})
+      setVerifiedFields(new Set())
+      setModifiedFields(new Set())
+      setResumeFile(null)
         setPendingResumeRetry(null)
         setResumeUploadError(null)
-        setWorkExperienceOpen(true)
-        setTechStacksOpen(true)
-        setCertificationsOpen(true)
-        setEducationOpen(true)
+      setWorkExperienceOpen(true)
+      setTechStacksOpen(true)
+      setCertificationsOpen(true)
+      setEducationOpen(true)
         setFinalRemarksOpen(true)
       }
       return
@@ -2954,6 +3068,7 @@ export function CandidateCreationDialog({
     setCertificationsOpen(false)
     setEducationOpen(false)
     setFinalRemarksOpen(false)
+    setMentorsOpen(false)
   }
 
   // Verification checkbox component
@@ -3413,10 +3528,10 @@ export function CandidateCreationDialog({
                 </div>
               )}
               <ResumeFileInput
-                id="resume"
+                      id="resume" 
                 value={resumeFile}
                 onChange={(file) => {
-                  setResumeFile(file)
+                          setResumeFile(file)
                   if (file && showVerification) {
                     setModifiedFields((prev) => new Set(prev).add("resume"))
                     setVerifiedFields((prev) => new Set(prev).add("resume"))
@@ -3431,13 +3546,13 @@ export function CandidateCreationDialog({
                       const next = new Set(prev)
                       next.delete("resume")
                       return next
-                    })
-                  }
-                }}
+                          })
+                        }
+                      }}
                 disabled={isLoading || isRetryingResume || !!pendingResumeRetry}
                 label={mode === "edit" && candidateData?.hasResume ? "Replace resume" : "Resume"}
               />
-              <VerificationCheckbox fieldPath="resume" />
+                <VerificationCheckbox fieldPath="resume" />
               </div>
               </div>
             </CardContent>
@@ -3745,7 +3860,7 @@ export function CandidateCreationDialog({
                         searchPlaceholder="Search salary policies..."
                       />
                       <VerificationCheckbox fieldPath={`workExperiences.${index}.salaryPolicy`} />
-                    </div>
+                  </div>
                     <div className="min-w-0 space-y-2">
                       <Label htmlFor={`minimumSalary-${index}`}>Minimum Salary</Label>
                       <Input
@@ -3818,7 +3933,7 @@ export function CandidateCreationDialog({
                       }
                     />
                     <VerificationCheckbox fieldPath={`workExperiences.${index}.timeSupportZones`} />
-                    </div>
+                  </div>
 
                     <div className="min-w-0 space-y-2">
                       <Label htmlFor={`techStacks-${index}`}>Tech Stacks</Label>
@@ -4836,6 +4951,203 @@ export function CandidateCreationDialog({
           </Collapsible>
           </div>
 
+          <div id="mentors">
+          <Collapsible open={mentorsOpen} onOpenChange={setMentorsOpen}>
+            <div className="flex items-center gap-2">
+              <CollapsibleTrigger asChild className="flex-1">
+                <Button type="button" variant="outline" className="w-full justify-between cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    <span className="text-lg font-medium">Mentors</span>
+                    {formData.mentors.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">{formData.mentors.length}</Badge>
+                    )}
+                    <SectionProgressBadge
+                      percentage={mentorsProgress.percentage}
+                      verified={mentorsProgress.verified}
+                      total={mentorsProgress.total}
+                    />
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${mentorsOpen ? "transform rotate-180" : ""}`} />
+                </Button>
+              </CollapsibleTrigger>
+              {showVerification && (
+                <div className="flex items-center gap-2 px-2" onClick={(event) => event.stopPropagation()}>
+                  <Checkbox
+                    id="verify-all-mentors"
+                    checked={isSectionFullyVerified("mentors")}
+                    onCheckedChange={(checked) => handleVerifyAllSection("mentors", !!checked)}
+                    aria-label="Verify all fields in Mentors section"
+                  />
+                  <Label htmlFor="verify-all-mentors" className="text-sm text-muted-foreground cursor-pointer font-normal whitespace-nowrap">
+                    Verify All
+                  </Label>
+                </div>
+              )}
+            </div>
+            <CollapsibleContent className="space-y-4 mt-4">
+              <div className="flex items-center justify-end gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addLinkMentor} className="cursor-pointer">
+                  Link Existing Mentor
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={addCreateMentor} className="cursor-pointer">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Mentor
+                </Button>
+              </div>
+              {formData.mentors.map((mentor, index) => {
+                const personLocked = !mentor.createNew && /^\d+$/.test(mentor.id)
+                const takenMentorIds = formData.mentors
+                  .filter((row, rowIndex) => rowIndex !== index && row.mentorId != null)
+                  .map((row) => row.mentorId as number)
+                return (
+                  <Card key={mentor.id}>
+                    <CardHeader className="pb-4">
+                      <CardTitle className="flex items-center justify-between text-base">
+                        <span>{mentor.createNew ? "New mentor" : "Linked mentor"} {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeMentor(index)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {mentor.createNew ? (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor={`mentor-name-${index}`}>Name *</Label>
+                              <Input
+                                id={`mentor-name-${index}`}
+                                value={mentor.name}
+                                onChange={(event) => updateMentorRow(index, { name: event.target.value })}
+                                className={errors.mentors?.[index]?.name ? "border-red-500" : ""}
+                              />
+                              {errors.mentors?.[index]?.name && (
+                                <p className="text-sm text-red-500">{errors.mentors[index].name}</p>
+                              )}
+                              <VerificationCheckbox fieldPath={`mentors.${index}.name`} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor={`mentor-designation-${index}`}>Designation</Label>
+                              <Input
+                                id={`mentor-designation-${index}`}
+                                value={mentor.designation}
+                                onChange={(event) => updateMentorRow(index, { designation: event.target.value })}
+                              />
+                              <VerificationCheckbox fieldPath={`mentors.${index}.designation`} />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                              <EmployerCombobox
+                                id={`mentor-organization-${index}`}
+                                label="Organization *"
+                                value={
+                                  mentor.employerId != null
+                                    ? { id: mentor.employerId, name: mentor.employerName }
+                                    : null
+                                }
+                                onChange={(employer) =>
+                                  updateMentorRow(index, {
+                                    employerId: employer?.id ?? null,
+                                    employerName: employer?.name ?? "",
+                                  })
+                                }
+                                error={!!errors.mentors?.[index]?.employerId}
+                                nestedEmployerCreation={nestedEmployerCreation}
+                              />
+                              {errors.mentors?.[index]?.employerId && (
+                                <p className="text-sm text-red-500">{errors.mentors[index].employerId}</p>
+                              )}
+                              <VerificationCheckbox fieldPath={`mentors.${index}.employerId`} />
+                            </div>
+                          </>
+                        ) : personLocked ? (
+                          <>
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-muted-foreground">Name</p>
+                              <p className="text-sm">{mentor.name || "N/A"}</p>
+                              <VerificationCheckbox fieldPath={`mentors.${index}.mentorId`} />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium text-muted-foreground">Designation</p>
+                              <p className={mentor.designation.trim() ? "text-sm" : "text-sm italic text-muted-foreground"}>
+                                {mentor.designation.trim() || "N/A"}
+                              </p>
+                            </div>
+                            <div className="space-y-1 md:col-span-2">
+                              <p className="text-sm font-medium text-muted-foreground">Organization</p>
+                              <p className="text-sm">{mentor.employerName || "N/A"}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor={`mentor-pick-${index}`}>Mentor *</Label>
+                            <MentorCombobox
+                              id={`mentor-pick-${index}`}
+                              value={
+                                mentor.mentorId != null
+                                  ? {
+                                      id: mentor.mentorId,
+                                      name: mentor.name,
+                                      designation: mentor.designation || null,
+                                      employerId: mentor.employerId ?? 0,
+                                      employerName: mentor.employerName,
+                                    }
+                                  : null
+                              }
+                              excludeIds={takenMentorIds}
+                              error={!!errors.mentors?.[index]?.mentorId}
+                              onChange={(hit) =>
+                                updateMentorRow(index, {
+                                  mentorId: hit?.id ?? null,
+                                  name: hit?.name ?? "",
+                                  designation: hit?.designation ?? "",
+                                  employerId: hit?.employerId ?? null,
+                                  employerName: hit?.employerName ?? "",
+                                })
+                              }
+                            />
+                            {errors.mentors?.[index]?.mentorId && (
+                              <p className="text-sm text-red-500">{errors.mentors[index].mentorId}</p>
+                            )}
+                            <VerificationCheckbox fieldPath={`mentors.${index}.mentorId`} />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor={`mentor-relationship-${index}`}>Relationship</Label>
+                          <Input
+                            id={`mentor-relationship-${index}`}
+                            value={mentor.relationship}
+                            onChange={(event) => updateMentorRow(index, { relationship: event.target.value })}
+                            placeholder="Manager, team lead, colleague..."
+                          />
+                          <VerificationCheckbox fieldPath={`mentors.${index}.relationship`} />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor={`mentor-reasoning-${index}`}>Reasoning</Label>
+                          <Textarea
+                            id={`mentor-reasoning-${index}`}
+                            value={mentor.reasoning}
+                            onChange={(event) => updateMentorRow(index, { reasoning: event.target.value })}
+                            placeholder="Why the candidate considers them competent"
+                            rows={3}
+                          />
+                          <VerificationCheckbox fieldPath={`mentors.${index}.reasoning`} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+          </div>
+
           <div id="final-remarks">
           <Collapsible open={finalRemarksOpen} onOpenChange={setFinalRemarksOpen}>
             <div className="flex items-center gap-2">
@@ -4964,15 +5276,15 @@ export function CandidateCreationDialog({
               {pendingResumeRetry ? "Close" : "Cancel"}
             </Button>
             {!pendingResumeRetry && (
-              <Button 
-                type="submit"
-                form="candidate-form"
+            <Button 
+              type="submit"
+              form="candidate-form"
                 disabled={isLoading || isRetryingResume}
-                className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
-              >
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {getSubmitButtonText(isLoading)}
-              </Button>
+              className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {getSubmitButtonText(isLoading)}
+            </Button>
             )}
           </div>
         </DialogFooter>

@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, UserCog, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
+import { Users, UserCog, UserRound, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 import { AuthUserMenu } from "@/components/auth-user-menu"
 import { useNavigationAccess } from "@/components/role-route-guard"
@@ -50,6 +50,12 @@ const navigationItems = [
     url: "/employers",
     icon: Building2,
     description: "Manage employer relationships and requirements",
+  },
+  {
+    title: "Mentors",
+    url: "/mentors",
+    icon: UserRound,
+    description: "People candidates named as mentors and career influences",
   },
   {
     title: "Universities",

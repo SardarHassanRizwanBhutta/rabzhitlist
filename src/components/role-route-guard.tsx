@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import {
   canAccessDashboard,
+  canAccessMentors,
   canAccessUsersAdmin,
   defaultHomePathForRole,
   isRecruiter,
@@ -54,6 +55,7 @@ export function useNavigationAccess() {
   function canShowNavItem(url: string): boolean {
     if (url === "/users") return canAccessUsersAdmin(role)
     if (url === "/") return canAccessDashboard(role)
+    if (url === "/mentors") return canAccessMentors(role)
     return true
   }
 
