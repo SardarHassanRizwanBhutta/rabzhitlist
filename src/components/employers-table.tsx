@@ -954,7 +954,7 @@ export function EmployersTable({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{employerToDelete?.name}</strong> and all its office locations. This action cannot be undone.
+              This will permanently delete <strong>{employerToDelete?.name}</strong>, all its office locations, and every mentor at this employer, including each candidate link to those mentors. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

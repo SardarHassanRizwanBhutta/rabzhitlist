@@ -58,6 +58,7 @@ import {
   candidateListItemDtoToCandidate,
 } from "@/lib/services/candidates-api"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
+import { syncCandidateMentors } from "@/lib/services/mentors-api"
 import type {
   CandidateSubmitOptions,
   CandidateCreateSubmitResult,
@@ -1123,6 +1124,10 @@ export function CandidatesPageClient() {
         createBody.callNotes = callNotes
       }
       const candidate = await createCandidate(createBody, authUser?.role)
+      const createdId = Number(candidate.id)
+      if (data.mentors.length > 0 && Number.isFinite(createdId)) {
+        await syncCandidateMentors(createdId, data.mentors, [])
+      }
 
       // Create succeeded (notes already on candidate if sent). Drop draft session.
       if (draftColdCallerSession || pendingCreateCallNotes != null) {

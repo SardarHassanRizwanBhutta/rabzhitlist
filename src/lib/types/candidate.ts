@@ -1,6 +1,7 @@
 import { EmployerBenefit } from "./benefits"
 import { CertificationLevel } from "./certification"
 import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+import type { CandidateMentorLink } from "@/lib/types/mentor"
 
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
 export type WorkMode = "Remote" | "Onsite" | "Hybrid"
@@ -347,6 +348,8 @@ export interface Candidate {
   personalityType?: string | null // Personality type (e.g., "ESTJ", "INTJ", "ENFP", etc.)
   organizationalRoles?: OrganizationalRole[] // Organizational roles/affiliations (e.g., CEO, Board Member)
   achievements?: Achievement[] // Competitions and achievements (e.g., Kaggle, Bug Bounty platforms, Open Source contributions, Awards, Medals)
+  /** Mentors linked to this candidate. Absent on list rows. */
+  mentors?: CandidateMentorLink[]
   /** Detail GET/POST/PUT. Remarks after a call or profile review. Blank is null. */
   finalRemarks?: string | null
   competitions?: Competition[] // DEPRECATED: Use achievements instead. Kept for backward compatibility during migration

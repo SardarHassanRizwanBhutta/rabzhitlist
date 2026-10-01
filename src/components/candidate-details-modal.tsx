@@ -4204,7 +4204,7 @@ export function CandidateDetailsModal({
   const router = useRouter()
   const { user: authUser } = useAuth()
   const viewOnly = readOnly || isRecruiter(authUser?.role)
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "verification"]))
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "mentors", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const [callNotes, setCallNotes] = useState("")
   const [callNotesLoading, setCallNotesLoading] = useState(false)
@@ -4419,6 +4419,7 @@ export function CandidateDetailsModal({
     { id: "education", sectionId: "education", label: "Education", shortLabel: "Education" },
     { id: "certifications", sectionId: "certifications", label: "Certifications", shortLabel: "Certs" },
     { id: "competitions", sectionId: "competitions", label: "Achievements", shortLabel: "Achievements" },
+    { id: "mentors", sectionId: "mentors", label: "Mentors", shortLabel: "Mentors" },
     { id: "call-notes", sectionId: CALL_NOTES_SECTION_ID, label: "Call Notes", shortLabel: "Call Notes" },
     { id: "final-remarks", sectionId: FINAL_REMARKS_SECTION_ID, label: "Final Remarks", shortLabel: "Final Remarks" },
   ]
@@ -6298,6 +6299,16 @@ export function CandidateDetailsModal({
     })
   }
 
+  const handleMentorClick = (mentorId: number, mentorName: string) => {
+    if (!Number.isFinite(mentorId) || mentorId <= 0 || !mentorName.trim()) return
+    const params = new URLSearchParams({
+      mentorFilter: mentorName.trim(),
+      mentorId: String(mentorId),
+    })
+    router.push(`/mentors?${params.toString()}`)
+    onOpenChange(false)
+  }
+
   const handleEmployerClick = (employerId: number, employerName: string) => {
       const params = new URLSearchParams({
       employerFilter: employerName,
@@ -7867,6 +7878,90 @@ export function CandidateDetailsModal({
               </CollapsibleContent>
             </Card>
           </Collapsible>
+          </section>
+
+          <section id="mentors">
+            <Collapsible
+              open={expandedSections.has("mentors")}
+              onOpenChange={() => toggleSection("mentors")}
+            >
+              <Card>
+                <CollapsibleTrigger className="w-full">
+                  <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="size-5" />
+                        Mentors
+                        {(viewCandidate.mentors?.length ?? 0) > 0 && (
+                          <Badge variant="secondary" className="ml-2">
+                            {viewCandidate.mentors?.length}
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      {expandedSections.has("mentors") ? (
+                        <ChevronDown className="size-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-6">
+                    {(viewCandidate.mentors?.length ?? 0) === 0 ? (
+                      <p className="text-sm italic text-muted-foreground">No mentors linked.</p>
+                    ) : (
+                      viewCandidate.mentors?.map((mentor, index) => (
+                        <div key={mentor.id}>
+                          {index > 0 && <Separator className="my-6" />}
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-muted-foreground">Name</p>
+                                {mentor.name.trim() && mentor.mentorId > 0 ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMentorClick(mentor.mentorId, mentor.name)}
+                                    className="text-sm font-semibold hover:text-primary hover:underline transition-colors text-left cursor-pointer break-words"
+                                    title={`View ${mentor.name.trim()} details`}
+                                  >
+                                    {mentor.name.trim()}
+                                  </button>
+                                ) : (
+                                  <p className="text-sm italic text-muted-foreground">N/A</p>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-muted-foreground">Designation</p>
+                                <p className={mentor.designation?.trim() ? "text-sm" : "text-sm italic text-muted-foreground"}>
+                                  {mentor.designation?.trim() || "N/A"}
+                                </p>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-muted-foreground">Organization</p>
+                                <p className="text-sm">{mentor.employerName?.trim() || "N/A"}</p>
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-muted-foreground">Relationship</p>
+                                <p className={mentor.relationship?.trim() ? "text-sm whitespace-pre-wrap" : "text-sm italic text-muted-foreground"}>
+                                  {mentor.relationship?.trim() || "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-muted-foreground">Reasoning</p>
+                              <p className={mentor.reasoning?.trim() ? "text-sm whitespace-pre-wrap" : "text-sm italic text-muted-foreground"}>
+                                {mentor.reasoning?.trim() || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </section>
 
           {/* Candidate Metadata */}

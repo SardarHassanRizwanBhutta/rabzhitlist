@@ -12,6 +12,7 @@ export type CandidateCreationValidationErrors = {
   certifications?: { [index: number]: Partial<Record<string, string>> }
   educations?: { [index: number]: Partial<Record<string, string>> }
   achievements?: { [index: number]: Partial<Record<string, string>> }
+  mentors?: { [index: number]: Partial<Record<string, string>> }
 }
 
 const BASIC_FIELD_ORDER = [
@@ -224,6 +225,12 @@ export function collectCandidateCreationValidationMessages(
       CERTIFICATION_FIELD_ORDER,
       CERTIFICATION_FIELD_LABELS,
       errors.certifications,
+    ),
+    ...collectIndexedSectionMessages(
+      "Mentor",
+      ["name", "employerId", "mentorId"],
+      { name: "Name", employerId: "Organization", mentorId: "Mentor" },
+      errors.mentors,
     ),
     ...collectIndexedSectionMessages(
       "Achievement",

@@ -1140,7 +1140,7 @@ export function UniversityDetailsModal({
 }: UniversityDetailsModalProps) {
   const [localUniversity, setLocalUniversity] = useState<University>(university)
   const [detailLoading, setDetailLoading] = useState(false)
-
+  
   const notifyPersistedChange = () => {
     onPersistedChange?.()
   }
@@ -1269,7 +1269,7 @@ export function UniversityDetailsModal({
       throw error
     }
   }
-
+  
   const handleLocationFieldSave = async (
     locationId: number,
     fieldName: string,
@@ -1476,7 +1476,7 @@ export function UniversityDetailsModal({
                         onSave={handleFieldSave}
                         placeholder="https://example.com"
                         showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
-                      getFieldVerification={getFieldVerification}
+                        getFieldVerification={getFieldVerification}
                       />
                       {localUniversity.websiteUrl && (
                         <Button
@@ -1501,7 +1501,7 @@ export function UniversityDetailsModal({
                         onSave={handleFieldSave}
                         placeholder="https://linkedin.com/school/example"
                         showVerification={UNIVERSITY_DETAILS_INLINE_VERIFY}
-                      getFieldVerification={getFieldVerification}
+                        getFieldVerification={getFieldVerification}
                       />
                       {localUniversity.linkedInUrl && (
                         <Button

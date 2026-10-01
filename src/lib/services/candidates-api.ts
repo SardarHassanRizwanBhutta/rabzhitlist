@@ -23,6 +23,7 @@ import type {
 import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, normalizeApiDateOnly, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { parseOptionalWholeSalary } from "@/lib/utils/qg-value"
+import { mapCandidateMentorLink, syncCandidateMentors } from "@/lib/services/mentors-api"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
 import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
@@ -966,6 +967,12 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
   const achievements = Array.isArray(achRaw)
     ? achRaw.map((a, i) => mapAchievement(asRecord(a) ?? {}, i))
     : []
+  const mentorsRaw = data.mentors
+  const mentors = Array.isArray(mentorsRaw)
+    ? mentorsRaw
+        .map((row, index) => mapCandidateMentorLink(row, index))
+        .filter((row): row is NonNullable<typeof row> => row != null)
+    : []
 
   return {
     id: String(Number.isFinite(id) ? id : data.id),
@@ -1009,6 +1016,7 @@ export function mapCandidateDtoToCandidate(data: Record<string, unknown>): Candi
           ? Number(data.dataProgressPercentage)
           : null,
     achievements,
+    mentors,
     competitions: [],
     finalRemarks: mapFinalRemarks(data.finalRemarks),
   }
@@ -1959,8 +1967,14 @@ export async function syncCandidateSubResources(
     if (!seenWeIds.has(id)) weOps.push(safe("Delete work experience", () => deleteCandidateWorkExperience(candidateId, id)))
   }
 
+  const mentorOps = [
+    safe("Mentors", () =>
+      syncCandidateMentors(candidateId, formData.mentors ?? [], existing.mentors ?? []),
+    ),
+  ]
+
   // Execute all sections in parallel
-  await Promise.all([...tsOps, ...eduOps, ...certOps, ...achOps, ...weOps])
+  await Promise.all([...tsOps, ...eduOps, ...certOps, ...achOps, ...weOps, ...mentorOps])
 
   if (errors.length > 0) {
     throw new Error(`Some updates failed:\n${errors.join("\n")}`)
