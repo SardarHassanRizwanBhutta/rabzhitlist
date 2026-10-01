@@ -6862,7 +6862,7 @@ export function CandidateDetailsModal({
               <CollapsibleContent>
                 <CardContent className="space-y-6">
                   {workExperiences.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No work experience recorded</p>
+                    <p className="text-base italic text-muted-foreground text-center py-6">No work experience recorded</p>
                   ) : (
                     workExperiences.map((experience, idx) => (
                       <div key={experience.id}>
@@ -7347,7 +7347,7 @@ export function CandidateDetailsModal({
               <CollapsibleContent>
                 <CardContent className="space-y-6">
                   {!viewCandidate.techStacks || viewCandidate.techStacks.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No tech stacks recorded</p>
+                    <p className="text-base italic text-muted-foreground text-center py-6">No tech stacks recorded</p>
                   ) : (
                     <div className="space-y-4">
                       <InlineEditableMultiSelect
@@ -7425,7 +7425,7 @@ export function CandidateDetailsModal({
                       <span className="text-base">Loading education…</span>
                     </div>
                   ) : educations.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No education records</p>
+                    <p className="text-base italic text-muted-foreground text-center py-6">No education records</p>
                   ) : (
                     educations.map((education, idx) => (
                       <div key={education.id}>
@@ -7639,7 +7639,7 @@ export function CandidateDetailsModal({
               <CollapsibleContent>
                 <CardContent className="space-y-6">
                   {certifications.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No certifications recorded</p>
+                    <p className="text-base italic text-muted-foreground text-center py-6">No certifications recorded</p>
                   ) : (
                     certifications.map((cert, idx) => (
                       <div key={cert.id}>
@@ -7771,7 +7771,7 @@ export function CandidateDetailsModal({
               <CollapsibleContent>
                 <CardContent className="space-y-6">
                   {achievements.length === 0 ? (
-                    <p className="text-base text-muted-foreground text-center py-6">No achievements recorded</p>
+                    <p className="text-base italic text-muted-foreground text-center py-6">No achievements recorded</p>
                   ) : (
                     achievements.map((ach, idx) => (
                       <div key={ach.id}>
@@ -7909,7 +7909,7 @@ export function CandidateDetailsModal({
                 <CollapsibleContent>
                   <CardContent className="space-y-6">
                     {(viewCandidate.mentors?.length ?? 0) === 0 ? (
-                      <p className="text-sm italic text-muted-foreground">No mentors linked.</p>
+                      <p className="text-base italic text-muted-foreground text-center py-6">No mentors recorded</p>
                     ) : (
                       viewCandidate.mentors?.map((mentor, index) => (
                         <div key={mentor.id}>
