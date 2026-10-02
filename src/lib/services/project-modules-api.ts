@@ -138,9 +138,9 @@ export async function createProjectModule(
   body: { name: string; description: string | null; techStackIds: number[] },
 ): Promise<ProjectModule> {
   const created = await apiPost<unknown>(`/api/projects/${projectId}/modules`, body)
-  const module = mapProjectModule(created)
-  if (!module) throw new Error("Create module did not return an id.")
-  return module
+  const createdModule = mapProjectModule(created)
+  if (!createdModule) throw new Error("Create module did not return an id.")
+  return createdModule
 }
 
 export async function updateProjectModule(
@@ -149,8 +149,8 @@ export async function updateProjectModule(
   body: { name: string; description: string | null; techStackIds: number[] },
 ): Promise<ProjectModule> {
   const updated = await apiPut<unknown>(`/api/projects/${projectId}/modules/${moduleId}`, body)
-  const module = mapProjectModule(updated)
-  if (!module) {
+  const updatedModule = mapProjectModule(updated)
+  if (!updatedModule) {
     return {
       id: moduleId,
       name: body.name,
@@ -159,7 +159,7 @@ export async function updateProjectModule(
       contributors: [],
     }
   }
-  return module
+  return updatedModule
 }
 
 export async function deleteProjectModule(projectId: number, moduleId: number): Promise<void> {
