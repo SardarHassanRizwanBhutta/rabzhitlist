@@ -126,6 +126,7 @@ import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import { catalogLabelForValue, catalogLabelsForValues, catalogToSelectOptions } from "@/lib/utils/domain-catalog"
 import type { ProjectLookups, SelectedEmployer } from "@/components/project-creation-dialog"
+import { ProjectModulesSection } from "@/components/project-modules-section"
 import { EmployerCreationDialog } from "@/components/employer-creation-dialog"
 import { 
   getVerificationsForProject,
@@ -312,6 +313,7 @@ export function ProjectsTable({
   const [sortKey, setSortKey] = useState<SortKey>("projectName")
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc")
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [focusModules, setFocusModules] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
 
@@ -527,6 +529,7 @@ export function ProjectsTable({
               <TableHead className="w-[120px] min-w-[110px]">
                 <SortButton column="status">Status</SortButton>
               </TableHead>
+              <TableHead className="w-[88px]">Modules</TableHead>
               <TableHead className="w-[180px]">Tech Stacks</TableHead>
               <TableHead className="w-[160px]">Horizontal Domains</TableHead>
               <TableHead className="w-[160px]">Vertical Domains</TableHead>
@@ -553,7 +556,10 @@ export function ProjectsTable({
               <TableRow 
                 key={project.id}
                 className="group hover:bg-muted/50 cursor-pointer"
-                onClick={() => setSelectedProject(project)}
+                onClick={() => {
+                  setFocusModules(false)
+                  setSelectedProject(project)
+                }}
               >
                 <TableCell className="font-medium max-w-[240px] w-[240px]">
                   <div className="truncate" title={project.projectName}>
@@ -582,6 +588,19 @@ export function ProjectsTable({
                       </Badge>
                     )
                   })()}
+                </TableCell>
+                <TableCell>
+                  <button
+                    type="button"
+                    className="cursor-pointer text-sm font-medium tabular-nums hover:text-primary hover:underline"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setFocusModules(true)
+                      setSelectedProject(project)
+                    }}
+                  >
+                    {project.moduleCount ?? 0}
+                  </button>
                 </TableCell>
                 <TableCell>
                   {renderTags(project.techStacks, 2, "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200")}
@@ -633,6 +652,7 @@ export function ProjectsTable({
                       className="h-8 w-8 p-0"
                       onClick={(e) => {
                         e.stopPropagation()
+                        setFocusModules(false)
                         setSelectedProject(project)
                       }}
                     >
@@ -760,6 +780,7 @@ export function ProjectsTable({
         <ProjectDetailDialog
           project={selectedProject}
           open={!!selectedProject}
+          focusModules={focusModules}
           onOpenChange={(open) => {
             if (!open) {
               setSelectedProject(null)
@@ -2816,6 +2837,8 @@ interface ProjectDetailDialogProps {
   project: Project
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** After the project loads, scroll the Modules section into view. */
+  focusModules?: boolean
   onVerify?: (project: Project) => void
   technicalDomainOptions: MultiSelectOption[]
   lookups?: ProjectLookups
@@ -2824,10 +2847,11 @@ interface ProjectDetailDialogProps {
   onCreateClientLocation?: (name: string) => Promise<LookupItem | void>
 }
 
-function ProjectDetailDialog({
+export function ProjectDetailDialog({
   project,
   open,
   onOpenChange,
+  focusModules = false,
   onVerify,
   technicalDomainOptions: technicalDomainOptionsForDetail,
   lookups,
@@ -2838,8 +2862,10 @@ function ProjectDetailDialog({
     ...project,
     createdBy: null,
     updatedBy: null,
+    modules: [],
   })
   const [detailLoading, setDetailLoading] = useState(false)
+  const modulesSectionRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open || !project?.id) {
@@ -2851,6 +2877,7 @@ function ProjectDetailDialog({
       ...project,
       createdBy: null,
       updatedBy: null,
+      modules: [],
     })
 
     let cancelled = false
@@ -2878,6 +2905,11 @@ function ProjectDetailDialog({
       cancelled = true
     }
   }, [open, project])
+
+  useEffect(() => {
+    if (!open || detailLoading || !focusModules) return
+    modulesSectionRef.current?.scrollIntoView({ block: "start" })
+  }, [open, detailLoading, focusModules, localProject.id])
 
   const techStackOptions = useMemo<MultiSelectOption[]>(
     () => buildTechStackMultiSelectOptions(lookups?.techStacks ?? []),
@@ -2970,6 +3002,7 @@ function ProjectDetailDialog({
         ...project,
         createdBy: prev.createdBy,
         updatedBy: prev.updatedBy,
+        modules: prev.modules,
       }))
       toast.error('Failed to save field')
       throw error
@@ -3000,6 +3033,7 @@ function ProjectDetailDialog({
         ...project,
         createdBy: prev.createdBy,
         updatedBy: prev.updatedBy,
+        modules: prev.modules,
       }))
       toast.error("Failed to save field")
       throw error
@@ -3373,6 +3407,10 @@ function ProjectDetailDialog({
             placeholder="Recent project updates or comments"
             getFieldVerification={getFieldVerification}
           />
+
+          <div ref={modulesSectionRef} className="scroll-mt-4">
+            <ProjectModulesSection modules={localProject.modules} />
+          </div>
 
           {/* Project Metadata */}
           <div className="pt-4 border-t border-border">

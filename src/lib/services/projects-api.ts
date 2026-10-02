@@ -6,6 +6,7 @@ import type { ProjectDataProgressResponse } from "@/lib/types/project-data-progr
 import { apiFetch } from "@/lib/api-client"
 import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
 import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
+import { mapProjectModules } from "@/lib/services/project-modules-api"
 import {
   ensureDomainCatalogsLoaded,
   fetchTechnicalDomains as fetchTechnicalDomainsLookup,
@@ -47,6 +48,8 @@ export interface ProjectListItemDto {
   publishPlatforms?: number[]
   clientLocations?: string[]
   dataProgressPercentage?: number | null
+  /** Count of modules on this project. `0` when it has none. */
+  moduleCount?: number | null
   createdAt?: string
   updatedAt?: string
 }
@@ -94,6 +97,7 @@ export interface ProjectDto {
   updatedAt: string
   createdBy?: unknown
   updatedBy?: unknown
+  modules?: unknown
 }
 
 export interface CreateProjectDto {
@@ -284,6 +288,12 @@ export interface FetchProjectsParams {
   createdByUserId?: number
 }
 
+function nonNegativeInt(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.floor(n)
+}
+
 function parseDataProgressPercentage(value: unknown): number | null {
   if (typeof value === "number") return value
   if (value != null) {
@@ -449,6 +459,7 @@ export function projectListItemDtoToProject(dto: ProjectListItemDto): Project {
     publishPlatforms: (dto.publishPlatforms ?? []).map((n) => PUBLISH_PLATFORM_NUM_TO_UI[n] ?? "App Store"),
     downloadCount: dto.downloadCount ?? undefined,
     dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
+    moduleCount: nonNegativeInt(dto.moduleCount),
     createdAt: dto.createdAt ? new Date(dto.createdAt) : new Date(),
     updatedAt: dto.updatedAt ? new Date(dto.updatedAt) : new Date(),
   }
@@ -486,6 +497,7 @@ export function projectDtoToProject(dto: ProjectDto): ProjectDetail {
     updatedAt: new Date(dto.updatedAt),
     createdBy: mapEntityAuditUser(dto.createdBy),
     updatedBy: mapEntityAuditUser(dto.updatedBy),
+    modules: mapProjectModules(dto.modules),
     employerId: dto.employerId ?? undefined,
     dataProgressPercentage: parseDataProgressPercentage(dto.dataProgressPercentage),
   }

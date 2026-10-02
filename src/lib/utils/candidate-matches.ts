@@ -1868,12 +1868,12 @@ export function getCandidateMatchContext(
 
       if (filters.workModes.length > 0 && we.workMode) {
         if (filters.workModes.includes(we.workMode)) {
-          matchedCriteria.push({
+            matchedCriteria.push({
                 type: "workMode",
                 label: "Work Mode",
                 values: [we.workMode],
-          })
-          hasMatch = true
+            })
+            hasMatch = true
         }
       }
 
@@ -1918,7 +1918,7 @@ export function getCandidateMatchContext(
                   we.maximumSalary,
                 )
               ) {
-                hasMatch = true
+          hasMatch = true
               }
             }
           }

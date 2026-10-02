@@ -20,6 +20,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
@@ -147,6 +150,39 @@ function isNavItemActive(pathname: string, url: string): boolean {
   return pathname === url || pathname.startsWith(`${url}/`)
 }
 
+function ProjectsNavItem({
+  item,
+  pathname,
+}: {
+  item: NavigationItem
+  pathname: string
+}) {
+  const modulesActive = pathname === "/projects/modules" || pathname.startsWith("/projects/modules/")
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={pathname === "/projects"}
+        tooltip={item.description}
+        className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
+      >
+        <Link href={item.url} className="font-medium">
+          <item.icon className="size-4" />
+          <span>{item.title}</span>
+        </Link>
+      </SidebarMenuButton>
+      <SidebarMenuSub>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={modulesActive}>
+            <Link href="/projects/modules">Modules</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      </SidebarMenuSub>
+    </SidebarMenuItem>
+  )
+}
+
 function AppSidebar() {
   const pathname = usePathname()
   const { canShowNavItem } = useNavigationAccess()
@@ -170,6 +206,10 @@ function AppSidebar() {
       <SidebarContent>
         <SidebarMenu className="p-2">
           {visibleItems.map((item) => {
+            if (item.url === "/projects") {
+              return <ProjectsNavItem key={item.title} item={item} pathname={pathname} />
+            }
+
             const isActive = isNavItemActive(pathname, item.url)
 
             return (

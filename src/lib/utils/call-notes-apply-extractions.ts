@@ -338,6 +338,7 @@ function ensureWorkExperience(form: CandidateFormData, id: string): number {
     maximumSalary: "",
     timeSupportZones: [],
     benefits: [],
+    modules: [],
   })
   return form.workExperiences.length - 1
 }

@@ -68,6 +68,10 @@ import {
 } from "lucide-react"
 import { CalendarIcon } from "lucide-react"
 import { MentorCombobox } from "@/components/mentor-combobox"
+import {
+  WorkExperienceModulesFields,
+  type WorkExperienceModuleFormRow,
+} from "@/components/work-experience-modules-fields"
 import type { CandidateMentorFormRow } from "@/lib/types/mentor"
 import { MultiSelect, MultiSelectOption } from "@/components/ui/multi-select"
 import { BenefitsSelector } from "@/components/ui/benefits-selector"
@@ -243,6 +247,7 @@ export interface WorkExperience {
   employerName: string
   jobTitle: string
   projects: ProjectExperience[]
+  modules: WorkExperienceModuleFormRow[]
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
@@ -998,6 +1003,7 @@ const createEmptyWorkExperience = (): WorkExperience => ({
   employerName: "",
   jobTitle: "",
   projects: [],
+  modules: [],
   startDate: undefined,
   endDate: undefined,
   techStacks: [],
@@ -1178,6 +1184,17 @@ export const candidateToFormData = (candidate: Candidate): CandidateFormData => 
         amount: b.amount ?? null,
         unit: b.unit || null,
       })) || [],
+      modules: (we.modules ?? []).map((module) => ({
+        id: module.id,
+        createNew: false,
+        moduleId: module.moduleId,
+        projectId: module.projectId,
+        projectName: module.projectName,
+        name: module.name,
+        description: module.description ?? "",
+        techStacks: module.techStacks ?? [],
+        contribution: module.contribution ?? "",
+      })),
       })) || [],
     certifications:
       candidate.certifications?.map((cert) => ({
@@ -1465,8 +1482,9 @@ export function CandidateCreationDialog({
     basic?: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, string>>
     mentors?: { [index: number]: Partial<Record<"name" | "employerId" | "mentorId", string>> }
     workExperiences?: { 
-      [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
+      [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects' | 'modules'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
+        modules?: { [moduleIndex: number]: Partial<Record<"projectId" | "name" | "moduleId", string>> }
       }
     }
     achievements?: { [index: number]: Partial<Record<keyof Achievement, string>> }
@@ -1523,6 +1541,25 @@ export function CandidateCreationDialog({
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectId`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.isMainContribution`)) verified++
+      })
+      formData.workExperiences[idx]?.modules?.forEach((moduleRow, moduleIndex) => {
+        const moduleFields = [
+          `workExperiences.${idx}.modules.${moduleIndex}.projectId`,
+          `workExperiences.${idx}.modules.${moduleIndex}.contribution`,
+          moduleRow.createNew
+            ? `workExperiences.${idx}.modules.${moduleIndex}.name`
+            : `workExperiences.${idx}.modules.${moduleIndex}.moduleId`,
+        ]
+        if (moduleRow.createNew) {
+          moduleFields.push(
+            `workExperiences.${idx}.modules.${moduleIndex}.description`,
+            `workExperiences.${idx}.modules.${moduleIndex}.techStacks`,
+          )
+        }
+        total += moduleFields.length
+        moduleFields.forEach((field) => {
+          if (verifiedFields.has(field)) verified++
+        })
       })
     })
     
@@ -1649,6 +1686,25 @@ export function CandidateCreationDialog({
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.projectId`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.contributionNotes`)) verified++
         if (verifiedFields.has(`workExperiences.${idx}.projects.${projIdx}.isMainContribution`)) verified++
+      })
+      formData.workExperiences[idx]?.modules?.forEach((moduleRow, moduleIndex) => {
+        const moduleFields = [
+          `workExperiences.${idx}.modules.${moduleIndex}.projectId`,
+          `workExperiences.${idx}.modules.${moduleIndex}.contribution`,
+          moduleRow.createNew
+            ? `workExperiences.${idx}.modules.${moduleIndex}.name`
+            : `workExperiences.${idx}.modules.${moduleIndex}.moduleId`,
+        ]
+        if (moduleRow.createNew) {
+          moduleFields.push(
+            `workExperiences.${idx}.modules.${moduleIndex}.description`,
+            `workExperiences.${idx}.modules.${moduleIndex}.techStacks`,
+          )
+        }
+        total += moduleFields.length
+        moduleFields.forEach((field) => {
+          if (verifiedFields.has(field)) verified++
+        })
       })
     })
     
@@ -1975,6 +2031,19 @@ export function CandidateCreationDialog({
               `workExperiences.${idx}.projects.${projIdx}.isMainContribution`
             )
           })
+          formData.workExperiences[idx]?.modules?.forEach((moduleRow, moduleIndex) => {
+            fields.push(`workExperiences.${idx}.modules.${moduleIndex}.projectId`)
+            fields.push(`workExperiences.${idx}.modules.${moduleIndex}.contribution`)
+            if (moduleRow.createNew) {
+              fields.push(
+                `workExperiences.${idx}.modules.${moduleIndex}.name`,
+                `workExperiences.${idx}.modules.${moduleIndex}.description`,
+                `workExperiences.${idx}.modules.${moduleIndex}.techStacks`,
+              )
+            } else {
+              fields.push(`workExperiences.${idx}.modules.${moduleIndex}.moduleId`)
+            }
+          })
         })
         break
       
@@ -2254,7 +2323,7 @@ export function CandidateCreationDialog({
 
   const handleWorkExperienceChange = (
     index: number, 
-    field: keyof Omit<WorkExperience, 'projects'>, 
+    field: keyof Omit<WorkExperience, 'projects' | 'modules'>, 
     value: string | string[] | Date | undefined | WorkExperienceBenefit[] | number | null
   ) => {
     setFormData(prev => ({
@@ -2299,6 +2368,15 @@ export function CandidateCreationDialog({
         }
       }))
     }
+  }
+
+  const handleModulesChange = (index: number, modules: WorkExperienceModuleFormRow[]) => {
+    setFormData((prev) => ({
+      ...prev,
+      workExperiences: prev.workExperiences.map((exp, i) =>
+        i === index ? { ...exp, modules } : exp,
+      ),
+    }))
   }
 
   const handleProjectChange = (
@@ -2657,8 +2735,9 @@ export function CandidateCreationDialog({
   const validateForm = (): boolean => {
     const basicErrors: Partial<Record<keyof Omit<CandidateFormData, 'workExperiences' | 'certifications' | 'educations' | 'achievements' | 'competitions' | 'mentors'>, string>> = {}
     const workExperienceErrors: { 
-      [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> & {
+      [index: number]: Partial<Record<keyof Omit<WorkExperience, 'projects' | 'modules'>, string>> & {
         projects?: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> }
+        modules?: { [moduleIndex: number]: Partial<Record<"projectId" | "name" | "moduleId", string>> }
       }
     } = {}
     const certificationErrors: { [index: number]: Partial<Record<keyof CandidateCertification, string>> } = {}
@@ -2693,7 +2772,7 @@ export function CandidateCreationDialog({
 
     // Work experience validation (only validate if experiences exist)
     formData.workExperiences.forEach((exp, index) => {
-      const expErrors: Partial<Record<keyof Omit<WorkExperience, 'projects'>, string>> = {}
+      const expErrors: Partial<Record<keyof Omit<WorkExperience, 'projects' | 'modules'>, string>> = {}
       const projectErrors: { [projectIndex: number]: Partial<Record<keyof ProjectExperience, string>> } = {}
       
       // Only validate if at least one field is filled (user started entering data)
@@ -2710,7 +2789,8 @@ export function CandidateCreationDialog({
         exp.salaryPolicy ||
         !!exp.minimumSalary.trim() ||
         !!exp.maximumSalary.trim() ||
-        exp.timeSupportZones.length > 0
+        exp.timeSupportZones.length > 0 ||
+        (exp.modules?.length ?? 0) > 0
 
       // Orphan WE rows may have empty employer/jobTitle when they hold nested projects
       if (hasAnyData && exp.projects.length === 0) {
@@ -2756,11 +2836,31 @@ export function CandidateCreationDialog({
           projectErrors[projectIndex] = projErrors
         }
       })
+
+      const moduleErrors: {
+        [moduleIndex: number]: Partial<Record<"projectId" | "name" | "moduleId", string>>
+      } = {}
+      const seenModuleIds = new Set<number>()
+      exp.modules.forEach((moduleRow, moduleIndex) => {
+        const rowErrors: Partial<Record<"projectId" | "name" | "moduleId", string>> = {}
+        if (moduleRow.projectId == null) rowErrors.projectId = "Main project is required"
+        if (moduleRow.createNew) {
+          if (!moduleRow.name.trim()) rowErrors.name = "Module name is required"
+        } else if (moduleRow.moduleId == null) {
+          rowErrors.moduleId = "Module is required"
+        } else if (seenModuleIds.has(moduleRow.moduleId)) {
+          rowErrors.moduleId = "This module is already linked"
+        } else {
+          seenModuleIds.add(moduleRow.moduleId)
+        }
+        if (Object.keys(rowErrors).length > 0) moduleErrors[moduleIndex] = rowErrors
+      })
       
-      if (Object.keys(expErrors).length > 0 || Object.keys(projectErrors).length > 0) {
+      if (Object.keys(expErrors).length > 0 || Object.keys(projectErrors).length > 0 || Object.keys(moduleErrors).length > 0) {
         workExperienceErrors[index] = {
           ...expErrors,
-          ...(Object.keys(projectErrors).length > 0 ? { projects: projectErrors } : {})
+          ...(Object.keys(projectErrors).length > 0 ? { projects: projectErrors } : {}),
+          ...(Object.keys(moduleErrors).length > 0 ? { modules: moduleErrors } : {}),
         }
       }
     })
@@ -4103,6 +4203,15 @@ export function CandidateCreationDialog({
                       </div>
                     )}
                   </div>
+                  <WorkExperienceModulesFields
+                    experienceIndex={index}
+                    modules={experience.modules}
+                    disabled={isLoading}
+                    techStackOptions={techStackOptions}
+                    errors={errors.workExperiences?.[index]?.modules}
+                    onChange={(modules) => handleModulesChange(index, modules)}
+                    renderVerification={(fieldPath) => <VerificationCheckbox fieldPath={fieldPath} />}
+                  />
                 </CardContent>
               </Card>
             ))}
