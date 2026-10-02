@@ -56,6 +56,7 @@ import {
   candidateFormDataToCreateDto,
   prepareCandidateCreateLookups,
   candidateListItemDtoToCandidate,
+  syncModulesForCreatedCandidate,
 } from "@/lib/services/candidates-api"
 import { uploadCandidateResume } from "@/lib/services/candidate-resume-api"
 import { syncCandidateMentors } from "@/lib/services/mentors-api"
@@ -1127,6 +1128,17 @@ export function CandidatesPageClient() {
       const createdId = Number(candidate.id)
       if (data.mentors.length > 0 && Number.isFinite(createdId)) {
         await syncCandidateMentors(createdId, data.mentors, [])
+      }
+      if (
+        Number.isFinite(createdId) &&
+        data.workExperiences.some((workExperience) => (workExperience.modules?.length ?? 0) > 0)
+      ) {
+        await syncModulesForCreatedCandidate(
+          createdId,
+          data,
+          candidate.workExperiences ?? [],
+          preparedLookups,
+        )
       }
 
       // Create succeeded (notes already on candidate if sent). Drop draft session.

@@ -1769,6 +1769,103 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   )
 }
 
+function TruncatedContributionText({
+  text,
+  maxLength = 100,
+}: {
+  text: string | null | undefined
+  maxLength?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const displayText = text?.trim() ?? ""
+
+  if (!displayText) {
+    return <span className="block text-sm italic text-muted-foreground">N/A</span>
+  }
+
+  const shouldTruncate = displayText.length > maxLength
+  const truncatedText =
+    shouldTruncate && !expanded ? `${displayText.slice(0, maxLength)}...` : displayText
+
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground">{truncatedText}</p>
+      {shouldTruncate && (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="mt-1 cursor-pointer text-xs font-medium text-primary transition-colors hover:underline"
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      )}
+    </div>
+  )
+}
+
+const WORK_EXPERIENCE_TECH_STACK_BADGE_CLASS =
+  "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+const WORK_EXPERIENCE_TECH_STACK_MAX = 5
+
+function ReadOnlyTechStackBadges({ stacks }: { stacks: string[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const shouldTruncate = stacks.length > WORK_EXPERIENCE_TECH_STACK_MAX
+  const visible = shouldTruncate && !expanded ? stacks.slice(0, WORK_EXPERIENCE_TECH_STACK_MAX) : stacks
+  const remaining = shouldTruncate && !expanded ? stacks.length - WORK_EXPERIENCE_TECH_STACK_MAX : 0
+
+  if (stacks.length === 0) {
+    return <p className="text-sm italic text-muted-foreground">No items selected</p>
+  }
+
+  return (
+    <div className="flex min-h-8 flex-wrap gap-2">
+      {visible.map((stack, index) => (
+        <Badge
+          key={`${stack}-${index}`}
+          variant="secondary"
+          className={cn(WORK_EXPERIENCE_TECH_STACK_BADGE_CLASS, "text-xs")}
+        >
+          {stack}
+        </Badge>
+      ))}
+      {remaining > 0 && (
+        <Badge
+          variant="outline"
+          className="cursor-pointer text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+          role="button"
+          tabIndex={0}
+          onClick={() => setExpanded(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              setExpanded(true)
+            }
+          }}
+        >
+          +{remaining} more
+        </Badge>
+      )}
+      {expanded && shouldTruncate && (
+        <Badge
+          variant="outline"
+          className="cursor-pointer text-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+          role="button"
+          tabIndex={0}
+          onClick={() => setExpanded(false)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              setExpanded(false)
+            }
+          }}
+        >
+          Show less
+        </Badge>
+      )}
+    </div>
+  )
+}
+
 // InlineEditableBenefits component for benefits
 interface InlineEditableBenefitsProps {
   label: string
@@ -7296,6 +7393,56 @@ export function CandidateDetailsModal({
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {(experience.modules?.length ?? 0) > 0 && (
+                            <div className="space-y-3">
+                              <div className="mb-3 flex items-center gap-2">
+                                <FolderOpen className="size-4 text-muted-foreground" />
+                                <span className="text-sm font-medium text-muted-foreground">
+                                  Modules ({experience.modules?.length})
+                                </span>
+                              </div>
+                              <div className="space-y-3">
+                                {experience.modules?.map((module) => (
+                                  <div key={module.id} className="rounded-md border bg-muted/30 p-4">
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium text-muted-foreground">Name</p>
+                                        <p className="text-sm font-semibold">
+                                          {module.name.trim() || (
+                                            <span className="font-normal italic text-muted-foreground">N/A</span>
+                                          )}
+                                        </p>
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium text-muted-foreground">Main project</p>
+                                        {module.projectName.trim() && module.projectId > 0 ? (
+                                          <button
+                                            type="button"
+                                            className="cursor-pointer text-left text-sm font-semibold hover:text-primary hover:underline"
+                                            onClick={() =>
+                                              handleProjectClick(module.projectId, module.projectName)
+                                            }
+                                          >
+                                            {module.projectName.trim()}
+                                          </button>
+                                        ) : (
+                                          <p className="text-sm italic text-muted-foreground">N/A</p>
+                                        )}
+                                      </div>
+                                      <div className="min-w-0 md:col-span-2">
+                                        <p className="mb-2 text-sm font-medium text-muted-foreground">Tech Stacks</p>
+                                        <ReadOnlyTechStackBadges stacks={module.techStacks} />
+                                      </div>
+                                      <div className="min-w-0 md:col-span-2">
+                                        <p className="mb-0.5 text-sm font-medium text-muted-foreground">Contribution</p>
+                                        <TruncatedContributionText text={module.contribution} maxLength={100} />
+                                      </div>
                                     </div>
                                   </div>
                                 ))}

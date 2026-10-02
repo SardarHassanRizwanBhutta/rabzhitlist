@@ -68,6 +68,7 @@ const baseForm: CandidateFormData = {
       maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
+      modules: [],
     },
   ],
   certifications: [],

@@ -1,4 +1,5 @@
 import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
+import type { ProjectModule } from "@/lib/types/project-module"
 
 export type PublishPlatform =
   | "App Store"
@@ -64,6 +65,8 @@ export interface Project {
   downloadCount?: number  // Download count (e.g., 150000 for 150K downloads)
   /** Backend-stored profile completion (`dataProgressPercentage`, 0–100). */
   dataProgressPercentage?: number | null
+  /** Modules on this project. Present on list rows from `GET /api/projects`. */
+  moduleCount?: number
   createdAt: Date
   updatedAt: Date
 }
@@ -72,6 +75,8 @@ export interface Project {
 export interface ProjectDetail extends Project {
   createdBy: EntityAuditUser | null
   updatedBy: EntityAuditUser | null
+  /** Shared modules under this project. Absent on list rows. */
+  modules: ProjectModule[]
 }
 
 /** UI type; aligns with backend project_type enum (employer, freelance, independent). */

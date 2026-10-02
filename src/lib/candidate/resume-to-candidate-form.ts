@@ -227,6 +227,7 @@ function mapWorkExperiences(raw: unknown): WorkExperience[] {
       maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
+      modules: [],
     })
   }
   return out
@@ -463,6 +464,7 @@ export function resumeJsonToPartialCandidateForm(raw: unknown): Partial<Candidat
       maximumSalary: "",
       timeSupportZones: [],
       benefits: [],
+      modules: [],
     })
   }
   if (workRows.length) partial.workExperiences = workRows

@@ -24,6 +24,13 @@ import type { CandidateFormData } from "@/components/candidate-creation-dialog"
 import { formatLocalDateForApi, normalizeApiDateOnly, parseLocalDateFromApi } from "@/lib/utils/work-experience-dates"
 import { parseOptionalWholeSalary } from "@/lib/utils/qg-value"
 import { mapCandidateMentorLink, syncCandidateMentors } from "@/lib/services/mentors-api"
+import {
+  createProjectModule,
+  createWorkExperienceModuleLink,
+  deleteWorkExperienceModuleLink,
+  mapCandidateWorkModule,
+  updateWorkExperienceModuleLink,
+} from "@/lib/services/project-modules-api"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
 import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
 import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
@@ -385,6 +392,12 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
   const projects = Array.isArray(projectsRaw)
     ? projectsRaw.map((p, i) => mapProjectExperience(asRecord(p) ?? {}, i))
     : []
+  const modulesRaw = raw.modules
+  const modules = Array.isArray(modulesRaw)
+    ? modulesRaw
+        .map((item, i) => mapCandidateWorkModule(item, i))
+        .filter((item): item is NonNullable<typeof item> => item != null)
+    : []
   const benefitsRaw = raw.benefits
   const benefits = Array.isArray(benefitsRaw)
     ? benefitsRaw.map((b, i) => mapBenefit(asRecord(b) ?? {}, i))
@@ -414,6 +427,7 @@ function mapWorkExperience(raw: Record<string, unknown>, idx: number): WorkExper
     employerName: String(raw.employerName ?? ""),
     jobTitle: String(raw.jobTitle ?? ""),
     projects,
+    modules,
     startDate: parseIsoDate(raw.startDate),
     endDate: parseIsoDate(raw.endDate),
     techStacks,
@@ -1927,7 +1941,8 @@ export async function syncCandidateSubResources(
       !!we.minimumSalary?.trim() ||
       !!we.maximumSalary?.trim() ||
       (we.timeSupportZones?.length ?? 0) > 0 ||
-      (we.benefits?.length ?? 0) > 0
+      (we.benefits?.length ?? 0) > 0 ||
+      (we.modules?.length ?? 0) > 0
     if (!hasEmployer && !hasJob && !hasProjects && !hasOther) continue
 
     const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
@@ -1981,6 +1996,119 @@ export async function syncCandidateSubResources(
   }
 }
 
+/** Create, update, or remove module links for one work experience. */
+async function syncWorkExperienceModules(
+  candidateId: number,
+  weId: number,
+  newWe: CandidateFormData["workExperiences"][number],
+  oldWe: WorkExperience | undefined,
+  lookups?: CandidateCreateLookups,
+): Promise<void> {
+  const tsLookup = lookups?.techStacks ?? []
+  const oldLinks = new Map(
+    (oldWe?.modules ?? [])
+      .map((module) => [Number(module.id), module] as const)
+      .filter(([id]) => Number.isInteger(id) && id > 0),
+  )
+  const seen = new Set<number>()
+  for (const row of newWe.modules ?? []) {
+    const contribution = nullIfEmpty(row.contribution ?? "")
+    const linkId = Number(row.id)
+    if (!row.createNew && oldLinks.has(linkId)) {
+      seen.add(linkId)
+      const previous = oldLinks.get(linkId)
+      if ((previous?.contribution ?? null) !== contribution) {
+        await updateWorkExperienceModuleLink(candidateId, weId, linkId, { contribution })
+      }
+      continue
+    }
+    let moduleId = row.moduleId
+    if (row.createNew) {
+      if (row.projectId == null || !row.name.trim()) continue
+      const created = await createProjectModule(row.projectId, {
+        name: row.name.trim(),
+        description: nullIfEmpty(row.description ?? ""),
+        techStackIds: (row.techStacks ?? [])
+          .map((name) => lookupIdByName(tsLookup, name))
+          .filter((id): id is number => id != null),
+      })
+      moduleId = created.id
+      row.moduleId = created.id
+      row.name = created.name || row.name
+      row.description = created.description ?? row.description
+      if (created.techStacks.length > 0) row.techStacks = created.techStacks
+    }
+    if (moduleId == null || moduleId <= 0) continue
+    const link = await createWorkExperienceModuleLink(candidateId, weId, { moduleId, contribution })
+    row.id = link.id
+    row.createNew = false
+    row.moduleId = link.moduleId
+  }
+  for (const linkId of oldLinks.keys()) {
+    if (!seen.has(linkId)) {
+      await deleteWorkExperienceModuleLink(candidateId, weId, linkId)
+    }
+  }
+}
+
+function workExperienceIncludedOnCreate(
+  we: CandidateFormData["workExperiences"][number],
+): boolean {
+  const hasEmployer = we.employerId != null || !!(we.employerName && we.employerName.trim())
+  const hasJob = !!(we.jobTitle && we.jobTitle.trim())
+  const hasProjects = (we.projects ?? []).some(
+    (project) => project.projectId != null || !!(project.projectName && project.projectName.trim()),
+  )
+  const hasOther =
+    !!we.startDate ||
+    !!we.endDate ||
+    (we.techStacks?.length ?? 0) > 0 ||
+    !!we.shiftType ||
+    !!we.workMode ||
+    !!we.salaryPolicy ||
+    !!we.minimumSalary?.trim() ||
+    !!we.maximumSalary?.trim() ||
+    (we.timeSupportZones?.length ?? 0) > 0 ||
+    (we.benefits?.length ?? 0) > 0
+  return hasEmployer || hasJob || hasProjects || hasOther
+}
+
+/**
+ * `POST /api/candidates` ignores modules. After create, attach them to the
+ * work experience that has the same employer and job title.
+ */
+export async function syncModulesForCreatedCandidate(
+  candidateId: number,
+  formData: CandidateFormData,
+  createdWorkExperiences: WorkExperience[],
+  lookups?: CandidateCreateLookups,
+): Promise<void> {
+  const unused = createdWorkExperiences.map((workExperience) => ({
+    workExperience,
+    used: false,
+  }))
+  for (const formWe of (formData.workExperiences ?? []).filter(workExperienceIncludedOnCreate)) {
+    if (!(formWe.modules?.length)) continue
+    const jobTitle = (formWe.jobTitle ?? "").trim().toLowerCase()
+    const startKey = formatDateForApi(formWe.startDate)
+    const sameJob = unused.filter((item) => {
+      if (item.used) return false
+      const sameEmployer = (item.workExperience.employerId ?? null) === (formWe.employerId ?? null)
+      const sameTitle = (item.workExperience.jobTitle ?? "").trim().toLowerCase() === jobTitle
+      return sameEmployer && sameTitle
+    })
+    const sameStart = sameJob.filter(
+      (item) => formatDateForApi(item.workExperience.startDate) === startKey,
+    )
+    const chosen = (sameStart.length > 0 ? sameStart : sameJob)[0]
+    if (!chosen) continue
+    chosen.used = true
+    const weId = Number(chosen.workExperience.id)
+    if (!Number.isFinite(weId) || weId <= 0) continue
+    await syncWorkExperienceModules(candidateId, weId, formWe, undefined, lookups)
+  }
+}
+
 /** Add all sub-resources for a newly created work experience. */
 async function addWeSubResources(
   candidateId: number,
@@ -2027,6 +2155,7 @@ async function addWeSubResources(
     }
   }
 
+  await syncWorkExperienceModules(candidateId, weId, we, undefined, lookups)
   await Promise.all(ops)
 }
 
@@ -2122,5 +2251,6 @@ async function syncWeSubResources(
     ops.push(removeWeProject(candidateId, weId, id))
   }
 
+  await syncWorkExperienceModules(candidateId, weId, newWe, oldWe, lookups)
   await Promise.all(ops)
 }

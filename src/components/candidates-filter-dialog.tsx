@@ -2003,7 +2003,7 @@ export function CandidatesFilterDialog({
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm">
                         $
                       </span>
-                      <Input
+                    <Input
                         id="workExperienceSalaryMin"
                         type="text"
                         inputMode="numeric"
@@ -2027,7 +2027,7 @@ export function CandidatesFilterDialog({
                       <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground text-sm">
                         $
                       </span>
-                      <Input
+                    <Input
                         id="workExperienceSalaryMax"
                         type="text"
                         inputMode="numeric"
@@ -2040,10 +2040,10 @@ export function CandidatesFilterDialog({
                           )
                         }
                         className="pl-7"
-                      />
-                    </div>
+                    />
                   </div>
                 </div>
+              </div>
                 {workExperienceSalaryRangeError && (
                   <p className="text-xs text-red-500">{workExperienceSalaryRangeError}</p>
                 )}

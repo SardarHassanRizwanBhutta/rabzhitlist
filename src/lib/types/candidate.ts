@@ -2,6 +2,7 @@ import { EmployerBenefit } from "./benefits"
 import { CertificationLevel } from "./certification"
 import type { EntityAuditUser } from "@/lib/types/entity-audit-user"
 import type { CandidateMentorLink } from "@/lib/types/mentor"
+import type { CandidateWorkModule } from "@/lib/types/project-module"
 
 export type ShiftType = "Morning" | "Evening" | "Night" | "Rotational" | "24x7"
 export type WorkMode = "Remote" | "Onsite" | "Hybrid"
@@ -64,6 +65,8 @@ export interface WorkExperience {
   employerName: string
   jobTitle: string
   projects: ProjectExperience[]
+  /** Shared project modules linked from this work experience. */
+  modules?: CandidateWorkModule[]
   startDate: Date | undefined
   endDate: Date | undefined
   techStacks: string[]
