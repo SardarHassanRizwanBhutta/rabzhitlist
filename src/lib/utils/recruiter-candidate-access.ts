@@ -1,5 +1,9 @@
 import { isRecruiter } from "@/lib/auth/roles"
-import type { CreateCandidateDto } from "@/lib/services/candidates-api"
+import type {
+  CreateCandidateDto,
+  CreateWorkExperienceBody,
+  UpdateCandidateDto,
+} from "@/lib/services/candidates-api"
 import type { Candidate } from "@/lib/types/candidate"
 import type { UserRole } from "@/lib/types/user-role"
 import type { CandidateDataForQuestionService } from "@/types/question-generation"
@@ -33,6 +37,30 @@ export function stripRecruiterForbiddenListQueryOptions<T extends CandidateListQ
   delete next.workExperienceSalaryMin
   delete next.workExperienceSalaryMax
   return next
+}
+
+/** Omit compensation keys so recruiter PUT does not clear or send salary (backend 400 if sent). */
+export function stripRecruiterCompensationFromUpdateDto(
+  dto: UpdateCandidateDto,
+  role: UserRole | null | undefined,
+): UpdateCandidateDto {
+  if (!isRecruiter(role)) return dto
+  const { currentSalary: _c, expectedSalary: _e, ...rest } = dto
+  return rest as UpdateCandidateDto
+}
+
+export function stripRecruiterWorkExperienceBody(
+  body: CreateWorkExperienceBody,
+  role: UserRole | null | undefined,
+): CreateWorkExperienceBody {
+  if (!isRecruiter(role)) return body
+  const {
+    salaryPolicy: _sp,
+    minimumSalary: _min,
+    maximumSalary: _max,
+    ...rest
+  } = body
+  return rest
 }
 
 export function stripRecruiterCompensationFromCreateDto(

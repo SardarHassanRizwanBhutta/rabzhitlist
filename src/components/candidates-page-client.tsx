@@ -73,7 +73,7 @@ import { CandidatesFilterDialog, CandidateFilters } from "@/components/candidate
 import { useAuth } from "@/contexts/auth-context"
 import { useCreatedByUserIdListFilter } from "@/hooks/useCreatedByUserIdListFilter"
 import { deleteCreatedByUserIdParam } from "@/lib/utils/created-by-user-id"
-import { canMutateCandidate, canUseCandidateSalaryUi } from "@/lib/auth/roles"
+import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
 import type { MultiSelectOption } from "@/components/ui/multi-select"
 import { useGlobalFilters } from "@/contexts/global-filter-context"
 import { getGlobalFilterCount } from "@/lib/types/global-filters"
@@ -190,7 +190,6 @@ export function CandidatesPageClient() {
   const { createdByUserId, dismissCreatedByUserId, markCreatedByUserIdDismissed } =
     useCreatedByUserIdListFilter()
   const { user: authUser } = useAuth()
-  const candidateReadOnly = !canMutateCandidate(authUser?.role)
   const showSalaryUi = canUseCandidateSalaryUi(authUser?.role)
   const { filters: globalFilters, isActive: hasGlobalFilters } = useGlobalFilters()
 
@@ -1567,7 +1566,6 @@ export function CandidatesPageClient() {
               onCreateDegree={handleCreateDegree}
               onCreateMajor={handleCreateMajor}
               onCandidatesListChanged={refetchCandidates}
-              readOnly={candidateReadOnly}
             />
           ) : (
             <CandidatesTable
@@ -1589,7 +1587,6 @@ export function CandidatesPageClient() {
               onCreateDegree={handleCreateDegree}
               onCreateMajor={handleCreateMajor}
               onCandidatesListChanged={refetchCandidates}
-              readOnly={candidateReadOnly}
               showSalaryColumn={showSalaryUi}
             />
           )}

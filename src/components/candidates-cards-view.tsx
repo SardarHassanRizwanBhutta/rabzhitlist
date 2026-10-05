@@ -64,6 +64,9 @@ import {
   syncCandidateSubResources,
   prepareCandidateCreateLookups,
 } from "@/lib/services/candidates-api"
+import { useAuth } from "@/contexts/auth-context"
+import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
+import { canMutateCandidateRecord } from "@/lib/utils/candidate-mutation-access"
 
 const defaultFilters: CandidateFilters = {
   name: "",
@@ -161,7 +164,6 @@ interface CandidatesCardsViewProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Called after update/delete so the list can refetch from the server. */
   onCandidatesListChanged?: () => void
-  readOnly?: boolean
 }
 
 // Backend-derived latest job title; no frontend calculation from work experiences.
@@ -565,8 +567,14 @@ export function CandidatesCardsView({
   onCreateDegree,
   onCreateMajor,
   onCandidatesListChanged,
-  readOnly: candidateReadOnly = false,
 }: CandidatesCardsViewProps) {
+  const { user: authUser } = useAuth()
+  const hideCompensationFields = !canUseCandidateSalaryUi(authUser?.role)
+  const canMutateRow = React.useCallback(
+    (candidate: Candidate) =>
+      canMutateCandidateRecord(authUser?.role, candidate, authUser?.id),
+    [authUser?.id, authUser?.role],
+  )
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [candidateToDelete, setCandidateToDelete] = React.useState<Candidate | null>(null)
@@ -602,7 +610,7 @@ export function CandidatesCardsView({
   }, [candidates, filters, activeFilters, employerOnlyFilter])
 
   const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
-    if (candidateReadOnly) return
+    if (!canMutateRow(candidate)) return
     e.stopPropagation()
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -612,6 +620,10 @@ export function CandidatesCardsView({
     setEditFetchLoading(true)
     try {
       const full = await fetchCandidateById(id)
+      if (!canMutateCandidateRecord(authUser?.role, full, authUser?.id)) {
+        toast.error("You do not have permission to edit this candidate.")
+        return
+      }
       setCandidateToEdit(full)
       setEditDialogOpen(true)
     } catch (err) {
@@ -634,8 +646,18 @@ export function CandidatesCardsView({
     const resumeFile = options?.resumeFile ?? null
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
-      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
-      await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
+      await updateCandidate(
+        id,
+        candidateFormDataToUpdateDto(formData, candidateToEdit),
+        authUser?.role,
+      )
+      await syncCandidateSubResources(
+        id,
+        formData,
+        candidateToEdit,
+        preparedLookups,
+        authUser?.role,
+      )
 
       if (resumeFile) {
         try {
@@ -671,7 +693,7 @@ export function CandidatesCardsView({
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
-    if (candidateReadOnly) return
+    if (!canMutateRow(candidate)) return
     e.stopPropagation()
     setCandidateToDelete(candidate)
     setDeleteDialogOpen(true)
@@ -772,7 +794,7 @@ export function CandidatesCardsView({
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
-                            {!candidateReadOnly ? (
+                            {canMutateRow(candidate) ? (
                             <>
                             <DropdownMenuItem
                               disabled={editFetchLoading}
@@ -988,10 +1010,8 @@ export function CandidatesCardsView({
           }
         }}
         onCandidateUpdated={onCandidatesListChanged}
-        readOnly={candidateReadOnly}
       />
 
-      {!candidateReadOnly ? (
       <>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1042,9 +1062,9 @@ export function CandidatesCardsView({
         timeSupportZonesLoading={lookupsLoading}
         benefitsLoading={lookupsLoading}
         degreesMajorsLoading={lookupsLoading}
+        hideCompensationFields={hideCompensationFields}
       />
       </>
-      ) : null}
     </>
     </TooltipProvider>
   )

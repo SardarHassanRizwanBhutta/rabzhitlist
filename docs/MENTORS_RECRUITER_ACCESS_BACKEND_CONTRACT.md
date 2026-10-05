@@ -24,7 +24,7 @@ Relationship and reasoning are **not** editable from the mentor person. They cha
 | **M6** | Required text | `name` is required. Trim. Empty or whitespace → **400**. |
 | **M7** | Recruiter person access | Recruiter uses the same mentor person routes as Super Admin and Admin: list, get, search, create, update, delete. |
 | **M8** | Recruiter candidate read | Recruiter `GET /api/candidates/{id}` includes `mentors` with the same keys as Admin. Do not omit the array or the keys. |
-| **M9** | Recruiter link writes | Recruiter `POST`, `PUT`, and `DELETE` on `/api/candidates/{id}/mentors` and `/api/candidates/{id}/mentors/{linkId}` → **403**. |
+| **M9** | Recruiter link writes | Recruiter `POST`, `PUT`, and `DELETE` on `/api/candidates/{id}/mentors` and `/api/candidates/{id}/mentors/{linkId}` → **403** when the candidate is not owned by the caller. When `CreatedByUserId` equals the authenticated Recruiter, link writes are allowed (`CANDIDATE_RECRUITER_OWN_MUTATION_BACKEND_CONTRACT.md` **RO7**). |
 | **M10** | Candidate list | `GET /api/candidates` items do **not** include `mentors`. |
 | **M11** | Candidate create/update body | `POST /api/candidates` and `PUT /api/candidates/{id}` do not create, update, or delete mentors or links. If `mentors` is present, ignore it. |
 | **M12** | Delete person | Delete removes that person from list, search, and every candidate detail. `GET /api/mentors/{id}` then returns **404**. Deleting an employer also deletes every mentor at that employer, and those mentors’ links. `employerId` is required, and employers are removed rather than marked deleted. |
@@ -47,9 +47,9 @@ Relationship and reasoning are **not** editable from the mentor person. They cha
 | `PUT` | `/api/mentors/{id}` | 200 | 200 |
 | `DELETE` | `/api/mentors/{id}` | 204 | 204 |
 | `GET` | `/api/candidates/{id}` (`mentors` on the body) | 200 | 200 |
-| `POST` | `/api/candidates/{id}/mentors` | 201 | **403** |
-| `PUT` | `/api/candidates/{id}/mentors/{linkId}` | 200 | **403** |
-| `DELETE` | `/api/candidates/{id}/mentors/{linkId}` | 204 | **403** |
+| `POST` | `/api/candidates/{id}/mentors` | 201 | **403** if not candidate owner; **201** if owner (**M9**) |
+| `PUT` | `/api/candidates/{id}/mentors/{linkId}` | 200 | **403** if not owner; **200** if owner |
+| `DELETE` | `/api/candidates/{id}/mentors/{linkId}` | 204 | **403** if not owner; **204** if owner |
 
 Unauthenticated calls stay **401**, same as the other modules.
 

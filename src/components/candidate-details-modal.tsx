@@ -218,7 +218,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/contexts/auth-context"
-import { isRecruiter } from "@/lib/auth/roles"
+import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
+import { canMutateCandidateRecord } from "@/lib/utils/candidate-mutation-access"
 import { QG_LIST_VALUE_BADGE_CLASS } from "@/lib/utils/qg-list-value-badges"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
@@ -537,8 +538,6 @@ interface CandidateDetailsModalProps {
   onOpenChange: (open: boolean) => void
   /** Refetch candidates list after mutations so table progress stays in sync. */
   onCandidateUpdated?: () => void
-  /** View-only (Recruiter): hide edit/compensation UI. */
-  readOnly?: boolean
 }
 
 const CandidateDetailsReadOnlyContext = React.createContext(false)
@@ -4296,11 +4295,11 @@ export function CandidateDetailsModal({
   open, 
   onOpenChange,
   onCandidateUpdated,
-  readOnly = false,
 }: CandidateDetailsModalProps) {
   const router = useRouter()
   const { user: authUser } = useAuth()
-  const viewOnly = readOnly || isRecruiter(authUser?.role)
+  const showSalaryUi = canUseCandidateSalaryUi(authUser?.role)
+  const hideCompensationFields = !showSalaryUi
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basic", "work-experience", "tech-stacks", "education", "certifications", "competitions", "mentors", "verification"]))
   const [activeSection, setActiveSection] = useState<string>("basic-info")
   const [callNotes, setCallNotes] = useState("")
@@ -4351,6 +4350,10 @@ export function CandidateDetailsModal({
     Record<string, { minimumSalary: number | null; maximumSalary: number | null }>
   >({})
   const resolvedCandidate = fullCandidate ?? candidate
+  const viewOnly = React.useMemo(() => {
+    if (!candidate) return true
+    return !canMutateCandidateRecord(authUser?.role, fullCandidate ?? candidate, authUser?.id)
+  }, [authUser?.id, authUser?.role, candidate, fullCandidate])
 
   const degreeCatalogOptions = useMemo(
     () => mergeNamedComboboxOptions(degreeMajorLookups.degrees, [], []),
@@ -6067,8 +6070,12 @@ export function CandidateDetailsModal({
 
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, lookupsForSave)
-      await updateCandidate(id, candidateFormDataToUpdateDto(formData, existing))
-      await syncCandidateSubResources(id, formData, existing, preparedLookups)
+      await updateCandidate(
+        id,
+        candidateFormDataToUpdateDto(formData, existing),
+        authUser?.role,
+      )
+      await syncCandidateSubResources(id, formData, existing, preparedLookups, authUser?.role)
 
       if (resumeFile) {
         try {
@@ -6800,7 +6807,7 @@ export function CandidateDetailsModal({
                       verificationIndicator={<VerificationIndicator fieldName="postingTitle" />}
                       getFieldVerification={getFieldVerification}
                     />
-                    {!viewOnly ? (
+                    {!viewOnly && showSalaryUi ? (
                     <>
                     <InlineEditableField 
                       label="Current Salary" 
@@ -7086,7 +7093,7 @@ export function CandidateDetailsModal({
                               }
                                 getFieldVerification={getFieldVerification}
                               />
-                            {!viewOnly ? (
+                            {!viewOnly && showSalaryUi ? (
                             <>
                             <div className="min-w-0">
                             <InlineEditableSelect
@@ -7291,7 +7298,7 @@ export function CandidateDetailsModal({
                               }}
                             />
                           </div>
-                            {!viewOnly ? (
+                            {!viewOnly && showSalaryUi ? (
                             <div className="min-w-0">
                             <InlineEditableBenefits
                               label="Benefits"
@@ -8148,6 +8155,7 @@ export function CandidateDetailsModal({
           nestedEmployerCreation={nestedEmployerCreation}
           editFormBootstrap={editFormBootstrap}
           onEditFormBootstrapConsumed={() => setEditFormBootstrap(null)}
+          hideCompensationFields={hideCompensationFields}
         />
       )}
 
