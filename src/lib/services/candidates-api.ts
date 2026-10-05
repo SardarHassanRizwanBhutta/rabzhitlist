@@ -32,9 +32,15 @@ import {
   updateWorkExperienceModuleLink,
 } from "@/lib/services/project-modules-api"
 import { extractApiErrorMessage } from "@/lib/utils/api-error-message"
-import { stripRecruiterCompensationFromCreateDto, stripRecruiterForbiddenListQueryOptions } from "@/lib/utils/recruiter-candidate-access"
+import {
+  stripRecruiterCompensationFromCreateDto,
+  stripRecruiterCompensationFromUpdateDto,
+  stripRecruiterForbiddenListQueryOptions,
+  stripRecruiterWorkExperienceBody,
+} from "@/lib/utils/recruiter-candidate-access"
 import { throwIfCreatedByUserNotFound } from "@/lib/utils/created-by-user-id"
 import { mapEntityAuditUser } from "@/lib/types/entity-audit-user"
+import { isRecruiter } from "@/lib/auth/roles"
 import type { UserRole } from "@/lib/types/user-role"
 import { parseLinkedProjectCatalogFromApi } from "@/lib/utils/map-linked-project-for-service"
 import {
@@ -164,6 +170,8 @@ export interface CandidateListItemDto {
   matchedCertifications?: MatchedCertificationDto[]
   /** Backend-computed achievement row matches when achievement driver filters are active. */
   matchedAchievements?: MatchedAchievementDto[]
+  createdBy?: unknown
+  updatedBy?: unknown
 }
 
 export interface CreateCandidateDto {
@@ -945,6 +953,8 @@ export function candidateListItemDtoToCandidate(row: CandidateListItemDto): Cand
     matchedEducations: mapMatchedEducations(row.matchedEducations),
     matchedCertifications: mapMatchedCertifications(row.matchedCertifications),
     matchedAchievements: mapMatchedAchievements(row.matchedAchievements),
+    createdBy: mapEntityAuditUser(row.createdBy),
+    updatedBy: mapEntityAuditUser(row.updatedBy),
   }
 }
 
@@ -1634,12 +1644,17 @@ export async function createCandidate(
   return mapCandidateDtoToCandidate(data)
 }
 
-export async function updateCandidate(id: number, body: UpdateCandidateDto): Promise<Candidate> {
+export async function updateCandidate(
+  id: number,
+  body: UpdateCandidateDto,
+  actorRole?: UserRole | null,
+): Promise<Candidate> {
+  const payload = stripRecruiterCompensationFromUpdateDto(body, actorRole)
   const path = `/api/candidates/${id}`
   const res = await apiFetch(path, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     const text = await res.text()
@@ -1745,7 +1760,7 @@ export function deleteCandidateAchievement(candidateId: number, achievementId: n
 
 // --- Work Experiences ---
 
-interface CreateWorkExperienceBody {
+export interface CreateWorkExperienceBody {
   employerId: number | null
   /** Always send; omit/null stores null on the API. */
   employerLocationId?: number | null
@@ -1817,6 +1832,7 @@ export async function syncCandidateSubResources(
   formData: CandidateFormData,
   existing: Candidate,
   lookups?: CandidateCreateLookups,
+  actorRole?: UserRole | null,
 ): Promise<void> {
   const errors: string[] = []
 
@@ -1946,19 +1962,22 @@ export async function syncCandidateSubResources(
     if (!hasEmployer && !hasJob && !hasProjects && !hasOther) continue
 
     const jobTitleTrimmed = we.jobTitle?.trim() ?? ""
-    const weBasic: CreateWorkExperienceBody = {
-      employerId: we.employerId ?? null,
-      employerLocationId:
-        we.employerLocationId != null && we.employerLocationId > 0 ? we.employerLocationId : null,
-      jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
-      startDate: formatDateForApi(we.startDate),
-      endDate: formatDateForApi(we.endDate),
-      shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
-      workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
-      salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
-      minimumSalary: parseOptionalWholeSalary(we.minimumSalary),
-      maximumSalary: parseOptionalWholeSalary(we.maximumSalary),
-    }
+    const weBasic = stripRecruiterWorkExperienceBody(
+      {
+        employerId: we.employerId ?? null,
+        employerLocationId:
+          we.employerLocationId != null && we.employerLocationId > 0 ? we.employerLocationId : null,
+        jobTitle: jobTitleTrimmed.length > 0 ? jobTitleTrimmed : null,
+        startDate: formatDateForApi(we.startDate),
+        endDate: formatDateForApi(we.endDate),
+        shiftType: we.shiftType ? enumIndex(SHIFT_TYPE_DB, we.shiftType) : null,
+        workMode: we.workMode ? enumIndex(WORK_MODE_DB, we.workMode) : null,
+        salaryPolicy: salaryPolicyToApi(we.salaryPolicy),
+        minimumSalary: parseOptionalWholeSalary(we.minimumSalary),
+        maximumSalary: parseOptionalWholeSalary(we.maximumSalary),
+      },
+      actorRole,
+    )
 
     const numId = Number(we.id)
     if (oldWeMap.has(numId)) {
@@ -1966,7 +1985,7 @@ export async function syncCandidateSubResources(
       seenWeIds.add(numId)
       weOps.push(safe("Update work experience", async () => {
         await updateCandidateWorkExperience(candidateId, numId, weBasic)
-        await syncWeSubResources(candidateId, numId, we, oldWeMap.get(numId)!, lookups)
+        await syncWeSubResources(candidateId, numId, we, oldWeMap.get(numId)!, lookups, actorRole)
       }))
     } else {
       // Create new work experience, then add sub-resources using the returned ID
@@ -1974,7 +1993,7 @@ export async function syncCandidateSubResources(
         const result = await createCandidateWorkExperience(candidateId, weBasic) as Record<string, unknown>
         const newId = typeof result.id === "number" ? result.id : Number(result.id)
         if (!Number.isFinite(newId)) return
-        await addWeSubResources(candidateId, newId, we, lookups)
+        await addWeSubResources(candidateId, newId, we, lookups, actorRole)
       }))
     }
   }
@@ -2115,7 +2134,9 @@ async function addWeSubResources(
   weId: number,
   we: CandidateFormData["workExperiences"][number],
   lookups?: CandidateCreateLookups,
+  actorRole?: UserRole | null,
 ): Promise<void> {
+  const skipBenefits = isRecruiter(actorRole)
   const tsLookup = lookups?.techStacks ?? []
   const tszLookup = lookups?.timeSupportZones ?? []
   const benefitsLookup = lookups?.benefits ?? []
@@ -2130,15 +2151,17 @@ async function addWeSubResources(
     const id = lookupIdByName(tszLookup, name)
     if (id != null) ops.push(addWeTimeSupportZone(candidateId, weId, id))
   }
-  for (const b of we.benefits ?? []) {
-    const benefitId = lookupIdByName(benefitsLookup, b.name)
-    if (benefitId != null) {
-      ops.push(
-        upsertWeBenefit(candidateId, weId, {
-          benefitId,
-          ...employerBenefitToApiValueFields(b),
-        })
-      )
+  if (!skipBenefits) {
+    for (const b of we.benefits ?? []) {
+      const benefitId = lookupIdByName(benefitsLookup, b.name)
+      if (benefitId != null) {
+        ops.push(
+          upsertWeBenefit(candidateId, weId, {
+            benefitId,
+            ...employerBenefitToApiValueFields(b),
+          }),
+        )
+      }
     }
   }
   for (const p of we.projects ?? []) {
@@ -2166,7 +2189,9 @@ async function syncWeSubResources(
   newWe: CandidateFormData["workExperiences"][number],
   oldWe: WorkExperience,
   lookups?: CandidateCreateLookups,
+  actorRole?: UserRole | null,
 ): Promise<void> {
+  const skipBenefits = isRecruiter(actorRole)
   const tsLookup = lookups?.techStacks ?? []
   const tszLookup = lookups?.timeSupportZones ?? []
   const benefitsLookup = lookups?.benefits ?? []
@@ -2208,27 +2233,28 @@ async function syncWeSubResources(
     if (!newTszIds.has(id)) ops.push(removeWeTimeSupportZone(candidateId, weId, id))
   }
 
-  // Benefits
-  const oldBenefitIds = new Set<number>()
-  for (const b of oldWe.benefits ?? []) {
-    const id = lookupIdByName(benefitsLookup, b.name)
-    if (id != null) oldBenefitIds.add(id)
-  }
-  const newBenefitIds = new Set<number>()
-  for (const b of newWe.benefits ?? []) {
-    const benefitId = lookupIdByName(benefitsLookup, b.name)
-    if (benefitId != null) {
-      newBenefitIds.add(benefitId)
-      ops.push(
-        upsertWeBenefit(candidateId, weId, {
-          benefitId,
-          ...employerBenefitToApiValueFields(b),
-        })
-      )
+  if (!skipBenefits) {
+    const oldBenefitIds = new Set<number>()
+    for (const b of oldWe.benefits ?? []) {
+      const id = lookupIdByName(benefitsLookup, b.name)
+      if (id != null) oldBenefitIds.add(id)
     }
-  }
-  for (const id of oldBenefitIds) {
-    if (!newBenefitIds.has(id)) ops.push(removeWeBenefit(candidateId, weId, id))
+    const newBenefitIds = new Set<number>()
+    for (const b of newWe.benefits ?? []) {
+      const benefitId = lookupIdByName(benefitsLookup, b.name)
+      if (benefitId != null) {
+        newBenefitIds.add(benefitId)
+        ops.push(
+          upsertWeBenefit(candidateId, weId, {
+            benefitId,
+            ...employerBenefitToApiValueFields(b),
+          }),
+        )
+      }
+    }
+    for (const id of oldBenefitIds) {
+      if (!newBenefitIds.has(id)) ops.push(removeWeBenefit(candidateId, weId, id))
+    }
   }
 
   // Projects

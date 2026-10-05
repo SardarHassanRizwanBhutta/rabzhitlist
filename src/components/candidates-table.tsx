@@ -86,6 +86,9 @@ import {
 } from "@/lib/services/candidates-api"
 import { CALL_STATUS_BADGE_CLASSES, CALL_STATUS_LABELS } from "@/lib/constants/candidate-enums"
 import { formatApiDateOnlyLabel } from "@/lib/utils/work-experience-dates"
+import { useAuth } from "@/contexts/auth-context"
+import { canUseCandidateSalaryUi } from "@/lib/auth/roles"
+import { canMutateCandidateRecord } from "@/lib/utils/candidate-mutation-access"
 
 interface CandidatesTableProps {
   candidates: Candidate[]
@@ -108,8 +111,6 @@ interface CandidatesTableProps {
   onCreateMajor?: (name: string) => Promise<void>
   /** Called after create/update/delete so the list can refetch from the server. */
   onCandidatesListChanged?: () => void
-  /** Recruiter: view-only detail; hide row edit/delete. */
-  readOnly?: boolean
   /** Hide expected salary column (Recruiter). */
   showSalaryColumn?: boolean
 }
@@ -281,9 +282,15 @@ export function CandidatesTable({
   onCreateDegree,
   onCreateMajor,
   onCandidatesListChanged,
-  readOnly: candidateReadOnly = false,
   showSalaryColumn = true,
 }: CandidatesTableProps) {
+  const { user: authUser } = useAuth()
+  const hideCompensationFields = !canUseCandidateSalaryUi(authUser?.role)
+  const canMutateRow = React.useCallback(
+    (candidate: Candidate) =>
+      canMutateCandidateRecord(authUser?.role, candidate, authUser?.id),
+    [authUser?.id, authUser?.role],
+  )
   const [selectedCandidate, setSelectedCandidate] = React.useState<Candidate | null>(null)
   const [sortColumn, setSortColumn] = React.useState<SortableColumn | null>(null)
   const [sortDirection, setSortDirection] = React.useState<SortDirection>(null)
@@ -300,7 +307,7 @@ export function CandidatesTable({
   const hasAvgTenureFilter = !!(filters?.avgJobTenureMin || filters?.avgJobTenureMax)
 
   const handleEdit = async (candidate: Candidate, e: React.MouseEvent) => {
-    if (candidateReadOnly) return
+    if (!canMutateRow(candidate)) return
     e.stopPropagation()
     const id = Number(candidate.id)
     if (!Number.isFinite(id)) {
@@ -310,6 +317,10 @@ export function CandidatesTable({
     setEditFetchLoading(true)
     try {
       const full = await fetchCandidateById(id)
+      if (!canMutateCandidateRecord(authUser?.role, full, authUser?.id)) {
+        toast.error("You do not have permission to edit this candidate.")
+        return
+      }
       setCandidateToEdit(full)
       setEditDialogOpen(true)
     } catch (err) {
@@ -332,8 +343,18 @@ export function CandidatesTable({
     const resumeFile = options?.resumeFile ?? null
     try {
       const preparedLookups = await prepareCandidateCreateLookups(formData, candidateLookups)
-      await updateCandidate(id, candidateFormDataToUpdateDto(formData, candidateToEdit))
-      await syncCandidateSubResources(id, formData, candidateToEdit, preparedLookups)
+      await updateCandidate(
+        id,
+        candidateFormDataToUpdateDto(formData, candidateToEdit),
+        authUser?.role,
+      )
+      await syncCandidateSubResources(
+        id,
+        formData,
+        candidateToEdit,
+        preparedLookups,
+        authUser?.role,
+      )
 
       if (resumeFile) {
         try {
@@ -369,7 +390,7 @@ export function CandidatesTable({
   }
 
   const handleDeleteClick = (candidate: Candidate, e: React.MouseEvent) => {
-    if (candidateReadOnly) return
+    if (!canMutateRow(candidate)) return
     e.stopPropagation()
     setCandidateToDelete(candidate)
     setDeleteDialogOpen(true)
@@ -916,7 +937,7 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
                         className="shrink-0"
                       />
 
-                      {!candidateReadOnly ? (
+                      {canMutateRow(candidate) ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -1080,10 +1101,8 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
           }
         }}
         onCandidateUpdated={onCandidatesListChanged}
-        readOnly={candidateReadOnly}
       />
 
-      {!candidateReadOnly ? (
       <>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1126,9 +1145,9 @@ const DataProgressBadge = ({ candidate }: { candidate: Candidate }) => {
         timeSupportZonesLoading={lookupsLoading}
         benefitsLoading={lookupsLoading}
         degreesMajorsLoading={lookupsLoading}
+        hideCompensationFields={hideCompensationFields}
       />
       </>
-      ) : null}
     </>
   )
 }
