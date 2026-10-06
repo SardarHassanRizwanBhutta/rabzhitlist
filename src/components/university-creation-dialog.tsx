@@ -179,6 +179,7 @@ export function UniversityCreationDialog({
   }>({})
   const initialFormDataRef = useRef<UniversityFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const formId = React.useId().replace(/:/g, "")
 
   const [countryPopoverOpen, setCountryPopoverOpen] = useState(false)
   const [countrySearchQuery, setCountrySearchQuery] = useState("")
@@ -597,9 +598,7 @@ export function UniversityCreationDialog({
     return !newErrors.university && !newErrors.locations
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const submitUniversity = async () => {
     if (!validateForm()) {
       return
     }
@@ -607,10 +606,10 @@ export function UniversityCreationDialog({
     setIsLoading(true)
     try {
       // Include verification state if in verification mode
-      const verificationState: UniversityVerificationState | undefined = showVerification 
+      const verificationState: UniversityVerificationState | undefined = showVerification
         ? { verifiedFields, modifiedFields }
         : undefined
-        
+
       await onSubmit?.(formData, verificationState)
       setFormData(initialFormData)
       setErrors({})
@@ -634,6 +633,13 @@ export function UniversityCreationDialog({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    // Portaled dialog forms are still React descendants of `#candidate-form`; stop bubbling submit.
+    e.stopPropagation()
+    await submitUniversity()
   }
 
   const handleCancel = () => {
@@ -720,7 +726,7 @@ export function UniversityCreationDialog({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            <form onSubmit={handleSubmit} className="space-y-4" id="university-form">
+            <form onSubmit={handleSubmit} className="space-y-4" id={formId}>
               
               {/* Basic Information Section */}
               <Collapsible 
@@ -1132,10 +1138,10 @@ export function UniversityCreationDialog({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              form="university-form"
+            <Button
+              type="button"
               disabled={isLoading}
+              onClick={() => void submitUniversity()}
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

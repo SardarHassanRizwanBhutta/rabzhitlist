@@ -95,8 +95,9 @@ export function EmployerOfficeLocationCreateDialog({
     [countries],
   )
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const formId = React.useId().replace(/:/g, "")
+
+  const submitCreate = async () => {
     const nextErrors: { country?: string; city?: string } = {}
     if (!country.trim()) nextErrors.country = "Country is required"
     if (!city.trim()) nextErrors.city = "City is required"
@@ -137,13 +138,20 @@ export function EmployerOfficeLocationCreateDialog({
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    // Portaled dialog forms are still React descendants of `#candidate-form`; stop bubbling submit.
+    e.stopPropagation()
+    await submitCreate()
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add office location</DialogTitle>
         </DialogHeader>
-        <form id="employer-office-location-create-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id={formId} onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Country</Label>
@@ -338,7 +346,7 @@ export function EmployerOfficeLocationCreateDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
-          <Button type="submit" form="employer-office-location-create-form" disabled={submitting}>
+          <Button type="button" disabled={submitting} onClick={() => void submitCreate()}>
             {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Create location
           </Button>

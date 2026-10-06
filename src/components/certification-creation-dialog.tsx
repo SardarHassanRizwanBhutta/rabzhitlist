@@ -118,6 +118,7 @@ export function CertificationCreationDialog({
   const [errors, setErrors] = useState<Partial<Record<keyof CertificationFormData, string>>>({})
   const initialFormDataRef = useRef<CertificationFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const formId = React.useId().replace(/:/g, "")
 
   // Verification state
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
@@ -139,8 +140,15 @@ export function CertificationCreationDialog({
     [issuers]
   )
   useEffect(() => {
-    setIssuerOptions(issuers)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally sync only when issuer list identity (ids) changes
+    setIssuerOptions((prev) => {
+      const byId = new Map<number, CertificationIssuer>()
+      for (const issuer of issuers) byId.set(issuer.id, issuer)
+      for (const issuer of prev) {
+        if (!byId.has(issuer.id)) byId.set(issuer.id, issuer)
+      }
+      return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync when issuer list identity (ids) changes
   }, [issuerIdsKey])
 
   // Issuer creation dialog state
@@ -162,7 +170,7 @@ export function CertificationCreationDialog({
     const wasOpen = prevOpenRef.current
     prevOpenRef.current = open
 
-    if (open) {
+    if (open && !wasOpen) {
       if (mode === "edit" && certificationData) {
         const formDataFromCertification = certificationToFormData(certificationData)
         setFormData(formDataFromCertification)
@@ -194,7 +202,7 @@ export function CertificationCreationDialog({
       if (!showVerification) {
         setVerifiedFields(new Set())
       }
-    } else if (wasOpen) {
+    } else if (!open && wasOpen) {
       setFormData(initialFormData)
       setIssuerSearchQuery("")
       setPendingIssuerWebsiteUrl("")
@@ -205,7 +213,7 @@ export function CertificationCreationDialog({
         setVerifiedFields(new Set())
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- issuers read when open/issuerIdsKey changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- issuers read on open only (not when list updates mid-dialog)
   }, [
     open,
     mode,
@@ -290,6 +298,7 @@ export function CertificationCreationDialog({
       issuerId: newIssuer.id,
       issuerName: newIssuer.name,
     }))
+    setIssuerSearchQuery("")
 
     if (showVerification) {
       setModifiedFields(prev => new Set(prev).add("issuerId"))
@@ -453,9 +462,7 @@ export function CertificationCreationDialog({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const submitCertification = async () => {
     if (!validateForm()) return
 
     setIsLoading(true)
@@ -476,6 +483,13 @@ export function CertificationCreationDialog({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    // Portaled dialog forms are still React descendants of `#candidate-form`; stop bubbling submit.
+    e.stopPropagation()
+    await submitCertification()
   }
 
   const handleCancel = () => {
@@ -557,7 +571,7 @@ export function CertificationCreationDialog({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            <form onSubmit={handleSubmit} className="space-y-4" id="certification-form">
+            <form onSubmit={handleSubmit} className="space-y-4" id={formId}>
 
               <Collapsible
                 open={expandedSections.has("basic-info")}
@@ -752,9 +766,9 @@ export function CertificationCreationDialog({
               Cancel
             </Button>
             <Button
-              type="submit"
-              form="certification-form"
+              type="button"
               disabled={isLoading}
+              onClick={() => void submitCertification()}
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

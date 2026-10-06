@@ -313,6 +313,7 @@ export function EmployerCreationDialog({
   }>({})
   const initialFormDataRef = useRef<EmployerFormData | null>(null)
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const formId = React.useId().replace(/:/g, "")
   
   // Verification state
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set())
@@ -918,9 +919,7 @@ export function EmployerCreationDialog({
     })
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const submitEmployer = async () => {
     if (!validateForm()) {
       return
     }
@@ -928,10 +927,10 @@ export function EmployerCreationDialog({
     setIsLoading(true)
     try {
       // Include verification state if in verification mode
-      const verificationState: EmployerVerificationState | undefined = showVerification 
+      const verificationState: EmployerVerificationState | undefined = showVerification
         ? { verifiedFields, modifiedFields }
         : undefined
-        
+
       const result = await onSubmit?.(formData, verificationState)
       if (result && typeof result === "object" && "id" in result && "name" in result) {
         onSuccess?.(result as { id: number; name: string })
@@ -958,6 +957,13 @@ export function EmployerCreationDialog({
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    // Portaled dialog forms are still React descendants of `#candidate-form`; stop bubbling submit.
+    e.stopPropagation()
+    await submitEmployer()
   }
 
   const handleCancel = () => {
@@ -1044,7 +1050,7 @@ export function EmployerCreationDialog({
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
-            <form onSubmit={handleSubmit} className="space-y-4" id="employer-form">
+            <form onSubmit={handleSubmit} className="space-y-4" id={formId}>
               
               {/* Basic Information Section */}
               <Collapsible 
@@ -1995,10 +2001,10 @@ export function EmployerCreationDialog({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              form="employer-form"
+            <Button
+              type="button"
               disabled={isLoading}
+              onClick={() => void submitEmployer()}
               className="transition-all duration-200 ease-in-out hover:scale-[1.02] hover:shadow-sm cursor-pointer disabled:hover:scale-100 disabled:hover:shadow-none"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
