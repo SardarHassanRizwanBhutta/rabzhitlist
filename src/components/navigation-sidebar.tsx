@@ -3,7 +3,18 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, UserCog, UserRound, FolderOpen, Building2, Award, GraduationCap, LayoutDashboard, Trophy } from "lucide-react"
+import {
+  Users,
+  UserCog,
+  UserRound,
+  FolderOpen,
+  Building2,
+  Award,
+  GraduationCap,
+  LayoutDashboard,
+  Trophy,
+  Library,
+} from "lucide-react"
 import { GlobalFilterDialog } from "@/components/global-filter-dialog"
 import { AuthUserMenu } from "@/components/auth-user-menu"
 import { useNavigationAccess } from "@/components/role-route-guard"
@@ -150,6 +161,34 @@ function isNavItemActive(pathname: string, url: string): boolean {
   return pathname === url || pathname.startsWith(`${url}/`)
 }
 
+function CatalogNavItem({ pathname }: { pathname: string }) {
+  const mergeActive =
+    pathname === "/catalog/merge-technologies" || pathname.startsWith("/catalog/merge-technologies/")
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={mergeActive}
+        tooltip="Catalog maintenance and merge tools"
+        className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
+      >
+        <Link href="/catalog/merge-technologies" className="font-medium">
+          <Library className="size-4" />
+          <span>Catalog</span>
+        </Link>
+      </SidebarMenuButton>
+      <SidebarMenuSub>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={mergeActive}>
+            <Link href="/catalog/merge-technologies">Merge technologies</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+      </SidebarMenuSub>
+    </SidebarMenuItem>
+  )
+}
+
 function ProjectsNavItem({
   item,
   pathname,
@@ -185,7 +224,7 @@ function ProjectsNavItem({
 
 function AppSidebar() {
   const pathname = usePathname()
-  const { canShowNavItem } = useNavigationAccess()
+  const { canShowNavItem, canAccessCatalog } = useNavigationAccess()
   const visibleItems = navigationItems.filter((item) => canShowNavItem(item.url))
 
   return (
@@ -228,6 +267,7 @@ function AppSidebar() {
               </SidebarMenuItem>
             )
           })}
+          {canAccessCatalog ? <CatalogNavItem pathname={pathname} /> : null}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>

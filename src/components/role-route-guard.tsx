@@ -4,6 +4,7 @@ import * as React from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import {
+  canAccessCatalog,
   canAccessDashboard,
   canAccessMentors,
   canAccessUsersAdmin,
@@ -16,6 +17,7 @@ const RECRUITER_BLOCKED_PATHS = new Set(["/"])
 function isRecruiterBlockedPath(pathname: string): boolean {
   if (RECRUITER_BLOCKED_PATHS.has(pathname)) return true
   if (pathname === "/users" || pathname.startsWith("/users/")) return true
+  if (pathname === "/catalog" || pathname.startsWith("/catalog/")) return true
   return false
 }
 
@@ -56,8 +58,9 @@ export function useNavigationAccess() {
     if (url === "/users") return canAccessUsersAdmin(role)
     if (url === "/") return canAccessDashboard(role)
     if (url === "/mentors") return canAccessMentors(role)
+    if (url === "/catalog") return canAccessCatalog(role)
     return true
   }
 
-  return { canShowNavItem, role }
+  return { canShowNavItem, canAccessCatalog: canAccessCatalog(role), role }
 }

@@ -24,6 +24,11 @@ export function canAccessDashboard(role: UserRoleType | undefined | null): boole
   return isAdminOrAbove(role)
 }
 
+/** Catalog tools (e.g. merge technologies). Super Admin and Admin only. */
+export function canAccessCatalog(role: UserRoleType | undefined | null): boolean {
+  return isAdminOrAbove(role)
+}
+
 /** Mentors directory. Super Admin, Admin, and Recruiter. */
 export function canAccessMentors(role: UserRoleType | undefined | null): boolean {
   return isAdminOrAbove(role) || isRecruiter(role)
