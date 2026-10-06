@@ -87,9 +87,9 @@ export function IssuerCreationDialog({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const formId = React.useId().replace(/:/g, "")
 
+  const submitCreate = async () => {
     if (!validateForm()) return
 
     setIsLoading(true)
@@ -106,6 +106,13 @@ export function IssuerCreationDialog({
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    // Portaled dialog forms are still React descendants of `#candidate-form`; stop bubbling submit.
+    e.stopPropagation()
+    await submitCreate()
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[420px] [&>button]:cursor-pointer">
@@ -113,7 +120,7 @@ export function IssuerCreationDialog({
           <DialogTitle>Create New Issuer</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4" id="issuer-form">
+        <form onSubmit={handleSubmit} className="space-y-4" id={formId}>
           <div className="space-y-2">
             <Label htmlFor="issuerName">Issuer Name *</Label>
             <Input
@@ -157,9 +164,9 @@ export function IssuerCreationDialog({
             Cancel
           </Button>
           <Button
-            type="submit"
-            form="issuer-form"
+            type="button"
             disabled={isLoading}
+            onClick={() => void submitCreate()}
             className="cursor-pointer"
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

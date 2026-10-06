@@ -1,0 +1,38 @@
+---
+description: Nested create dialogs inside CandidateCreationDialog must not submit #candidate-form.
+globs:
+  - src/components/candidate-creation-dialog.tsx
+  - src/components/**/*creation-dialog*.tsx
+  - src/components/candidates/**/*create*.tsx
+  - src/components/**/*-combobox.tsx
+alwaysApply: false
+---
+
+# Nested create dialogs under `#candidate-form`
+
+`CandidateCreationDialog` wraps most fields in `<form id="candidate-form">`. Comboboxes and sections mount **nested create dialogs** (employer, project, university, campus, office location, certification, issuer, etc.).
+
+Radix `Dialog` **portals** content to `document.body`, but in the **React tree** those dialogs remain **descendants** of `#candidate-form`. A nested `<form>` submit (or a misplaced `type="submit"`) can **bubble in React** and run the candidate `onSubmit`, closing the dialog and firing **Create Candidate**.
+
+## Required pattern for new nested create flows
+
+1. **Extract** create logic into e.g. `submitX()` (no `FormEvent` required for the primary button).
+2. **Nested form** `onSubmit`: `e.preventDefault()` and **`e.stopPropagation()`**, then call `submitX()`.
+3. **Primary action button**: `type="button"` with `onClick={() => void submitX()}` — do **not** use `type="submit"` + `form="…"` unless the button and form are guaranteed isolated from the candidate React subtree (they are not, when rendered from comboboxes inside `#candidate-form`).
+4. **Form id**: `const formId = React.useId().replace(/:/g, "")` when multiple instances can mount.
+5. **Parent guard** (already on candidate): `handleSubmit` ignores events where `e.target !== e.currentTarget`. Do not rely on this alone — nested dialogs must still stop propagation.
+
+## Dialog-only creates (no `<form>`)
+
+Prefer `type="button"` handlers (see `MentorCreationDialog`, `BenefitsSelector` custom benefit). If you add a `<form>`, follow the pattern above.
+
+## Dialog open effects
+
+Do **not** reset nested dialog form state when a **lookup prop** changes while the dialog stays open (e.g. after `onIssuerCreated` updates issuers). Initialize only on **open transition** (`open && !wasOpen`).
+
+## Reference implementations
+
+- `employer-office-location-create-dialog.tsx`
+- `university-campus-location-create-dialog.tsx`
+- `university-creation-dialog.tsx`, `employer-creation-dialog.tsx`, `project-creation-dialog.tsx`
+- `certification-creation-dialog.tsx`, `issuer-creation-dialog.tsx`

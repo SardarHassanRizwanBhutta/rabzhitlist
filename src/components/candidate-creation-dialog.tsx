@@ -2972,9 +2972,13 @@ export function CandidateCreationDialog({
     return isValid
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    
+    // Nested create dialogs portal in the DOM but remain React children of `#candidate-form`; ignore their submit bubble.
+    if (e.target !== e.currentTarget) {
+      return
+    }
+
     if (!validateForm()) {
       return
     }
@@ -3286,6 +3290,7 @@ export function CandidateCreationDialog({
         )}
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-6">
+          {/* Nested create dialogs (portaled) stay React children of this form — see .cursor/rules/candidate-nested-dialog-forms.mdc */}
           <form id="candidate-form" onSubmit={handleSubmit} className="space-y-6">
           {unresolvedCatalogRefs.length > 0 ? (
             <Card className="border-amber-200/90 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/25">
