@@ -208,6 +208,11 @@ export function ProjectModulesSection({ modules }: ProjectModulesSectionProps) {
               <CardTitle className="flex items-center gap-2 text-base">
                 <Layers className="size-5" />
                 Modules
+                {modules.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {modules.length}
+                  </Badge>
+                )}
               </CardTitle>
               {open ? (
                 <ChevronDown className="size-4 text-muted-foreground" />

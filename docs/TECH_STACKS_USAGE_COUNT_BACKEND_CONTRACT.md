@@ -26,8 +26,8 @@ These were confirmed by product on **2026-08-10**:
 
 | # | Topic | Decision |
 |---|--------|----------|
-| **L1** | **What “used” means (global list)** | `usageCount` = **count of distinct candidates** referencing the stack **plus** **count of distinct projects** referencing the stack. **Not** a raw sum of junction-table rows. **Not** employer usage. |
-| **L2** | **Scoped list formula** | For `GET /api/TechStacks?technicalAspectTypeId=T`, **`usageCount` = distinct projects** using stack `S` where `S` is catalog-linked to aspect type `T` (**Option A**). Candidate usage does **not** affect scoped counts. |
+| **L1** | **What “used” means (global list)** | `usageCount` = **distinct candidates** (top-level ∪ work-experience links; each candidate once, **L8**) **plus** **distinct project-side** usage: `COUNT(DISTINCT project_id)` from **`project_tech_stacks`** (non-deleted projects) **∪** **`project_module_tech_stacks`** rolled up to parent **`project_id`** (non-deleted projects). A stack on a project **and** on a module of that project counts **once** on the project side. **Not** employer usage. See `TECH_STACK_MERGE_BACKEND_CONTRACT.md` §5.3. |
+| **L2** | **Scoped list formula** | **Option A** filter unchanged. Scoped **`usageCount`** = same **distinct `project_id`** union as **L1** (project stacks ∪ module stacks → parent project), with **`technical_aspect_type_tech_stacks`** requiring stack **S** linked to aspect **T**. Candidates do **not** affect scoped counts. See `TECH_STACK_MERGE_BACKEND_CONTRACT.md` §5.4 (**M14**). |
 | **L7** | **Soft delete** | **Exclude** links on soft-deleted candidates and projects (`DeletedAt IS NULL` on parent entity). |
 | **L8** | **Candidate dedupe** | Each candidate counts **at most once** per stack globally, even if linked via top-level `candidate_tech_stacks` and/or multiple `candidate_work_experience_tech_stacks` rows. |
 | **L3** | **Zero usage** | Stacks with `usageCount = 0` **remain in the response** and sort **last**. |
@@ -126,13 +126,19 @@ distinct_candidates(S) =
       WHERE wets.tech_stack_id = S AND c.DeletedAt IS NULL
   ) u)
 
-distinct_projects(S) =
-  COUNT(DISTINCT pts.project_id
-        FROM project_tech_stacks pts
-        INNER JOIN projects p ON p.id = pts.project_id
-        WHERE pts.tech_stack_id = S AND p.DeletedAt IS NULL)
+distinct_project_side(S) =
+  COUNT(DISTINCT project_id FROM (
+    SELECT pts.project_id FROM project_tech_stacks pts
+      INNER JOIN projects p ON p.id = pts.project_id
+      WHERE pts.tech_stack_id = S AND p.deleted_at IS NULL
+    UNION
+    SELECT pm.project_id FROM project_module_tech_stacks pmts
+      INNER JOIN project_modules pm ON pm.id = pmts.module_id
+      INNER JOIN projects p ON p.id = pm.project_id
+      WHERE pmts.tech_stack_id = S AND p.deleted_at IS NULL
+  ) u)
 
-usageCount_global(S) = distinct_candidates(S) + distinct_projects(S)
+usageCount_global(S) = distinct_candidates(S) + distinct_project_side(S)
 ```
 
 **L8:** `distinct_candidates` uses **UNION** across top-level and work-experience links — never sum the two sources separately.
@@ -143,7 +149,8 @@ usageCount_global(S) = distinct_candidates(S) + distinct_projects(S)
 |------------|---------------------------|----------------|
 | Candidate → Independent Tech Stacks | `candidate_tech_stacks` | Distinct **candidate** |
 | Work Experience → Tech Stacks | `candidate_work_experience_tech_stacks` (alias: `work_experience_tech_stacks` in some docs) | Distinct **candidate** (via `work_experience.candidate_id`) |
-| Project → Tech Stacks | `project_tech_stacks` | Distinct **project** |
+| Project → Tech Stacks | `project_tech_stacks` | **Project-side** union (distinct `project_id`) |
+| Project module → Tech Stacks | `project_module_tech_stacks` | **Project-side** union (rolled up to parent `project_id`; same project + module → once) |
 | Employer → Tech Stacks | `employer_tech_stacks` | **Excluded (L6)** |
 
 **Not a separate dimension:** work experience is **not** added as its own counter; it rolls up to **distinct candidate** per L1.
@@ -165,14 +172,20 @@ usageCount_global(S) = distinct_candidates(S) + distinct_projects(S)
 
 ```text
 usageCount_scoped(S, T) =
-  COUNT(DISTINCT pts.project_id
-        FROM project_tech_stacks pts
-        INNER JOIN projects p ON p.id = pts.project_id
-        INNER JOIN technical_aspect_type_tech_stacks tats
-          ON tats.tech_stack_id = pts.tech_stack_id
-         AND tats.technical_aspect_type_id = T
-        WHERE pts.tech_stack_id = S
-          AND p.DeletedAt IS NULL)
+  COUNT(DISTINCT project_id FROM (
+    SELECT pts.project_id FROM project_tech_stacks pts
+      INNER JOIN projects p ON p.id = pts.project_id
+      INNER JOIN technical_aspect_type_tech_stacks tats
+        ON tats.tech_stack_id = S AND tats.technical_aspect_type_id = T
+      WHERE pts.tech_stack_id = S AND p.deleted_at IS NULL
+    UNION
+    SELECT pm.project_id FROM project_module_tech_stacks pmts
+      INNER JOIN project_modules pm ON pm.id = pmts.module_id
+      INNER JOIN projects p ON p.id = pm.project_id
+      INNER JOIN technical_aspect_type_tech_stacks tats
+        ON tats.tech_stack_id = S AND tats.technical_aspect_type_id = T
+      WHERE pmts.tech_stack_id = S AND p.deleted_at IS NULL
+  ) u)
 ```
 
 **Response filter:** only stacks where ∃ row in `technical_aspect_type_tech_stacks` with `(tech_stack_id = S, technical_aspect_type_id = T)`.
@@ -229,7 +242,8 @@ Maintain counts in **application services** (same layer as candidate/project/sta
 |-------|----------------|----------------------------------|
 | Insert/delete `candidate_tech_stacks` | Recompute or ±1 distinct candidate for stack (respect L8 union) | — |
 | Insert/delete `candidate_work_experience_tech_stacks` | ±1 distinct candidate for stack (respect L8 union) | — |
-| Insert/delete `project_tech_stacks` | ±1 distinct project for stack | ±1 per aspect type linked to that stack |
+| Insert/delete `project_tech_stacks` | Recompute **project-side** union for stack | Recompute scoped **project-side** union per aspect type linked to that stack |
+| Insert/delete/replace `project_module_tech_stacks` | Same as project stacks (project-side union) | Same |
 | Insert/delete `technical_aspect_type_tech_stacks` | — | Rebuild scoped rows for affected stack |
 | Soft-delete / restore candidate | Decrement/increment if link removed/restored | Same for project path |
 | Hard-delete candidate/project | Junction CASCADE removes links → decrement | Same |
@@ -258,7 +272,7 @@ Maintain counts in **application services** (same layer as candidate/project/sta
 
 | Link change | Recommended update |
 |-------------|-------------------|
-| `project_tech_stacks` insert/delete | ±1 global project count; ±1 scoped count per aspect type linked to that stack |
+| `project_tech_stacks` / `project_module_tech_stacks` insert/delete/replace | **`RebuildForStack`** for affected stack ids (project-side union + L8 candidates) |
 | `candidate_tech_stacks` / WE stacks diff | Collect affected `tech_stack_id`s → **`RebuildForStack` for each** (simplest correct L8 union), **or** maintain incremental first/last-link tracking if team prefers micro-optimization |
 | Soft-delete / restore parent | Same hooks as link removal/addition |
 | Bulk import / migration | `RebuildAll()` once at end of batch |
@@ -375,49 +389,4 @@ GET /api/TechStacks?technicalAspectTypeId=3
 
 ---
 
-## 14. Backend implementation status (2026-08-13)
-
-**Shipped** per this contract. Summary from backend team:
-
-### API
-
-| Endpoint | Behavior |
-|----------|----------|
-| `GET /api/TechStacks` | `{ id, name, usageCount }[]`; pre-sorted `usageCount DESC`, `name ASC` (L10) |
-| `GET /api/TechStacks?technicalAspectTypeId=` | Scoped project-only counts (L2 Option A); same sort |
-| `POST /api/TechStacks` | **New** stack → `usageCount: 0` (L9). **Dedupe-by-name** (existing stack) → returns **actual** `usageCount` (expected; not a new stack) |
-| `POST /api/TechStacks/rebuild-usage-counts` | Manual repair |
-
-### Semantics
-
-- Global (L1, L7, L8): UNION-distinct active candidates (top-level + WE) + distinct active projects; employers excluded; soft-deleted parents excluded; one candidate once per stack.
-- Scoped (L2): distinct active projects only; candidate usage ignored.
-
-### Storage & freshness (L5, L12)
-
-| Artifact | Notes |
-|----------|-------|
-| Migration `20260813120000_AddTechStackUsageCounts` | `tech_stacks.global_usage_count`, `tech_stack_aspect_type_usage` |
-| Deploy backfill | SQL backfill on migration |
-| Write hooks | Rebuild affected stacks after candidate / project / stack link changes |
-| `TechStackUsageReconciliationHostedService` | **Nightly + startup** `RebuildAll` (startup rebuild is additive vs contract; acceptable drift repair) |
-
-### Frontend readiness
-
-FE **requires no deploy** for basic integration:
-
-- `fetchTechStacks()` normalizes `usageCount` and sorts (`src/lib/utils/tech-stack-lookup.ts`, `lookups-api.ts`).
-- Missing `usageCount` still defaults to `0` (backward compat).
-- `createTechStack()` POST response `{ id, name, usageCount? }` is merged into page lookup state at runtime even though the TS return type is still `LookupItem`.
-
-### Suggested manual QA (FE)
-
-1. Open **Create Candidate** → Tech Stacks dropdown — popular stacks near top.
-2. Open **Create Project** → pick aspect type → Technologies — order may differ from global (scoped counts).
-3. **Add technology** (new name) — appears at bottom until used.
-4. **Add technology** (existing name, dedupe) — existing row retained with real usage rank.
-5. Save candidate/project with new stack link → refresh/reopen dialog → stack moved up without waiting for nightly job.
-
----
-
-*Document version: 2026-08-13 (backend shipped; §14 added).*
+*Document version: 2026-08-13 (L9–L12 locked; all decisions closed).*
