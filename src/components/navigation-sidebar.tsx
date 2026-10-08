@@ -162,14 +162,19 @@ function isNavItemActive(pathname: string, url: string): boolean {
 }
 
 function CatalogNavItem({ pathname }: { pathname: string }) {
-  const mergeActive =
-    pathname === "/catalog/merge-technologies" || pathname.startsWith("/catalog/merge-technologies/")
+  const techMergeActive =
+    pathname === "/catalog/merge-technologies" ||
+    pathname.startsWith("/catalog/merge-technologies/")
+  const tszMergeActive =
+    pathname === "/catalog/merge-time-support-zones" ||
+    pathname.startsWith("/catalog/merge-time-support-zones/")
+  const catalogActive = techMergeActive || tszMergeActive
 
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        isActive={mergeActive}
+        isActive={catalogActive}
         tooltip="Catalog maintenance and merge tools"
         className="transition-all duration-200 ease-in-out hover:scale-[1.02]"
       >
@@ -180,8 +185,13 @@ function CatalogNavItem({ pathname }: { pathname: string }) {
       </SidebarMenuButton>
       <SidebarMenuSub>
         <SidebarMenuSubItem>
-          <SidebarMenuSubButton asChild isActive={mergeActive}>
+          <SidebarMenuSubButton asChild isActive={techMergeActive}>
             <Link href="/catalog/merge-technologies">Merge technologies</Link>
+          </SidebarMenuSubButton>
+        </SidebarMenuSubItem>
+        <SidebarMenuSubItem>
+          <SidebarMenuSubButton asChild isActive={tszMergeActive}>
+            <Link href="/catalog/merge-time-support-zones">Merge time support zones</Link>
           </SidebarMenuSubButton>
         </SidebarMenuSubItem>
       </SidebarMenuSub>

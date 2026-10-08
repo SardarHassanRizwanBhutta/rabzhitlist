@@ -27,6 +27,10 @@ import {
   fetchTimeSupportZones,
   createTimeSupportZone,
 } from "@/lib/services/tags-timesupportzones-api"
+import {
+  mergeTimeSupportZoneIntoCatalog,
+  timeSupportZoneLookupItemsToMultiSelectOptions,
+} from "@/lib/utils/time-support-zone-lookup"
 import { fetchAwards, createAward } from "@/lib/services/awards-api"
 import { fetchBenefits, createBenefit } from "@/lib/services/benefits-api"
 import type { EmployerBenefit } from "@/lib/types/benefits"
@@ -350,8 +354,8 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   }, [pageNumber, pageSize, combinedFilters, countries, timeSupportZonesLookup, awardsLookup, clientLocationsLookup, createdByUserId])
 
   const timeSupportZoneFilterOptions = useMemo(
-    () => timeSupportZonesLookup.map((z) => ({ value: z.name, label: z.name })),
-    [timeSupportZonesLookup]
+    () => timeSupportZoneLookupItemsToMultiSelectOptions(timeSupportZonesLookup),
+    [timeSupportZonesLookup],
   )
 
   const awardFilterOptions = useMemo(
@@ -435,7 +439,7 @@ export function EmployersPageClient({ employers: initialEmployers = [] }: Employ
   const handleCreateTimeSupportZone = useCallback(async (name: string) => {
     try {
       const created = await createTimeSupportZone(name)
-      setTimeSupportZonesLookup((prev) => [...prev.filter((l) => l.id !== created.id && l.name !== created.name), created])
+      setTimeSupportZonesLookup((prev) => mergeTimeSupportZoneIntoCatalog(prev, created))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to add time zone")
     }

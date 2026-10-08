@@ -28,6 +28,7 @@ import {
 import { Filter, CalendarIcon, X, ChevronsUpDown, Check, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
+import { timeSupportZoneLookupItemsToMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { sampleCandidates } from "@/lib/sample-data/candidates"
@@ -658,8 +659,8 @@ export function CandidatesFilterDialog({
   ])
 
   const timeSupportZoneFilterOptions = useMemo<MultiSelectOption[]>(
-    () => timeSupportZones.map((z) => ({ value: z.name, label: z.name })),
-    [timeSupportZones]
+    () => timeSupportZoneLookupItemsToMultiSelectOptions(timeSupportZones),
+    [timeSupportZones],
   )
 
   /** Same pattern as ProjectsFilterDialog: API lookup names, fallback to sample project strings. */

@@ -48,6 +48,7 @@ import {
   createTimeSupportZone,
   fetchTimeSupportZones,
 } from "@/lib/services/tags-timesupportzones-api"
+import { mergeTimeSupportZoneIntoCatalog } from "@/lib/utils/time-support-zone-lookup"
 import type { LookupItem } from "@/lib/services/lookups-api"
 import type { Country } from "@/lib/types/country"
 import type { EmployerBenefit } from "@/lib/types/benefits"
@@ -188,7 +189,7 @@ export function MentorsPageClient() {
       },
       onCreateTimeSupportZone: async (name: string) => {
         const created = await createTimeSupportZone(name)
-        setTimeSupportZones((prev) => [...prev.filter((item) => item.id !== created.id), created])
+        setTimeSupportZones((prev) => mergeTimeSupportZoneIntoCatalog(prev, created))
       },
       onCreateAward: async (name: string) => {
         const created = await createAward(name)

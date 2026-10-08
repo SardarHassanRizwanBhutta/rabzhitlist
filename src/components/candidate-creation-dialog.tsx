@@ -166,6 +166,7 @@ import { ResumeOpenButton } from "@/components/candidates/resume-open-button"
 import { formatResumeFileSize } from "@/lib/utils/candidate-resume"
 import { format } from "date-fns"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
+import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
 
 /** Lookups from backend for candidate form dropdowns (aligned with employer/project dialogs). */
 export interface CandidateLookups {
@@ -1420,19 +1421,14 @@ export function CandidateCreationDialog({
     return names
   }, [formData.workExperiences])
 
-  const timeSupportZoneOptions: MultiSelectOption[] = useMemo(() => {
-    const byValue = new Map<string, MultiSelectOption>()
-    for (const l of lookups?.timeSupportZones ?? []) {
-      if (l?.name?.trim()) {
-        const n = l.name.trim()
-        byValue.set(n, { value: n, label: n })
-      }
-    }
-    selectedTimeSupportZoneNames.forEach((name) => {
-      if (!byValue.has(name)) byValue.set(name, { value: name, label: name })
-    })
-    return Array.from(byValue.values()).sort((a, b) => a.label.localeCompare(b.label))
-  }, [lookups?.timeSupportZones, selectedTimeSupportZoneNames])
+  const timeSupportZoneOptions: MultiSelectOption[] = useMemo(
+    () =>
+      buildTimeSupportZoneMultiSelectOptions(
+        lookups?.timeSupportZones ?? [],
+        selectedTimeSupportZoneNames,
+      ),
+    [lookups?.timeSupportZones, selectedTimeSupportZoneNames],
+  )
 
   const degreeOptions: ComboboxOption[] = useMemo(() => {
     const byValue = new Map<string, ComboboxOption>()

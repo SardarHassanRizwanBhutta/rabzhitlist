@@ -150,6 +150,7 @@ import {
 import { fetchTechStacks, type LookupItem } from "@/lib/services/lookups-api"
 import { useScrollSpySection } from "@/hooks/use-scroll-spy-section"
 import { buildTechStackMultiSelectOptions } from "@/lib/utils/tech-stack-lookup"
+import { buildTimeSupportZoneMultiSelectOptions } from "@/lib/utils/time-support-zone-lookup"
 import { fetchTimeSupportZones } from "@/lib/services/tags-timesupportzones-api"
 import { fetchAwards } from "@/lib/services/awards-api"
 import { fetchBenefits } from "@/lib/services/benefits-api"
@@ -473,6 +474,40 @@ function mergeMultiSelectOptions(
     byKey.set(key, { value: trimmed, label: trimmed })
   }
   return Array.from(byKey.values()).sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/** Same union as {@link mergeMultiSelectOptions} but keeps `options` array order (for usage-sorted catalogs). */
+function mergeMultiSelectOptionsPreserveOrder(
+  options: MultiSelectOption[],
+  selectedNames: Iterable<string>,
+): MultiSelectOption[] {
+  const byKey = new Map<string, MultiSelectOption>()
+  const order: string[] = []
+
+  const push = (option: MultiSelectOption) => {
+    const k = normalizeMultiSelectKey(option.value)
+    if (!k || byKey.has(k)) return
+    byKey.set(k, option)
+    order.push(k)
+  }
+
+  for (const o of options) {
+    push(o)
+  }
+  for (const raw of selectedNames) {
+    const trimmed = raw?.trim()
+    if (!trimmed) continue
+    const key = normalizeMultiSelectKey(trimmed)
+    if (byKey.has(key)) continue
+    const existing = findMultiSelectOptionMatch(trimmed, options)
+    if (existing) {
+      push(existing)
+      continue
+    }
+    push({ value: trimmed, label: trimmed })
+  }
+
+  return order.map((k) => byKey.get(k)!)
 }
 
 /** Map stored names to option `value` strings so MultiSelect pre-selects correctly. */
@@ -1513,6 +1548,8 @@ interface InlineEditableMultiSelectProps {
   creatable?: boolean
   createLabel?: string
   onCreateNew?: (value: string) => void
+  /** When true, merged dropdown order follows `options` (e.g. usage-sorted TSZ catalog). */
+  preserveMergedOptionOrder?: boolean
 }
 
 const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
@@ -1530,7 +1567,8 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   maxDisplay = 5,
   creatable = false,
   createLabel,
-  onCreateNew
+  onCreateNew,
+  preserveMergedOptionOrder = false,
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState<string[]>(value || [])
@@ -1540,8 +1578,11 @@ const InlineEditableMultiSelect: React.FC<InlineEditableMultiSelectProps> = ({
   const [isExpanded, setIsExpanded] = useState(false)
 
   const mergedOptions = useMemo(
-    () => mergeMultiSelectOptions(options, value ?? []),
-    [options, value]
+    () =>
+      preserveMergedOptionOrder
+        ? mergeMultiSelectOptionsPreserveOrder(options, value ?? [])
+        : mergeMultiSelectOptions(options, value ?? []),
+    [options, value, preserveMergedOptionOrder],
   )
 
   const resolvedValue = useMemo(
@@ -4397,16 +4438,14 @@ export function CandidateDetailsModal({
     return buildTechStackMultiSelectOptions(apiTechStacks, extraNames)
   }, [apiTechStacks, extraTechStackOptions, resolvedCandidate])
 
-  const timeSupportZoneOptions = useMemo(() => {
-    const catalogOptions: MultiSelectOption[] = apiTimeSupportZones
-      .filter((l) => l?.name?.trim())
-      .map((l) => {
-        const n = l.name.trim()
-        return { value: n, label: n }
-      })
-    const selectedNames = collectWorkExperienceTimeSupportZoneNames(resolvedCandidate)
-    return mergeMultiSelectOptions(catalogOptions, selectedNames)
-  }, [apiTimeSupportZones, resolvedCandidate])
+  const timeSupportZoneOptions = useMemo(
+    () =>
+      buildTimeSupportZoneMultiSelectOptions(
+        apiTimeSupportZones,
+        collectWorkExperienceTimeSupportZoneNames(resolvedCandidate),
+      ),
+    [apiTimeSupportZones, resolvedCandidate],
+  )
 
   const employerCreateLookups = useMemo<BuildCreateEmployerDtoOptions>(
     () => ({
@@ -7212,6 +7251,7 @@ export function CandidateDetailsModal({
                               value={experience.timeSupportZones || []}
                               fieldName={`workExperiences[${idx}].timeSupportZones`}
                               options={timeSupportZoneOptions}
+                              preserveMergedOptionOrder
                               onSave={async (_fieldName, newValue, shouldVerify) => {
                                 await handleWorkExperienceTimeSupportZonesSave(
                                   idx,
